@@ -4,6 +4,12 @@ ClickHouse JSON function factories.
 
 Functions: json_extract, json_unquote, json_object, json_array, json_contains,
 json_set, json_remove, json_type, json_valid, json_search
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import Union, Optional, Any, TYPE_CHECKING

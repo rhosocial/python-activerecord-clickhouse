@@ -3,6 +3,12 @@
 ClickHouse SET and Enum type function factories.
 
 Functions: find_in_set, elt, field
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import Union, Any, TYPE_CHECKING

@@ -12,7 +12,7 @@ from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
 
 class ClickHouseBlobAdapter(SQLTypeAdapter):
     """
-    Adapts Python bytes to ClickHouse BLOB and vice-versa.
+    Adapts Python bytes to ClickHouse String (used for binary data) and vice-versa.
     """
 
     @property
@@ -39,8 +39,12 @@ class ClickHouseBlobAdapter(SQLTypeAdapter):
 
 class ClickHouseJSONAdapter(SQLTypeAdapter):
     """
-    Adapts Python dict/list to ClickHouse JSON and vice-versa.
-    Serializes to JSON string when writing, deserializes from JSON string when reading.
+    Adapts Python dict/list to ClickHouse JSON or String type and vice-versa.
+
+    ClickHouse has a native JSON type (accepts dict) and also supports storing
+    JSON as String. This adapter serializes to JSON string for write operations
+    (compatible with both JSON and String columns) and deserializes from JSON
+    string when reading.
     """
 
     @property
@@ -50,7 +54,7 @@ class ClickHouseJSONAdapter(SQLTypeAdapter):
     def to_database(self, value: Union[dict, list], target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
         if value is None:
             return None
-        # ClickHouse JSON type often stores as TEXT, so we serialize to string
+        # ClickHouse JSON/String columns store JSON as a string, so we serialize
         return json.dumps(value, ensure_ascii=False)
 
     def from_database(
@@ -90,7 +94,10 @@ class ClickHouseUUIDAdapter(SQLTypeAdapter):
 
 class ClickHouseBooleanAdapter(SQLTypeAdapter):
     """
-    Adapts Python bool to ClickHouse TINYINT(1) (or similar integer type) and vice-versa.
+    Adapts Python bool to ClickHouse Bool and vice-versa.
+
+    ClickHouse Bool is natively backed by Python bool. The adapter also accepts
+    the integer 0/1 representation (e.g. UInt8 columns) for compatibility.
     """
 
     @property
@@ -100,6 +107,7 @@ class ClickHouseBooleanAdapter(SQLTypeAdapter):
     def to_database(self, value: bool, target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
         if value is None:
             return None
+        # bool -> int conversion is optional but keeps compatibility with UInt8 columns
         return 1 if value else 0
 
     def from_database(
@@ -111,7 +119,7 @@ class ClickHouseBooleanAdapter(SQLTypeAdapter):
     ) -> Optional[bool]:
         if value is None:
             return None
-        # ClickHouse returns int (0 or 1) for TINYINT(1)
+        # ClickHouse Bool is natively bool; 0/1 ints (e.g. from UInt8) are also accepted
         return bool(value)
 
 
@@ -259,23 +267,24 @@ class ClickHouseDatetimeAdapter(SQLTypeAdapter):
 
 class ClickHouseEnumAdapter(SQLTypeAdapter):
     """
-    Adapts Python Enum to ClickHouse ENUM type and vice-versa.
+    Adapts Python Enum to ClickHouse Enum8/Enum16 type and vice-versa.
 
-    ClickHouse ENUM stores values as integers internally (1, 2, 3...) but displays as strings.
-    This adapter supports both string and integer representations.
+    ClickHouse Enum8/Enum16 stores enum values as strings natively (with an
+    internal numeric index). This adapter uses the string representation by
+    default for better readability and compatibility.
 
-    By default, uses string representation for better readability and compatibility.
-    Can optionally use ClickHouse's internal integer representation for performance.
+    Can optionally use ClickHouse's internal 1-based integer index for
+    performance (see use_int_storage).
     """
 
     def __init__(self, use_int_storage: bool = False):
         """
-        Initialize ClickHouse ENUM adapter.
+        Initialize ClickHouse Enum adapter.
 
         Args:
-            use_int_storage: If True, uses integer representation when writing to database
-                           (ClickHouse stores ENUM as 1-based index). If False, uses string
-                           representation (default, recommended).
+            use_int_storage: If True, writes using ClickHouse's internal 1-based
+                           integer index for Enum8/Enum16 values. If False, uses
+                           the string representation (default, recommended).
         """
         self._use_int_storage = use_int_storage
 
@@ -288,8 +297,8 @@ class ClickHouseEnumAdapter(SQLTypeAdapter):
         Convert Python Enum to database value.
 
         Supports three scenarios:
-        1. Python Enum -> ClickHouse VARCHAR/TEXT (default): returns string
-        2. Python Enum -> ClickHouse ENUM field: returns string (same as default)
+        1. Python Enum -> ClickHouse String (default): returns string
+        2. Python Enum -> ClickHouse Enum8/Enum16 field: returns string (same as default)
         3. Python Enum -> ClickHouse INT: returns integer (requires use_int_storage or int-based enum)
 
         Args:
@@ -298,7 +307,7 @@ class ClickHouseEnumAdapter(SQLTypeAdapter):
             options: Optional settings:
                 - 'use_int_storage': Override instance setting for this call
                 - 'enum_values': List of allowed values for validation
-                - 'clickhouse_enum_type': Set to True if target field is ClickHouse ENUM type
+                - 'clickhouse_enum_type': Set to True if target field is ClickHouse Enum8/Enum16
                   (no behavioral change, but used for documentation/validation)
 
         Returns:
@@ -317,7 +326,7 @@ class ClickHouseEnumAdapter(SQLTypeAdapter):
             raise ValueError(f"Invalid enum value '{value.value}'. Allowed values: {enum_values}")
 
         # Note: clickhouse_enum_type option doesn't change behavior
-        # because ClickHouse ENUM type accepts and returns strings by default
+        # because ClickHouse Enum8/Enum16 accepts and returns strings by default
         # This option is just for documentation/validation purposes
 
         # Determine which representation to use
@@ -325,12 +334,12 @@ class ClickHouseEnumAdapter(SQLTypeAdapter):
 
         if target_type is str:
             # Default: use string representation (enum member value)
-            # Works for both VARCHAR and ClickHouse ENUM fields
+            # Works for both String and ClickHouse Enum8/Enum16 fields
             return str(value.value)
 
         if target_type is int:
             if use_int:
-                # Use ClickHouse's internal integer index (1-based)
+                # Use ClickHouse's internal 1-based index for Enum8/Enum16
                 # Get the enum class members in definition order
                 enum_members = list(type(value))
                 return enum_members.index(value) + 1
@@ -386,7 +395,7 @@ class ClickHouseEnumAdapter(SQLTypeAdapter):
                 ) from None
 
         if isinstance(value, int):
-            # Try to interpret as ClickHouse ENUM index (1-based)
+            # Try to interpret as ClickHouse Enum8/Enum16 internal index (1-based)
             enum_members = list(target_type)
             if 1 <= value <= len(enum_members):
                 return enum_members[value - 1]
@@ -405,27 +414,9 @@ class ClickHouseEnumAdapter(SQLTypeAdapter):
 
 class ClickHouseSetAdapter(SQLTypeAdapter):
     """
-    Adapts Python set/frozenset to ClickHouse SET type and vice-versa.
-
-    ClickHouse SET is a string object that can have zero or more values,
-    each chosen from a predefined list. Values are stored as integers
-    (bit flags) internally but displayed/queried as comma-separated strings.
-
-    Features:
-    - Maximum 64 members (bit flags in BIGINT)
-    - Values are automatically sorted on storage
-    - Supports FIND_IN_SET and LIKE operations
+    ClickHouse does not have a SET type; this adapter is retained only for
+    compatibility and always fails.
     """
-
-    def __init__(self, allowed_values: Optional[List[str]] = None):
-        """
-        Initialize ClickHouse SET adapter.
-
-        Args:
-            allowed_values: Optional list of allowed SET values for validation.
-                           If None, no validation is performed during conversion.
-        """
-        self._allowed_values = allowed_values
 
     @property
     def supported_types(self) -> Dict[Type, List[Any]]:
@@ -434,89 +425,10 @@ class ClickHouseSetAdapter(SQLTypeAdapter):
     def to_database(
         self, value: Union[set, frozenset], target_type: Type, options: Optional[Dict[str, Any]] = None
     ) -> Any:
-        """
-        Convert Python set/frozenset to ClickHouse SET string.
-
-        Args:
-            value: Python set or frozenset
-            target_type: Target database type (str)
-            options: Optional settings:
-                - 'allowed_values': Override instance allowed values for validation
-
-        Returns:
-            Comma-separated string of sorted values
-
-        Raises:
-            ValueError: If values exceed 64 members or contain invalid values
-            TypeError: If target_type is not str
-        """
-        if value is None:
-            return None
-
-        if target_type is not str:
-            raise TypeError(f"ClickHouse SET adapter only supports str target type, got {target_type.__name__}")
-
-        if len(value) > 64:
-            raise ValueError(f"ClickHouse SET supports maximum 64 members, got {len(value)}")
-
-        # Get allowed values from options or instance
-        allowed_values = options.get("allowed_values", self._allowed_values) if options else self._allowed_values
-
-        if allowed_values is not None:
-            invalid_values = [v for v in value if v not in allowed_values]
-            if invalid_values:
-                raise ValueError(f"Invalid SET values: {invalid_values}. Allowed values: {allowed_values}")
-
-        # ClickHouse automatically sorts SET values on storage
-        sorted_values = sorted(str(v) for v in value)
-        return ",".join(sorted_values) if sorted_values else ""
-
-    def _decode_set_from_int(
-        self, value: int, target_type: Type, allowed_values: Optional[List[str]]
-    ) -> Union[set, frozenset]:
-        """
-        Decode ClickHouse SET from integer bit flags.
-
-        Args:
-            value: Integer bit flags
-            target_type: Target Python type (set or frozenset)
-            allowed_values: List of allowed values for decoding
-
-        Returns:
-            Python set or frozenset
-
-        Raises:
-            ValueError: If allowed_values is not provided
-        """
-        if allowed_values is None:
-            raise ValueError(
-                "Cannot decode SET from integer without allowed_values. "
-                "Provide allowed_values in constructor or options."
-            )
-
-        result = set()
-        for i, val in enumerate(allowed_values):
-            if value & (1 << i):
-                result.add(val)
-
-        return frozenset(result) if target_type is frozenset else result
-
-    def _decode_set_from_string(self, value: str, target_type: Type) -> Union[set, frozenset]:
-        """
-        Decode ClickHouse SET from comma-separated string.
-
-        Args:
-            value: Comma-separated string
-            target_type: Target Python type (set or frozenset)
-
-        Returns:
-            Python set or frozenset
-        """
-        if not value:
-            result = set()
-        else:
-            result = set(value.split(","))
-        return frozenset(result) if target_type is frozenset else result
+        raise NotImplementedError(
+            "ClickHouse does not have a SET type; ClickHouseSetAdapter is retained only for compatibility "
+            "and always fails. Use Array/Tuple columns instead."
+        )
 
     def from_database(
         self,
@@ -525,33 +437,10 @@ class ClickHouseSetAdapter(SQLTypeAdapter):
         options: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Optional[Union[set, frozenset]]:
-        """
-        Convert ClickHouse SET string to Python set/frozenset.
-
-        Args:
-            value: Database value (str or int)
-            target_type: Target Python type (set or frozenset)
-            options: Optional settings (currently unused)
-
-        Returns:
-            Python set or frozenset
-
-        Raises:
-            TypeError: If target_type is not set or frozenset
-        """
-        if value is None:
-            return None
-
-        # Handle integer storage (bit flags)
-        if isinstance(value, int):
-            allowed_values = self._allowed_values or (options.get("allowed_values") if options else None)
-            return self._decode_set_from_int(value, target_type, allowed_values)
-
-        # Handle string storage (comma-separated)
-        if isinstance(value, str):
-            return self._decode_set_from_string(value, target_type)
-
-        raise TypeError(f"Cannot convert {type(value).__name__} to {target_type.__name__}")
+        raise NotImplementedError(
+            "ClickHouse does not have a SET type; ClickHouseSetAdapter is retained only for compatibility "
+            "and always fails. Use Array/Tuple columns instead."
+        )
 
 
 class ClickHouseVectorAdapter(SQLTypeAdapter):

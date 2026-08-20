@@ -6,6 +6,12 @@ Additional mathematical functions beyond the basic math module.
 Includes: round, pow, power, sqrt, mod, ceil, floor, truncate, max, min, avg
 
 Functions: round_, pow, power, sqrt, mod, ceil, floor, trunc, max_, min_, avg
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import Union, TYPE_CHECKING

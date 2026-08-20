@@ -520,6 +520,7 @@ class ClickHouseDialect(
         return False  # ClickHouse does not support UPSERT
 
     def get_upsert_syntax_type(self) -> str:
+        """ClickHouse has no upsert syntax."""
         return "ON DUPLICATE KEY"
 
     def supports_on_conflict_clause(self) -> bool:
@@ -1550,90 +1551,18 @@ class ClickHouseDialect(
         return False
 
     def format_set_transaction(self, expr: "SetTransactionExpression") -> Tuple[str, tuple]:
-        """Format SET TRANSACTION statement for ClickHouse.
-
-        ClickHouse requires SET TRANSACTION ISOLATION LEVEL to be executed before
-        START TRANSACTION when a specific isolation level is needed. This method
-        generates the appropriate SET TRANSACTION statement.
-
-        Args:
-            expr: SetTransactionExpression with isolation level and/or mode.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-
-        Note:
-            This statement must be executed before START TRANSACTION.
-            The ClickHouseTransactionManager._do_begin() handles this sequencing.
-        """
-        from rhosocial.activerecord.backend.transaction import IsolationLevel, TransactionMode
-
-        params = expr.get_params()
-        parts = []
-
-        # Handle isolation level
-        isolation_level = params.get("isolation_level")
-        if isolation_level is not None:
-            level_names = {
-                IsolationLevel.READ_UNCOMMITTED: "READ UNCOMMITTED",
-                IsolationLevel.READ_COMMITTED: "READ COMMITTED",
-                IsolationLevel.REPEATABLE_READ: "REPEATABLE READ",
-                IsolationLevel.SERIALIZABLE: "SERIALIZABLE",
-            }
-            level_name = level_names.get(isolation_level)
-            if level_name:
-                parts.append(f"ISOLATION LEVEL {level_name}")
-
-        # Handle transaction mode (READ ONLY/READ WRITE)
-        mode = params.get("mode")
-        if mode is not None:
-            if mode == TransactionMode.READ_ONLY:
-                parts.append("READ ONLY")
-            elif mode == TransactionMode.READ_WRITE:
-                parts.append("READ WRITE")
-
-        if not parts:
-            return "SET TRANSACTION", ()
-
-        return f"SET TRANSACTION {' '.join(parts)}", ()
+        """ClickHouse does not support transactions."""
+        raise UnsupportedFeatureError(
+            self.name, "transactions",
+            "ClickHouse does not support SET TRANSACTION."
+        )
 
     def format_begin_transaction(self, expr: "BeginTransactionExpression") -> Tuple[str, tuple]:
-        """Format START TRANSACTION statement for ClickHouse.
-
-        This method returns a SINGLE SQL statement as required by the protocol.
-        For ClickHouse, isolation level must be set separately using SET TRANSACTION
-        before START TRANSACTION. The TransactionManager handles this sequencing.
-
-        Args:
-            expr: BeginTransactionExpression with isolation level and mode.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple).
-
-        Note:
-            Isolation level is NOT included in this statement. Use
-            format_set_transaction() for that purpose, which should be called
-            before this method by ClickHouseTransactionManager._do_begin().
-        """
-        from rhosocial.activerecord.backend.transaction import TransactionMode
-
-        params = expr.get_params()
-
-        # Build START TRANSACTION (without isolation level)
-        mode = params.get("mode")
-        if mode == TransactionMode.READ_ONLY:
-            if self.supports_read_only_transaction():
-                return "START TRANSACTION READ ONLY", ()
-            else:
-                from rhosocial.activerecord.backend.errors import UnsupportedTransactionModeError
-
-                raise UnsupportedTransactionModeError(
-                    feature="READ ONLY transactions",
-                    backend="ClickHouse",
-                    message="READ ONLY transactions require ClickHouse 5.6.5 or later.",
-                )
-        else:
-            return "START TRANSACTION", ()
+        """ClickHouse does not support transactions."""
+        raise UnsupportedFeatureError(
+            self.name, "transactions",
+            "ClickHouse does not support START TRANSACTION."
+        )
 
     # endregion
 
@@ -1648,57 +1577,47 @@ class ClickHouseDialect(
         return False  # ClickHouse does not support REPLACE INTO
 
     def format_insert_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
-        """Format INSERT statement with ClickHouse-specific options.
+        """Format a ClickHouse INSERT statement.
 
-        Extends the base implementation to support:
-        - INSERT IGNORE via dialect_options={'ignore': True}
-        - REPLACE INTO via dialect_options={'replace': True}
-
-        Args:
-            expr: InsertExpression instance
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-
-        Raises:
-            ValueError: If both 'ignore' and 'replace' are specified, or if
-                       'replace' is used with 'on_conflict'
+        ClickHouse does not support INSERT IGNORE / REPLACE INTO / ON CONFLICT;
+        those dialect options raise UnsupportedFeatureError. INSERT ... RETURNING
+        is supported.
         """
-        # Perform strict parameter validation
         if self.strict_validation:
             expr.validate(strict=True)
 
-        # Check for conflicting options
-        is_replace = expr.dialect_options.get("replace", False)
-        is_ignore = expr.dialect_options.get("ignore", False)
-
-        if is_replace and is_ignore:
-            raise ValueError("Cannot use both 'replace' and 'ignore' options together")
-
-        if is_replace and expr.on_conflict:
-            raise ValueError("REPLACE INTO does not support ON CONFLICT clause")
+        if expr.dialect_options.get("replace", False):
+            raise UnsupportedFeatureError(
+                self.name, "REPLACE INTO",
+                suggestion="ClickHouse does not support REPLACE INTO."
+            )
+        if expr.dialect_options.get("ignore", False):
+            raise UnsupportedFeatureError(
+                self.name, "INSERT IGNORE",
+                suggestion="ClickHouse does not support INSERT IGNORE."
+            )
+        if expr.on_conflict:
+            raise UnsupportedFeatureError(
+                self.name, "ON CONFLICT / ON DUPLICATE KEY",
+                suggestion="ClickHouse does not support upsert conflict clauses."
+            )
 
         all_params: List[Any] = []
         table_sql, table_params = expr.into.to_sql()
         all_params.extend(table_params)
 
-        # Build INSERT or REPLACE clause
-        if is_replace:
-            parts = ["REPLACE INTO"]
-        else:
-            parts = ["INSERT"]
-            if is_ignore:
-                parts.append("IGNORE")
-            parts.append("INTO")
-        parts.append(table_sql)
+        parts = ["INSERT INTO", table_sql]
 
-        columns_sql = ""
         if expr.columns:
             columns_sql = "(" + ", ".join([self.format_identifier(c) for c in expr.columns]) + ")"
             parts.append(columns_sql)
 
         # Format source (VALUES, SELECT, or DEFAULT VALUES)
-        from rhosocial.activerecord.backend.expression.statements import DefaultValuesSource, ValuesSource, SelectSource
+        from rhosocial.activerecord.backend.expression.statements import (
+            DefaultValuesSource,
+            SelectSource,
+            ValuesSource,
+        )
 
         if isinstance(expr.source, DefaultValuesSource):
             parts.append("DEFAULT VALUES")
@@ -1720,17 +1639,10 @@ class ClickHouseDialect(
 
         sql = " ".join(parts)
 
-        # Handle ON CONFLICT (ON DUPLICATE KEY UPDATE for ClickHouse)
-        if expr.on_conflict:
-            conflict_sql, conflict_params = self.format_on_conflict_clauses(expr)
-            sql += f" {conflict_sql}"
-            all_params.extend(conflict_params)
-
-        # Note: ClickHouse does not support RETURNING clause
         if expr.returning:
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-
-            raise UnsupportedFeatureError(self.name, "RETURNING clause (ClickHouse does not support RETURNING)")
+            returning_sql, returning_params = self.format_returning_clause(expr.returning)
+            sql += f" {returning_sql}"
+            all_params.extend(returning_params)
 
         return sql, tuple(all_params)
 

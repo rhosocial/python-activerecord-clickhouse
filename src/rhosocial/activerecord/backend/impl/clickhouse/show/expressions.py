@@ -14,6 +14,12 @@ Key design:
 - Expressions hold a dialect reference
 - to_sql() delegates to dialect.format_show_* methods
 - Dialect handles actual SQL generation
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import Any, Dict, Optional, TYPE_CHECKING

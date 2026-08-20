@@ -5,6 +5,12 @@ ClickHouse backend mixins for SHOW functionality.
 This module provides mixin classes that add the show() factory method
 to ClickHouse backends. The show() method returns a ClickHouseShowFunctionality
 instance that provides all ClickHouse SHOW commands.
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import TYPE_CHECKING

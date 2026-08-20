@@ -12,9 +12,8 @@ if TYPE_CHECKING:  # pragma: no cover
 class ClickHouseTruncateMixin:
     """ClickHouse TRUNCATE TABLE support.
 
-    ClickHouse 8.0 syntax is ``TRUNCATE [TABLE] tbl_name``. Unlike PostgreSQL,
-    ClickHouse does not support RESTART IDENTITY or CASCADE, and a successful
-    TRUNCATE always resets AUTO_INCREMENT counters.
+    ClickHouse syntax is ``TRUNCATE [TABLE] tbl_name``. Unlike PostgreSQL,
+    ClickHouse does not support RESTART IDENTITY or CASCADE.
     """
 
     def supports_truncate(self) -> bool:
@@ -35,7 +34,7 @@ class ClickHouseTruncateMixin:
             raise UnsupportedFeatureError(
                 self.name,
                 "TRUNCATE ... RESTART IDENTITY",
-                suggestion="ClickHouse TRUNCATE always resets AUTO_INCREMENT; drop the option.",
+                suggestion="ClickHouse TRUNCATE does not support RESTART IDENTITY; drop the option.",
             )
         if expr.cascade:
             raise UnsupportedFeatureError(

@@ -7,6 +7,12 @@ Functions: bit_and, bit_or, bit_xor, bit_count, bit_get_bit,
 
 Note: ClickHouse 9.6 does not support BIT_GET_BIT, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT
 as functions. These are implemented using native bitwise operators.
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import Union, TYPE_CHECKING

@@ -4,6 +4,12 @@ ClickHouse spatial function factories.
 
 Functions: st_geom_from_text, st_geom_from_wkb, st_as_text, st_as_geojson,
 st_distance, st_within, st_contains, st_intersects
+
+.. warning::
+    This module was copied from the MySQL backend template and contains
+    MySQL-style SQL functions/show commands. ClickHouse uses different
+    function names (e.g. ``JSONExtract*``) and a different SHOW command
+    subset. May generate non-ClickHouse SQL; verify before use.
 """
 
 from typing import Union, Optional, TYPE_CHECKING
