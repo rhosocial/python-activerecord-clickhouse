@@ -16,24 +16,24 @@ class ClickHouseConcurrencyMixin:
         self._fetch_concurrency_hint()
 
     def _fetch_concurrency_hint(self) -> None:
-        """Fetch max_connections from ClickHouse server and compute concurrency hint."""
+        """Fetch max concurrent queries from ClickHouse and compute concurrency hint."""
         try:
-            cursor = self._connection.cursor(dictionary=True)
-            cursor.execute("SHOW VARIABLES LIKE 'max_connections'")
+            cursor = self._connection.cursor()
+            cursor.execute("SELECT value FROM system.settings WHERE name = 'max_concurrent_queries'")
             row = cursor.fetchone()
             cursor.close()
 
             if row:
-                max_connections = int(row["Value"])
+                max_connections = int(row[0])
                 pool_size = getattr(self.config, "pool_size", 5) or 5
                 limit = min(max_connections, pool_size)
                 self._concurrency_hint = ConcurrencyHint(
                     max_concurrency=limit,
-                    reason=f"min(max_connections={max_connections}, pool_size={pool_size})",
+                    reason=f"min(max_concurrent_queries={max_connections}, pool_size={pool_size})",
                 )
                 self.log(
                     logging.DEBUG,
-                    f"Concurrency hint: max_concurrency={limit}, max_connections={max_connections}, pool_size={pool_size}",  # noqa: E501
+                    f"Concurrency hint: max_concurrency={limit}, max_concurrent_queries={max_connections}, pool_size={pool_size}",  # noqa: E501
                 )
         except Exception as e:
             self.log(logging.WARNING, f"Failed to fetch concurrency hint: {e}")

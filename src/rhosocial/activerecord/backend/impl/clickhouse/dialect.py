@@ -275,16 +275,22 @@ class ClickHouseDialect(
     """
     ClickHouse dialect implementation that adapts to the ClickHouse version.
 
-    ClickHouse features and support based on version:
-    - JSON operations (since 5.7.8)
-    - Window functions (since 8.0.0)
-    - CTEs (Common Table Expressions) (since 8.0.0)
-    - LATERAL JOIN (since 8.0.14)
-    - Array types (no native support, handled via JSON)
-    - UPSERT (ON DUPLICATE KEY UPDATE) (since 4.1)
-    - Advanced grouping (WITH ROLLUP) (since 4.0.0)
-    - FILTER clause (not supported)
-    - MERGE statement (not supported, use ON DUPLICATE KEY UPDATE or REPLACE)
+    ClickHouse features and support:
+    - Native JSON type and JSONExtract function family
+    - Window functions and window frame clauses
+    - CTEs (Common Table Expressions), recursive and materialized
+    - Native Array / Map / Tuple types with array constructor and access
+    - Advanced grouping (WITH ROLLUP / WITH CUBE / GROUPING SETS)
+    - UNION / UNION ALL / INTERSECT / EXCEPT set operations
+    - Materialized views, table partitioning, skip indexes
+    - INSERT ... RETURNING (no UPDATE/DELETE RETURNING)
+    - QUALIFY clause, ILIKE operator
+
+    Not supported (reported via supports_* = False, callers fail fast):
+    - Transactions (BEGIN/COMMIT/ROLLBACK, savepoints)
+    - FOREIGN KEY / UNIQUE constraints, CHECK constraints
+    - Triggers, sequences, UPSERT / ON CONFLICT / INSERT IGNORE / REPLACE
+    - FOR UPDATE row locking, LATERAL JOIN, MERGE, generated columns
     """
 
     def __init__(self, version: Optional[Tuple[int, int, int]] = None):
@@ -318,20 +324,11 @@ class ClickHouseDialect(
         return ClickHouseSchemaDiffer()
 
     def format_date_trunc_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+        """Format date_trunc using ClickHouse's date_trunc function."""
         source_sql, source_params = expr.source.to_sql()
         field = expr.field.value.upper()
-        sql = f"CAST(DATE_FORMAT({source_sql}, %s) AS DATETIME)"
-        formats = {
-            "YEAR": "%Y-01-01 00:00:00",
-            "MONTH": "%Y-%m-01 00:00:00",
-            "DAY": "%Y-%m-%d 00:00:00",
-            "HOUR": "%Y-%m-%d %H:00:00",
-            "MINUTE": "%Y-%m-%d %H:%i:00",
-            "SECOND": "%Y-%m-%d %H:%i:%s",
-        }
-        if field not in formats:
-            raise UnsupportedFeatureError(self.name, f"date_trunc({expr.field.value})")
-        return self._apply_value_expression_modifiers(sql, source_params + (formats[field],), expr)
+        sql = f"date_trunc(%s, {source_sql})"
+        return self._apply_value_expression_modifiers(sql, source_params + (field,), expr)
 
     def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         sql = f"INTERVAL %s {expr.unit.value.upper()}"
@@ -340,24 +337,24 @@ class ClickHouseDialect(
     def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
-        sql = f"DATE_ADD({source_sql}, {interval_sql})"
+        sql = f"date_add({expr.interval.unit.value.upper()}, {interval_sql}, {source_sql})"
         return self._apply_value_expression_modifiers(sql, source_params + interval_params, expr)
 
     def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
-        sql = f"DATE_SUB({source_sql}, {interval_sql})"
+        sql = f"date_sub({expr.interval.unit.value.upper()}, {interval_sql}, {source_sql})"
         return self._apply_value_expression_modifiers(sql, source_params + interval_params, expr)
 
     def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         start_sql, start_params = expr.start.to_sql()
         end_sql, end_params = expr.end.to_sql()
-        sql = f"TIMESTAMPDIFF({expr.unit.value.upper()}, {start_sql}, {end_sql})"
-        return self._apply_value_expression_modifiers(sql, start_params + end_params, expr)
+        sql = f"dateDiff(%s, {start_sql}, {end_sql})"
+        return self._apply_value_expression_modifiers(sql, start_params + end_params + (expr.unit.value.upper(),), expr)
 
     def supports_collate_expression(self) -> bool:
-        """ClickHouse supports expression-level COLLATE."""
-        return True
+        """ClickHouse does not support expression-level COLLATE."""
+        return False
 
     def validate_collation_name(self, expr: "CollateExpression") -> str:
         """Validate ClickHouse collation names and return their SQL representation."""
@@ -368,11 +365,10 @@ class ClickHouseDialect(
 
     @staticmethod
     def _escape_sql_string(value: str) -> str:
-        """Escape string for ClickHouse with backslash support.
+        """Escape string for ClickHouse.
 
-        ClickHouse default SQL mode (STRICT_TRANS_TABLES) treats backslash as an
-        escape character. This method properly escapes backslashes first,
-        then single quotes, to ensure correct handling under default mode.
+        ClickHouse by default treats backslash as an escape character.
+        This method properly escapes backslashes first, then single quotes.
 
         Args:
             value: The string value to escape
@@ -384,22 +380,22 @@ class ClickHouseDialect(
         value = value.replace("'", "''")
         return value
 
-    # region Protocol Support Checks based on version
+    # region Protocol Support Checks
     def supports_basic_cte(self) -> bool:
-        """Basic CTEs are supported since ClickHouse 8.0.0."""
-        return self.version >= (8, 0, 0)
+        """Basic CTEs (WITH clause) are supported in ClickHouse."""
+        return True
 
     def supports_recursive_cte(self) -> bool:
-        """Recursive CTEs are supported since ClickHouse 8.0.0."""
-        return self.version >= (8, 0, 0)
+        """Recursive CTEs are supported in ClickHouse."""
+        return True
 
     def supports_materialized_cte(self) -> bool:
-        """ClickHouse does not support MATERIALIZED hint for CTEs."""
-        return False
+        """ClickHouse supports MATERIALIZED / NOT MATERIALIZED CTE hints."""
+        return True
 
     def supports_returning_insert(self) -> bool:
-        """ClickHouse does not support RETURNING clause for INSERT."""
-        return False
+        """ClickHouse supports RETURNING clause for INSERT."""
+        return True
 
     def supports_returning_update(self) -> bool:
         """ClickHouse does not support RETURNING clause for UPDATE."""
@@ -410,79 +406,71 @@ class ClickHouseDialect(
         return False
 
     def supports_window_functions(self) -> bool:
-        """Window functions are supported since ClickHouse 8.0.0."""
-        return self.version >= (8, 0, 0)
+        """Window functions are supported in ClickHouse."""
+        return True
 
     def supports_window_frame_clause(self) -> bool:
-        """Whether window frame clauses (ROWS/RANGE) are supported, since ClickHouse 8.0.0."""
-        return self.version >= (8, 0, 0)
+        """Whether window frame clauses (ROWS/RANGE/GROUPS) are supported."""
+        return True
 
     def supports_filter_clause(self) -> bool:
         """FILTER clause for aggregate functions is not supported in ClickHouse."""
         return False  # ClickHouse does not support FILTER clause
 
     def supports_json_type(self) -> bool:
-        """JSON is supported since ClickHouse 5.7.8."""
-        return self.version >= (5, 7, 8)
+        """ClickHouse has a native JSON type."""
+        return True
 
     def get_json_access_operator(self) -> str:
-        """ClickHouse uses '->' for JSON access (shorthand for JSON_EXTRACT)."""
+        """ClickHouse uses '->' for JSON access."""
         return "->"
 
     def supports_rollup(self) -> bool:
-        """ROLLUP is supported using WITH ROLLUP syntax since early ClickHouse versions."""
-        return True  # Supported since ClickHouse 4.0.0
+        """ROLLUP is supported using WITH ROLLUP syntax."""
+        return True  # Supported via WITH ROLLUP
 
     def supports_cube(self) -> bool:
-        """CUBE is not supported in ClickHouse."""
-        return False  # ClickHouse does not support CUBE
+        """CUBE is supported using WITH CUBE syntax."""
+        return True  # Supported via WITH CUBE
 
     def supports_grouping_sets(self) -> bool:
-        """GROUPING SETS is not supported in ClickHouse."""
-        return False  # ClickHouse does not support GROUPING SETS
+        """GROUPING SETS is supported."""
+        return True  # Supported via GROUPING SETS
 
     def supports_array_type(self) -> bool:
-        """ClickHouse does not have native array types."""
-        return False  # ClickHouse does not have native arrays
+        """ClickHouse has native Array types."""
+        return True  # Native Array(T) support
 
     def supports_array_constructor(self) -> bool:
-        """ClickHouse does not support ARRAY constructor."""
-        return False  # ClickHouse does not have ARRAY constructor
+        """ClickHouse supports ARRAY constructor syntax [1, 2, 3]."""
+        return True  # Native [a, b, c] syntax
 
     def supports_array_access(self) -> bool:
-        """ClickHouse does not support native array subscript access."""
-        return False  # ClickHouse does not have native arrays
+        """ClickHouse supports array subscript access arr[1] (1-based)."""
+        return True  # Native arr[i] support (1-based)
 
     def supports_explain_analyze(self) -> bool:
         """Whether EXPLAIN ANALYZE is supported."""
-        # ClickHouse 8.0.18+ supports ANALYZE
-        return self.version >= (8, 0, 18)
+        return True
 
     def supports_explain_format(self, format_type: str) -> bool:
-        """Check if specific EXPLAIN format is supported."""
+        """Check if specific EXPLAIN format is supported.
+
+        ClickHouse supports TEXT, JSON, TREE, and TABULAR formats.
+        """
         format_type_upper = format_type.upper()
-        # ClickHouse supports TEXT, JSON formats; TREE format added in 8.0.16
-        if format_type_upper == "TEXT":
+        if format_type_upper in ("TEXT", "JSON", "TREE", "TABULAR", "TSV", "TSVRaw", "CSV"):
             return True
-        elif format_type_upper == "JSON":
-            return self.version >= (5, 6, 5)  # JSON format since 5.6.5
-        elif format_type_upper == "TREE":
-            return self.version >= (8, 0, 16)  # TREE format since 8.0.16
-        else:
-            return False
+        return False
 
     def format_explain_statement(self, explain_expr: "ExplainExpression") -> tuple:
         """Build the ClickHouse EXPLAIN SQL string and return (sql, params).
 
         ClickHouse syntax variants:
         - ``EXPLAIN <stmt>``
-        - ``EXPLAIN FORMAT=TEXT|JSON|TREE|TRADITIONAL <stmt>``
-        - ``EXPLAIN ANALYZE <stmt>``          (8.0.18+)
-        - ``EXPLAIN ANALYZE FORMAT=JSON <stmt>``  (8.0.21+)
-
-        Note: ClickHouse 9.x defaults to TREE format which returns a single 'EXPLAIN' column
-        with text output. For consistent parsing, we force TRADITIONAL format for
-        ClickHouse 9.0+ when no explicit format is specified.
+        - ``EXPLAIN <stmt> FORMAT=TEXT|JSON|TABULAR|TSV|CSV``
+        - ``EXPLAIN ANALYZE <stmt>``
+        - ``EXPLAIN PIPELINE <stmt>``
         """
         from rhosocial.activerecord.backend.expression.statements import ExplainType
 
@@ -490,12 +478,7 @@ class ClickHouseDialect(
         options = explain_expr.options
         parts = ["EXPLAIN"]
 
-        # Determine if we need to add FORMAT=TRADITIONAL
-        needs_traditional_format = False
-        if options is None:
-            # No options specified - check if ClickHouse 9.0+ needs TRADITIONAL format
-            needs_traditional_format = self.version >= (9, 0, 0)
-        else:
+        if options is not None:
             # ANALYZE goes before FORMAT (ClickHouse ordering)
             if options.analyze:
                 parts.append("ANALYZE")
@@ -506,70 +489,49 @@ class ClickHouseDialect(
             elif options.type is not None and options.type == ExplainType.QUERY_PLAN:
                 # ClickHouse has no QUERY PLAN keyword; fall through to plain EXPLAIN
                 pass
-            else:
-                # No format specified - check if ClickHouse 9.0+ needs TRADITIONAL format
-                needs_traditional_format = self.version >= (9, 0, 0)
-
-        # ClickHouse 9.0+ defaults to TREE format; force TRADITIONAL for consistent parsing
-        if needs_traditional_format:
-            parts.append("FORMAT=TRADITIONAL")
 
         return f"{' '.join(parts)} {statement_sql}", statement_params
 
     def supports_graph_match(self) -> bool:
         """Whether graph query MATCH clause is supported."""
-        # ClickHouse doesn't have native MATCH clause like some other systems
         return False
 
     def supports_for_update(self) -> bool:
         """Whether FOR UPDATE clause is supported in SELECT statements.
 
-        ClickHouse supports FOR UPDATE since early versions. The clause locks
-        selected rows preventing other transactions from modifying them.
+        ClickHouse does not support FOR UPDATE row locking.
         """
-        return True
+        return False
 
     def supports_merge_statement(self) -> bool:
         """Whether MERGE statement is supported."""
-        return False  # ClickHouse does not support MERGE, use ON DUPLICATE KEY UPDATE
+        return False  # ClickHouse does not support MERGE
 
     def supports_temporal_tables(self) -> bool:
         """Whether temporal tables are supported."""
-        # ClickHouse doesn't have built-in temporal tables
         return False
 
     def supports_qualify_clause(self) -> bool:
-        """Whether QUALIFY clause is supported."""
-        # ClickHouse doesn't have QUALIFY clause (though can be simulated with subqueries)
-        return False
+        """Whether QUALIFY clause is supported in ClickHouse."""
+        return True
 
     def supports_upsert(self) -> bool:
-        """Whether UPSERT (ON DUPLICATE KEY UPDATE) is supported."""
-        return True  # Supported since ClickHouse 4.1
+        """Whether UPSERT (INSERT ... ON CONFLICT) is supported."""
+        return False  # ClickHouse does not support UPSERT
 
     def get_upsert_syntax_type(self) -> str:
-        """
-        Get UPSERT syntax type.
-
-        Returns:
-            'ON CONFLICT' (PostgreSQL) or 'ON DUPLICATE KEY' (ClickHouse)
-        """
         return "ON DUPLICATE KEY"
 
     def supports_on_conflict_clause(self) -> bool:
-        """Whether INSERT can carry an ON CONFLICT style clause.
-
-        ClickHouse expresses upsert via the ON DUPLICATE KEY UPDATE clause.
-        """
-        return True
+        """Whether INSERT can carry an ON CONFLICT style clause."""
+        return False
 
     def supports_multiple_on_conflict_clauses(self) -> bool:
-        """ClickHouse ON DUPLICATE KEY UPDATE allows only a single clause."""
         return False
 
     def supports_lateral_join(self) -> bool:
         """Whether LATERAL joins are supported."""
-        return self.version >= (8, 0, 14)  # LATERAL joins added in 8.0.14
+        return False  # ClickHouse does not support LATERAL JOIN
 
     def supports_ordered_set_aggregation(self) -> bool:
         """Whether ordered-set aggregate functions are supported."""
@@ -588,16 +550,16 @@ class ClickHouseDialect(
         return True
 
     def supports_full_join(self) -> bool:
-        """FULL JOIN is not directly supported (can be simulated with UNION)."""
-        return False
+        """FULL JOIN is supported."""
+        return True
 
     def supports_cross_join(self) -> bool:
         """CROSS JOIN is supported."""
         return True
 
     def supports_natural_join(self) -> bool:
-        """NATURAL JOIN is supported."""
-        return True
+        """NATURAL JOIN is not supported in ClickHouse."""
+        return False
 
     def supports_wildcard(self) -> bool:
         """Wildcard (*) is supported."""
@@ -615,12 +577,12 @@ class ClickHouseDialect(
         return True
 
     def supports_intersect(self) -> bool:
-        """INTERSECT is supported since ClickHouse 8.0.31."""
-        return self.version >= (8, 0, 31)
+        """INTERSECT is supported."""
+        return True
 
     def supports_except(self) -> bool:
-        """EXCEPT is supported since ClickHouse 8.0.31."""
-        return self.version >= (8, 0, 31)
+        """EXCEPT is supported."""
+        return True
 
     def supports_set_operation_order_by(self) -> bool:
         """Set operations support ORDER BY."""
@@ -631,8 +593,8 @@ class ClickHouseDialect(
         return True
 
     def supports_set_operation_for_update(self) -> bool:
-        """Set operations support FOR UPDATE."""
-        return True
+        """Set operations do not support FOR UPDATE."""
+        return False
 
     # endregion
 
@@ -699,9 +661,8 @@ class ClickHouseDialect(
         return " ".join(sql_parts), params
 
     def supports_json_arrow_operators(self) -> bool:
-        """Check if ClickHouse version supports -> and ->> operators."""
-        # -> and ->> operators were added in ClickHouse 5.7.9
-        return self.version >= (5, 7, 9)
+        """ClickHouse supports -> and ->> operators for JSON access."""
+        return True
 
     # region View Support
     def supports_or_replace_view(self) -> bool:
@@ -710,11 +671,11 @@ class ClickHouseDialect(
 
     def supports_temporary_view(self) -> bool:
         """Whether TEMPORARY views are supported."""
-        return True  # ClickHouse supports TEMPORARY views
+        return False  # ClickHouse does not support TEMPORARY views
 
     def supports_materialized_view(self) -> bool:
         """Whether materialized views are supported."""
-        return False  # ClickHouse does not support materialized views
+        return True  # ClickHouse has first-class MATERIALIZED VIEW support
 
     def supports_if_exists_view(self) -> bool:
         """Whether DROP VIEW IF EXISTS is supported."""
@@ -722,7 +683,7 @@ class ClickHouseDialect(
 
     def supports_view_check_option(self) -> bool:
         """Whether WITH CHECK OPTION is supported."""
-        return True  # ClickHouse supports WITH CHECK OPTION
+        return False  # ClickHouse does not support WITH CHECK OPTION
 
     def supports_cascade_view(self) -> bool:
         """Whether DROP VIEW CASCADE is supported."""
@@ -767,26 +728,26 @@ class ClickHouseDialect(
     # region Schema Support
     def supports_create_schema(self) -> bool:
         """Whether CREATE SCHEMA is supported."""
-        return True  # ClickHouse supports CREATE SCHEMA (alias for CREATE DATABASE)
+        return False  # ClickHouse uses CREATE DATABASE, not CREATE SCHEMA
 
     def supports_drop_schema(self) -> bool:
         """Whether DROP SCHEMA is supported."""
-        return True  # ClickHouse supports DROP SCHEMA (alias for DROP DATABASE)
+        return False  # ClickHouse uses DROP DATABASE, not DROP SCHEMA
 
     def supports_schema_if_not_exists(self) -> bool:
         """Whether CREATE SCHEMA IF NOT EXISTS is supported."""
-        return True
+        return False
 
     def supports_schema_if_exists(self) -> bool:
         """Whether DROP SCHEMA IF EXISTS is supported."""
-        return True
+        return False
 
     # endregion
 
     # region Index Support
     def supports_create_index(self) -> bool:
         """Whether CREATE INDEX is supported."""
-        return True
+        return True  # Skip (data-skipping) indexes
 
     def supports_drop_index(self) -> bool:
         """Whether DROP INDEX is supported."""
@@ -794,22 +755,22 @@ class ClickHouseDialect(
 
     def supports_unique_index(self) -> bool:
         """Whether UNIQUE indexes are supported."""
-        return True
+        return False  # ClickHouse cannot enforce uniqueness on indexes
 
     def supports_index_if_not_exists(self) -> bool:
         """Whether CREATE INDEX IF NOT EXISTS is supported."""
-        return False  # ClickHouse does not support IF NOT EXISTS for indexes
+        return True  # ClickHouse supports IF NOT EXISTS for indexes
 
     def supports_index_if_exists(self) -> bool:
         """Whether DROP INDEX IF EXISTS is supported."""
-        return False  # ClickHouse does not support IF EXISTS for indexes
+        return True  # ClickHouse supports IF EXISTS for indexes
 
     # endregion
 
     # region Sequence Support
     def supports_create_sequence(self) -> bool:
         """Whether CREATE SEQUENCE is supported."""
-        return False  # ClickHouse does not support sequences (uses AUTO_INCREMENT)
+        return False  # ClickHouse does not support sequences
 
     def supports_drop_sequence(self) -> bool:
         """Whether DROP SEQUENCE is supported."""
@@ -828,6 +789,69 @@ class ClickHouseDialect(
 
     def supports_temporary_table(self) -> bool:
         """Whether TEMPORARY tables are supported."""
+        return True
+
+    # Override inherited TableMixin defaults for ClickHouse
+    def supports_primary_key_constraint(self) -> bool:
+        """ClickHouse supports PRIMARY KEY in table DDL."""
+        return True
+
+    def supports_unique_constraint(self) -> bool:
+        """ClickHouse does not support UNIQUE constraints."""
+        return False
+
+    def supports_not_null_constraint(self) -> bool:
+        """ClickHouse supports NOT NULL constraint syntax."""
+        return True
+
+    def supports_foreign_key_constraint(self) -> bool:
+        """ClickHouse does not support FOREIGN KEY constraints."""
+        return False
+
+    def supports_fk_on_delete(self) -> bool:
+        return False
+
+    def supports_fk_on_update(self) -> bool:
+        return False
+
+    def supports_add_constraint(self) -> bool:
+        """ClickHouse does not support ALTER TABLE ADD CONSTRAINT."""
+        return False
+
+    def supports_drop_constraint(self) -> bool:
+        """ClickHouse does not support ALTER TABLE DROP CONSTRAINT."""
+        return False
+
+    def supports_drop_table_cascade(self) -> bool:
+        """ClickHouse DROP TABLE does not support CASCADE."""
+        return False
+
+    def supports_drop_table_restrict(self) -> bool:
+        """ClickHouse DROP TABLE does not support RESTRICT."""
+        return False
+
+    def supports_alter_column_type(self) -> bool:
+        """ClickHouse supports MODIFY COLUMN type changes."""
+        return True
+
+    def supports_rename_column(self) -> bool:
+        """ClickHouse supports RENAME COLUMN."""
+        return True
+
+    def supports_rename_table(self) -> bool:
+        """ClickHouse supports RENAME TABLE."""
+        return True
+
+    def supports_table_like_syntax(self) -> bool:
+        """ClickHouse supports CREATE TABLE ... AS SELECT / LIKE."""
+        return True
+
+    def supports_ilike(self) -> bool:
+        """ClickHouse supports ILIKE operator."""
+        return True
+
+    def supports_index_type(self) -> bool:
+        """ClickHouse skip indexes support USING keyword for index type."""
         return True
 
     def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
@@ -906,44 +930,48 @@ class ClickHouseDialect(
         return " ".join(parts), tuple(all_params)
 
     def supports_add_column_if_not_exists(self) -> bool:
-        return False
+        """ClickHouse supports ADD COLUMN IF NOT EXISTS."""
+        return True
 
     def supports_drop_column_if_exists(self) -> bool:
-        return False
+        """ClickHouse supports DROP COLUMN IF EXISTS."""
+        return True
 
     def supports_drop_constraint_if_exists(self) -> bool:
         return False
 
     def format_add_column_action(self, action) -> Tuple[str, tuple]:
-        if getattr(action, "if_not_exists", None) is True:
-            raise UnsupportedFeatureError(
-                self.name, "ALTER TABLE ADD COLUMN IF NOT EXISTS",
-                suggestion="ClickHouse does not support IF NOT EXISTS on ADD COLUMN. "
-                     "Pre-check information_schema.COLUMNS before ALTER."
-            )
         column_sql, column_params = self.format_column_definition(action.column)
+        parts = []
+        if getattr(action, "if_not_exists", None) is True:
+            parts.append("ADD COLUMN IF NOT EXISTS")
+        else:
+            parts.append("ADD COLUMN")
+        parts.append(column_sql)
         after = action.dialect_options.get("after")
         if after:
-            return f"ADD COLUMN {column_sql} AFTER {self.format_identifier(after)}", column_params
-        return f"ADD COLUMN {column_sql}", column_params
+            parts.append(f"AFTER {self.format_identifier(after)}")
+        return " ".join(parts), column_params
 
     def format_drop_column_action(self, action) -> Tuple[str, tuple]:
+        parts = []
         if getattr(action, "if_exists", None) is True:
-            raise UnsupportedFeatureError(
-                self.name, "DROP COLUMN IF EXISTS",
-                suggestion="ClickHouse does not support IF EXISTS on DROP COLUMN. "
-                     "Pre-check information_schema.COLUMNS before ALTER."
-            )
-        return super().format_drop_column_action(action)
+            parts.append("DROP COLUMN IF EXISTS")
+        else:
+            parts.append("DROP COLUMN")
+        parts.append(self.format_identifier(action.column_name))
+        return " ".join(parts), ()
 
     def format_drop_table_constraint_action(self, action) -> Tuple[str, tuple]:
         if getattr(action, "if_exists", None) is True:
             raise UnsupportedFeatureError(
                 self.name, "DROP CONSTRAINT IF EXISTS",
-                suggestion="ClickHouse does not support IF EXISTS on DROP CONSTRAINT. "
-                     "Pre-check information_schema.TABLE_CONSTRAINTS before ALTER."
+                suggestion="ClickHouse does not support DROP CONSTRAINT."
             )
-        return super().format_drop_table_constraint_action(action)
+        raise UnsupportedFeatureError(
+            self.name, "DROP CONSTRAINT",
+            suggestion="ClickHouse does not support table constraints."
+        )
 
     def format_alter_column_action(self, action) -> Tuple[str, tuple]:
         """Format ALTER TABLE ... ALTER COLUMN {SET DEFAULT | DROP DEFAULT}.
@@ -1022,16 +1050,22 @@ class ClickHouseDialect(
             elif constraint.constraint_type == ColumnConstraintType.NOT_NULL:
                 constraint_parts.append("NOT NULL")
             elif constraint.constraint_type == ColumnConstraintType.UNIQUE:
-                constraint_parts.append("UNIQUE")
+                raise UnsupportedFeatureError(
+                    self.name, "UNIQUE column constraint",
+                    suggestion="ClickHouse does not support UNIQUE constraints."
+                )
             elif constraint.constraint_type == ColumnConstraintType.DEFAULT:
                 if constraint.default_value is not None:
                     constraint_parts.append(f"DEFAULT {constraint.default_value}")
             elif constraint.constraint_type == ColumnConstraintType.NULL:
                 constraint_parts.append("NULL")
 
-            # Handle AUTO_INCREMENT (ClickHouse-specific)
+            # ClickHouse does not support AUTO_INCREMENT
             if constraint.is_auto_increment:
-                constraint_parts.append("AUTO_INCREMENT")
+                raise UnsupportedFeatureError(
+                    self.name, "AUTO_INCREMENT column",
+                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
+                )
 
         if constraint_parts:
             parts.append(' '.join(constraint_parts))
@@ -1047,31 +1081,28 @@ class ClickHouseDialect(
         t_const: "TableConstraint",
         TableConstraintType
     ) -> Tuple[str, List[Any]]:
-        """Format a table-level constraint."""
+        """Format a table-level constraint.
+
+        ClickHouse supports only PRIMARY KEY among table-level constraints;
+        UNIQUE and FOREIGN KEY constraints are not supported.
+        """
         parts = []
         params: List[Any] = []
-
-        if t_const.name:
-            parts.append(f"CONSTRAINT {self.format_identifier(t_const.name)}")
 
         if t_const.constraint_type == TableConstraintType.PRIMARY_KEY:
             if t_const.columns:
                 cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
                 parts.append(f"PRIMARY KEY ({cols_str})")
         elif t_const.constraint_type == TableConstraintType.UNIQUE:
-            if t_const.columns:
-                cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
-                parts.append(f"UNIQUE ({cols_str})")
+            raise UnsupportedFeatureError(
+                self.name, "UNIQUE table constraint",
+                suggestion="ClickHouse does not support UNIQUE constraints."
+            )
         elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
-            if t_const.columns and t_const.foreign_key_table and t_const.foreign_key_columns:
-                cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
-                ref_cols_str = ', '.join(
-                    self.format_identifier(c) for c in t_const.foreign_key_columns
-                )
-                ref_table = self.format_identifier(t_const.foreign_key_table)
-                parts.append(
-                    f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})"
-                )
+            raise UnsupportedFeatureError(
+                self.name, "FOREIGN KEY constraint",
+                suggestion="ClickHouse does not support FOREIGN KEY constraints."
+            )
 
         return ' '.join(parts), params
 
@@ -1080,7 +1111,10 @@ class ClickHouseDialect(
         parts = []
 
         if idx_def.unique:
-            parts.append("UNIQUE")
+            raise UnsupportedFeatureError(
+                self.name, "UNIQUE index",
+                suggestion="ClickHouse cannot enforce unique indexes."
+            )
 
         parts.append("INDEX")
         parts.append(self.format_identifier(idx_def.name))
@@ -1113,15 +1147,16 @@ class ClickHouseDialect(
         return ' '.join(parts)
     # endregion
 
-    # region Trigger Support (ClickHouse-specific)
+    # region Trigger Support (ClickHouse does not support triggers)
     def supports_trigger(self) -> bool:
-        return True
+        """ClickHouse does not support triggers."""
+        return False
 
     def supports_create_trigger(self) -> bool:
-        return True
+        return False
 
     def supports_drop_trigger(self) -> bool:
-        return True
+        return False
 
     def supports_instead_of_trigger(self) -> bool:
         return False
@@ -1136,7 +1171,7 @@ class ClickHouseDialect(
         return False
 
     def supports_trigger_if_not_exists(self) -> bool:
-        return True
+        return False
 
     def format_create_trigger_statement(
         self,
@@ -1231,25 +1266,19 @@ class ClickHouseDialect(
         return " ".join(parts), ()
     # endregion
     
-    # region FULLTEXT Index & Search Support
+    # region FULLTEXT Index & Search Support (ClickHouse does not support standard FULLTEXT)
     def supports_fulltext_index(self) -> bool:
-        """ClickHouse 5.6+ supports FULLTEXT for InnoDB."""
-        return self.version >= (5, 6, 0)
+        """ClickHouse does not support standard FULLTEXT indexes (uses skip indexes instead)."""
+        return False
 
     def supports_fulltext_parser(self) -> bool:
-        """ClickHouse supports FULLTEXT parser plugins."""
-        return self.version >= (5, 1, 0)
+        return False
 
     def supports_fulltext_boolean_mode(self) -> bool:
-        """Whether BOOLEAN MODE in MATCH is supported.
-
-        IN BOOLEAN MODE is supported since ClickHouse 5.6 (same as FULLTEXT).
-        """
-        return self.supports_fulltext_index()
+        return False
 
     def supports_fulltext_query_expansion(self) -> bool:
-        """ClickHouse supports QUERY EXPANSION."""
-        return True  # All versions with FULLTEXT support this
+        return False
 
     def format_fulltext_match(
         self, columns: List[str], search_term: str, mode: Optional[str] = None
@@ -1330,70 +1359,46 @@ class ClickHouseDialect(
 
     # endregion
 
-    # region ClickHouse 8.0 Index Features
+    # region ClickHouse Index Features
     def supports_invisible_index(self) -> bool:
-        """Whether INVISIBLE indexes are supported.
-
-        ClickHouse 8.0+ supports invisible indexes that are not used by the optimizer.
-        """
-        return self.version >= (8, 0, 0)
+        """Whether INVISIBLE indexes are supported."""
+        return False  # ClickHouse does not support INVISIBLE indexes
 
     def supports_descending_index(self) -> bool:
-        """Whether descending indexes are supported.
-
-        ClickHouse 8.0+ supports true descending indexes (not just reverse scans).
-        """
-        return self.version >= (8, 0, 0)
+        """Whether descending indexes are supported."""
+        return False  # ClickHouse does not support DESCENDING index keyword
 
     def supports_functional_index(self) -> bool:
         """Whether functional (expression) indexes are supported.
 
-        ClickHouse 8.0+ supports indexes on expressions (functional indexes).
+        ClickHouse skip indexes can be based on expressions.
         """
-        return self.version >= (8, 0, 0)
+        return True
 
     def supports_check_constraint(self) -> bool:
-        """Whether CHECK constraints are enforced.
-
-        ClickHouse 8.0.16+ enforces CHECK constraints (before that, they were parsed but ignored).
-        """
-        return self.version >= (8, 0, 16)
+        """Whether CHECK constraints are enforced."""
+        return False  # ClickHouse does not support CHECK constraints
 
     # ConstraintSupport protocol implementation
     def supports_constraint_enforced(self) -> bool:
-        """Whether ENFORCED/NOT ENFORCED constraint control is supported.
-
-        ClickHouse 8.0.16+ supports ENFORCED/NOT ENFORCED (SQL:2016).
-        """
-        return self.version >= (8, 0, 16)
+        """Whether ENFORCED/NOT ENFORCED constraint control is supported."""
+        return False
 
     def supports_fk_match(self) -> bool:
-        """Whether MATCH {SIMPLE|PARTIAL|FULL} is supported.
-
-        ClickHouse does not support MATCH clause in FOREIGN KEY.
-        """
+        """Whether MATCH {SIMPLE|PARTIAL|FULL} is supported."""
         return False
 
     def supports_deferrable_constraint(self) -> bool:
-        """Whether DEFERRABLE constraints are supported.
-
-        ClickHouse does not support DEFERRABLE (SQL:1999).
-        """
+        """Whether DEFERRABLE constraints are supported."""
         return False
 
     def supports_generated_column(self) -> bool:
-        """Whether generated (computed) columns are supported.
-
-        ClickHouse 5.7+ supports generated columns (STORED and VIRTUAL).
-        """
-        return self.version >= (5, 7, 0)
+        """Whether generated (computed) columns are supported."""
+        return False  # ClickHouse does not support generated columns
 
     def supports_default_column_value_expression(self) -> bool:
-        """Whether DEFAULT column values can use expressions.
-
-        ClickHouse 8.0+ supports expressions in DEFAULT column values.
-        """
-        return self.version >= (8, 0, 0)
+        """Whether DEFAULT column values can use expressions."""
+        return True  # ClickHouse supports expressions in DEFAULT values
 
     # endregion
 
@@ -1530,27 +1535,20 @@ class ClickHouseDialect(
         return True
 
     def supports_transaction_mode(self) -> bool:
-        """ClickHouse supports READ ONLY transactions (5.6.5+)."""
-        return self.version >= (5, 6, 5)
+        """ClickHouse does not support transactions."""
+        return False
 
     def supports_isolation_level_in_begin(self) -> bool:
-        """ClickHouse does not support isolation level in START TRANSACTION.
-
-        ClickHouse uses SET TRANSACTION ISOLATION LEVEL before START TRANSACTION.
-        """
         return False
 
     def supports_read_only_transaction(self) -> bool:
-        """ClickHouse supports READ ONLY transactions (5.6.5+)."""
-        return self.version >= (5, 6, 5)
+        return False
 
     def supports_deferrable_transaction(self) -> bool:
-        """ClickHouse does not support DEFERRABLE mode."""
         return False
 
     def supports_savepoint(self) -> bool:
-        """ClickHouse supports savepoints."""
-        return True
+        return False
 
     def format_set_transaction(self, expr: "SetTransactionExpression") -> Tuple[str, tuple]:
         """Format SET TRANSACTION statement for ClickHouse.
@@ -1643,18 +1641,12 @@ class ClickHouseDialect(
     # region ClickHouse-specific DML Operations
 
     def supports_insert_ignore(self) -> bool:
-        """Whether INSERT IGNORE is supported.
-
-        ClickHouse supports INSERT IGNORE in all versions.
-        """
-        return True
+        """Whether INSERT IGNORE is supported."""
+        return False  # ClickHouse does not support INSERT IGNORE
 
     def supports_replace_into(self) -> bool:
-        """Whether REPLACE INTO is supported.
-
-        ClickHouse supports REPLACE INTO in all versions.
-        """
-        return True
+        """Whether REPLACE INTO is supported."""
+        return False  # ClickHouse does not support REPLACE INTO
 
     def format_insert_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
         """Format INSERT statement with ClickHouse-specific options.
@@ -1744,11 +1736,11 @@ class ClickHouseDialect(
         return sql, tuple(all_params)
 
     def supports_json_table(self) -> bool:
-        """Whether JSON_TABLE is supported.
+        """Whether SQL-standard JSON_TABLE is supported.
 
-        JSON_TABLE is supported in ClickHouse 8.0.4+.
+        ClickHouse has a JSON family of functions but no SQL-standard JSON_TABLE.
         """
-        return self.version >= (8, 0, 4)
+        return False
 
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_TABLE expression.

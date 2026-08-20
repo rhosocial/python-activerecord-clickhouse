@@ -5,7 +5,7 @@ import yaml
 import os
 from typing import Dict, Any, Tuple, Type
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, AsyncClickHouseBackend, ClickHouseConnectionConfig
+from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, ClickHouseConnectionConfig
 
 # --- Scenario Loading Logic ---
 
@@ -93,12 +93,10 @@ def get_scenario(name: str) -> Tuple[Type[ClickHouseBackend], ClickHouseConnecti
     pooled_db = resolve_database_name(name)
     if pooled_db:
         scenario_config["database"] = pooled_db
-    # Extract ssl_disabled if present, otherwise it will be None
-    ssl_disabled = scenario_config.pop("ssl_disabled", None)
+    # Drop metadata fields not accepted by the connection config.
+    for meta_key in ("protocol", "ssl_disabled", "charset"):
+        scenario_config.pop(meta_key, None)
     config = ClickHouseConnectionConfig(**scenario_config)
-    # Re-add ssl_disabled to config if it was present
-    if ssl_disabled is not None:
-        config.ssl_disabled = ssl_disabled
     return ClickHouseBackend, config
 
 
@@ -112,7 +110,6 @@ def get_enabled_scenarios() -> Dict[str, Any]:
 class BackendFeatureProvider:
     def __init__(self):
         self._backend = None
-        self._async_backend = None
 
     def setup_backend(self, scenario_name: str):
         if self._backend:
@@ -123,24 +120,10 @@ class BackendFeatureProvider:
         self._backend.introspect_and_adapt()
         return self._backend
 
-    async def setup_async_backend(self, scenario_name: str):
-        if self._async_backend:
-            return self._async_backend
-        _, config = get_scenario(scenario_name)
-        self._async_backend = AsyncClickHouseBackend(connection_config=config)
-        await self._async_backend.connect()
-        await self._async_backend.introspect_and_adapt()
-        return self._async_backend
-
     def cleanup(self):
         if self._backend:
             self._backend.disconnect()
             self._backend = None
-
-    async def async_cleanup(self):
-        if self._async_backend:
-            await self._async_backend.disconnect()
-            self._async_backend = None
 
 
 # --- Fixtures ---
@@ -180,28 +163,12 @@ def clickhouse_backend_single():
 
 @pytest_asyncio.fixture(scope="function", params=get_scenario_names())
 async def async_clickhouse_backend(request):
-    scenario_name = request.param
-    provider = BackendFeatureProvider()
-    backend = await provider.setup_async_backend(scenario_name)
-    yield backend
-    await provider.async_cleanup()
+    pytest.skip("rhosocial-activerecord-clickhouse does not provide an async backend")
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_clickhouse_backend_single():
-    """Non-parameterized async fixture using the first available scenario.
-
-    Use this for tests whose results do not vary across database versions.
-    See clickhouse_backend_single for rationale.
-    """
-    scenario_names = get_scenario_names()
-    if not scenario_names:
-        pytest.skip("No ClickHouse scenarios configured")
-    scenario_name = scenario_names[0]
-    provider = BackendFeatureProvider()
-    backend = await provider.setup_async_backend(scenario_name)
-    yield backend
-    await provider.async_cleanup()
+    pytest.skip("rhosocial-activerecord-clickhouse does not provide an async backend")
 
 
 # --- Control Backend for Session Modification Tests ---

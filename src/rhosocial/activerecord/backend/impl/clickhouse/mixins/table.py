@@ -105,7 +105,11 @@ class ClickHouseTableMixin:
                 parts.append(constraint_text)
             params.extend(list(cp))
             if constraint.is_auto_increment:
-                parts.append("AUTO_INCREMENT")
+                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+                raise UnsupportedFeatureError(
+                    self.name, "AUTO_INCREMENT column",
+                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
+                )
 
         if col_def.comment:
             escaped_comment = self._escape_sql_string(col_def.comment)
@@ -128,15 +132,17 @@ class ClickHouseTableMixin:
                 cols_str = ", ".join(self.format_identifier(c) for c in t_const.columns)
                 parts.append(f"PRIMARY KEY ({cols_str})")
         elif t_const.constraint_type == TableConstraintType.UNIQUE:
-            if t_const.columns:
-                cols_str = ", ".join(self.format_identifier(c) for c in t_const.columns)
-                parts.append(f"UNIQUE ({cols_str})")
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+            raise UnsupportedFeatureError(
+                self.name, "UNIQUE table constraint",
+                suggestion="ClickHouse does not support UNIQUE constraints."
+            )
         elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
-            if t_const.columns and t_const.foreign_key_table and t_const.foreign_key_columns:
-                cols_str = ", ".join(self.format_identifier(c) for c in t_const.columns)
-                ref_cols_str = ", ".join(self.format_identifier(c) for c in t_const.foreign_key_columns)
-                ref_table = self.format_identifier(t_const.foreign_key_table)
-                parts.append(f"FOREIGN KEY ({cols_str}) REFERENCES {ref_table} ({ref_cols_str})")
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+            raise UnsupportedFeatureError(
+                self.name, "FOREIGN KEY constraint",
+                suggestion="ClickHouse does not support FOREIGN KEY constraints."
+            )
 
         return " ".join(parts), params
 
@@ -144,7 +150,11 @@ class ClickHouseTableMixin:
         """Format an inline INDEX definition within CREATE TABLE (ClickHouse-specific)."""
         parts = []
         if idx_def.unique:
-            parts.append("UNIQUE")
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+            raise UnsupportedFeatureError(
+                self.name, "UNIQUE index",
+                suggestion="ClickHouse cannot enforce unique indexes."
+            )
         parts.append("INDEX")
         parts.append(self.format_identifier(idx_def.name))
         cols_str = ", ".join(self.format_identifier(c) for c in idx_def.columns)

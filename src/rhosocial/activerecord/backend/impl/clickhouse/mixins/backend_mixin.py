@@ -59,10 +59,11 @@ class ClickHouseBackendMixin:
 
     @property
     def threadsafety(self) -> int:
-        """Return driver threadsafety level."""
-        import clickhouse.connector
+        """Return driver threadsafety level.
 
-        return clickhouse.connector.threadsafety
+        clickhouse-connect is not safe to share across threads without locking.
+        """
+        return 1
 
     def requires_manual_commit(self) -> bool:
         """Check if manual commit is required for this database."""
@@ -82,7 +83,12 @@ class ClickHouseBackendMixin:
             )
 
     def get_default_adapter_suggestions(self) -> Dict[Type, Tuple[SQLTypeAdapter, Type]]:
-        """Provides default type adapter suggestions for ClickHouse."""
+        """Provides default type adapter suggestions for ClickHouse.
+
+        clickhouse-connect natively supports list/dict (Array/Map/Tuple),
+        bool, datetime, date, time, UUID, and Decimal parameters, so only
+        types needing Python-level conversion are suggested here.
+        """
         from datetime import date, datetime, time
         from decimal import Decimal
         from uuid import UUID
@@ -91,29 +97,19 @@ class ClickHouseBackendMixin:
         suggestions: Dict[Type, Tuple[SQLTypeAdapter, Type]] = {}
 
         type_mappings = [
-            (bool, int),
-            (datetime, str),
-            (date, str),
-            (time, str),
-            (Decimal, float),
+            (bool, bool),
+            (datetime, datetime),
+            (date, date),
+            (time, time),
+            (Decimal, Decimal),
             (UUID, str),
-            (dict, str),
-            (list, str),
             (Enum, str),
-            (set, str),
-            (frozenset, str),
         ]
 
         for py_type, db_type in type_mappings:
             adapter = self.adapter_registry.get_adapter(py_type, db_type)
             if adapter:
                 suggestions[py_type] = (adapter, db_type)
-            else:
-                self.log(
-                    logging.DEBUG,
-                    f"No adapter found for ({py_type.__name__}, {db_type.__name__}). "
-                    "Suggestion will not be provided for this type.",
-                )
 
         return suggestions
 
@@ -125,11 +121,12 @@ class ClickHouseBackendMixin:
             print(f"[{logging.getLevelName(level)}] {message}")
 
     CONNECTION_ERROR_CODES = {
-        2003,
-        2006,
-        2013,
-        2048,
-        2055,
+        503,
+        504,
+        1000,
+        1002,
+        210,
+        279,
     }
 
     def _is_connection_error(self, error: Exception) -> bool:
@@ -140,18 +137,21 @@ class ClickHouseBackendMixin:
 
         error_str = str(error).lower()
         connection_error_patterns = [
-            "server has gone away",
-            "lost connection",
-            "can't connect to clickhouse server",
             "connection refused",
-            "broken pipe",
             "connection reset",
+            "connection closed",
+            "broken pipe",
+            "cannot connect",
+            "lost connection",
+            "network error",
+            "timeout expired",
+            "unreachable",
         ]
         return any(pattern in error_str for pattern in connection_error_patterns)
 
     def _handle_error(self, error: Exception) -> None:
         """Handle ClickHouse-specific errors."""
-        from clickhouse.connector.errors import (
+        from clickhouse_connect.driver.exceptions import (
             DatabaseError as ClickHouseDatabaseError,
             Error as ClickHouseError,
             IntegrityError as ClickHouseIntegrityError,
@@ -167,24 +167,15 @@ class ClickHouseBackendMixin:
         error_msg = str(error)
 
         if isinstance(error, ClickHouseIntegrityError):
-            if "Duplicate entry" in error_msg:
+            if "UNIQUE constraint" in error_msg or "Violates unique constraint" in error_msg:
                 self.log(logging.ERROR, f"Unique constraint violation: {error_msg}")
                 raise IntegrityError(f"Unique constraint violation: {error_msg}")
-            elif "Cannot delete or update" in error_msg or "a foreign key constraint fails" in error_msg:
-                self.log(logging.ERROR, f"Foreign key constraint violation: {error_msg}")
-                raise IntegrityError(f"Foreign key constraint violation: {error_msg}")
             self.log(logging.ERROR, f"Integrity error: {error_msg}")
             raise IntegrityError(error_msg)
         elif isinstance(error, ClickHouseDatabaseError):
-            if "Deadlock found" in error_msg:
-                self.log(logging.ERROR, f"Deadlock error: {error_msg}")
-                raise DeadlockError(error_msg)
             self.log(logging.ERROR, f"Database error: {error_msg}")
             raise DatabaseError(error_msg)
         elif isinstance(error, ClickHouseOperationalError):
-            if "Lock wait timeout exceeded" in error_msg:
-                self.log(logging.ERROR, f"Lock timeout error: {error_msg}")
-                raise OperationalError(error_msg)
             self.log(logging.ERROR, f"Operational error: {error_msg}")
             raise OperationalError(error_msg)
         elif isinstance(error, ClickHouseError):

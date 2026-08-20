@@ -1,6 +1,6 @@
 # requirements.txt
 # Backend-specific dependencies only
-# Core dependency (rhosocial-activerecord) is installed via CI workflow
+# Core dependency (rhosocial-activerecord) is installed via local editable install
 
-# MySQL driver
-mysql-connector-python>=9.0.0
+# ClickHouse driver
+clickhouse-connect>=0.7.0

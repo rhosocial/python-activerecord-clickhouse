@@ -1,11 +1,21 @@
+# requirements-dev.txt
+# Development and testing dependencies for rhosocial-activerecord-clickhouse
+# Local packages (rhosocial-activerecord, rhosocial-activerecord-testsuite)
+# are installed in editable mode separately.
+
+# Configuration / parsing
 pyyaml
 tomli
-rhosocial-activerecord-testsuite
 pydantic[email]
 pytz
+
+# Testing
+pytest
 pytest-asyncio
 pytest-benchmark
 pytest-xdist
 pytest-cov
+
+# Web / HTTP for benchmarks and tests
 fastapi>=0.110
 httpx>=0.27

@@ -1,8 +1,9 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/transaction.py
 """ClickHouse synchronous transaction manager implementation.
 
-This module provides ClickHouse-specific transaction management that handles
-ClickHouse's requirement for SET TRANSACTION before START TRANSACTION.
+ClickHouse does not support ACID transactions in the general backend protocol.
+Only experimental, asynchronous transactions are available (and not on ClickHouse
+Cloud), so the backend fails fast when a transaction is requested.
 """
 
 import logging
@@ -21,15 +22,8 @@ if TYPE_CHECKING:
 class ClickHouseTransactionManager(ClickHouseTransactionMixin, TransactionManager):
     """ClickHouse synchronous transaction manager implementation.
 
-    ClickHouse requires SET TRANSACTION ISOLATION LEVEL to be executed before
-    START TRANSACTION when a specific isolation level is needed. This class
-    overrides _do_begin() to handle this sequencing.
-
-    The format_begin_transaction() in ClickHouseDialect returns only "START TRANSACTION",
-    while this class handles the SET TRANSACTION step separately.
-
-    Non-I/O methods (isolation_level, _build_set_isolation_sql, _ISOLATION_LEVELS)
-    are inherited from ClickHouseTransactionMixin.
+    ClickHouse does not support ACID transactions. Attempting to begin a
+    transaction raises UnsupportedFeatureError.
     """
 
     def __init__(
@@ -44,26 +38,43 @@ class ClickHouseTransactionManager(ClickHouseTransactionMixin, TransactionManage
             logger: Optional logger instance.
         """
         super().__init__(backend, logger)
-        # Note: _isolation_level defaults to None (use database default).
-        # ClickHouse's default isolation level is REPEATABLE READ, but we only
-        # send SET TRANSACTION when user explicitly specifies a level.
 
     def _do_begin(self) -> None:
-        """Begin a new transaction with ClickHouse-specific sequencing.
+        """Begin a new transaction is not supported in ClickHouse."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        ClickHouse requires:
-        1. SET TRANSACTION ISOLATION LEVEL (if needed, before START)
-        2. START TRANSACTION [READ ONLY]
+        raise UnsupportedFeatureError(
+            "ClickHouse",
+            "transactions",
+            "ClickHouse does not support ACID transactions.",
+        )
 
-        Each statement is executed separately via backend.execute().
-        """
-        # Step 1: Set isolation level if needed
-        if self._isolation_level is not None:
-            sql, params = self._build_set_isolation_sql(self._isolation_level)
-            self.log(logging.DEBUG, f"Executing: {sql}")
-            self._backend.execute(sql, params)
+    def _do_commit(self) -> None:
+        """Commit is not supported in ClickHouse."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        # Step 2: Execute START TRANSACTION
-        sql, params = self._build_begin_sql()
-        self.log(logging.DEBUG, f"Executing: {sql}")
-        self._backend.execute(sql, params)
+        raise UnsupportedFeatureError(
+            "ClickHouse",
+            "transactions",
+            "ClickHouse does not support ACID transactions.",
+        )
+
+    def _do_rollback(self) -> None:
+        """Rollback is not supported in ClickHouse."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        raise UnsupportedFeatureError(
+            "ClickHouse",
+            "transactions",
+            "ClickHouse does not support ACID transactions.",
+        )
+
+    def _do_rollback_savepoint(self, savepoint: str) -> None:
+        """Rollback to savepoint is not supported in ClickHouse."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        raise UnsupportedFeatureError(
+            "ClickHouse",
+            "savepoints",
+            "ClickHouse does not support savepoints.",
+        )

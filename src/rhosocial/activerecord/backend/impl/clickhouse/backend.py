@@ -13,10 +13,20 @@ from typing import Any, List, Optional, Tuple
 
 try:
     import clickhouse_connect
-    from clickhouse_connect import get_client
+    from clickhouse_connect.dbapi import connect as clickhouse_connect_dbapi_connect
+    from clickhouse_connect.driver.exceptions import (
+        DatabaseError as ClickHouseDatabaseError,
+        Error as ClickHouseError,
+        IntegrityError as ClickHouseIntegrityError,
+        OperationalError as ClickHouseOperationalError,
+    )
 except ImportError:  # pragma: no cover
     clickhouse_connect = None  # type: ignore
-    get_client = None  # type: ignore
+    clickhouse_connect_dbapi_connect = None  # type: ignore
+    ClickHouseDatabaseError = Exception
+    ClickHouseError = Exception
+    ClickHouseIntegrityError = Exception
+    ClickHouseOperationalError = Exception
 
 from rhosocial.activerecord.backend.base import StorageBackend
 from rhosocial.activerecord.backend.errors import (
@@ -166,79 +176,53 @@ class ClickHouseBackend(
             self.log(logging.INFO, f"Adapted to ClickHouse server version {actual_version}")
 
     def connect(self) -> None:
-        """Establish connection to ClickHouse database."""
+        """Establish connection to ClickHouse database.
+
+        Uses clickhouse-connect's DB-API 2.0 layer (HTTP interface).
+        """
         try:
             # Prepare connection parameters from config
             conn_params = {
                 "host": self.config.host,
-                "port": self.config.port,
+                "port": self.config.port if self.config.port else 8123,
                 "database": self.config.database,
-                "user": self.config.username,
-                "password": self.config.password,
-                "charset": getattr(self.config, "charset", "utf8mb4"),
-                "autocommit": getattr(self.config, "autocommit", True),
-                "use_unicode": getattr(self.config, "use_unicode", True),
-                "raise_on_warnings": getattr(self.config, "raise_on_warnings", False),
-                "get_warnings": getattr(self.config, "get_warnings", False),
-                "connection_timeout": getattr(self.config, "connect_timeout", 10),
-                "sql_mode": getattr(self.config, "sql_mode", "STRICT_TRANS_TABLES"),
+                "username": self.config.username,
+                "password": self.config.password or "",
             }
 
             # Add SSL parameters if provided
-            if hasattr(self.config, "ssl_ca"):
-                conn_params["ssl_ca"] = self.config.ssl_ca
-            if hasattr(self.config, "ssl_cert"):
-                conn_params["ssl_cert"] = self.config.ssl_cert
-            if hasattr(self.config, "ssl_key"):
-                conn_params["ssl_key"] = self.config.ssl_key
-            if hasattr(self.config, "ssl_verify_cert"):
-                conn_params["ssl_verify_cert"] = self.config.ssl_verify_cert
-            if hasattr(self.config, "ssl_verify_identity"):
-                conn_params["ssl_verify_identity"] = self.config.ssl_verify_identity
+            if getattr(self.config, "ssl_ca", None):
+                conn_params["ca_cert"] = self.config.ssl_ca
+            if getattr(self.config, "ssl_cert", None):
+                conn_params["client_cert"] = self.config.ssl_cert
+            if getattr(self.config, "ssl_key", None):
+                conn_params["client_cert_key"] = self.config.ssl_key
+            if getattr(self.config, "ssl_verify_cert", None):
+                conn_params["verify"] = self.config.ssl_verify_cert
 
-            # Add additional parameters if they exist in config
-            # Only include parameters that are supported by clickhouse.connector
-            additional_params = [
-                "auth_plugin",
-                "init_command",
-                "connect_timeout",
-                "read_timeout",
-                "write_timeout",
-                "use_pure",
-                "get_warnings",
-                "buffered",
-                "raw",
-                "compress",
-                "allow_local_infile",
-                "conn_attrs",
-                "client_flags",
-                "unix_socket",
-                "ssl_disabled",
-                # Note: pool_pre_ping is not supported by clickhouse.connector
-            ]
+            # Add driver settings
+            connect_timeout = getattr(self.config, "connect_timeout", None)
+            if connect_timeout:
+                conn_params["connect_timeout"] = connect_timeout
+            send_receive_timeout = getattr(self.config, "send_receive_timeout", None)
+            if send_receive_timeout:
+                conn_params["send_receive_timeout"] = send_receive_timeout
+            compress = getattr(self.config, "compress", None)
+            if compress is not None:
+                conn_params["compress"] = compress
 
-            for param in additional_params:
-                if hasattr(self.config, param):
-                    # Skip pool-related parameters as they're not supported by clickhouse.connector
-                    if param.startswith("pool_"):
-                        continue
-                    value = getattr(self.config, param)
-                    # Only add the parameter if it's not None
-                    if value is not None:
-                        conn_params[param] = value
+            # Map generic options into driver settings
+            options = getattr(self.config, "options", None)
+            if options:
+                settings = dict(options.get("settings", {}))
+                if "settings" in options:
+                    conn_params["settings"] = settings
 
-            self._connection = clickhouse.connector.connect(**conn_params)
-
-            # Set additional session settings if specified
-            init_command = getattr(self.config, "init_command", None)
-            if init_command:
-                cursor = self._connection.cursor()
-                cursor.execute(init_command)
-                cursor.close()
+            self._connection = clickhouse_connect_dbapi_connect(**conn_params)
 
             self.log(
                 logging.INFO,
-                f"Connected to ClickHouse database: {self.config.host}:{self.config.port}/{self.config.database}",
+                f"Connected to ClickHouse database: {self.config.host}:{conn_params['port']}/{self.config.database}",
             )
             self._fetch_concurrency_hint()
         except ClickHouseError as e:
@@ -278,13 +262,13 @@ class ClickHouseBackend(
             self.log(logging.DEBUG, "No connection, connecting...")
             self.connect()
         else:
-            # Protect is_connected() call - may raise BrokenPipeError in ClickHouse 5.6
+            # Verify the connection is still alive via a lightweight query.
             try:
-                is_connected = self._connection.is_connected()
-            except (BrokenPipeError, OSError):
-                is_connected = False
-
-            if not is_connected:
+                cursor = self._connection.cursor()
+                cursor.execute("SELECT 1")
+                cursor.fetchone()
+                cursor.close()
+            except (BrokenPipeError, OSError, ClickHouseError):
                 self.log(logging.DEBUG, "Connection lost, reconnecting...")
                 self.disconnect()
                 self.connect()
@@ -345,12 +329,12 @@ class ClickHouseBackend(
         cursor = None
         try:
             cursor = self._get_cursor()
-            cursor.execute("SELECT VERSION()")
+            cursor.execute("SELECT version()")
             version_row = cursor.fetchone()
-            version_str = version_row[0] if version_row else "8.0.0"
+            version_str = version_row[0] if version_row else "26.0.0"
 
-            # Parse version string (e.g., "8.0.26" or "8.0.26-log")
-            version_clean = version_str.split("-")[0]  # Remove suffix like "-log"
+            # Parse version string (e.g., "26.7.3.19" or "26.7.3.19-alpine")
+            version_clean = version_str.split("-")[0]  # Remove suffix like "-alpine"
             version_parts = version_clean.split(".")
 
             major = int(version_parts[0]) if len(version_parts) > 0 else 0
@@ -362,8 +346,8 @@ class ClickHouseBackend(
             self.log(logging.INFO, f"ClickHouse server version: {major}.{minor}.{patch}")
             return version_tuple
         except Exception as e:
-            self.log(logging.WARNING, f"Could not determine ClickHouse version: {str(e)}, defaulting to 8.0.0")
-            return (8, 0, 0)  # Default to a recent version
+            self.log(logging.WARNING, f"Could not determine ClickHouse version: {str(e)}, defaulting to 26.0.0")
+            return (26, 0, 0)  # Default to a recent version
         finally:
             if cursor:
                 cursor.close()
@@ -388,37 +372,14 @@ class ClickHouseBackend(
                 else:
                     return False
 
-            # Check connection status without triggering auto-reconnect
-            # Note: is_connected() may raise BrokenPipeError/OSError in ClickHouse 5.6 +
-            # clickhouse-connector-python 9.x when connection has been killed
+            # Verify connection with SELECT 1
             try:
-                is_connected = self._connection.is_connected()
-            except (BrokenPipeError, OSError):
-                is_connected = False
-
-            if not is_connected:
-                if reconnect:
-                    self.disconnect()
-                    self.connect()
-                    return True
-                else:
-                    return False
-
-            # When reconnect=False, don't send SELECT 1 to avoid potential
-            # BrokenPipeError in ClickHouse 5.6 RST race condition.
-            # Just trust the is_connected() result.
-            if not reconnect:
-                return True
-
-            # reconnect=True: verify connection with SELECT 1
-            try:
-                cursor = self._get_cursor()
+                cursor = self._connection.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
                 cursor.close()
                 return True
-            except (BrokenPipeError, OSError):
-                # May occur in ClickHouse 5.6 RST race condition
+            except (BrokenPipeError, OSError, ClickHouseError):
                 if reconnect:
                     self.disconnect()
                     self.connect()
@@ -597,7 +558,6 @@ class ClickHouseBackend(
                        by semicolons.
         """
         import time
-        import clickhouse_connect.get_client
 
         self.log(logging.INFO, "Executing SQL script.")
         start_time = time.perf_counter()
@@ -608,27 +568,9 @@ class ClickHouseBackend(
         cursor = None
         try:
             cursor = self._connection.cursor()
-
-            # Check clickhouse-connector-python version for API compatibility
-            # Version 9.2.0+ removed the 'multi' parameter
-            version = clickhouse.connector.version.VERSION
-            use_new_api = version >= (9, 2, 0)
-
-            if use_new_api:
-                # 9.2.0+: Execute directly, use nextset() for multiple result sets
-                cursor.execute(sql_script)
-                # Consume all result sets
-                if cursor.with_rows:
-                    cursor.fetchall()
-                while cursor.nextset():
-                    if cursor.with_rows:
-                        cursor.fetchall()
-            else:
-                # < 9.2.0: Use multi=True parameter
-                results = cursor.execute(sql_script, multi=True)
-                for result in results:
-                    if result.with_rows:
-                        result.fetchall()
+            cursor.execute(sql_script)
+            if cursor.description:
+                cursor.fetchall()
 
             duration = time.perf_counter() - start_time
             self.log(logging.INFO, f"SQL script executed successfully, duration={duration:.3f}s")
