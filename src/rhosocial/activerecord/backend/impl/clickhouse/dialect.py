@@ -85,7 +85,6 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from .protocols import (
     ClickHouseTriggerSupport,
     ClickHouseTableSupport,
-    ClickHouseSetTypeSupport,
     ClickHouseJSONFunctionSupport,
     ClickHouseSpatialSupport,
     ClickHouseVectorSupport,
@@ -127,6 +126,8 @@ from .mixins import (
     ClickHouseRoutineMixin,
     ClickHouseLoadXMLLMixin,
     ClickHouseAdminCommandMixin,
+    ClickHouseTableEngineMixin,
+    ClickHouseQueryClauseMixin,
 )
 from .collation import validate_clickhouse_collation_name
 from .show.dialect import ClickHouseShowDialectMixin
@@ -193,7 +194,6 @@ class ClickHouseDialect(
     ClickHouseTruncateMixin,  # ClickHouse TRUNCATE support (before TruncateMixin to override)
     TruncateMixin,
     ConstraintMixin,
-    ClickHouseSetTypeMixin,
     ClickHouseSpatialMixin,
     ClickHouseVectorMixin,  # ClickHouse 9.0+ VECTOR type support
     ClickHouseIntrospectionMixin,  # Must be before IntrospectionMixin
@@ -207,6 +207,8 @@ class ClickHouseDialect(
     ClickHouseRoutineMixin,  # ClickHouse stored procedures/functions/CALL
     ClickHouseLoadXMLLMixin,  # ClickHouse LOAD XML
     ClickHouseAdminCommandMixin,  # ClickHouse admin/utility commands
+    ClickHouseTableEngineMixin,  # ClickHouse ENGINE / ORDER BY / PARTITION BY / TTL
+    ClickHouseQueryClauseMixin,  # ClickHouse FINAL / ARRAY JOIN
     IntrospectionMixin,
     # New Mixins
     IdentifierMixin,
@@ -252,7 +254,6 @@ class ClickHouseDialect(
     TransactionControlSupport,
     # ClickHouse-specific protocols
     ClickHouseTriggerSupport,
-    ClickHouseSetTypeSupport,
     ClickHouseSpatialSupport,
     ClickHouseVectorSupport,  # ClickHouse 9.0+ VECTOR type support
     ClickHouseFullTextSearchSupport,  # ClickHouse full-text search

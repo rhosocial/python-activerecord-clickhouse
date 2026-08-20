@@ -24,6 +24,11 @@ from .maintenance import ClickHouseMaintenanceMixin
 from .routine import ClickHouseRoutineMixin
 from .load_xml import ClickHouseLoadXMLLMixin
 from .admin import ClickHouseAdminCommandMixin
+from .table_engine import (
+    ClickHouseTableEngineMixin,
+    ClickHouseQueryClauseMixin,
+    ClickHouseTableEngineSupport,
+)
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
@@ -52,4 +57,7 @@ __all__ = [
     "ClickHouseRoutineMixin",
     "ClickHouseLoadXMLLMixin",
     "ClickHouseAdminCommandMixin",
+    "ClickHouseTableEngineMixin",
+    "ClickHouseQueryClauseMixin",
+    "ClickHouseTableEngineSupport",
 ]

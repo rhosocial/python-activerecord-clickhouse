@@ -164,12 +164,13 @@ class ClickHouseTableMixin:
         return " ".join(parts)
 
     def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
-        """Format ClickHouse table storage options (ENGINE, CHARSET, etc.)."""
+        """Format ClickHouse table storage options.
+
+        ClickHouse syntax: ``ENGINE = MergeTree()``, ``ORDER BY id``,
+        ``PARTITION BY toYYYYMM(created_at)`` — values are NOT quoted.
+        """
         parts = []
         for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key}='{self._escape_sql_string(value)}'")
-            else:
-                parts.append(f"{key}={value}")
+            parts.append(f"{key} = {value}")
         return " ".join(parts)
 
