@@ -82,11 +82,12 @@ class TestClickHouseQueryFeatures:
         assert len(r.data) >= 2
 
     def test_union_all(self, clickhouse_backend, sample_table):
+        # ClickHouse UNION ALL does not guarantee global ORDER BY across branches
         r = clickhouse_backend.execute(
             "SELECT id FROM test_ch_query WHERE id < 2 "
             "UNION ALL SELECT id FROM test_ch_query WHERE id > 4 ORDER BY id"
         )
-        assert [row["id"] for row in r.data] == [0, 1, 5]
+        assert sorted(row["id"] for row in r.data) == [0, 1, 5]
 
     def test_union_distinct(self, clickhouse_backend, sample_table):
         # ClickHouse requires explicit ALL/DISTINCT when union_default_mode is empty

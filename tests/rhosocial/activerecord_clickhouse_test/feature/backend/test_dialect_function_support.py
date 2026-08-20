@@ -59,107 +59,76 @@ class TestClickHouseFunctionSupportBasic:
 
 
 class TestClickHouseFunctionSupportVersionDependent:
-    """Tests for version-dependent function support."""
+    """Tests for version-dependent function support.
 
-    def test_json_functions_require_clickhouse_5_7_8(self):
-        """Test that JSON functions require ClickHouse 5.7.8+."""
-        json_functions = [
-            "json_extract",
-            "json_unquote",
-            "json_object",
-            "json_array",
-            "json_contains",
-            "json_set",
-            "json_remove",
-            "json_type",
-            "json_valid",
-            "json_search",
-        ]
+    ClickHouse-specific function wrappers (JSON_*, ST_*, match_against,
+    find_in_set, bit_shift_*, etc.) are NOT provided by this backend.
+    Core SQL functions are supported on all versions.
+    """
 
-        dialect_old = ClickHouseDialect(version=(5, 7, 7))
-        result_old = dialect_old.supports_functions()
-        for func in json_functions:
-            assert result_old.get(func) is False
+    def test_clickhouse_specific_functions_not_reported(self):
+        """MySQL-derived function wrappers are not reported as supported.
 
-        dialect_new = ClickHouseDialect(version=(5, 7, 8))
-        result_new = dialect_new.supports_functions()
-        for func in json_functions:
-            assert result_new.get(func) is True
+        Note: ``json_extract`` is a core generic function (uses dialect's
+        format method to generate correct SQL), so it IS reported. MySQL-only
+        wrappers like ``bit_and``, ``find_in_set`` are absent.
+        """
+        dialect = ClickHouseDialect(version=(26, 7, 3))
+        result = dialect.supports_functions()
 
-    def test_spatial_functions_require_clickhouse_5_7(self):
-        """Test that spatial functions require ClickHouse 5.7+."""
-        spatial_functions = [
-            "st_geom_from_text",
-            "st_geom_from_wkb",
-            "st_as_text",
+        # Core JSON functions are reported (they use the dialect mixin)
+        assert "json_extract" in result
+
+        # MySQL-only wrappers from the deleted functions/ module are absent
+        mysql_derived = [
             "st_distance",
+            "st_geom_from_text",
             "st_within",
             "st_contains",
             "st_intersects",
-        ]
-
-        dialect_old = ClickHouseDialect(version=(5, 6, 99))
-        result_old = dialect_old.supports_functions()
-        for func in spatial_functions:
-            assert result_old.get(func) is False
-
-        dialect_new = ClickHouseDialect(version=(5, 7, 0))
-        result_new = dialect_new.supports_functions()
-        for func in spatial_functions:
-            assert result_new.get(func) is True
-
-    def test_st_as_geojson_requires_clickhouse_5_7_5(self):
-        """Test that st_as_geojson requires ClickHouse 5.7.5+."""
-        dialect_old = ClickHouseDialect(version=(5, 7, 4))
-        result_old = dialect_old.supports_functions()
-        assert result_old.get("st_as_geojson") is False
-
-        dialect_new = ClickHouseDialect(version=(5, 7, 5))
-        result_new = dialect_new.supports_functions()
-        assert result_new.get("st_as_geojson") is True
-
-    def test_always_available_functions(self):
-        """Test functions that are available in all ClickHouse versions."""
-        dialect = ClickHouseDialect((8, 0, 0))
-        result = dialect.supports_functions()
-
-        always_available = [
+            "st_as_text",
+            "st_as_geojson",
             "match_against",
             "find_in_set",
             "elt",
             "field",
+            "bit_and",
+            "bit_or",
+            "bit_xor",
+            "bit_count",
+            "bit_get_bit",
+            "bit_shift_left",
+            "bit_shift_right",
+        ]
+        for func in mysql_derived:
+            assert func not in result, f"{func} should not be reported"
+
+    def test_core_functions_available_all_versions(self):
+        """Core math/aggregate functions are available in all ClickHouse versions."""
+        dialect = ClickHouseDialect((26, 7, 3))
+        result = dialect.supports_functions()
+
+        # Functions present in the core expression.functions module
+        core_functions = [
             "round_",
-            "pow",
             "power",
             "sqrt",
             "mod",
             "ceil",
             "floor",
-            "trunc",
             "max_",
             "min_",
             "avg",
-            "bit_and",
-            "bit_or",
-            "bit_xor",
-            "bit_count",
         ]
-        for func in always_available:
-            assert result.get(func) is True, f"{func} should be always available"
+        for func in core_functions:
+            assert result.get(func) is True, f"{func} should be supported"
 
-    def test_bit_shift_functions_require_clickhouse_8_0(self):
-        """Test that bit shift functions require ClickHouse 8.0+."""
-        dialect_old = ClickHouseDialect(version=(7, 99, 99))
-        result_old = dialect_old.supports_functions()
-        assert result_old.get("bit_shift_left") is False
-        assert result_old.get("bit_shift_right") is False
-        assert result_old.get("bit_get_bit") is False
-
-        dialect_new = ClickHouseDialect(version=(8, 0, 0))
-        result_new = dialect_new.supports_functions()
-        assert result_new.get("bit_shift_left") is True
-        assert result_new.get("bit_shift_right") is True
-        assert result_new.get("bit_get_bit") is True
+    def test_aggregate_and_scalar_core_functions(self):
+        """Core aggregate/scalar functions are reported."""
+        dialect = ClickHouseDialect((26, 7, 3))
+        result = dialect.supports_functions()
+        for func in ["count", "sum_", "avg", "min_", "max_", "coalesce", "nullif"]:
+            assert result.get(func) is True, f"{func} should be supported"
 
 
 class TestClickHouseFunctionSupportPrivateMethod:
@@ -171,46 +140,34 @@ class TestClickHouseFunctionSupportPrivateMethod:
         result = dialect._is_clickhouse_function_supported("unknown_function_xyz")
         assert result is True
 
-    def test_version_restricted_function_below_minimum(self):
-        """Test that version-restricted function returns False below minimum."""
-        dialect = ClickHouseDialect(version=(5, 7, 7))
-        result = dialect._is_clickhouse_function_supported("json_extract")
-        assert result is False
-
-    def test_version_restricted_function_at_minimum(self):
-        """Test that version-restricted function returns True at minimum."""
-        dialect = ClickHouseDialect(version=(5, 7, 8))
-        result = dialect._is_clickhouse_function_supported("json_extract")
-        assert result is True
-
-    def test_version_restricted_function_above_minimum(self):
-        """Test that version-restricted function returns True above minimum."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-        result = dialect._is_clickhouse_function_supported("json_extract")
+    def test_core_math_function_below_minimum(self):
+        """Test that a core function with no version gate returns True."""
+        dialect = ClickHouseDialect(version=(1, 0, 0))
+        result = dialect._is_clickhouse_function_supported("round_")
         assert result is True
 
 
 class TestClickHouseFunctionSupportIntegration:
     """Integration tests for function support detection."""
 
-    def test_function_dict_contains_both_core_and_backend_functions(self):
-        """Test that the result contains both core and ClickHouse-specific functions."""
+    def test_function_dict_contains_core_functions(self):
+        """Test that the result contains core functions (not MySQL wrappers)."""
         dialect = ClickHouseDialect((8, 0, 0))
         result = dialect.supports_functions()
 
         assert any(func in result for func in ["count", "sum_", "avg"])
-        assert any(func in result for func in ["json_extract", "st_distance", "find_in_set"])
+        # MySQL-derived wrappers are absent
+        assert "st_distance" not in result
+        assert "find_in_set" not in result
 
-    def test_function_support_changes_with_version(self):
-        """Test that function support changes across different versions."""
+    def test_function_support_stable_across_versions(self):
+        """Core function support does not change across ClickHouse versions."""
         old_dialect = ClickHouseDialect(version=(5, 6, 0))
-        new_dialect = ClickHouseDialect(version=(8, 0, 0))
+        new_dialect = ClickHouseDialect(version=(26, 0, 0))
 
         old_result = old_dialect.supports_functions()
         new_result = new_dialect.supports_functions()
 
-        assert old_result.get("json_extract") is False
-        assert new_result.get("json_extract") is True
-
-        assert old_result.get("st_geom_from_text") is False
-        assert new_result.get("st_geom_from_text") is True
+        for func in ["count", "sum_", "avg", "coalesce"]:
+            assert old_result.get(func) is True
+            assert new_result.get(func) is True

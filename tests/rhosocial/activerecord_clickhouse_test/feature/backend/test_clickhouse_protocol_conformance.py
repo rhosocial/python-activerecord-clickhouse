@@ -97,7 +97,6 @@ CLICKHOUSE_PROTOCOLS = [
     clickhouse_protocols.ClickHouseDMLOperationSupport,
     clickhouse_protocols.ClickHouseTriggerSupport,
     clickhouse_protocols.ClickHouseTableSupport,
-    clickhouse_protocols.ClickHouseSetTypeSupport,
     clickhouse_protocols.ClickHouseJSONFunctionSupport,
     clickhouse_protocols.ClickHouseSpatialSupport,
     clickhouse_protocols.ClickHouseVectorSupport,
@@ -113,6 +112,8 @@ CLICKHOUSE_PROTOCOLS = [
     clickhouse_protocols.ClickHouseRoutineSupport,
     clickhouse_protocols.ClickHouseLoadXMLSupport,
     clickhouse_protocols.ClickHouseAdminCommandSupport,
+    # Note: ClickHouseSetTypeSupport is intentionally absent — the dialect no
+    # longer provides MySQL-style SET type helpers (FIND_IN_SET / SET_CONTAINS).
 ]
 
 
@@ -309,7 +310,6 @@ CLICKHOUSE_PROTOCOL_MIXIN_PAIRS = [
     (clickhouse_protocols.ClickHouseDMLOperationSupport, clickhouse_mixins.ClickHouseDMLOperationMixin),
     (clickhouse_protocols.ClickHouseTriggerSupport, clickhouse_mixins.ClickHouseTriggerMixin),
     (clickhouse_protocols.ClickHouseTableSupport, clickhouse_mixins.ClickHouseTableMixin),
-    (clickhouse_protocols.ClickHouseSetTypeSupport, clickhouse_mixins.ClickHouseSetTypeMixin),
     (clickhouse_protocols.ClickHouseJSONFunctionSupport, clickhouse_mixins.ClickHouseJSONFunctionMixin),
     (clickhouse_protocols.ClickHouseSpatialSupport, clickhouse_mixins.ClickHouseSpatialMixin),
     (clickhouse_protocols.ClickHouseVectorSupport, clickhouse_mixins.ClickHouseVectorMixin),
@@ -326,7 +326,6 @@ CLICKHOUSE_PROTOCOL_MIXIN_PAIRS = [
     (clickhouse_protocols.ClickHouseLoadXMLSupport, clickhouse_mixins.ClickHouseLoadXMLLMixin),
     (clickhouse_protocols.ClickHouseAdminCommandSupport, clickhouse_mixins.ClickHouseAdminCommandMixin),
 ]
-
 
 class TestProtocolMethodSignatureConformance:
     """Verify ClickHouseDialect method signatures match Protocol declarations.

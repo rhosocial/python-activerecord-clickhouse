@@ -1,18 +1,14 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/test_backend_explain.py
 """
-Integration tests for ClickHouseBackend.explain() and AsyncClickHouseBackend.explain().
+Integration tests for ClickHouseBackend.explain().
 
 These tests require a real ClickHouse connection configured via clickhouse_scenarios.yaml.
-The tests create temporary tables, run EXPLAIN, and verify the typed result objects.
+The tests create a temporary table, run EXPLAIN, and verify the typed result objects.
 """
 
 import pytest
-import pytest_asyncio
 
-from rhosocial.activerecord.backend.explain import (
-    SyncExplainBackendProtocol,
-    AsyncExplainBackendProtocol,
-)
+from rhosocial.activerecord.backend.explain import SyncExplainBackendProtocol
 from rhosocial.activerecord.backend.expression import RawSQLExpression
 from rhosocial.activerecord.backend.expression.statements import ExplainOptions
 from rhosocial.activerecord.backend.impl.clickhouse import (
@@ -22,66 +18,42 @@ from rhosocial.activerecord.backend.impl.clickhouse import (
 
 
 # ---------------------------------------------------------------------------
-# Schema helpers
-# ---------------------------------------------------------------------------
-
-_SETUP_SQL = """
-    DROP TABLE IF EXISTS explain_order_items;
-    DROP TABLE IF EXISTS explain_orders;
-
-    CREATE TABLE explain_orders (
-        id       INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        status   VARCHAR(20)  NOT NULL,
-        amount   DECIMAL(10,2),
-        INDEX idx_orders_status (status)
-    ) ENGINE=InnoDB;
-
-    CREATE TABLE explain_order_items (
-        id       INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        order_id INT          NOT NULL,
-        sku      VARCHAR(50)  NOT NULL,
-        qty      INT          NOT NULL DEFAULT 1,
-        INDEX idx_items_order_id_sku (order_id, sku)
-    ) ENGINE=InnoDB;
-
-    INSERT INTO explain_orders (status, amount) VALUES
-        ('pending', 10.00), ('pending', 20.00),
-        ('shipped', 30.00), ('delivered', 40.00);
-
-    INSERT INTO explain_order_items (order_id, sku, qty) VALUES
-        (1, 'A001', 1), (1, 'A002', 2),
-        (2, 'B001', 1), (3, 'A001', 3);
-"""
-
-_CLEANUP_SQL = """
-    DROP TABLE IF EXISTS explain_order_items;
-    DROP TABLE IF EXISTS explain_orders;
-"""
-
-
-# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture(scope="function")
 def indexed_backend(clickhouse_backend_single):
-    """Sync backend with test tables and indexes."""
-    clickhouse_backend_single.executescript(_SETUP_SQL)
-    yield clickhouse_backend_single
+    """Sync backend with a small ClickHouse-native test table."""
+    backend = clickhouse_backend_single
+    backend.execute("DROP TABLE IF EXISTS explain_orders")
+    backend.execute("""
+        CREATE TABLE explain_orders (
+            id UInt32,
+            status String,
+            amount Decimal(10, 2)
+        ) ENGINE = MergeTree()
+        ORDER BY id
+    """)
+    backend.execute(
+        "INSERT INTO explain_orders (id, status, amount) VALUES (%s, %s, %s)",
+        (1, "pending", 10.00),
+    )
+    backend.execute(
+        "INSERT INTO explain_orders (id, status, amount) VALUES (%s, %s, %s)",
+        (2, "shipped", 20.00),
+    )
+    backend.execute(
+        "INSERT INTO explain_orders (id, status, amount) VALUES (%s, %s, %s)",
+        (3, "pending", 30.00),
+    )
+    backend.execute(
+        "INSERT INTO explain_orders (id, status, amount) VALUES (%s, %s, %s)",
+        (4, "delivered", 40.00),
+    )
+    yield backend
     try:
-        clickhouse_backend_single.executescript(_CLEANUP_SQL)
-    except Exception:
-        pass
-
-
-@pytest_asyncio.fixture(scope="function")
-async def async_indexed_backend(async_clickhouse_backend):
-    """Async backend with test tables and indexes."""
-    await async_clickhouse_backend.executescript(_SETUP_SQL)
-    yield async_clickhouse_backend
-    try:
-        await async_clickhouse_backend.executescript(_CLEANUP_SQL)
+        backend.execute("DROP TABLE IF EXISTS explain_orders")
     except Exception:
         pass
 
@@ -94,10 +66,6 @@ async def async_indexed_backend(async_clickhouse_backend):
 class TestExplainProtocol:
     def test_sync_backend_implements_protocol(self, clickhouse_backend_single):
         assert isinstance(clickhouse_backend_single, SyncExplainBackendProtocol)
-
-    @pytest.mark.asyncio
-    async def test_async_backend_implements_protocol(self, async_clickhouse_backend):
-        assert isinstance(async_clickhouse_backend, AsyncExplainBackendProtocol)
 
 
 # ---------------------------------------------------------------------------
@@ -145,50 +113,11 @@ class TestSyncExplainBasic:
         assert isinstance(result.raw_rows, list)
         assert len(result.raw_rows) == len(result.rows)
 
-
-# ---------------------------------------------------------------------------
-# Sync explain – index usage analysis
-# ---------------------------------------------------------------------------
-
-
-class TestSyncExplainIndexAnalysis:
-    def test_full_scan_detection(self, indexed_backend):
-        """SELECT * FROM table without WHERE → full scan (type='ALL')."""
-        dialect = indexed_backend.dialect
-        result = indexed_backend.explain(RawSQLExpression(dialect, "SELECT * FROM explain_orders"))
-        assert result.analyze_index_usage() == "full_scan"
-        assert result.is_full_scan is True
-        assert result.is_index_used is False
-        assert result.is_covering_index is False
-
-    def test_index_with_lookup_detection(self, indexed_backend):
-        """SELECT * … WHERE indexed_col = ? → index lookup + table read."""
-        dialect = indexed_backend.dialect
-        result = indexed_backend.explain(
-            RawSQLExpression(dialect, "SELECT * FROM explain_orders WHERE status = 'pending'")
-        )
-        usage = result.analyze_index_usage()
-        # Could be index_with_lookup or covering_index depending on optimizer
-        assert usage in ("index_with_lookup", "covering_index")
-        assert result.is_index_used is True
-        assert result.is_full_scan is False
-
-    def test_covering_index_detection(self, indexed_backend):
-        """SELECT indexed_col FROM table WHERE indexed_col = ? → covering index."""
-        dialect = indexed_backend.dialect
-        result = indexed_backend.explain(
-            RawSQLExpression(dialect, "SELECT order_id, sku FROM explain_order_items WHERE order_id = 1")
-        )
-        usage = result.analyze_index_usage()
-        # Both columns are in the covering index (order_id, sku)
-        assert usage == "covering_index"
-        assert result.is_covering_index is True
-        assert result.is_full_scan is False
-
     def test_row_fields_present(self, indexed_backend):
         """Verify ClickHouseExplainRow has expected attribute names."""
         dialect = indexed_backend.dialect
-        result = indexed_backend.explain(RawSQLExpression(dialect, "SELECT * FROM explain_orders"))
+        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        result = indexed_backend.explain(expr)
         row = result.rows[0]
         # All expected fields must exist (may be None for some)
         assert hasattr(row, "id")
@@ -201,85 +130,28 @@ class TestSyncExplainIndexAnalysis:
 
 
 # ---------------------------------------------------------------------------
-# Async explain – mirror of sync tests
+# ClickHouse-specific EXPLAIN variants
 # ---------------------------------------------------------------------------
 
 
-class TestAsyncExplainBasic:
-    @pytest.mark.asyncio
-    async def test_explain_returns_clickhouse_explain_result(self, async_indexed_backend):
-        dialect = async_indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
-        result = await async_indexed_backend.explain(expr)
-        assert isinstance(result, ClickHouseExplainResult)
-
-    @pytest.mark.asyncio
-    async def test_result_has_rows(self, async_indexed_backend):
-        dialect = async_indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
-        result = await async_indexed_backend.explain(expr)
-        assert len(result.rows) > 0
-
-    @pytest.mark.asyncio
-    async def test_result_has_sql_and_duration(self, async_indexed_backend):
-        dialect = async_indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
-        result = await async_indexed_backend.explain(expr)
-        assert result.sql.upper().startswith("EXPLAIN")
-        assert result.duration >= 0.0
-
-    @pytest.mark.asyncio
-    async def test_full_scan_detection(self, async_indexed_backend):
-        dialect = async_indexed_backend.dialect
-        result = await async_indexed_backend.explain(RawSQLExpression(dialect, "SELECT * FROM explain_orders"))
-        assert result.is_full_scan is True
-
-    @pytest.mark.asyncio
-    async def test_index_used_detection(self, async_indexed_backend):
-        dialect = async_indexed_backend.dialect
-        result = await async_indexed_backend.explain(
-            RawSQLExpression(dialect, "SELECT * FROM explain_orders WHERE status = 'pending'")
-        )
-        assert result.is_index_used is True
-
-    @pytest.mark.asyncio
-    async def test_covering_index_detection(self, async_indexed_backend):
-        dialect = async_indexed_backend.dialect
-        result = await async_indexed_backend.explain(
-            RawSQLExpression(dialect, "SELECT order_id, sku FROM explain_order_items WHERE order_id = 1")
-        )
-        assert result.is_covering_index is True
-
-
-# ---------------------------------------------------------------------------
-# FORMAT option (version-gated)
-# ---------------------------------------------------------------------------
-
-
-class TestExplainFormat:
-    def test_format_json_when_supported(self, indexed_backend):
-        """EXPLAIN FORMAT=JSON returns a result (may not be ClickHouseExplainResult rows)."""
+class TestClickHouseExplainVariants:
+    def test_explain_analyze(self, indexed_backend):
+        """EXPLAIN ANALYZE returns a result (if supported)."""
         dialect = indexed_backend.dialect
-        if not dialect.supports_explain_format("JSON"):
-            pytest.skip("ClickHouse version does not support FORMAT=JSON")
-        from rhosocial.activerecord.backend.expression.statements import ExplainFormat
-
-        opts = ExplainOptions(format=ExplainFormat.JSON)
+        if not dialect.supports_explain_analyze():
+            pytest.skip("ClickHouse version does not support EXPLAIN ANALYZE")
         expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
-        result = indexed_backend.explain(expr, opts)
-        # We get back a ClickHouseExplainResult; raw_rows should be non-empty
+        result = indexed_backend.explain(expr, ExplainOptions(analyze=True))
         assert isinstance(result, ClickHouseExplainResult)
+        assert result.sql.upper().startswith("EXPLAIN ANALYZE")
         assert len(result.raw_rows) > 0
 
-    def test_format_tree_when_supported(self, indexed_backend):
-        """EXPLAIN FORMAT=TREE (ClickHouse 8.0.16+)."""
-        dialect = indexed_backend.dialect
-        if not dialect.supports_explain_format("TREE"):
-            pytest.skip("ClickHouse version does not support FORMAT=TREE")
-        from rhosocial.activerecord.backend.expression.statements import ExplainFormat
+    def test_explain_pipeline(self, indexed_backend):
+        """EXPLAIN PIPELINE returns rows.
 
-        opts = ExplainOptions(format=ExplainFormat.TREE)
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
-        result = indexed_backend.explain(expr, opts)
-        assert isinstance(result, ClickHouseExplainResult)
-        assert len(result.raw_rows) > 0
+        The dialect has no structured option for the ClickHouse-only
+        ``PIPELINE`` keyword, so the raw query is executed directly.
+        """
+        rows = indexed_backend.fetch_all("EXPLAIN PIPELINE SELECT * FROM explain_orders")
+        assert isinstance(rows, list)
+        assert len(rows) > 0

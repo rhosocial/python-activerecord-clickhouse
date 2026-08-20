@@ -1407,42 +1407,12 @@ class ClickHouseDialect(
     # ClickHouse function version support: function_name -> (min_version, max_version)
     # min_version: minimum supported version (inclusive), None = all versions
     # max_version: maximum supported version (inclusive), None = no upper limit
-    # Reference: https://dev.clickhouse.com/doc/refman/en/inline-functions.html
+    #
+    # Core (generic) SQL functions are supported on all ClickHouse versions.
+    # ClickHouse-specific function wrappers (JSON_*, ST_*, etc.) are NOT provided
+    # by this backend; use ClickHouse's native functions directly.
     _CLICKHOUSE_FUNCTION_VERSIONS = {
-        # JSON functions are available since ClickHouse 5.7.8.
-        "json_extract": ((5, 7, 8), None),
-        "json_extract_text": ((5, 7, 13), None),
-        "json_build_object": (None, (0, 0, 0)),
-        "json_array_elements": (None, (0, 0, 0)),
-        "json_objectagg": ((5, 7, 22), None),
-        "json_arrayagg": ((5, 7, 22), None),
-        # ClickHouse-specific JSON function wrappers use JSON_* functions from ClickHouse 5.7.8.
-        "json_unquote": ((5, 7, 8), None),
-        "json_object": ((5, 7, 8), None),
-        "json_array": ((5, 7, 8), None),
-        "json_contains": ((5, 7, 8), None),
-        "json_set": ((5, 7, 8), None),
-        "json_remove": ((5, 7, 8), None),
-        "json_type": ((5, 7, 8), None),
-        "json_valid": ((5, 7, 8), None),
-        "json_search": ((5, 7, 8), None),
-        # Spatial functions: ClickHouse 5.7+ (renamed from ST_* to lowercase)
-        "st_geom_from_text": ((5, 7, 0), None),
-        "st_geom_from_wkb": ((5, 7, 0), None),
-        "st_as_text": ((5, 7, 0), None),
-        "st_as_geojson": ((5, 7, 5), None),
-        "st_distance": ((5, 7, 0), None),
-        "st_within": ((5, 7, 0), None),
-        "st_contains": ((5, 7, 0), None),
-        "st_intersects": ((5, 7, 0), None),
-        # Full-text search: ClickHouse 5.6+ (with some features requiring 5.7+)
-        "match_against": (None, None),  # Available since early versions
-        # SET type functions: All ClickHouse versions
-        "find_in_set": (None, None),
-        # Enum type functions: All ClickHouse versions
-        "elt": (None, None),
-        "field": (None, None),
-        # Math enhanced functions: All ClickHouse versions
+        # Core math functions: All ClickHouse versions
         "round_": (None, None),
         "pow": (None, None),
         "power": (None, None),
@@ -1454,27 +1424,14 @@ class ClickHouseDialect(
         "max_": (None, None),
         "min_": (None, None),
         "avg": (None, None),
-        # Bitwise functions: All ClickHouse versions
-        "bit_and": (None, None),
-        "bit_or": (None, None),
-        "bit_xor": (None, None),
-        "bit_count": (None, None),
-        "bit_get_bit": ((8, 0, 0), None),  # BIT() function added in 8.0
-        "bit_shift_left": ((8, 0, 0), None),  # Added in 8.0
-        "bit_shift_right": ((8, 0, 0), None),  # Added in 8.0
     }
 
     def supports_functions(self) -> Dict[str, bool]:
         """Return supported SQL functions as function_name -> bool mapping.
 
-        This method combines:
-        1. Core functions from rhosocial.activerecord.backend.expression.functions
-        2. ClickHouse-specific functions from rhosocial.activerecord.backend.impl.clickhouse.functions
-
-        ClickHouse version-specific functions:
-        - JSON functions: ClickHouse 5.7.8+
-        - Spatial functions: ClickHouse 5.7+
-        - GeoJSON functions: ClickHouse 5.7.5+
+        Reports the core SQL function set. ClickHouse-specific function
+        wrappers are not provided by this backend (use ClickHouse's native
+        functions, e.g. ``JSONExtract*``, directly).
 
         Returns:
             Dict mapping function names to True (supported) or False.
@@ -1482,7 +1439,6 @@ class ClickHouseDialect(
         from rhosocial.activerecord.backend.expression.functions import (
             __all__ as core_functions,
         )
-        from rhosocial.activerecord.backend.impl.clickhouse import functions as clickhouse_functions
 
         expression_constructors = {
             "xmlagg",
@@ -1503,11 +1459,7 @@ class ClickHouseDialect(
         for func_name in core_functions:
             if func_name not in expression_constructors:
                 result[func_name] = self._is_clickhouse_function_supported(func_name)
-
-        clickhouse_funcs = getattr(clickhouse_functions, "__all__", [])
-        for func_name in clickhouse_funcs:
-            if func_name not in result:
-                result[func_name] = self._is_clickhouse_function_supported(func_name)
+        return result
 
         return result
 

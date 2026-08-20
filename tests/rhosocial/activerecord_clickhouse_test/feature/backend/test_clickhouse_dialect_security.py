@@ -72,14 +72,14 @@ def test_clickhouse_validate_data_type(dialect):
 
 
 def test_clickhouse_format_column_definition_data_type_validation(dialect):
-    """Test column definition validates data_type."""
+    """Test column definition validates data_type (VarChar maps to String)."""
     col_def = ColumnDefinition(
         name="test_col",
         data_type=VarCharType(255),
     )
 
     sql, params = dialect.format_column_definition(col_def)
-    assert "VARCHAR(255)" in sql
+    assert "String" in sql
 
 
 def test_clickhouse_format_column_definition_data_type_rejects_injection(dialect):
@@ -447,34 +447,34 @@ class TestClickHouseCreateTableCommentEscaping:
 
 
 # ============================================================
-# _format_storage_options_clickhouse — key quoting and value escaping
+# format_storage_options — ClickHouse native ENGINE / ORDER BY / TTL syntax
 # ============================================================
 
 
 def test_storage_options_normal_key_and_value(dialect):
-    """Normal storage option key is plain, string value is quoted and escaped."""
-    sql = dialect.format_storage_options({"ENGINE": "InnoDB"})
-    assert "ENGINE='InnoDB'" in sql
+    """ClickHouse storage option key/value are joined with ' = ' and not quoted."""
+    sql = dialect.format_storage_options({"ENGINE": "MergeTree()"})
+    assert "ENGINE = MergeTree()" in sql
 
 
-def test_storage_options_string_value_escaped(dialect):
-    """String value with single quote is properly escaped."""
-    sql = dialect.format_storage_options({"ENGINE": "It's"})
-    assert "It''s" in sql
+def test_storage_options_multiple_keys(dialect):
+    """Multiple storage options are space separated."""
+    sql = dialect.format_storage_options({"ENGINE": "MergeTree()", "ORDER BY": "id"})
+    assert "ENGINE = MergeTree()" in sql
+    assert "ORDER BY = id" in sql
 
 
 def test_storage_options_int_value(dialect):
-    """Integer value is not quoted."""
-    sql = dialect.format_storage_options({"AUTO_INCREMENT": 1000})
-    assert "AUTO_INCREMENT=1000" in sql
+    """Integer value is rendered without quotes."""
+    sql = dialect.format_storage_options({"PARTITION_BY": 1000})
+    assert "PARTITION_BY = 1000" in sql
 
 
-def test_storage_options_string_injection_value_escaped(dialect):
-    """String value with injection payload is safely escaped inside quotes."""
-    sql = dialect.format_storage_options({"ENGINE": "x'; DROP TABLE t--"})
-    assert "'x''; DROP TABLE t--'" in sql
-    # The single quote inside is doubled, so the payload cannot break out
-    assert sql.count("'") % 2 == 0, f"Unbalanced quotes: {sql}"
+def test_storage_options_string_value_preserved(dialect):
+    """ClickHouse storage option values are NOT quoted (engine/expression names)."""
+    sql = dialect.format_storage_options({"ENGINE": "MergeTree()"})
+    assert "ENGINE = MergeTree()" == sql
+    assert "'" not in sql
 
 
 # ============================================================

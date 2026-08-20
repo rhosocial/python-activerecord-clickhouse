@@ -3,7 +3,6 @@
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Column, Literal, QueryExpression
 from rhosocial.activerecord.backend.expression.functions import (
     date_add,
@@ -39,29 +38,28 @@ class TestClickHouseDateTimeIntervalExpressions:
         assert params == ()
 
     @pytest.mark.parametrize(
-        "field,fmt",
-        [
-            ("year", "%Y-01-01 00:00:00"),
-            ("month", "%Y-%m-01 00:00:00"),
-            ("day", "%Y-%m-%d 00:00:00"),
-            ("hour", "%Y-%m-%d %H:00:00"),
-            ("minute", "%Y-%m-%d %H:%i:00"),
-            ("second", "%Y-%m-%d %H:%i:%s"),
-        ],
+        "field",
+        ["year", "month", "day", "hour", "minute", "second"],
     )
-    def test_date_trunc_datetime_fields(self, clickhouse_dialect: ClickHouseDialect, field: str, fmt: str):
+    def test_date_trunc_datetime_fields(self, clickhouse_dialect: ClickHouseDialect, field: str):
         expr = date_trunc(clickhouse_dialect, field, Column(clickhouse_dialect, "created_at"))
 
         sql, params = expr.to_sql()
 
-        assert sql == "CAST(DATE_FORMAT(`created_at`, %s) AS DATETIME)"
-        assert params == (fmt,)
+        assert sql == "date_trunc(%s, `created_at`)"
+        assert params == (field.upper(),)
 
-    def test_date_trunc_week_is_unsupported(self, clickhouse_dialect: ClickHouseDialect):
-        expr = date_trunc(clickhouse_dialect, "week", Column(clickhouse_dialect, "created_at"))
+    @pytest.mark.parametrize(
+        "field",
+        ["week", "year"],
+    )
+    def test_date_trunc_additional_fields(self, clickhouse_dialect: ClickHouseDialect, field: str):
+        expr = date_trunc(clickhouse_dialect, field, Column(clickhouse_dialect, "created_at"))
 
-        with pytest.raises(UnsupportedFeatureError):
-            expr.to_sql()
+        sql, params = expr.to_sql()
+
+        assert sql == "date_trunc(%s, `created_at`)"
+        assert params == (field.upper(),)
 
     def test_interval_expression(self, clickhouse_dialect: ClickHouseDialect):
         expr = interval(clickhouse_dialect, 2, "hour")
@@ -76,7 +74,7 @@ class TestClickHouseDateTimeIntervalExpressions:
 
         sql, params = expr.to_sql()
 
-        assert sql == "DATE_ADD(`created_at`, INTERVAL %s DAY)"
+        assert sql == "date_add(DAY, INTERVAL %s DAY, `created_at`)"
         assert params == (1,)
 
     def test_date_sub_interval_expression(self, clickhouse_dialect: ClickHouseDialect):
@@ -88,7 +86,7 @@ class TestClickHouseDateTimeIntervalExpressions:
 
         sql, params = expr.to_sql()
 
-        assert sql == "DATE_SUB(`created_at`, INTERVAL %s HOUR)"
+        assert sql == "date_sub(HOUR, INTERVAL %s HOUR, `created_at`)"
         assert params == (2,)
 
     def test_date_add_literal_source_params_order(self, clickhouse_dialect: ClickHouseDialect):
@@ -101,7 +99,7 @@ class TestClickHouseDateTimeIntervalExpressions:
 
         sql, params = expr.to_sql()
 
-        assert sql == "DATE_ADD(%s, INTERVAL %s MINUTE)"
+        assert sql == "date_add(MINUTE, INTERVAL %s MINUTE, %s)"
         assert params == ("2026-06-04 10:00:00", 30)
 
     @pytest.mark.parametrize(
@@ -118,8 +116,8 @@ class TestClickHouseDateTimeIntervalExpressions:
 
         sql, params = expr.to_sql()
 
-        assert sql == f"TIMESTAMPDIFF({unit.upper()}, `started_at`, `ended_at`)"
-        assert params == ()
+        assert sql == "dateDiff(%s, `started_at`, `ended_at`)"
+        assert params == (unit.upper(),)
 
     def test_alias_and_cast(self, clickhouse_dialect: ClickHouseDialect):
         expr = (
@@ -135,8 +133,8 @@ class TestClickHouseDateTimeIntervalExpressions:
 
         sql, params = expr.to_sql()
 
-        assert sql == ("CAST(TIMESTAMPDIFF(DAY, `started_at`, `ended_at`) AS SIGNED) AS `elapsed_days`")
-        assert params == ()
+        assert sql == "CAST(dateDiff(%s, `started_at`, `ended_at`) AS SIGNED) AS `elapsed_days`"
+        assert params == ("DAY",)
 
     def test_query_expression_integration(self, clickhouse_dialect: ClickHouseDialect):
         shifted = date_add(clickhouse_dialect, Column(clickhouse_dialect, "created_at"), 1, "day")
@@ -150,5 +148,5 @@ class TestClickHouseDateTimeIntervalExpressions:
         sql, params = query.to_sql()
 
         assert "EXTRACT(YEAR FROM `created_at`)" in sql
-        assert "DATE_ADD(`created_at`, INTERVAL %s DAY) > %s" in sql
+        assert "date_add(DAY, INTERVAL %s DAY, `created_at`) > %s" in sql
         assert params == (1, "2026-01-01")
