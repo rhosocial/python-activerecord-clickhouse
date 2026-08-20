@@ -108,7 +108,6 @@ from .mixins import (
     ClickHouseFullTextSearchMixin,
     ClickHouseTriggerMixin,
     ClickHouseTableMixin,
-    ClickHouseSetTypeMixin,
     ClickHouseJSONFunctionMixin,
     ClickHouseSpatialMixin,
     ClickHouseVectorMixin,
@@ -877,7 +876,6 @@ class ClickHouseDialect(
             return self.format_create_table_like(expr)
 
         # Build standard CREATE TABLE statement
-        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType, TableConstraintType
 
         all_params: List[Any] = []
 

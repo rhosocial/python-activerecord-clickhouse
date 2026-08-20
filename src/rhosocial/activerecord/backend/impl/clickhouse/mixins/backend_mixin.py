@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/backend_mixin.py
 import logging
-from typing import Any, Dict, Tuple, Type
+from typing import Dict, Tuple, Type
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
 
@@ -79,7 +79,7 @@ class ClickHouseBackendMixin:
             raise UnsupportedFeatureError(
                 self.name,
                 "RETURNING clause",
-                "ClickHouse does not support RETURNING clause. Consider using LAST_INSERT_ID() or alternative approaches.",
+                "ClickHouse does not support RETURNING clause for UPDATE/DELETE.",
             )
 
     def get_default_adapter_suggestions(self) -> Dict[Type, Tuple[SQLTypeAdapter, Type]]:
@@ -159,7 +159,6 @@ class ClickHouseBackendMixin:
         )
         from rhosocial.activerecord.backend.errors import (
             DatabaseError,
-            DeadlockError,
             IntegrityError,
             OperationalError,
         )

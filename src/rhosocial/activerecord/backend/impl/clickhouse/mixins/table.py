@@ -31,7 +31,6 @@ class ClickHouseTableMixin:
         if "like_table" in expr.dialect_options:
             return self.format_create_table_like(expr)
 
-        from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType, TableConstraintType
 
         all_params: List[Any] = []
 

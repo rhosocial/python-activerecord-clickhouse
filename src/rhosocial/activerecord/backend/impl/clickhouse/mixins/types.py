@@ -14,6 +14,7 @@ from rhosocial.activerecord.backend.expression.types import (
     BlobType,
     BooleanType,
     CharType,
+    DataType,
     DateType,
     DateTimeType,
     DecimalType,
@@ -267,7 +268,9 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return f"AggregateFunction({data_type.function_name}, {args})", ()
 
     @DDLTypeMixin.handles(ClickHouseSimpleAggregateFunctionType)
-    def format_data_type_simple_aggregate_function(self, data_type: ClickHouseSimpleAggregateFunctionType) -> Tuple[str, tuple]:
+    def format_data_type_simple_aggregate_function(
+        self, data_type: ClickHouseSimpleAggregateFunctionType
+    ) -> Tuple[str, tuple]:
         args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
         return f"SimpleAggregateFunction({data_type.function_name}, {args})", ()
 

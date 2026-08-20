@@ -15,12 +15,7 @@ from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQ
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
-        ClickHouseAddPartitionExpression,
-        ClickHouseDropPartitionExpression,
-        ClickHouseCoalescePartitionExpression,
-        ClickHouseReorganizePartitionExpression,
         ClickHousePartitionDefinition,
-        ClickHouseSubpartitionDefinition,
     )
 
 

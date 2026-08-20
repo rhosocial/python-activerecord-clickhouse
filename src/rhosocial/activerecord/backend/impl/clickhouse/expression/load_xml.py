@@ -12,7 +12,7 @@ ClickHouse supports importing an XML document into a table:
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
