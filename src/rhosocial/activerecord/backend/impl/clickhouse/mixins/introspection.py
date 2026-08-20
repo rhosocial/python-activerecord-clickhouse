@@ -94,179 +94,127 @@ class ClickHouseIntrospectionMixin:
     # ========== Query Formatting ==========
 
     def format_database_info_query(self, expr: "DatabaseInfoExpression") -> Tuple[str, tuple]:
-        """Format database information query.
-
-        NOTE: MySQL-style information_schema.SCHEMATA SQL; should be rewritten
-        against ClickHouse system.databases.
-        """
+        """Format database information query against ClickHouse system.databases."""
         params = expr.get_params()
         schema = params.get("schema", "")
         sql = (
-            "SELECT DEFAULT_CHARACTER_SET_NAME, DEFAULT_COLLATION_NAME "
-            "FROM information_schema.SCHEMATA "
-            "WHERE SCHEMA_NAME = %s"
+            "SELECT engine AS DEFAULT_CHARACTER_SET_NAME, '' AS DEFAULT_COLLATION_NAME "
+            "FROM system.databases "
+            "WHERE name = %s"
         )
         return (sql, (schema,))
 
     def format_table_list_query(self, expr: "TableListExpression") -> Tuple[str, tuple]:
-        """Format table list query.
-
-        NOTE: MySQL-style information_schema.TABLES SQL; should be rewritten
-        against ClickHouse system.tables.
-        """
+        """Format table list query against ClickHouse system.tables."""
         params = expr.get_params()
         schema = params.get("schema", "")
         include_views = params.get("include_views", True)
         include_system = params.get("include_system", False)
         table_type = params.get("table_type")
 
-        conditions = ["TABLE_SCHEMA = %s"]
+        conditions = ["database = %s"]
         sql_params: list = [schema]
 
         if not include_system:
-            conditions.append("TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'clickhouse', 'sys')")
+            conditions.append("database != 'system'")
         if not include_views:
-            conditions.append("TABLE_TYPE = 'BASE TABLE'")
+            conditions.append("engine NOT LIKE '%%View'")
         if table_type:
-            conditions.append("TABLE_TYPE = %s")
+            conditions.append("engine = %s")
             sql_params.append(table_type)
 
         where = " AND ".join(conditions)
         sql = (
-            "SELECT TABLE_NAME, TABLE_TYPE, TABLE_COMMENT, TABLE_ROWS, "
-            "DATA_LENGTH, AUTO_INCREMENT, CREATE_TIME, UPDATE_TIME "
-            f"FROM information_schema.TABLES WHERE {where}"
+            "SELECT name AS TABLE_NAME, engine AS TABLE_TYPE, "
+            "comment AS TABLE_COMMENT, total_rows AS TABLE_ROWS, "
+            "total_bytes AS DATA_LENGTH, 0 AS AUTO_INCREMENT, "
+            "metadata_modification_time AS MODIFICATION_TIME "
+            f"FROM system.tables WHERE {where} ORDER BY name"
         )
         return (sql, tuple(sql_params))
 
     def format_column_info_query(self, expr: "ColumnInfoExpression") -> Tuple[str, tuple]:
-        """Format column information query.
-
-        NOTE: MySQL-style information_schema.COLUMNS SQL; should be rewritten
-        against ClickHouse system.columns.
-        """
+        """Format column information query against ClickHouse system.columns."""
         params = expr.get_params()
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
         sql = (
-            "SELECT COLUMN_NAME, ORDINAL_POSITION, COLUMN_DEFAULT, IS_NULLABLE, "
-            "DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, NUMERIC_PRECISION, NUMERIC_SCALE, "
-            "COLUMN_TYPE, COLUMN_KEY, EXTRA, COLUMN_COMMENT, "
-            "CHARACTER_SET_NAME, COLLATION_NAME "
-            "FROM information_schema.COLUMNS "
-            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s "
-            "ORDER BY ORDINAL_POSITION"
+            "SELECT name AS COLUMN_NAME, position AS ORDINAL_POSITION, "
+            "default_expression AS COLUMN_DEFAULT, "
+            "IF(type LIKE 'Nullable(%%', 'YES', 'NO') AS IS_NULLABLE, "
+            "type AS DATA_TYPE, 0 AS CHARACTER_MAXIMUM_LENGTH, "
+            "numeric_precision AS NUMERIC_PRECISION, "
+            "numeric_scale AS NUMERIC_SCALE, "
+            "type AS COLUMN_TYPE, '' AS COLUMN_KEY, '' AS EXTRA, "
+            "comment AS COLUMN_COMMENT, '' AS CHARACTER_SET_NAME, "
+            "'' AS COLLATION_NAME "
+            "FROM system.columns "
+            "WHERE database = %s AND table = %s "
+            "ORDER BY position"
         )
         return (sql, (schema, table_name))
 
     def format_index_info_query(self, expr: "IndexInfoExpression") -> Tuple[str, tuple]:
-        """Format index information query.
-
-        NOTE: MySQL-style information_schema.STATISTICS SQL. There is no direct
-        ClickHouse equivalent (skip indexes live in system.data_skipping_indices,
-        which has a different schema). Still needs to be rewritten.
-        """
+        """Format index information query against ClickHouse system.data_skipping_indices."""
         params = expr.get_params()
         table_name = params.get("table_name", "")
         schema = params.get("schema", "")
         sql = (
-            "SELECT INDEX_NAME, NON_UNIQUE, SEQ_IN_INDEX, COLUMN_NAME, "
-            "INDEX_TYPE, SUB_PART, NULLABLE "
-            "FROM information_schema.STATISTICS "
-            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s "
-            "ORDER BY INDEX_NAME, SEQ_IN_INDEX"
+            "SELECT name AS INDEX_NAME, 0 AS NON_UNIQUE, 1 AS SEQ_IN_INDEX, "
+            "'' AS COLUMN_NAME, type AS INDEX_TYPE, NULL AS SUB_PART, 'YES' AS NULLABLE "
+            "FROM system.data_skipping_indices "
+            "WHERE database = %s AND table = %s "
+            "ORDER BY name"
         )
         return (sql, (schema, table_name))
 
     def format_foreign_key_query(self, expr: "ForeignKeyExpression") -> Tuple[str, tuple]:
-        """Format foreign key information query.
+        """ClickHouse has no foreign keys; raise UnsupportedFeatureError."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        NOTE: MySQL-style information_schema SQL. ClickHouse has no foreign keys,
-        so this has no system-table equivalent. The supporting capability is off
-        (supports_foreign_key_introspection() returns False); this SQL should be
-        removed or turned into an UnsupportedFeatureError.
-        """
-        params = expr.get_params()
-        table_name = params.get("table_name", "")
-        schema = params.get("schema", "")
-        sql = (
-            "SELECT kcu.CONSTRAINT_NAME, kcu.COLUMN_NAME, kcu.ORDINAL_POSITION, "
-            "kcu.REFERENCED_TABLE_NAME, kcu.REFERENCED_COLUMN_NAME, "
-            "rc.UPDATE_RULE, rc.DELETE_RULE "
-            "FROM information_schema.KEY_COLUMN_USAGE kcu "
-            "JOIN information_schema.REFERENTIAL_CONSTRAINTS rc "
-            "  ON kcu.CONSTRAINT_NAME = rc.CONSTRAINT_NAME "
-            "  AND kcu.CONSTRAINT_SCHEMA = rc.CONSTRAINT_SCHEMA "
-            "WHERE kcu.TABLE_SCHEMA = %s AND kcu.TABLE_NAME = %s "
-            "  AND kcu.REFERENCED_TABLE_NAME IS NOT NULL "
-            "ORDER BY kcu.CONSTRAINT_NAME, kcu.ORDINAL_POSITION"
+        raise UnsupportedFeatureError(
+            "ClickHouse", "foreign key introspection",
+            "ClickHouse does not support foreign keys."
         )
-        return (sql, (schema, table_name))
 
     def format_view_list_query(self, expr: "ViewListExpression") -> Tuple[str, tuple]:
-        """Format view list query.
-
-        NOTE: MySQL-style information_schema.VIEWS SQL; should be rewritten
-        against ClickHouse system.views.
-        """
+        """Format view list query against ClickHouse system.tables (View engines)."""
         params = expr.get_params()
         schema = params.get("schema", "")
         include_system = params.get("include_system", False)
 
-        conditions = ["TABLE_SCHEMA = %s"]
+        conditions = ["database = %s", "engine LIKE '%%View'"]
         sql_params: list = [schema]
 
         if not include_system:
-            conditions.append("TABLE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'clickhouse', 'sys')")
+            conditions.append("database != 'system'")
 
         where = " AND ".join(conditions)
         sql = (
-            "SELECT TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE "
-            f"FROM information_schema.VIEWS WHERE {where} "
-            "ORDER BY TABLE_NAME"
+            "SELECT name AS TABLE_NAME, create_table_query AS VIEW_DEFINITION, "
+            "'NONE' AS CHECK_OPTION, 'NO' AS IS_UPDATABLE "
+            f"FROM system.tables WHERE {where} ORDER BY name"
         )
         return (sql, tuple(sql_params))
 
     def format_view_info_query(self, expr: "ViewInfoExpression") -> Tuple[str, tuple]:
-        """Format single view information query.
-
-        NOTE: MySQL-style information_schema.VIEWS SQL; should be rewritten
-        against ClickHouse system.views.
-        """
+        """Format single view information query against ClickHouse system.tables."""
         params = expr.get_params()
         view_name = params.get("view_name", "")
         schema = params.get("schema", "")
         sql = (
-            "SELECT TABLE_NAME, VIEW_DEFINITION, CHECK_OPTION, IS_UPDATABLE "
-            "FROM information_schema.VIEWS "
-            "WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s"
+            "SELECT name AS TABLE_NAME, create_table_query AS VIEW_DEFINITION, "
+            "'NONE' AS CHECK_OPTION, 'NO' AS IS_UPDATABLE "
+            "FROM system.tables "
+            "WHERE database = %s AND name = %s AND engine LIKE '%%View'"
         )
         return (sql, (schema, view_name))
 
     def format_trigger_list_query(self, expr: "TriggerListExpression") -> Tuple[str, tuple]:
-        """Format trigger list query.
+        """ClickHouse has no triggers; raise UnsupportedFeatureError."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        NOTE: MySQL-style information_schema.TRIGGERS SQL. ClickHouse has no
-        triggers, so this has no system-table equivalent. The supporting
-        capability is off (supports_trigger_introspection() returns False);
-        this SQL should be removed or turned into an UnsupportedFeatureError.
-        """
-        params = expr.get_params()
-        table_name = params.get("table_name")
-        schema = params.get("schema", "")
-
-        conditions = ["TRIGGER_SCHEMA = %s"]
-        sql_params: list = [schema]
-
-        if table_name:
-            conditions.append("EVENT_OBJECT_TABLE = %s")
-            sql_params.append(table_name)
-
-        where = " AND ".join(conditions)
-        sql = (
-            "SELECT TRIGGER_NAME, EVENT_MANIPULATION, EVENT_OBJECT_TABLE, "
-            "ACTION_TIMING, ACTION_STATEMENT, CREATED "
-            f"FROM information_schema.TRIGGERS WHERE {where} "
-            "ORDER BY TRIGGER_NAME"
+        raise UnsupportedFeatureError(
+            "ClickHouse", "trigger introspection",
+            "ClickHouse does not support triggers."
         )
-        return (sql, tuple(sql_params))
