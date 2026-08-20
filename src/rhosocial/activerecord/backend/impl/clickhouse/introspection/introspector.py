@@ -331,7 +331,8 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
         table = copy.copy(table)
         table.columns = self.list_columns(table_name, schema)
         table.indexes = self.list_indexes(table_name, schema)
-        table.foreign_keys = self.list_foreign_keys(table_name, schema)
+        # ClickHouse has no foreign keys; keep the default empty list.
+        table.foreign_keys = []
         self._set_cached(key, table)
         return table
 
