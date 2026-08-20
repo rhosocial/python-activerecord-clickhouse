@@ -21,6 +21,8 @@ All methods follow the pattern:
 
 from typing import Tuple, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
 if TYPE_CHECKING:
     from .expressions import (
         ShowCreateTableExpression,
@@ -81,53 +83,42 @@ class ClickHouseShowDialectMixin:
         return sql, ()
 
     def format_show_create_trigger(self, expr: "ShowCreateTriggerExpression") -> Tuple[str, tuple]:
-        """Format SHOW CREATE TRIGGER statement."""
-        params = expr.get_params()
-        trigger_name = params["trigger_name"]
-        schema = params.get("schema")
+        """Format SHOW CREATE TRIGGER statement.
 
-        if schema:
-            sql = f"SHOW CREATE TRIGGER {self.format_identifier(schema)}.{self.format_identifier(trigger_name)}"
-        else:
-            sql = f"SHOW CREATE TRIGGER {self.format_identifier(trigger_name)}"
-        return sql, ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW CREATE TRIGGER",
+            suggestion="ClickHouse does not support triggers.",
+        )
 
     # ========== SHOW COLUMNS/INDEX ==========
 
     def format_show_columns(self, expr: "ShowColumnsExpression") -> Tuple[str, tuple]:
-        """Format SHOW [FULL] COLUMNS statement."""
-        params = expr.get_params()
-        table_name = params["table_name"]
-        schema = params.get("schema")
-        full = params.get("full", False)
-        like_pattern = params.get("like_pattern")
+        """Format SHOW [FULL] COLUMNS statement.
 
-        parts = ["SHOW"]
-        if full:
-            parts.append("FULL")
-        parts.append("COLUMNS FROM")
-        if schema:
-            parts.append(f"{self.format_identifier(schema)}.")
-        parts.append(self.format_identifier(table_name))
-
-        sql_params = ()
-        if like_pattern:
-            parts.append("LIKE %s")
-            sql_params = (like_pattern,)
-
-        return " ".join(parts), sql_params
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW COLUMNS",
+            suggestion="Use DESCRIBE TABLE or query system.columns instead.",
+        )
 
     def format_show_index(self, expr: "ShowIndexExpression") -> Tuple[str, tuple]:
-        """Format SHOW INDEX statement."""
-        params = expr.get_params()
-        table_name = params["table_name"]
-        schema = params.get("schema")
+        """Format SHOW INDEX statement.
 
-        if schema:
-            sql = f"SHOW INDEX FROM {self.format_identifier(schema)}.{self.format_identifier(table_name)}"
-        else:
-            sql = f"SHOW INDEX FROM {self.format_identifier(table_name)}"
-        return sql, ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW INDEX",
+            suggestion="Query system.data_skipping_indices or system.tables instead.",
+        )
 
     # ========== SHOW TABLES/DATABASES ==========
 
@@ -162,146 +153,155 @@ class ClickHouseShowDialectMixin:
         return "SHOW DATABASES", ()
 
     def format_show_table_status(self, expr: "ShowTableStatusExpression") -> Tuple[str, tuple]:
-        """Format SHOW TABLE STATUS statement."""
-        params = expr.get_params()
-        schema = params.get("schema")
-        like_pattern = params.get("like_pattern")
+        """Format SHOW TABLE STATUS statement.
 
-        parts = ["SHOW TABLE STATUS"]
-        if schema:
-            parts.append(f"FROM {self.format_identifier(schema)}")
-
-        sql_params = ()
-        if like_pattern:
-            parts.append("LIKE %s")
-            sql_params = (like_pattern,)
-
-        return " ".join(parts), sql_params
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW TABLE STATUS",
+            suggestion="Query system.tables instead.",
+        )
 
     # ========== SHOW TRIGGERS ==========
 
     def format_show_triggers(self, expr: "ShowTriggersExpression") -> Tuple[str, tuple]:
-        """Format SHOW TRIGGERS statement."""
-        params = expr.get_params()
-        schema = params.get("schema")
-        table_name = params.get("table_name")
+        """Format SHOW TRIGGERS statement.
 
-        parts = ["SHOW TRIGGERS"]
-        if schema:
-            parts.append(f"FROM {self.format_identifier(schema)}")
-
-        sql_params = ()
-        if table_name:
-            parts.append("LIKE %s")
-            sql_params = (table_name,)
-
-        return " ".join(parts), sql_params
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW TRIGGERS",
+            suggestion="ClickHouse does not support triggers.",
+        )
 
     # ========== SHOW VARIABLES/STATUS ==========
 
     def format_show_variables(self, expr: "ShowVariablesExpression") -> Tuple[str, tuple]:
-        """Format SHOW VARIABLES statement."""
-        params = expr.get_params()
-        session = params.get("session", True)
-        like_pattern = params.get("like_pattern")
+        """Format SHOW VARIABLES statement.
 
-        parts = ["SHOW"]
-        if not session:
-            parts.append("GLOBAL")
-        parts.append("VARIABLES")
-
-        sql_params = ()
-        if like_pattern:
-            parts.append("LIKE %s")
-            sql_params = (like_pattern,)
-
-        return " ".join(parts), sql_params
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW VARIABLES",
+            suggestion="Query system.settings instead.",
+        )
 
     def format_show_status(self, expr: "ShowStatusExpression") -> Tuple[str, tuple]:
-        """Format SHOW STATUS statement."""
-        params = expr.get_params()
-        session = params.get("session", True)
-        like_pattern = params.get("like_pattern")
+        """Format SHOW STATUS statement.
 
-        parts = ["SHOW"]
-        if not session:
-            parts.append("GLOBAL")
-        parts.append("STATUS")
-
-        sql_params = ()
-        if like_pattern:
-            parts.append("LIKE %s")
-            sql_params = (like_pattern,)
-
-        return " ".join(parts), sql_params
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW STATUS",
+            suggestion="Query system.metrics, system.events, or system.asynchronous_metrics instead.",
+        )
 
     # ========== SHOW PROCESSLIST/WARNINGS/ERRORS ==========
 
     def format_show_processlist(self, expr: "ShowProcessListExpression") -> Tuple[str, tuple]:
-        """Format SHOW PROCESSLIST statement."""
-        params = expr.get_params()
-        full = params.get("full", False)
+        """Format SHOW PROCESSLIST statement.
 
-        if full:
-            return "SHOW FULL PROCESSLIST", ()
-        return "SHOW PROCESSLIST", ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW PROCESSLIST",
+            suggestion="Query system.processes instead.",
+        )
 
     def format_show_warnings(self, expr: "ShowWarningsExpression") -> Tuple[str, tuple]:
-        """Format SHOW WARNINGS statement."""
-        params = expr.get_params()
-        limit = params.get("limit")
+        """Format SHOW WARNINGS statement.
 
-        if limit is not None:
-            return f"SHOW WARNINGS LIMIT {limit}", ()
-        return "SHOW WARNINGS", ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW WARNINGS",
+            suggestion="Query system.query_log or system.text_log instead.",
+        )
 
     def format_show_errors(self, expr: "ShowErrorsExpression") -> Tuple[str, tuple]:
-        """Format SHOW ERRORS statement."""
-        params = expr.get_params()
-        limit = params.get("limit")
+        """Format SHOW ERRORS statement.
 
-        if limit is not None:
-            return f"SHOW ERRORS LIMIT {limit}", ()
-        return "SHOW ERRORS", ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW ERRORS",
+            suggestion="Query system.errors or system.query_log instead.",
+        )
 
     # ========== SHOW ENGINES/CHARSET/COLLATION ==========
 
     def format_show_engines(self, expr: "ShowEnginesExpression") -> Tuple[str, tuple]:
-        """Format SHOW ENGINES statement."""
-        return "SHOW ENGINES", ()
+        """Format SHOW ENGINES statement.
+
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW ENGINES",
+            suggestion="Query system.table_engines instead.",
+        )
 
     def format_show_charset(self, expr: "ShowCharsetExpression") -> Tuple[str, tuple]:
-        """Format SHOW CHARACTER SET statement."""
-        params = expr.get_params()
-        like_pattern = params.get("like_pattern")
+        """Format SHOW CHARACTER SET statement.
 
-        if like_pattern:
-            return "SHOW CHARACTER SET LIKE %s", (like_pattern,)
-        return "SHOW CHARACTER SET", ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW CHARACTER SET",
+            suggestion="ClickHouse does not support MySQL character sets; query system.character_sets instead.",
+        )
 
     def format_show_collation(self, expr: "ShowCollationExpression") -> Tuple[str, tuple]:
-        """Format SHOW COLLATION statement."""
-        params = expr.get_params()
-        like_pattern = params.get("like_pattern")
+        """Format SHOW COLLATION statement.
 
-        if like_pattern:
-            return "SHOW COLLATION LIKE %s", (like_pattern,)
-        return "SHOW COLLATION", ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW COLLATION",
+            suggestion="ClickHouse does not support MySQL collations; query system.collations instead.",
+        )
 
     # ========== SHOW GRANTS/PLUGINS ==========
 
     def format_show_grants(self, expr: "ShowGrantsExpression") -> Tuple[str, tuple]:
-        """Format SHOW GRANTS statement."""
-        params = expr.get_params()
-        user = params.get("user")
-        host = params.get("host")
+        """Format SHOW GRANTS statement.
 
-        if user:
-            if host:
-                return "SHOW GRANTS FOR %s@%s", (user, host)
-            return "SHOW GRANTS FOR %s", (user,)
-        return "SHOW GRANTS", ()
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW GRANTS",
+            suggestion="Query system.grants or other system.* access control tables instead.",
+        )
 
     def format_show_plugins(self, expr: "ShowPluginsExpression") -> Tuple[str, tuple]:
-        """Format SHOW PLUGINS statement."""
-        return "SHOW PLUGINS", ()
+        """Format SHOW PLUGINS statement.
+
+        Note:
+            MySQL-only command, not supported by ClickHouse.
+        """
+        raise UnsupportedFeatureError(
+            self.name,
+            "SHOW PLUGINS",
+            suggestion="Query system.functions for user-defined functions instead.",
+        )

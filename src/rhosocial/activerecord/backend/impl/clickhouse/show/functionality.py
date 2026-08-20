@@ -21,31 +21,17 @@ The implementation:
 
 from typing import Optional, Tuple, TYPE_CHECKING
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
 from .expressions import (
     ShowCreateTableExpression,
     ShowCreateViewExpression,
-    ShowColumnsExpression,
-    ShowIndexExpression,
     ShowTablesExpression,
     ShowDatabasesExpression,
-    ShowTableStatusExpression,
-    ShowTriggersExpression,
-    ShowCreateTriggerExpression,
-    ShowVariablesExpression,
-    ShowStatusExpression,
-    ShowProcessListExpression,
-    ShowWarningsExpression,
-    ShowErrorsExpression,
-    ShowEnginesExpression,
-    ShowCharsetExpression,
-    ShowCollationExpression,
-    ShowGrantsExpression,
-    ShowPluginsExpression,
 )
 
 if TYPE_CHECKING:
     from ..backend import ClickHouseBackend
-    from ..async_backend import AsyncClickHouseBackend
 
 
 class ClickHouseShowFunctionality:
@@ -425,45 +411,28 @@ class ClickHouseShowFunctionality:
     ):
         """Get column information for a table.
 
-        Args:
-            table_name: Name of the table.
-            schema: Database/schema name (optional).
-            full: Include privileges and comments.
-            like: Filter columns by name pattern.
-
-        Returns:
-            List of ShowColumnResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowColumnsExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
-        if full:
-            expr.full()
-        if like:
-            expr.like(like)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_columns_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW COLUMNS",
+            suggestion="Use DESCRIBE TABLE or query system.columns instead.",
+        )
 
     # ========== SHOW INDEX ==========
 
     def indexes(self, table_name: str, schema: Optional[str] = None):
         """Get index information for a table.
 
-        Args:
-            table_name: Name of the table.
-            schema: Database/schema name (optional).
-
-        Returns:
-            List of ShowIndexResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowIndexExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_indexes_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW INDEX",
+            suggestion="Query system.data_skipping_indices or system.tables instead.",
+        )
 
     # ========== SHOW TABLES ==========
 
@@ -519,491 +488,175 @@ class ClickHouseShowFunctionality:
     def table_status(self, schema: Optional[str] = None, like: Optional[str] = None):
         """Get table status information.
 
-        Args:
-            schema: Database/schema name (optional).
-            like: Filter tables by name pattern.
-
-        Returns:
-            List of ShowTableStatusResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowTableStatusExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_table_status_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW TABLE STATUS",
+            suggestion="Query system.tables instead.",
+        )
 
     # ========== SHOW TRIGGERS ==========
 
     def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
         """List triggers.
 
-        Args:
-            schema: Database/schema name (optional).
-            table_name: Filter triggers for a specific table.
-
-        Returns:
-            List of ShowTriggerResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowTriggersExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_triggers_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW TRIGGERS",
+            suggestion="ClickHouse does not support triggers.",
+        )
 
     def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement.
 
-        Args:
-            trigger_name: Name of the trigger.
-            schema: Database/schema name (optional).
-
-        Returns:
-            ShowCreateTriggerResult or None if not found.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
-        if schema:
-            expr.schema(schema)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_create_trigger_result(result, trigger_name)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW CREATE TRIGGER",
+            suggestion="ClickHouse does not support triggers.",
+        )
 
     # ========== SHOW VARIABLES ==========
 
     def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables.
 
-        Args:
-            like: Filter variables by name pattern.
-            session: Show session variables (True) or global variables (False).
-
-        Returns:
-            List of ShowVariableResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowVariablesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_vars()
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_variables_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW VARIABLES",
+            suggestion="Query system.settings instead.",
+        )
 
     # ========== SHOW STATUS ==========
 
     def status(self, like: Optional[str] = None, session: bool = True):
         """Show server status.
 
-        Args:
-            like: Filter status by name pattern.
-            session: Show session status (True) or global status (False).
-
-        Returns:
-            List of ShowStatusResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowStatusExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_status()
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_status_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW STATUS",
+            suggestion="Query system.metrics, system.events, or system.asynchronous_metrics instead.",
+        )
 
     # ========== SHOW PROCESSLIST ==========
 
     def processlist(self, full: bool = False):
         """Show process list.
 
-        Args:
-            full: Include full query text.
-
-        Returns:
-            List of ShowProcessListResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.full()
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_processlist_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW PROCESSLIST",
+            suggestion="Query system.processes instead.",
+        )
 
     # ========== SHOW WARNINGS/ERRORS ==========
 
     def warnings(self, limit: Optional[int] = None):
         """Show warnings.
 
-        Args:
-            limit: Maximum number of warnings to return.
-
-        Returns:
-            List of ShowWarningResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowWarningsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_warnings_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW WARNINGS",
+            suggestion="Query system.query_log or system.text_log instead.",
+        )
 
     def errors(self, limit: Optional[int] = None):
         """Show errors.
 
-        Args:
-            limit: Maximum number of errors to return.
-
-        Returns:
-            List of ShowWarningResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowErrorsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_errors_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW ERRORS",
+            suggestion="Query system.errors or system.query_log instead.",
+        )
 
     # ========== SHOW ENGINES ==========
 
     def engines(self):
         """Show storage engines.
 
-        Returns:
-            List of ShowEngineResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowEnginesExpression(self.dialect)
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_engines_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW ENGINES",
+            suggestion="Query system.table_engines instead.",
+        )
 
     # ========== SHOW CHARSET ==========
 
     def charset(self, like: Optional[str] = None):
         """Show character sets.
 
-        Args:
-            like: Filter character sets by name pattern.
-
-        Returns:
-            List of ShowCharsetResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowCharsetExpression(self.dialect)
-        if like:
-            expr.like(like)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_charset_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW CHARACTER SET",
+            suggestion="ClickHouse does not support MySQL character sets; query system.character_sets instead.",
+        )
 
     # ========== SHOW COLLATION ==========
 
     def collation(self, like: Optional[str] = None):
         """Show collations.
 
-        Args:
-            like: Filter collations by name pattern.
-
-        Returns:
-            List of ShowCollationResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowCollationExpression(self.dialect)
-        if like:
-            expr.like(like)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_collation_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW COLLATION",
+            suggestion="ClickHouse does not support MySQL collations; query system.collations instead.",
+        )
 
     # ========== SHOW GRANTS ==========
 
     def grants(self, user: Optional[str] = None, host: Optional[str] = None):
         """Show grants.
 
-        Args:
-            user: User name (optional, defaults to current user).
-            host: Host name (optional).
-
-        Returns:
-            List of ShowGrantResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
-
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_grants_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW GRANTS",
+            suggestion="Query system.grants or other system.* access control tables instead.",
+        )
 
     # ========== SHOW PLUGINS ==========
 
     def plugins(self):
         """Show plugins.
 
-        Returns:
-            List of ShowPluginResult objects.
+        Note:
+            MySQL-only command, not supported by ClickHouse.
         """
-        expr = ShowPluginsExpression(self.dialect)
-        sql, params = expr.to_sql()
-        result = self._backend.execute(sql, params)
-        return self._parse_plugins_result(result)
-
-
-class AsyncClickHouseShowFunctionality:
-    """Async ClickHouse SHOW functionality implementation.
-
-    Async version of ClickHouseShowFunctionality. Mirrors the same interface
-    but with async methods.
-    """
-
-    def __init__(self, backend: "AsyncClickHouseBackend", version: Optional[Tuple[int, ...]] = None):
-        """Initialize async ClickHouse SHOW functionality.
-
-        Args:
-            backend: AsyncClickHouseBackend instance for executing queries.
-            version: ClickHouse server version tuple.
-        """
-        self._backend = backend
-        self._version = version
-        self.dialect = backend.dialect
-        # Share parsing methods with sync implementation
-        self._sync_impl = ClickHouseShowFunctionality(backend, version)
-
-    # ========== SHOW CREATE TABLE ==========
-
-    async def create_table(self, table_name: str, schema: Optional[str] = None):
-        """Async version of create_table."""
-        expr = ShowCreateTableExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_create_table_result(result, table_name)
-
-    # ========== SHOW CREATE VIEW ==========
-
-    async def create_view(self, view_name: str, schema: Optional[str] = None):
-        """Async version of create_view."""
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_create_view_result(result, view_name)
-
-    # ========== SHOW COLUMNS ==========
-
-    async def columns(
-        self,
-        table_name: str,
-        schema: Optional[str] = None,
-        full: bool = False,
-        like: Optional[str] = None,
-    ):
-        """Async version of columns."""
-        expr = ShowColumnsExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
-        if full:
-            expr.full()
-        if like:
-            expr.like(like)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_columns_result(result)
-
-    # ========== SHOW INDEX ==========
-
-    async def indexes(self, table_name: str, schema: Optional[str] = None):
-        """Async version of indexes."""
-        expr = ShowIndexExpression(self.dialect, table_name)
-        if schema:
-            expr.schema(schema)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_indexes_result(result)
-
-    # ========== SHOW TABLES ==========
-
-    async def tables(
-        self,
-        schema: Optional[str] = None,
-        like: Optional[str] = None,
-        full: bool = False,
-    ):
-        """Async version of tables."""
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.full()
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_tables_result(result)
-
-    # ========== SHOW DATABASES ==========
-
-    async def databases(self, like: Optional[str] = None):
-        """Async version of databases."""
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_databases_result(result)
-
-    # ========== SHOW TABLE STATUS ==========
-
-    async def table_status(self, schema: Optional[str] = None, like: Optional[str] = None):
-        """Async version of table_status."""
-        expr = ShowTableStatusExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_table_status_result(result)
-
-    # ========== SHOW TRIGGERS ==========
-
-    async def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
-        """Async version of triggers."""
-        expr = ShowTriggersExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if table_name:
-            expr.for_table(table_name)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_triggers_result(result)
-
-    async def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
-        """Async version of create_trigger."""
-        expr = ShowCreateTriggerExpression(self.dialect, trigger_name)
-        if schema:
-            expr.schema(schema)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_create_trigger_result(result, trigger_name)
-
-    # ========== SHOW VARIABLES ==========
-
-    async def variables(self, like: Optional[str] = None, session: bool = True):
-        """Async version of variables."""
-        expr = ShowVariablesExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_vars()
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_variables_result(result)
-
-    # ========== SHOW STATUS ==========
-
-    async def status(self, like: Optional[str] = None, session: bool = True):
-        """Async version of status."""
-        expr = ShowStatusExpression(self.dialect)
-        if like:
-            expr.like(like)
-        if not session:
-            expr.global_status()
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_status_result(result)
-
-    # ========== SHOW PROCESSLIST ==========
-
-    async def processlist(self, full: bool = False):
-        """Async version of processlist."""
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.full()
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_processlist_result(result)
-
-    # ========== SHOW WARNINGS/ERRORS ==========
-
-    async def warnings(self, limit: Optional[int] = None):
-        """Async version of warnings."""
-        expr = ShowWarningsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_warnings_result(result)
-
-    async def errors(self, limit: Optional[int] = None):
-        """Async version of errors."""
-        expr = ShowErrorsExpression(self.dialect)
-        if limit is not None:
-            expr.limit(limit)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_errors_result(result)
-
-    # ========== SHOW ENGINES ==========
-
-    async def engines(self):
-        """Async version of engines."""
-        expr = ShowEnginesExpression(self.dialect)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_engines_result(result)
-
-    # ========== SHOW CHARSET ==========
-
-    async def charset(self, like: Optional[str] = None):
-        """Async version of charset."""
-        expr = ShowCharsetExpression(self.dialect)
-        if like:
-            expr.like(like)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_charset_result(result)
-
-    # ========== SHOW COLLATION ==========
-
-    async def collation(self, like: Optional[str] = None):
-        """Async version of collation."""
-        expr = ShowCollationExpression(self.dialect)
-        if like:
-            expr.like(like)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_collation_result(result)
-
-    # ========== SHOW GRANTS ==========
-
-    async def grants(self, user: Optional[str] = None, host: Optional[str] = None):
-        """Async version of grants."""
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_grants_result(result)
-
-    # ========== SHOW PLUGINS ==========
-
-    async def plugins(self):
-        """Async version of plugins."""
-        expr = ShowPluginsExpression(self.dialect)
-        sql, params = expr.to_sql()
-        result = await self._backend.execute(sql, params)
-        return self._sync_impl._parse_plugins_result(result)
+        raise UnsupportedFeatureError(
+            self._backend.dialect.name,
+            "SHOW PLUGINS",
+            suggestion="Query system.functions for user-defined functions instead.",
+        )

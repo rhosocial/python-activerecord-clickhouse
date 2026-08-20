@@ -104,61 +104,44 @@ from rhosocial.activerecord.backend.dialect.protocols import (
 class ClickHouseDMLOperationSupport(Protocol):
     """ClickHouse-specific DML operations protocol.
 
-    Feature Source: ClickHouse native (not SQL standard)
+    Feature Source: Not supported by ClickHouse (MySQL-originated concepts)
 
-    ClickHouse DML features beyond SQL standard:
-    - INSERT IGNORE: Silently ignore rows that would cause duplicate key errors
-    - REPLACE INTO: Delete and re-insert on duplicate key (changes AUTO_INCREMENT)
-    - LOAD DATA INFILE: High-performance bulk data import
+    ClickHouse does NOT support the following MySQL DML features:
+    - INSERT IGNORE: Not supported (no duplicate-key silencing)
+    - REPLACE INTO: Not supported (no delete-and-re-insert on duplicate key)
+    - LOAD DATA INFILE: Not supported (use INSERT or clickhouse-client --query)
 
-    Official Documentation:
-    - INSERT: https://dev.clickhouse.com/doc/refman/8.0/en/insert.html
-    - REPLACE: https://dev.clickhouse.com/doc/refman/8.0/en/replace.html
-    - LOAD DATA: https://dev.clickhouse.com/doc/refman/8.0/en/load-data.html
-
-    Version Requirements:
-    - INSERT IGNORE: All ClickHouse versions
-    - REPLACE INTO: All ClickHouse versions
-    - LOAD DATA INFILE: All ClickHouse versions
-
-    Usage:
-        INSERT IGNORE is supported via dialect_options in InsertExpression:
-        ```python
-        InsertExpression(
-            dialect,
-            into='users',
-            source=ValuesSource(...),
-            dialect_options={'ignore': True}  # Generates INSERT IGNORE
-        )
-        ```
+    All ``supports_*`` methods return False and ``format_*`` methods raise
+    ``UnsupportedFeatureError``.
     """
 
     def supports_insert_ignore(self) -> bool:
         """Whether INSERT IGNORE is supported.
 
-        ClickHouse supports INSERT IGNORE to silently ignore rows that would
-        cause duplicate key errors instead of raising an error.
+        ClickHouse does not support INSERT IGNORE (no duplicate-key handling).
         """
         ...
 
     def supports_replace_into(self) -> bool:
         """Whether REPLACE INTO is supported.
 
-        ClickHouse supports REPLACE INTO which deletes and re-inserts on
-        duplicate key. Note: AUTO_INCREMENT value changes on replacement.
+        ClickHouse does not support REPLACE INTO (no delete-and-re-insert on
+        duplicate key).
         """
         ...
 
     def supports_load_data(self) -> bool:
         """Whether LOAD DATA INFILE is supported.
 
-        ClickHouse supports LOAD DATA INFILE for high-performance bulk data
-        import from files. LOCAL variant reads files from the client.
+        ClickHouse does not support LOAD DATA INFILE.
         """
         ...
 
     def format_load_data_statement(self, expr: "ClickHouseLoadDataExpression") -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
+
+        Raises:
+            UnsupportedFeatureError: ClickHouse does not support LOAD DATA INFILE.
 
         Args:
             expr: ClickHouseLoadDataExpression instance
@@ -169,10 +152,10 @@ class ClickHouseDMLOperationSupport(Protocol):
         ...
 
     def format_on_conflict_clause(self, expr: "OnConflictClause") -> Tuple[str, tuple]:
-        """Format ON DUPLICATE KEY UPDATE clause (ClickHouse upsert).
+        """Format ON CONFLICT / ON DUPLICATE KEY UPDATE clause.
 
-        ClickHouse uses ON DUPLICATE KEY UPDATE instead of the SQL-standard
-        ON CONFLICT clause for upsert operations.
+        ClickHouse does not support upsert clauses (ON CONFLICT or MySQL's
+        ON DUPLICATE KEY UPDATE).
 
         Args:
             expr: OnConflictExpression or equivalent instance

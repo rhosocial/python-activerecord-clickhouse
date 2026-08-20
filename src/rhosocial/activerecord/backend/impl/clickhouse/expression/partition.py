@@ -1,5 +1,13 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/expression/partition.py
-"""ClickHouse partition DDL expressions."""
+"""
+ClickHouse partition DDL expressions.
+
+WARNING: This module contains MySQL declarative partitioning expression classes
+that are dead code for ClickHouse. ClickHouse uses ``PARTITION BY`` expression
+in ``CREATE TABLE`` (handled by ``ClickHouseTableEngineMixin``), not MySQL
+declarative partitioning (RANGE/LIST/HASH/KEY). All ``to_sql()`` methods raise
+``UnsupportedFeatureError``.
+"""
 
 from __future__ import annotations
 
@@ -9,13 +17,19 @@ from enum import Enum
 from math import isfinite
 from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING, Union
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
 from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import PartitionClause
 
 
 class ClickHousePartitionStrategy(Enum):
-    """ClickHouse table partitioning strategies supported by ClickHousePartitionMixin."""
+    """MySQL declarative partitioning strategies (not supported by ClickHouse).
+
+    ClickHouse does not support these strategies; partition keys are expressed
+    via the ``PARTITION BY`` expression in ``CREATE TABLE``. Retained for
+    interface compatibility; SQL generation raises ``UnsupportedFeatureError``.
+    """
 
     RANGE = "RANGE"
     RANGE_COLUMNS = "RANGE COLUMNS"
@@ -28,10 +42,10 @@ class ClickHousePartitionStrategy(Enum):
 
 
 class ClickHouseSubpartitionStrategy(Enum):
-    """ClickHouse subpartitioning strategies.
+    """MySQL subpartitioning strategies.
 
-    ClickHouse restricts subpartitioning to HASH and KEY (and their LINEAR
-    variants) only. RANGE and LIST cannot be used for subpartitioning.
+    ClickHouse does not support subpartitioning. Retained for interface
+    compatibility; SQL generation raises ``UnsupportedFeatureError``.
     """
 
     HASH = "HASH"
@@ -57,13 +71,11 @@ class ClickHouseSubpartitionDefinition:
 
 
 class ClickHouseSubpartitionClause(BaseExpression):
-    """ClickHouse ``SUBPARTITION BY {HASH|KEY}(...) SUBPARTITIONS N`` clause.
+    """MySQL ``SUBPARTITION BY {HASH|KEY}(...) SUBPARTITIONS N`` clause.
 
-    This clause appears after ``PARTITION BY ...`` and before the list
-    of partition definitions in a ``CREATE TABLE`` statement.
-
-    When ``definitions`` is provided, those explicit subpartition names
-    override the template for each parent partition.
+    This is MySQL declarative partitioning syntax; ClickHouse does not support
+    it. Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
 
     Raises:
         TypeError: if strategy is not a ClickHouseSubpartitionStrategy.
@@ -93,8 +105,12 @@ class ClickHouseSubpartitionClause(BaseExpression):
         self.definitions = list(definitions) if definitions else None
 
     def to_sql(self) -> SQLQueryAndParams:
-        """Delegate SQL generation to the dialect."""
-        return self.dialect.format_subpartition_by(self)
+        """Raise UnsupportedFeatureError: ClickHouse has no SUBPARTITION BY."""
+        raise UnsupportedFeatureError(
+            self.dialect.name,
+            "SUBPARTITION BY",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -102,17 +118,30 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 class ClickHousePartitionMaxValue(BaseExpression):
-    """ClickHouse MAXVALUE partition boundary token."""
+    """MySQL MAXVALUE partition boundary token (not supported by ClickHouse).
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_partition_value(self)
+        """Raise UnsupportedFeatureError: ClickHouse has no MAXVALUE token."""
+        raise UnsupportedFeatureError(
+            self.dialect.name,
+            "MAXVALUE partition boundary",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHousePartitionValue(BaseExpression):
-    """Literal value used in ClickHouse partition boundary definitions."""
+    """Literal value used in MySQL partition boundary definitions.
+
+    MySQL declarative partitioning is not supported by ClickHouse. Retained
+    for interface compatibility; ``to_sql()`` raises ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", value: Any):
         super().__init__(dialect)
@@ -129,24 +158,21 @@ class ClickHousePartitionValue(BaseExpression):
         self.value = value
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_partition_value(self)
+        """Raise UnsupportedFeatureError: ClickHouse has no partition VALUES."""
+        raise UnsupportedFeatureError(
+            self.dialect.name,
+            "partition VALUES boundary",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 @dataclass
 class ClickHousePartitionDefinition:
-    """A ClickHouse ``PARTITION ... VALUES ...`` definition.
+    """A MySQL ``PARTITION ... VALUES ...`` definition.
 
-    For single-column LIST COLUMNS, ``in_values`` accepts a flat sequence
-    of ``BaseExpression`` (e.g. ``[val('a'), val('b')]`` → ``VALUES IN ('a', 'b')``).
-
-    For multi-column LIST COLUMNS, ``in_values`` accepts a sequence where
-    each element is itself a sequence of ``BaseExpression`` values, representing
-    a row tuple (e.g. ``[(val('a'), val('x')), (val('b'), val('y'))]`` →
-    ``VALUES IN (('a', 'x'), ('b', 'y'))``).
-
-    When subpartitioning is used, ``subpartition_definitions`` optionally
-    overrides the template from the ``SUBPARTITION BY`` clause for this
-    specific partition.
+    MySQL declarative partitioning is not supported by ClickHouse. Retained
+    for interface compatibility only; partition boundaries are expressed via
+    the ``PARTITION BY`` expression in ``CREATE TABLE``.
 
     Raises:
         ValueError: if both ``less_than`` and ``in_values`` are provided,
@@ -173,17 +199,26 @@ class ClickHousePartitionDefinition:
 
 
 class ClickHousePartitionClause(PartitionClause):
-    """Base ClickHouse partition clause with ClickHouse-specific strategy enum."""
+    """Base ClickHouse partition clause with ClickHouse-specific strategy enum.
+
+    MySQL declarative partitioning (RANGE/LIST/HASH/KEY) is not supported by
+    ClickHouse; partitioning is expressed via ``PARTITION BY`` in ``CREATE
+    TABLE``. ``to_sql()`` raises ``UnsupportedFeatureError``.
+    """
 
     strategy_type = ClickHousePartitionStrategy
 
+    def to_sql(self) -> SQLQueryAndParams:
+        """Raise UnsupportedFeatureError: ClickHouse has no declarative partitioning."""
+        raise UnsupportedFeatureError(
+            self.dialect.name,
+            f"{self.method} declarative partitioning",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
+
 
 class ClickHousePartitionByRange(ClickHousePartitionClause):
-    """ClickHouse PARTITION BY RANGE expression.
-
-    When ``subpartition_by`` is provided, the generated DDL includes a
-    ``SUBPARTITION BY`` clause. Each partition definition may also carry
-    optional ``subpartition_definitions``.
+    """MySQL ``PARTITION BY RANGE`` expression (not supported by ClickHouse).
 
     Raises:
         TypeError: if subpartition_by is not a ClickHouseSubpartitionClause.
@@ -205,9 +240,7 @@ class ClickHousePartitionByRange(ClickHousePartitionClause):
 
 
 class ClickHousePartitionByRangeColumns(ClickHousePartitionClause):
-    """ClickHouse PARTITION BY RANGE COLUMNS expression.
-
-    Supports optional subpartitioning via ``subpartition_by``.
+    """MySQL ``PARTITION BY RANGE COLUMNS`` expression (not supported by ClickHouse).
 
     Raises:
         TypeError: if subpartition_by is not a ClickHouseSubpartitionClause.
@@ -229,9 +262,7 @@ class ClickHousePartitionByRangeColumns(ClickHousePartitionClause):
 
 
 class ClickHousePartitionByList(ClickHousePartitionClause):
-    """ClickHouse PARTITION BY LIST expression.
-
-    Supports optional subpartitioning via ``subpartition_by``.
+    """MySQL ``PARTITION BY LIST`` expression (not supported by ClickHouse).
 
     Raises:
         TypeError: if subpartition_by is not a ClickHouseSubpartitionClause.
@@ -253,9 +284,7 @@ class ClickHousePartitionByList(ClickHousePartitionClause):
 
 
 class ClickHousePartitionByListColumns(ClickHousePartitionClause):
-    """ClickHouse PARTITION BY LIST COLUMNS expression.
-
-    Supports optional subpartitioning via ``subpartition_by``.
+    """MySQL ``PARTITION BY LIST COLUMNS`` expression (not supported by ClickHouse).
 
     Raises:
         TypeError: if subpartition_by is not a ClickHouseSubpartitionClause.
@@ -277,7 +306,7 @@ class ClickHousePartitionByListColumns(ClickHousePartitionClause):
 
 
 class ClickHousePartitionByHash(ClickHousePartitionClause):
-    """ClickHouse PARTITION BY HASH expression."""
+    """MySQL ``PARTITION BY HASH`` expression (not supported by ClickHouse)."""
 
     def __init__(
         self,
@@ -294,12 +323,11 @@ class ClickHousePartitionByHash(ClickHousePartitionClause):
 
 
 class ClickHousePartitionByKey(ClickHousePartitionClause):
-    """ClickHouse PARTITION BY KEY expression.
+    """MySQL ``PARTITION BY KEY`` expression (not supported by ClickHouse).
 
-    ClickHouse allows empty ``KEY()`` to use all primary key columns as the
-    partition key. When ``keys`` is empty or ``None``, this expression
-    bypasses the base class key validation (which requires at least one
-    key expression) and produces ``PARTITION BY KEY()``.
+    ClickHouse uses ``PARTITION BY`` expression in ``CREATE TABLE``, not
+    MySQL declarative KEY partitioning. Retained for interface compatibility;
+    ``to_sql()`` raises ``UnsupportedFeatureError``.
     """
 
     def __init__(
@@ -322,7 +350,12 @@ class ClickHousePartitionByKey(ClickHousePartitionClause):
 
 
 class ClickHouseAddPartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... ADD PARTITION``."""
+    """MySQL ``ALTER TABLE ... ADD PARTITION`` expression.
+
+    MySQL declarative partition maintenance is not supported by ClickHouse;
+    retained for interface compatibility. ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(
         self,
@@ -335,11 +368,20 @@ class ClickHouseAddPartitionExpression(BaseExpression):
         self.partitions = partitions
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_add_partition_statement(self)
+        """Raise UnsupportedFeatureError: ClickHouse has no ADD PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "ADD PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseDropPartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... DROP PARTITION``."""
+    """MySQL ``ALTER TABLE ... DROP PARTITION`` expression.
+
+    ClickHouse removes partitions via ``ALTER TABLE ... DROP PARTITION`` with
+    partition-id syntax, not MySQL declarative partition names. Retained for
+    interface compatibility; ``to_sql()`` raises ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -347,11 +389,19 @@ class ClickHouseDropPartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_drop_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative DROP PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "DROP PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseTruncatePartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... TRUNCATE PARTITION``."""
+    """MySQL ``ALTER TABLE ... TRUNCATE PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -359,11 +409,19 @@ class ClickHouseTruncatePartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_truncate_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative TRUNCATE PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "TRUNCATE PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseReorganizePartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... REORGANIZE PARTITION``."""
+    """MySQL ``ALTER TABLE ... REORGANIZE PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(
         self,
@@ -378,11 +436,19 @@ class ClickHouseReorganizePartitionExpression(BaseExpression):
         self.into = into
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_reorganize_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative REORGANIZE PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "REORGANIZE PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseExchangePartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... EXCHANGE PARTITION``."""
+    """MySQL ``ALTER TABLE ... EXCHANGE PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(
         self,
@@ -400,22 +466,38 @@ class ClickHouseExchangePartitionExpression(BaseExpression):
         self.with_validation = with_validation
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_exchange_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative EXCHANGE PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "EXCHANGE PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseRemovePartitioningExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... REMOVE PARTITIONING``."""
+    """MySQL ``ALTER TABLE ... REMOVE PARTITIONING`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str):
         super().__init__(dialect)
         self.table = TableExpression(dialect, table)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_remove_partitioning_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative REMOVE PARTITIONING."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "REMOVE PARTITIONING",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseCoalescePartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... COALESCE PARTITION``."""
+    """MySQL ``ALTER TABLE ... COALESCE PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, count: int):
         super().__init__(dialect)
@@ -425,11 +507,19 @@ class ClickHouseCoalescePartitionExpression(BaseExpression):
         self.count = count
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_coalesce_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative COALESCE PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "COALESCE PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseAnalyzePartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... ANALYZE PARTITION``."""
+    """MySQL ``ALTER TABLE ... ANALYZE PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -437,11 +527,19 @@ class ClickHouseAnalyzePartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_analyze_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative ANALYZE PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "ANALYZE PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseCheckPartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... CHECK PARTITION``."""
+    """MySQL ``ALTER TABLE ... CHECK PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -449,11 +547,19 @@ class ClickHouseCheckPartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_check_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative CHECK PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "CHECK PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseOptimizePartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... OPTIMIZE PARTITION``."""
+    """MySQL ``ALTER TABLE ... OPTIMIZE PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -461,11 +567,19 @@ class ClickHouseOptimizePartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_optimize_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative OPTIMIZE PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "OPTIMIZE PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseRebuildPartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... REBUILD PARTITION``."""
+    """MySQL ``ALTER TABLE ... REBUILD PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -473,11 +587,19 @@ class ClickHouseRebuildPartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_rebuild_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative REBUILD PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "REBUILD PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseRepairPartitionExpression(BaseExpression):
-    """Expression for ``ALTER TABLE ... REPAIR PARTITION``."""
+    """MySQL ``ALTER TABLE ... REPAIR PARTITION`` expression.
+
+    Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
         super().__init__(dialect)
@@ -485,15 +607,20 @@ class ClickHouseRepairPartitionExpression(BaseExpression):
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_repair_partition_statement(self)
+        """Raise UnsupportedFeatureError: MySQL declarative REPAIR PARTITION."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "REPAIR PARTITION",
+            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
+        )
 
 
 class ClickHouseGetPartitionsExpression(BaseExpression):
-    """Expression that queries ``information_schema.PARTITIONS`` for a table.
+    """MySQL ``information_schema.PARTITIONS`` query expression.
 
-    Generates a SELECT statement retrieving partition name, method,
-    expression, description, and storage statistics for the given table.
-    Delegates SQL generation to the dialect's ``format_get_partitions_expression``.
+    This is MySQL declarative partition introspection, not supported by
+    ClickHouse. ClickHouse partition introspection uses the ``system.parts``
+    table. Retained for interface compatibility; ``to_sql()`` raises
+    ``UnsupportedFeatureError``.
 
     Raises:
         ValueError: if table_name is empty.
@@ -506,4 +633,9 @@ class ClickHouseGetPartitionsExpression(BaseExpression):
         self.table_name = table_name
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self.dialect.format_get_partitions_expression(self)
+        """Raise UnsupportedFeatureError: use ``system.parts`` for introspection."""
+        raise UnsupportedFeatureError(
+            self.dialect.name, "information_schema.PARTITIONS introspection",
+            suggestion="ClickHouse partition introspection uses the system.parts "
+            "table, not MySQL information_schema.PARTITIONS.",
+        )

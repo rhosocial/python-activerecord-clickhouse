@@ -40,7 +40,7 @@ from .expressions import (
     ShowPluginsExpression,
 )
 from .dialect import ClickHouseShowDialectMixin
-from .functionality import ClickHouseShowFunctionality, AsyncClickHouseShowFunctionality
+from .functionality import ClickHouseShowFunctionality
 from .backend_mixin import ClickHouseShowMixin, AsyncClickHouseShowMixin
 
 __all__ = [
@@ -69,7 +69,6 @@ __all__ = [
     "ClickHouseShowDialectMixin",
     # Functionality classes
     "ClickHouseShowFunctionality",
-    "AsyncClickHouseShowFunctionality",
     # Backend mixins
     "ClickHouseShowMixin",
     "AsyncClickHouseShowMixin",

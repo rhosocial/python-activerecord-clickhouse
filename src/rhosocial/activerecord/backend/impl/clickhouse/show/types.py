@@ -57,6 +57,8 @@ class ShowCreateViewResult:
 class ShowCreateTriggerResult:
     """Result from SHOW CREATE TRIGGER command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Contains the CREATE TRIGGER statement for a trigger.
 
     Attributes:
@@ -78,6 +80,8 @@ class ShowCreateTriggerResult:
 class ShowCreateProcedureResult:
     """Result from SHOW CREATE PROCEDURE command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Contains the CREATE PROCEDURE statement.
 
     Attributes:
@@ -98,6 +102,8 @@ class ShowCreateProcedureResult:
 @dataclass
 class ShowCreateFunctionResult:
     """Result from SHOW CREATE FUNCTION command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Contains the CREATE FUNCTION statement.
 
@@ -122,6 +128,8 @@ class ShowCreateFunctionResult:
 @dataclass
 class ShowColumnResult:
     """Result from SHOW [FULL] COLUMNS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse. ClickHouse uses DESCRIBE TABLE.
 
     Contains column information for a table.
 
@@ -152,6 +160,8 @@ class ShowColumnResult:
 @dataclass
 class ShowTableStatusResult:
     """Result from SHOW TABLE STATUS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Contains extensive table metadata.
 
@@ -202,6 +212,8 @@ class ShowTableStatusResult:
 @dataclass
 class ShowIndexResult:
     """Result from SHOW INDEX command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Contains index information for a table.
     Each row represents one column in an index.
@@ -275,6 +287,8 @@ class ShowDatabaseResult:
 class ShowTriggerResult:
     """Result from SHOW TRIGGERS command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Contains trigger information.
 
     Attributes:
@@ -311,6 +325,8 @@ class ShowTriggerResult:
 class ShowProcedureResult:
     """Result from SHOW PROCEDURE STATUS command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         db: Database name.
         name: Procedure name.
@@ -341,6 +357,8 @@ class ShowProcedureResult:
 @dataclass
 class ShowFunctionResult:
     """Result from SHOW FUNCTION STATUS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Attributes:
         db: Database name.
@@ -376,6 +394,8 @@ class ShowFunctionResult:
 class ShowVariableResult:
     """Result from SHOW VARIABLES command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         variable_name: Variable name.
         value: Variable value.
@@ -388,6 +408,8 @@ class ShowVariableResult:
 @dataclass
 class ShowStatusResult:
     """Result from SHOW STATUS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Attributes:
         variable_name: Status variable name.
@@ -405,6 +427,8 @@ class ShowStatusResult:
 class ShowWarningResult:
     """Result from SHOW WARNINGS command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         level: Warning level (Note, Warning, Error).
         code: Warning code.
@@ -420,6 +444,8 @@ class ShowWarningResult:
 class ShowCountResult:
     """Result from SHOW COUNT(*) WARNINGS/ERRORS command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         count: Number of warnings or errors.
     """
@@ -434,6 +460,8 @@ class ShowCountResult:
 class ShowGrantResult:
     """Result from SHOW GRANTS command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         grants: List of GRANT statements for the user.
     """
@@ -447,6 +475,8 @@ class ShowGrantResult:
 @dataclass
 class ShowProcessListResult:
     """Result from SHOW PROCESSLIST command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Attributes:
         id: Connection identifier.
@@ -476,6 +506,8 @@ class ShowProcessListResult:
 class ShowOpenTableResult:
     """Result from SHOW OPEN TABLES command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         database: Database name.
         table: Table name.
@@ -495,6 +527,8 @@ class ShowOpenTableResult:
 @dataclass
 class ShowEngineResult:
     """Result from SHOW ENGINES command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Attributes:
         engine: Storage engine name.
@@ -518,6 +552,8 @@ class ShowEngineResult:
 class ShowCharsetResult:
     """Result from SHOW CHARACTER SET command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         charset: Character set name.
         description: Character set description.
@@ -534,6 +570,8 @@ class ShowCharsetResult:
 @dataclass
 class ShowCollationResult:
     """Result from SHOW COLLATION command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Attributes:
         collation: Collation name.
@@ -559,6 +597,8 @@ class ShowCollationResult:
 class ShowPluginResult:
     """Result from SHOW PLUGINS command.
 
+    NOTE: MySQL-only command, not supported by ClickHouse.
+
     Attributes:
         name: Plugin name.
         status: Plugin status (ACTIVE, INACTIVE, DISABLED, etc.).
@@ -580,6 +620,8 @@ class ShowPluginResult:
 @dataclass
 class ShowProfileResult:
     """Result from SHOW PROFILE command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Note: Deprecated in ClickHouse 5.7+, use Performance Schema instead.
 
@@ -623,6 +665,8 @@ class ShowProfileResult:
 @dataclass
 class ShowProfilesResult:
     """Result from SHOW PROFILES command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
 
     Note: Deprecated in ClickHouse 5.7+, use Performance Schema instead.
 

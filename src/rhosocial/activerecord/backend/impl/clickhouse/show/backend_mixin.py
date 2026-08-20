@@ -16,7 +16,7 @@ instance that provides all ClickHouse SHOW commands.
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .functionality import ClickHouseShowFunctionality, AsyncClickHouseShowFunctionality
+    from .functionality import ClickHouseShowFunctionality
 
 
 class ClickHouseShowMixin:
@@ -51,24 +51,18 @@ class ClickHouseShowMixin:
 class AsyncClickHouseShowMixin:
     """Async ClickHouse backend mixin for SHOW functionality.
 
-    Provides the show() factory method that returns an AsyncClickHouseShowFunctionality
-    instance for executing ClickHouse SHOW commands asynchronously.
+    ClickHouse backend is synchronous-only (clickhouse-connect is a sync-only
+    driver), so no async SHOW functionality is provided.
     """
 
-    def show(self) -> "AsyncClickHouseShowFunctionality":
-        """Return an AsyncClickHouseShowFunctionality instance."""
-        return self._create_show_functionality()
+    def show(self):
+        """Raise NotImplementedError: async SHOW functionality is not supported."""
+        raise NotImplementedError(
+            "ClickHouse backend is synchronous-only; async SHOW functionality is not supported."
+        )
 
-    def _create_show_functionality(self) -> "AsyncClickHouseShowFunctionality":
-        """Create async ClickHouse SHOW functionality instance.
-
-        Returns:
-            AsyncClickHouseShowFunctionality instance with version awareness.
-        """
-        from .functionality import AsyncClickHouseShowFunctionality
-
-        # Get server version for feature adaptation
-        version = getattr(self, "_version", None)
-        if version is None and hasattr(self, "_version"):
-            version = self._version
-        return AsyncClickHouseShowFunctionality(self, version)
+    def _create_show_functionality(self):
+        """Raise NotImplementedError: async SHOW functionality is not supported."""
+        raise NotImplementedError(
+            "ClickHouse backend is synchronous-only; async SHOW functionality is not supported."
+        )

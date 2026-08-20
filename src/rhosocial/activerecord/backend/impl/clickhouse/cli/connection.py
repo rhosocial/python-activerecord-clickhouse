@@ -36,11 +36,6 @@ def add_connection_args(parser):
         help="Database password (env: CLICKHOUSE_PASSWORD)",
     )
     parser.add_argument(
-        "--charset",
-        default=os.getenv("CLICKHOUSE_CHARSET", "utf8mb4"),
-        help="Connection charset (env: CLICKHOUSE_CHARSET, default: utf8mb4)",
-    )
-    parser.add_argument(
         "--ssl",
         choices=["auto", "require", "verify-ca", "verify-full", "disabled"],
         default="auto",
@@ -141,7 +136,6 @@ def resolve_connection_config_from_args(args):
         database=args.database,
         username=args.user,
         password=args.password,
-        charset=args.charset,
         ssl_disabled=ssl_disabled,
     )
 

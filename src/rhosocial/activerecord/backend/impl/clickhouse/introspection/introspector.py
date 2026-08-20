@@ -3,7 +3,7 @@
 ClickHouse concrete introspectors.
 
 Implements SyncAbstractIntrospector and AsyncAbstractIntrospector for ClickHouse
-databases using the information_schema system tables for metadata queries.
+databases using the ClickHouse system.* tables for metadata queries.
 
 The introspectors are exposed via ``backend.introspector`` and also provide
 ClickHouse-specific access through ``backend.introspector.show``.
@@ -15,8 +15,8 @@ Architecture:
   - Result parsing: _parse_* methods in this module (pure Python, no I/O)
 
 Key behaviours:
-  - Queries information_schema.TABLES, COLUMNS, STATISTICS,
-    KEY_COLUMN_USAGE, REFERENTIAL_CONSTRAINTS, VIEWS, TRIGGERS
+  - Queries ClickHouse system.* tables (system.tables, system.columns,
+    system.databases, system.parts, system.triggers, etc.)
   - _parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
@@ -123,7 +123,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
                     comment=row.get("TABLE_COMMENT"),
                     row_count=row.get("TABLE_ROWS"),
                     size_bytes=row.get("DATA_LENGTH"),
-                    auto_increment=row.get("AUTO_INCREMENT"),
+                    auto_increment=None,  # ClickHouse has no AUTO_INCREMENT
                     create_time=str(row["CREATE_TIME"]) if row.get("CREATE_TIME") else None,
                     update_time=str(row["UPDATE_TIME"]) if row.get("UPDATE_TIME") else None,
                 )

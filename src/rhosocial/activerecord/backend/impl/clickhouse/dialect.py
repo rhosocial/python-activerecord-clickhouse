@@ -260,7 +260,7 @@ class ClickHouseDialect(
     ClickHouseJsonDualityViewSupport,  # ClickHouse 9.7+ JSON Duality Views
     ClickHouseOptimizerHintSupport,  # ClickHouse optimizer hints
     ClickHousePartitionSupport,  # ClickHouse table partitioning
-    ClickHouseDMLOperationSupport,  # ClickHouse DML operations (INSERT IGNORE, REPLACE INTO, LOAD DATA)
+    ClickHouseDMLOperationSupport,  # ClickHouse DML ops (INSERT IGNORE, REPLACE INTO, LOAD DATA - unsupported)
     ClickHouseRenameTableSupport,  # ClickHouse RENAME TABLE
     ClickHouseTableStatementSupport,  # ClickHouse TABLE / VALUES statements
     ClickHouseMaintenanceSupport,  # ClickHouse table maintenance
@@ -521,7 +521,7 @@ class ClickHouseDialect(
 
     def get_upsert_syntax_type(self) -> str:
         """ClickHouse has no upsert syntax."""
-        return "ON DUPLICATE KEY"
+        return "none"
 
     def supports_on_conflict_clause(self) -> bool:
         """Whether INSERT can carry an ON CONFLICT style clause."""

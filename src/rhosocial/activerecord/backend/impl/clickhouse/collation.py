@@ -1,6 +1,11 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/collation.py
 """
-ClickHouse collation names supported by the dialect whitelist.
+ClickHouse collation names.
+
+WARNING: ClickHouse does not enforce MySQL-style collations (utf8mb4_*,
+*_general_ci, etc.) or character sets. The ``ClickHouseCollation`` enum below
+is a legacy MySQL collation whitelist retained for interface compatibility;
+``ClickHouseCollationValidator.validate`` is a no-op that accepts any name.
 """
 
 from enum import Enum
@@ -8,7 +13,11 @@ from typing import Dict, Optional, Tuple
 
 
 class ClickHouseCollation(Enum):
-    """ClickHouse collations for expression-level COLLATE."""
+    """Legacy MySQL collation names (retained for interface compatibility).
+
+    ClickHouse does not enforce MySQL-style collations; this list is not used
+    for validation.
+    """
 
     # Built-in pseudo collation
     BINARY = "binary"
@@ -303,7 +312,11 @@ _COLLATION_MIN_VERSIONS: Dict[str, Tuple[int, ...]] = {
 
 
 class ClickHouseCollationValidator:
-    """Validate ClickHouse collation names against version-gated known collations."""
+    """Validate ClickHouse collation names.
+
+    WARNING: ClickHouse does not enforce MySQL-style collations (utf8mb4_*,
+    *_general_ci, etc.); validation is a no-op and any name is accepted.
+    """
 
     @classmethod
     def is_supported(
@@ -311,10 +324,11 @@ class ClickHouseCollationValidator:
         name: str,
         version: Optional[Tuple[int, ...]] = None,
     ) -> bool:
-        try:
-            cls.validate(name, version)
-        except ValueError:
-            return False
+        """Always return True.
+
+        ClickHouse does not enforce MySQL-style collations; validation is a
+        no-op.
+        """
         return True
 
     @classmethod
@@ -323,14 +337,12 @@ class ClickHouseCollationValidator:
         name: str,
         version: Optional[Tuple[int, ...]] = None,
     ) -> str:
-        normalized = name.lower()
-        if normalized not in _COLLATION_VALUES:
-            raise ValueError(f"Unsupported ClickHouse collation: {name!r}")
+        """No-op validation: return the name unchanged.
 
-        min_version = _COLLATION_MIN_VERSIONS.get(normalized)
-        if version is not None and min_version is not None and version < min_version:
-            raise ValueError(f"ClickHouse collation requires ClickHouse {cls._format_version(min_version)}+: {name!r}")
-        return normalized
+        ClickHouse does not enforce MySQL-style collations; validation is a
+        no-op.
+        """
+        return name
 
     @staticmethod
     def _format_version(version: Tuple[int, ...]) -> str:
@@ -341,4 +353,9 @@ def validate_clickhouse_collation_name(
     name: str,
     version: Optional[Tuple[int, ...]] = None,
 ) -> str:
+    """No-op collation validation for ClickHouse.
+
+    ClickHouse does not enforce MySQL-style collations; validation is a no-op
+    and any name is accepted unchanged.
+    """
     return ClickHouseCollationValidator.validate(name, version)

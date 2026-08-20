@@ -102,7 +102,10 @@ class ShowCreateViewExpression(ShowExpression):
 
 
 class ShowColumnsExpression(ShowExpression):
-    """Expression for SHOW [FULL] COLUMNS command."""
+    """Expression for SHOW [FULL] COLUMNS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table_name: str):
         super().__init__(dialect)
@@ -133,7 +136,10 @@ class ShowColumnsExpression(ShowExpression):
 
 
 class ShowIndexExpression(ShowExpression):
-    """Expression for SHOW INDEX command."""
+    """Expression for SHOW INDEX command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", table_name: str):
         super().__init__(dialect)
@@ -200,7 +206,10 @@ class ShowDatabasesExpression(ShowExpression):
 
 
 class ShowTableStatusExpression(ShowExpression):
-    """Expression for SHOW TABLE STATUS command."""
+    """Expression for SHOW TABLE STATUS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -222,7 +231,10 @@ class ShowTableStatusExpression(ShowExpression):
 
 
 class ShowTriggersExpression(ShowExpression):
-    """Expression for SHOW TRIGGERS command."""
+    """Expression for SHOW TRIGGERS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -244,7 +256,10 @@ class ShowTriggersExpression(ShowExpression):
 
 
 class ShowCreateTriggerExpression(ShowExpression):
-    """Expression for SHOW CREATE TRIGGER command."""
+    """Expression for SHOW CREATE TRIGGER command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect", trigger_name: str):
         super().__init__(dialect)
@@ -260,7 +275,10 @@ class ShowCreateTriggerExpression(ShowExpression):
 
 
 class ShowVariablesExpression(ShowExpression):
-    """Expression for SHOW VARIABLES command."""
+    """Expression for SHOW VARIABLES command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -294,7 +312,10 @@ class ShowVariablesExpression(ShowExpression):
 
 
 class ShowStatusExpression(ShowExpression):
-    """Expression for SHOW STATUS command."""
+    """Expression for SHOW STATUS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -328,7 +349,10 @@ class ShowStatusExpression(ShowExpression):
 
 
 class ShowProcessListExpression(ShowExpression):
-    """Expression for SHOW PROCESSLIST command."""
+    """Expression for SHOW PROCESSLIST command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -349,7 +373,10 @@ class ShowProcessListExpression(ShowExpression):
 
 
 class ShowWarningsExpression(ShowExpression):
-    """Expression for SHOW WARNINGS command."""
+    """Expression for SHOW WARNINGS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -371,7 +398,10 @@ class ShowWarningsExpression(ShowExpression):
 
 
 class ShowErrorsExpression(ShowExpression):
-    """Expression for SHOW ERRORS command."""
+    """Expression for SHOW ERRORS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -393,14 +423,20 @@ class ShowErrorsExpression(ShowExpression):
 
 
 class ShowEnginesExpression(ShowExpression):
-    """Expression for SHOW ENGINES command."""
+    """Expression for SHOW ENGINES command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_engines(self)
 
 
 class ShowCharsetExpression(ShowExpression):
-    """Expression for SHOW CHARACTER SET command."""
+    """Expression for SHOW CHARACTER SET command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -422,7 +458,10 @@ class ShowCharsetExpression(ShowExpression):
 
 
 class ShowCollationExpression(ShowExpression):
-    """Expression for SHOW COLLATION command."""
+    """Expression for SHOW COLLATION command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -444,7 +483,10 @@ class ShowCollationExpression(ShowExpression):
 
 
 class ShowGrantsExpression(ShowExpression):
-    """Expression for SHOW GRANTS command."""
+    """Expression for SHOW GRANTS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
@@ -470,7 +512,10 @@ class ShowGrantsExpression(ShowExpression):
 
 
 class ShowPluginsExpression(ShowExpression):
-    """Expression for SHOW PLUGINS command."""
+    """Expression for SHOW PLUGINS command.
+
+    NOTE: MySQL-only command, not supported by ClickHouse.
+    """
 
     def to_sql(self) -> SQLQueryAndParams:
         return self._dialect.format_show_plugins(self)
