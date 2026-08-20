@@ -1133,10 +1133,10 @@ class ClickHouseDialect(
         Format storage options for ClickHouse.
 
         Args:
-            storage_options: Dict with keys like 'ENGINE', 'DEFAULT CHARSET', 'COLLATE'
+            storage_options: Dict with keys like 'ENGINE', 'ORDER BY', 'PARTITION BY'
 
         Returns:
-            Formatted storage options string (e.g., "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4")
+            Formatted storage options string (e.g., "ENGINE = MergeTree() ORDER BY id")
         """
         parts = []
         for key, value in storage_options.items():
