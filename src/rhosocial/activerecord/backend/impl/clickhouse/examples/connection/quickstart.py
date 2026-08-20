@@ -7,11 +7,6 @@ This example demonstrates:
 3. How to execute expression-based queries
 4. How to access query results and handle transactions
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

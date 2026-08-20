@@ -6,11 +6,6 @@ This example demonstrates:
 2. Update with WHERE condition
 3. Update multiple rows
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

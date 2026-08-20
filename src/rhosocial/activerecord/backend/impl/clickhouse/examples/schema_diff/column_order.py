@@ -5,17 +5,11 @@ ClickHouseSchemaDiffer extends the base comparison to check ordinal_position.
 If column B is added between A and C, all subsequent columns shift position,
 which the differ detects.
 
-Supported versions: ClickHouse 5.6+
+Supported versions: ClickHouse
 
 Note: Column reordering is a ClickHouse-specific concept. SQLite and PostgreSQL
 do not assign semantic meaning to column order, so their differs treat
 identical column sets as equivalent regardless of position.
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -41,8 +35,8 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     DropTableExpression, CreateTableExpression, ColumnDefinition,
     ColumnConstraint, ColumnConstraintType,
 )
-from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
-    IntegerType, VarCharType,
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
+    ClickHouseUInt32Type, ClickHouseStringType,
 )
 
 expr = DropTableExpression(dialect, "users", if_exists=True)
@@ -50,13 +44,13 @@ sql, params = expr.to_sql()
 backend.execute(sql, params)
 expr = CreateTableExpression(
     dialect=dialect, table="users", columns=[
-        ColumnDefinition("id", IntegerType(),
+        ColumnDefinition("id", ClickHouseUInt32Type(),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("name", VarCharType(100)),
-        ColumnDefinition("email", VarCharType(200)),
+        ColumnDefinition("name", ClickHouseStringType()),
+        ColumnDefinition("email", ClickHouseStringType()),
     ]
 )
 sql, params = expr.to_sql()
@@ -79,7 +73,7 @@ builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column between `name` and `email` — shifts email to position 4
-add_col = AddColumn(dialect, ColumnDefinition("age", IntegerType()),
+add_col = AddColumn(dialect, ColumnDefinition("age", ClickHouseUInt32Type()),
                     dialect_options={"after": "name"})
 alter_expr = AlterTableExpression(dialect, "users", [add_col])
 sql, params = alter_expr.to_sql()

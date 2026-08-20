@@ -6,12 +6,6 @@ This example demonstrates:
 2. How to use factory functions for SQL niladic functions in SELECT list
 3. Various ClickHouse date/time functions as standalone queries
 4. Expression API for constant expressions
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -111,28 +105,28 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT with function arguments
 # ============================================================
-# FunctionCall supports arguments, e.g., DATE_FORMAT, ROUND
+# FunctionCall supports arguments, e.g., formatDateTime, round
 
 query_format = QueryExpression(
     dialect=dialect,
     select=[
-        FunctionCall(dialect, "DATE_FORMAT", now(dialect), Literal(dialect, "%Y-%m-%d")).as_("formatted_date"),
+        FunctionCall(dialect, "formatDateTime", now(dialect), Literal(dialect, "%Y-%m-%d")).as_("formatted_date"),
     ],
 )
 sql, params = query_format.to_sql()
-print(f"DATE_FORMAT SQL: {sql}")
+print(f"formatDateTime SQL: {sql}")
 result = backend.execute(sql, params, options=dql_options)
 print(f"Result: {result.data}")
 
 # ============================================================
-# SECTION: SELECT with UUID() (ClickHouse 8.0+)
+# SECTION: SELECT with generateUUIDv4() (ClickHouse)
 # ============================================================
 query_uuid = QueryExpression(
     dialect=dialect,
-    select=[FunctionCall(dialect, "UUID").as_("uuid_value")],
+    select=[FunctionCall(dialect, "generateUUIDv4").as_("uuid_value")],
 )
 sql, params = query_uuid.to_sql()
-print(f"UUID() SQL: {sql}")
+print(f"generateUUIDv4() SQL: {sql}")
 result = backend.execute(sql, params, options=dql_options)
 print(f"Result: {result.data}")
 
@@ -150,4 +144,4 @@ backend.disconnect()
 # 3. Use FunctionCall(dialect, 'FUNC', arg1, arg2) for regular functions with arguments
 # 4. Use .as_('alias') for column aliases in SELECT
 # 5. SQL:2003 niladic functions (CURRENT_TIMESTAMP, CURRENT_DATE, etc.) omit parentheses
-# 6. Common ClickHouse info functions: DATABASE, VERSION, USER, UUID
+# 6. Common ClickHouse info functions: DATABASE, VERSION, USER, generateUUIDv4

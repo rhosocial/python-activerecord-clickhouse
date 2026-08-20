@@ -33,8 +33,7 @@ def local_dev():
         user=_env_or_default("CLICKHOUSE_USER", "root"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "dev"),
-        autocommit=True,
-        init_command=None,
+        connect_timeout=10,
     )
 
 
@@ -53,8 +52,7 @@ def local_dev_no_auth():
         user=_env_or_default("CLICKHOUSE_USER", "root"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "dev"),
-        autocommit=True,
-        init_command=None,
+        connect_timeout=10,
     )
 
 
@@ -73,6 +71,5 @@ def test_db():
         user=_env_or_default("CLICKHOUSE_USER", "root"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "test"),
-        autocommit=True,
-        get_warnings=True,
+        connect_timeout=10,
     )

@@ -14,11 +14,6 @@ it for --list/--describe without a live database). Use ``prepare_orders_demo``
 to create the schema and seed data, then the CLI named-expression /
 named-procedure commands to execute the queries.
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

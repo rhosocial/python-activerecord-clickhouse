@@ -1,17 +1,13 @@
 """
-ClickHouse JSON operations using TEXT storage.
+ClickHouse JSON operations using String storage.
 
-Note: ClickHouse 5.6 does not support JSON data type.
-Use TEXT column and parse with string functions.
+ClickHouse can store JSON in String columns and parse with JSONExtract functions.
+Unlike MySQL 5.6, ClickHouse does not have a TEXT type limitation - use String
+for arbitrary-length text data.
 
-Supported versions: ClickHouse 5.6
-Unsupported versions: ClickHouse 5.7+ (use json_basic.py instead)
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
+This example demonstrates:
+1. Storing JSON data in a String column
+2. Using JSONExtract functions to query JSON from String columns
 """
 
 # ============================================================
@@ -36,19 +32,25 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     DropTableExpression,
     InsertExpression,
     ValuesSource,
+    CreateTableExpression,
+    QueryExpression,
+    TableExpression,
+    Column,
 )
-from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
+from rhosocial.activerecord.backend.expression.core import Literal, FunctionCall  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
+from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
+
+dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
 drop_table = DropTableExpression(dialect=dialect, table_name="documents", if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
-
-from rhosocial.activerecord.backend.expression import CreateTableExpression  # noqa: E402
 
 create_table = CreateTableExpression(
     dialect=dialect,
@@ -92,20 +94,27 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
-# ClickHouse 5.6: Use TEXT column directly
-# JSON parsing with string functions is error-prone, so we just show the raw data
-sql = "SELECT id, data FROM documents"
-params = ()
+# Use JSONExtract to parse JSON from String columns
+query = QueryExpression(
+    dialect=dialect,
+    select=[
+        Column(dialect, "id"),
+        FunctionCall(dialect, "JSONExtractString", Column(dialect, "data"), Literal(dialect, "$.name")).as_("name"),
+        FunctionCall(dialect, "JSONExtract", Column(dialect, "data"), Literal(dialect, "$.age"), Literal(dialect, "UInt32")).as_("age"),
+    ],
+    from_=TableExpression(dialect, "documents"),
+)
 
+sql, params = query.to_sql()
 print(f"SQL: {sql}")
 print(f"Params: {params}")
 
 # ============================================================
 # SECTION: Execution (run the expression)
 # ============================================================
-result = backend.execute(sql, params)
+result = backend.execute(sql, params, options=dql_options)
 print(f"Rows returned: {len(result.data) if result.data else 0}")
 for row in result.data or []:
-    print(f" {row}")
+    print(f"  {row}")
 
 backend.disconnect()

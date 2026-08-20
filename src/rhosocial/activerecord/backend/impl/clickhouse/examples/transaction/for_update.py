@@ -1,17 +1,13 @@
 """
-FOR UPDATE Row Locking - ClickHouse.
+FOR UPDATE Row Locking awareness demonstration.
 
 This example demonstrates:
-1. SELECT ... FOR UPDATE to lock rows
-2. Preventing dirty reads in concurrent scenarios
-3. Using SKIP LOCKED for non-blocking locks
-4. NOWAIT for immediate failure on lock
+1. ClickHouse does NOT support SELECT ... FOR UPDATE
+2. Row-level locking is not available in ClickHouse
+3. ForUpdateClause will raise UnsupportedFeatureError
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
+For row locking, use a database engine that supports ACID
+transactions (e.g., PostgreSQL, MySQL with InnoDB).
 """
 
 # ============================================================
@@ -39,11 +35,9 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     DropTableExpression,
     QueryExpression,
     TableExpression,
-    UpdateExpression,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
-from rhosocial.activerecord.backend.expression.query_parts import ForUpdateClause  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
@@ -53,7 +47,6 @@ from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E40
 from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
-dml_options = ExecutionOptions(stmt_type=StatementType.DML)
 
 drop_table = DropTableExpression(dialect=dialect, table_name="accounts", if_exists=True)
 sql, params = drop_table.to_sql()
@@ -65,29 +58,28 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "name",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "balance",
-            "DECIMAL(10,2)",
+            "Decimal(10, 2)",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=0),
+                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=Literal(dialect, 0)),
             ],
         ),
     ],
     if_not_exists=True,
-    dialect_options={"engine": "InnoDB"},
 )
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
@@ -108,110 +100,38 @@ sql, params = insert_expr.to_sql()
 backend.execute(sql, params)
 
 # ============================================================
-# SECTION: SELECT FOR UPDATE
+# SECTION: FOR UPDATE is not supported
 # ============================================================
-# Lock rows to prevent concurrent modifications
+print("ClickHouse does not support SELECT ... FOR UPDATE row locking.\n")
 
-# In a transaction, select with FOR UPDATE
-with backend.transaction():
-    # Lock Alice's row using ForUpdateClause
-    lock_query = QueryExpression(
-        dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "balance")],
-        from_=TableExpression(dialect, "accounts"),
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-        for_update=ForUpdateClause(dialect),
-    )
-    sql, params = lock_query.to_sql()
-    result = backend.execute(sql, params, options=dql_options)
-    print(f"Locked row: {result.data}")
-
-    # Update the balance
-    update_expr = UpdateExpression(
-        dialect=dialect,
-        table="accounts",
-        assignments={"balance": Literal(dialect, 900)},
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-    )
-    sql, params = update_expr.to_sql()
-    backend.execute(sql, params, options=dml_options)
-
-# The lock is released after commit
-
-# ============================================================
-# SECTION: FOR UPDATE with WHERE Conditions
-# ============================================================
-# Lock specific rows based on conditions
-
-with backend.transaction():
-    lock_query = QueryExpression(
-        dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "balance")],
-        from_=TableExpression(dialect, "accounts"),
-        where=ComparisonPredicate(dialect, ">", Column(dialect, "balance"), Literal(dialect, 500)),
-        for_update=ForUpdateClause(dialect),
-    )
-    sql, params = lock_query.to_sql()
-    result = backend.execute(sql, params, options=dql_options)
-    print(f"Locked high balance accounts: {len(result.data)} rows")
-
-# ============================================================
-# SECTION: SKIP LOCKED (ClickHouse 8.0+)
-# ============================================================
-# Skip locked rows instead of waiting
-
-skip_query = QueryExpression(
+# Regular SELECT works fine
+query = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "balance")],
     from_=TableExpression(dialect, "accounts"),
-    for_update=ForUpdateClause(dialect, skip_locked=True),
+    where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
 )
-sql, params = skip_query.to_sql()
-print(f"SKIP LOCKED SQL: {sql}")
+sql, params = query.to_sql()
 result = backend.execute(sql, params, options=dql_options)
-print(f"SKIP LOCKED result: {result.data}")
+print(f"Regular SELECT: {result.data}")
 
 # ============================================================
-# SECTION: NOWAIT (ClickHouse 8.0+)
+# SECTION: FOR UPDATE attempt (will raise)
 # ============================================================
-# Fail immediately if rows are locked
-
+print("\nAttempting FOR UPDATE...")
 try:
-    nowait_query = QueryExpression(
+    from rhosocial.activerecord.backend.expression.query_parts import ForUpdateClause
+    lock_query = QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "balance")],
         from_=TableExpression(dialect, "accounts"),
         where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-        for_update=ForUpdateClause(dialect, nowait=True),
+        for_update=ForUpdateClause(dialect),
     )
-    sql, params = nowait_query.to_sql()
-    result = backend.execute(sql, params, options=dql_options)
-    print(f"NOWAIT result: {result.data}")
+    sql, params = lock_query.to_sql()
+    print(f"  (unexpected: generated SQL: {sql})")
 except Exception as e:
-    print(f"NOWAIT failed (expected if locked): {e}")
-
-# ============================================================
-# SECTION: Lock Modes
-# ============================================================
-# FOR UPDATE - exclusive lock (write lock)
-# FOR SHARE - shared lock (read lock)
-
-# Use ClickHouseForUpdateClause with ClickHouseLockStrength.SHARE for FOR SHARE
-from rhosocial.activerecord.backend.impl.clickhouse.expression import (  # noqa: E402
-    ClickHouseForUpdateClause,
-    ClickHouseLockStrength,
-)
-
-with backend.transaction():
-    share_query = QueryExpression(
-        dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "balance")],
-        from_=TableExpression(dialect, "accounts"),
-        for_update=ClickHouseForUpdateClause(dialect, strength=ClickHouseLockStrength.SHARE),
-    )
-    sql, params = share_query.to_sql()
-    result = backend.execute(sql, params, options=dql_options)
-    print(f"FOR SHARE result: {len(result.data)} rows")
+    print(f"  UnsupportedFeatureError: {e}")
 
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
@@ -225,9 +145,7 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use ForUpdateClause with QueryExpression for SELECT ... FOR UPDATE
-# 2. ForUpdateClause(dialect, skip_locked=True) for SKIP LOCKED (ClickHouse 8.0+)
-# 3. ForUpdateClause(dialect, nowait=True) for NOWAIT (ClickHouse 8.0+)
-# 4. Use ClickHouseForUpdateClause with ClickHouseLockStrength.SHARE for FOR SHARE (ClickHouse 8.0+)
-# 5. Requires InnoDB engine
-# 6. Locks released on COMMIT/ROLLBACK
+# 1. ClickHouse does NOT support SELECT ... FOR UPDATE
+# 2. ForUpdateClause raises UnsupportedFeatureError
+# 3. SKIP LOCKED and NOWAIT are also unsupported
+# 4. Use a transactional database backend for row locking

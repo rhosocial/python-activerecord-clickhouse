@@ -4,11 +4,6 @@ ClickHouse JSON_TABLE - Convert JSON data to relational format (ClickHouse 8.0+)
 Demonstrates using ClickHouseJSONTableExpression with QueryExpression to build
 a SELECT query that flattens JSON array data into relational rows.
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

@@ -33,8 +33,7 @@ def prod_db():
         user=_env_or_default("CLICKHOUSE_USER", "app_user"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "production"),
-        autocommit=True,
-        init_command="SET sql_mode='STRICT_TRANS_TABLES'",
+        connect_timeout=30,
         ssl_enabled=True,
     )
 
@@ -54,8 +53,7 @@ def prod_db_ssl():
         user=_env_or_default("CLICKHOUSE_USER", "app_user"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "production"),
-        autocommit=True,
-        init_command="SET sql_mode='STRICT_TRANS_TABLES'",
+        connect_timeout=30,
         ssl_enabled=True,
         ssl_verify_server_cert=True,
     )
@@ -76,5 +74,5 @@ def prod_replica():
         user=_env_or_default("CLICKHOUSE_REPLICA_USER", "app_user"),
         password=_env_or_default("CLICKHOUSE_REPLICA_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "production"),
-        autocommit=True,
+        connect_timeout=30,
     )

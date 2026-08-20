@@ -6,12 +6,6 @@ This example demonstrates:
 2. Using OnConflictClause for upsert
 3. Affected rows tracking
 4. UPSERT with multiple values
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -68,32 +62,31 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "username",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(ColumnConstraintType.UNIQUE),
             ],
         ),
         ColumnDefinition(
             "email",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "login_count",
-            "INT",
+            "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=0),
+                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=Literal(dialect, 0)),
             ],
         ),
     ],
@@ -105,7 +98,6 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: INSERT ON DUPLICATE KEY UPDATE
 # ============================================================
-# ClickHouse uses ON DUPLICATE KEY UPDATE, which is handled via OnConflictClause
 
 # Initial insert
 insert_expr = InsertExpression(

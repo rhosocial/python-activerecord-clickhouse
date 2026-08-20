@@ -5,11 +5,6 @@ DDL named expression functions for ClickHouse migration examples.
 Each function receives a *dialect* and returns a DDL expression object.
 These are the building blocks used by NamedMigration up()/down() methods.
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (

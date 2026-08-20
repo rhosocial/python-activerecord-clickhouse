@@ -5,11 +5,6 @@ This example demonstrates:
 1. DROP TABLE
 2. DROP TABLE IF EXISTS
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

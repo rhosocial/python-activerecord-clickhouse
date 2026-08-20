@@ -1,23 +1,12 @@
 """
-Window functions using user variables - ClickHouse 5.7 and earlier fallback.
+Window functions using ORDER BY and LIMIT BY - ClickHouse.
 
-Note: This example provides window function alternatives for ClickHouse 5.6/5.7
-which do not support built-in window functions introduced in ClickHouse 8.0.
-
-Supported versions: ClickHouse 5.6, 5.7
-Unsupported versions: ClickHouse 8.0+
+ClickHouse does not support window functions in MySQL 5.7 style.
+Instead, use ClickHouse-native features:
+- ORDER BY with LIMIT BY for per-group top-N queries
+- ClickHouse window functions (8.0+ support)
 
 For ClickHouse 8.0+, see: query/window.py
-
-This example uses user variables to emulate:
-- ROW_NUMBER() OVER (PARTITION BY region ORDER BY amount DESC)
-- SUM(amount) OVER (PARTITION BY region)
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -33,7 +22,6 @@ config = ClickHouseConnectionConfig(
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    charset="utf8mb4",
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
@@ -62,15 +50,15 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("salesperson", "VARCHAR(100)"),
-        ColumnDefinition("region", "VARCHAR(50)"),
-        ColumnDefinition("amount", "DECIMAL(10,2)"),
+        ColumnDefinition("salesperson", "String"),
+        ColumnDefinition("region", "String"),
+        ColumnDefinition("amount", "Decimal(10, 2)"),
     ],
     if_not_exists=True,
 )
@@ -98,20 +86,18 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
-# Using user variables to emulate window functions in ClickHouse 5.6/5.7
-# Row number with partition by region and order by amount DESC
+# ClickHouse does not support MySQL user variables for window emulation.
+# Use ORDER BY with LIMIT BY for per-group aggregation instead.
+
+# Example: Get top sales by region using ORDER BY + LIMIT BY
 sql = """
 SELECT
     salesperson,
     region,
-    amount,
-    @row_num := IF(@current_region = region,
-        @row_num + 1,
-        1) AS row_num,
-    @current_region := region
-FROM sales_data,
-    (SELECT @row_num := 0, @current_region := '') AS vars
+    amount
+FROM sales_data
 ORDER BY region, amount DESC
+LIMIT 2 BY region
 """
 params = ()
 
@@ -121,6 +107,6 @@ params = ()
 result = backend.execute(sql, params)
 print(f"Rows returned: {len(result.data) if result.data else 0}")
 for row in result.data or []:
-    print(f" {row}")
+    print(f"  {row}")
 
 backend.disconnect()

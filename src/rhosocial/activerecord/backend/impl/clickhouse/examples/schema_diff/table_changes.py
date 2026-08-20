@@ -1,13 +1,7 @@
 """
 Schema diff: detect table-level changes (add, remove, modify).
 
-Supported versions: ClickHouse 5.6+
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
+Supported versions: ClickHouse
 """
 
 # ============================================================
@@ -53,8 +47,8 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     CreateTableExpression, ColumnDefinition,
     ColumnConstraint, ColumnConstraintType,
 )
-from rhosocial.activerecord.backend.expression.types import (  # noqa: E402
-    IntegerType, VarCharType, DecimalType,
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
+    ClickHouseUInt32Type, ClickHouseStringType, ClickHouseDecimalType,
 )
 
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
@@ -63,25 +57,25 @@ snapshot_before = builder.build()
 # Create one table, drop another (if it existed)
 expr = CreateTableExpression(
     dialect=dialect, table="users", columns=[
-        ColumnDefinition("id", IntegerType(),
+        ColumnDefinition("id", ClickHouseUInt32Type(),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("name", VarCharType(100)),
+        ColumnDefinition("name", ClickHouseStringType()),
     ]
 )
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 expr = CreateTableExpression(
     dialect=dialect, table="orders", columns=[
-        ColumnDefinition("id", IntegerType(),
+        ColumnDefinition("id", ClickHouseUInt32Type(),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("user_id", IntegerType()),
-        ColumnDefinition("amount", DecimalType(10, 2)),
+        ColumnDefinition("user_id", ClickHouseUInt32Type()),
+        ColumnDefinition("amount", ClickHouseDecimalType(10, 2)),
     ]
 )
 sql, params = expr.to_sql()

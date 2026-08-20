@@ -4,14 +4,7 @@ EXPLAIN and Query Plan analysis - ClickHouse.
 This example demonstrates:
 1. Using EXPLAIN to analyze query execution
 2. Understanding the EXPLAIN output columns
-3. Index usage analysis
-4. Interpreting the execution plan
-
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
+3. Understanding the execution plan
 """
 
 # ============================================================
@@ -80,12 +73,12 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
+# Create a skip index on email column
 create_index = CreateIndexExpression(
     dialect=dialect,
     index_name="idx_users_email",
     table_name="users",
     columns=["email"],
-    if_not_exists=True,
 )
 sql, params = create_index.to_sql()
 backend.execute(sql, params)
@@ -109,7 +102,7 @@ for name, email in users:
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 
-# 1. EXPLAIN for table scan (no index on name column)
+# 1. EXPLAIN for a simple query
 query1 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "*")],
@@ -127,13 +120,13 @@ explain_scan = ExplainExpression(
     options=ExplainOptions(),
 )
 sql, params = explain_scan.to_sql()
-print("1. Table SCAN (no index on name):")
+print("1. EXPLAIN for query on 'name' column:")
 print(f"SQL: {sql}")
 result = backend.execute(sql, params)
 for row in result.data:
     print(f"  {row}")
 
-# 2. EXPLAIN for index search (email has index)
+# 2. EXPLAIN for another query
 query2 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "*")],
@@ -151,7 +144,7 @@ explain_search = ExplainExpression(
     options=ExplainOptions(),
 )
 sql, params = explain_search.to_sql()
-print("\n2. Index SEARCH (using idx_users_email):")
+print("\n2. EXPLAIN for query on 'email' column:")
 print(f"SQL: {sql}")
 result = backend.execute(sql, params)
 for row in result.data:
@@ -183,7 +176,5 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. ClickHouse EXPLAIN shows execution plan without executing the query
-# 2. "type" column shows access method: ALL=table scan, ref=index lookup
-# 3. "key" column shows which index is used
-# 4. "rows" column shows estimated rows to examine
-# 5. FORMAT=JSON provides detailed cost information
+# 2. The output shows the query pipeline and steps
+# 3. FORMAT=JSON provides structured output

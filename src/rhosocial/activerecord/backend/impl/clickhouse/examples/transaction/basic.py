@@ -1,16 +1,13 @@
 """
-Basic transaction control using transaction manager.
+ClickHouse transaction awareness demonstration.
 
 This example demonstrates:
-1. How to use the transaction context manager
-2. How to handle transaction rollback on error
-3. How to use savepoints for nested transactions
+1. ClickHouse does NOT support ACID transactions (BEGIN/COMMIT/ROLLBACK)
+2. INSERT and SELECT operations work as expected
+3. The backend.transaction() context manager will raise UnsupportedFeatureError
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
+For transactional workloads, use a database engine that supports transactions
+(e.g., PostgreSQL, MySQL with InnoDB).
 """
 
 # ============================================================
@@ -36,12 +33,10 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     DropTableExpression,
     InsertExpression,
     ValuesSource,
-    UpdateExpression,
     QueryExpression,
     TableExpression,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
@@ -61,24 +56,24 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "name",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "balance",
-            "DECIMAL(10,2)",
+            "Decimal(10, 2)",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=0),
+                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=Literal(dialect, 0)),
             ],
         ),
     ],
@@ -102,94 +97,67 @@ sql, params = insert_expr.to_sql()
 backend.execute(sql, params)
 
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
-dml_options = ExecutionOptions(stmt_type=StatementType.DML)
 
 # ============================================================
-# SECTION: Transaction Context Manager
+# SECTION: Plain INSERT/SELECT (no transaction)
 # ============================================================
-# The transaction() method returns a context manager
-# that automatically handles COMMIT/ROLLBACK
+# ClickHouse does not support BEGIN/COMMIT/ROLLBACK.
+# The backend.transaction() context manager will raise
+# UnsupportedFeatureError if called.
 
-# Simple transaction - auto commits on success
-with backend.transaction():
-    update_expr = UpdateExpression(
-        dialect=dialect,
-        table="accounts",
-        assignments={"balance": Literal(dialect, 50)},
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-    )
-    sql, params = update_expr.to_sql()
-    backend.execute(sql, params, options=dml_options)
+print("ClickHouse does not support ACID transactions.")
+print("Use plain INSERT/SELECT statements instead.")
+
+# Insert another row
+insert_expr2 = InsertExpression(
+    dialect=dialect,
+    into="accounts",
+    columns=["name", "balance"],
+    source=ValuesSource(
+        dialect,
+        [
+            [Literal(dialect, "Bob"), Literal(dialect, 50)],
+        ],
+    ),
+)
+sql, params = insert_expr2.to_sql()
+backend.execute(sql, params)
 
 # Verify
 query = QueryExpression(
     dialect=dialect,
-    select=[Column(dialect, "balance")],
+    select=[Column(dialect, "name"), Column(dialect, "balance")],
     from_=TableExpression(dialect, "accounts"),
-    where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
 )
 sql, params = query.to_sql()
 result = backend.execute(sql, params, options=dql_options)
 if result.data:
-    print(f"Balance after transaction: {result.data[0]['balance']}")
+    print(f"Accounts: {result.data}")
 
 # ============================================================
-# SECTION: Transaction with Rollback
+# SECTION: Transaction attempt (will raise)
 # ============================================================
-# If an exception is raised, the transaction is rolled back
-
+print("\nAttempting transaction context manager...")
 try:
     with backend.transaction():
-        update_expr = UpdateExpression(
-            dialect=dialect,
-            table="accounts",
-            assignments={"balance": Literal(dialect, -100)},
-            where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-        )
-        sql, params = update_expr.to_sql()
-        backend.execute(sql, params, options=dml_options)
-        raise RuntimeError("Simulated error to trigger rollback")
+        pass
+    print("  (unexpected: transaction succeeded)")
 except Exception as e:
-    print(f"Transaction rolled back: {e}")
-
-# ============================================================
-# SECTION: Savepoints (Nested Transactions)
-# ============================================================
-# ClickHouse supports savepoints for nested transactions
-
-with backend.transaction():
-    update_expr = UpdateExpression(
-        dialect=dialect,
-        table="accounts",
-        assignments={"balance": Literal(dialect, 40)},
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-    )
-    sql, params = update_expr.to_sql()
-    backend.execute(sql, params, options=dml_options)
-    backend.transaction_manager.savepoint("sp1")
-
-    try:
-        update_expr2 = UpdateExpression(
-            dialect=dialect,
-            table="accounts",
-            assignments={"balance": Literal(dialect, 20)},
-            where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-        )
-        sql, params = update_expr2.to_sql()
-        backend.execute(sql, params, options=dml_options)
-    except Exception:
-        backend.transaction_manager.rollback_to("sp1")
+    print(f"  UnsupportedFeatureError: {e}")
 
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
+drop_table = DropTableExpression(dialect=dialect, table_name="accounts", if_exists=True)
+sql, params = drop_table.to_sql()
+backend.execute(sql, params)
 backend.disconnect()
 
 # ============================================================
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use backend.transaction() as a context manager
-# 2. Exceptions automatically trigger rollback
-# 3. Use savepoints for partial rollback
-# 4. ClickHouse requires InnoDB engine for transactions
+# 1. ClickHouse does NOT support ACID transactions
+# 2. backend.transaction() raises UnsupportedFeatureError
+# 3. Use plain INSERT/SELECT/UPDATE/DELETE without transactional wrappers
+# 4. For transactional workloads, use a different database backend

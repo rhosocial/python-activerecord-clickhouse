@@ -6,11 +6,6 @@ This example demonstrates:
 2. ClickHouse does not support RETURNING clause (unlike PostgreSQL/SQLite 3.35+)
 3. Using SELECT LAST_INSERT_ID() as the ClickHouse alternative
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

@@ -11,38 +11,29 @@ ClickHouse Version Support:
 
 Version-specific features:
 - Window Functions: ClickHouse 8.0+
-- Full-Text Search: ClickHouse 5.6+ (with FULLTEXT index) / 5.7+ (with ngram parser)
+- Full-Text Search: ClickHouse (tokenbf_v1 skip index + hasToken)
 - JSON_TABLE: ClickHouse 8.0+
-- JSON data type: ClickHouse 5.7+
-- Auto increment with negative values: ClickHouse 8.0+
+- JSON data type: ClickHouse (JSONExtract functions)
 - CTE (WITH clause): ClickHouse 8.0+
-
-.. warning::
-
-    Examples in this metadata are derived from the MySQL template. Some contain
-    MySQL-specific syntax (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.)
-    not supported by ClickHouse. For illustration only; adjust for ClickHouse
-    before use.
 """
 
 EXAMPLES_META = {
     "transaction/basic.py": {
-        "title": "Transaction Control",
+        "title": "Transaction Awareness (ClickHouse does not support transactions)",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "5.6",
         "max_version": "9.6",
     },
     "transaction/for_update.py": {
-        "title": "FOR UPDATE Row Locking",
+        "title": "FOR UPDATE Awareness (ClickHouse does not support row locking)",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "5.6",
         "max_version": "9.6",
-        "note": "SKIP LOCKED and NOWAIT require ClickHouse 8.0+",
     },
     "transaction/exclusive.py": {
-        "title": "Transaction Isolation Levels",
+        "title": "Transaction Isolation Levels (ClickHouse does not support isolation)",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "5.6",
@@ -203,10 +194,10 @@ EXAMPLES_META = {
         "priority": 10,
         "min_version": "8.0",
         "max_version": "9.6",
-        "note": "Use window_clickhouse57.py for ClickHouse 5.6/5.7 equivalent",
+        "note": "Use window_mysql57.py for ClickHouse 5.6/5.7 equivalent",
     },
-    "query/window_clickhouse57.py": {
-        "title": "Window Functions (ClickHouse 5.6/5.7)",
+    "query/window_mysql57.py": {
+        "title": "Window Functions (ClickHouse 5.6/5.7) - ORDER BY with LIMIT BY",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "5.6",
@@ -214,7 +205,7 @@ EXAMPLES_META = {
         "note": "Use window.py for ClickHouse 8.0+ native window functions",
     },
     "query/fulltext.py": {
-        "title": "Full-Text Search",
+        "title": "Full-Text Search (MATCH...AGAINST)",
         "dialect_protocols": ["ClickHouseFullTextSearchSupport"],
         "priority": 10,
         "min_version": "5.6",
@@ -229,21 +220,21 @@ EXAMPLES_META = {
         "note": "Requires ClickHouse 8.0+. For older versions, see types/json_basic.py for JSON extraction alternatives",
     },
     "types/json_basic.py": {
-        "title": "JSON Operations (ClickHouse 5.7+)",
+        "title": "JSON Operations (JSONExtract functions)",
         "dialect_protocols": ["JSONSupport"],
         "priority": 10,
         "min_version": "5.7",
         "max_version": "9.6",
     },
-    "types/json_clickhouse56.py": {
-        "title": "JSON Operations (ClickHouse 5.6)",
+    "types/json_mysql56.py": {
+        "title": "JSON Operations (String storage)",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "5.6",
         "max_version": "5.6",
     },
     "types/fulltext_search.py": {
-        "title": "Full-Text Search (Index)",
+        "title": "Full-Text Search (tokenbf_v1 skip index + hasToken)",
         "dialect_protocols": ["ClickHouseFullTextSearchSupport"],
         "priority": 10,
         "min_version": "5.6",
@@ -284,15 +275,8 @@ EXAMPLES_META = {
         "min_version": "5.6",
         "max_version": "9.6",
     },
-    "schema_diff/clickhouse56_json.py": {
-        "title": "Schema Diff — ClickHouse 5.6 vs 8.0 JSON Type",
-        "dialect_protocols": [],
-        "priority": 10,
-        "min_version": "5.6",
-        "max_version": "9.6",
-    },
-    "schema_diff/clickhouse80_charset.py": {
-        "title": "Schema Diff — ClickHouse 5.6 vs 8.0 Charset/Collation",
+    "schema_diff/clickhouse_schema_diff.py": {
+        "title": "Schema Diff — ClickHouse Table Structure Changes",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "5.6",

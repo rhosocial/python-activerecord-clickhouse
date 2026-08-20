@@ -8,11 +8,6 @@ Note: MODIFY COLUMN is a ClickHouse-specific feature. The ClickHouse dialect's
 format_modify_column_action is not yet implemented, so this example
 only demonstrates ADD_COLUMN.
 
-.. warning::
-
-    Example from MySQL template. Contains MySQL-specific syntax
-    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
-    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -70,18 +65,6 @@ create_table = CreateTableExpression(
     if_not_exists=True,
 )
 sql, params = create_table.to_sql()
-backend.execute(sql, params)
-
-insert = InsertExpression(
-    dialect=dialect,
-    into="users",
-    columns=["name"],
-    source=ValuesSource(
-        dialect,
-        [[Literal(dialect, "Alice")]],
-    ),
-)
-sql, params = insert.to_sql()
 backend.execute(sql, params)
 
 insert = InsertExpression(
