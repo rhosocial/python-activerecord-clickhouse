@@ -6,6 +6,12 @@ This example demonstrates:
 2. Understanding the EXPLAIN output columns
 3. Index usage analysis
 4. Interpreting the execution plan
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -54,20 +60,20 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "name",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("email", "VARCHAR(200)"),
+        ColumnDefinition("email", "String"),
     ],
     if_not_exists=True,
 )

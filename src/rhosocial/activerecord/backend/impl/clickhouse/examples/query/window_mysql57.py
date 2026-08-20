@@ -12,6 +12,12 @@ For ClickHouse 8.0+, see: query/window.py
 This example uses user variables to emulate:
 - ROW_NUMBER() OVER (PARTITION BY region ORDER BY amount DESC)
 - SUM(amount) OVER (PARTITION BY region)
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

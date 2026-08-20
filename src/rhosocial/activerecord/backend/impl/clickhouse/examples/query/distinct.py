@@ -4,6 +4,12 @@ DISTINCT using SelectModifier - ClickHouse.
 This example demonstrates:
 1. SELECT DISTINCT
 2. SELECT DISTINCT with multiple columns
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -50,8 +56,8 @@ create_table = CreateTableExpression(
     dialect=dialect,
     table_name="users",
     columns=[
-        ColumnDefinition("id", "INT"),
-        ColumnDefinition("name", "VARCHAR(100)"),
+        ColumnDefinition("id", "UInt32"),
+        ColumnDefinition("name", "String"),
     ],
     if_not_exists=True,
 )

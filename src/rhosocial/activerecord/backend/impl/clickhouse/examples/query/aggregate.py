@@ -1,5 +1,11 @@
 """
 Aggregate queries with GROUP BY and HAVING.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -17,7 +23,6 @@ config = ClickHouseConnectionConfig(
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    charset="utf8mb4",
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
@@ -46,16 +51,16 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("product", "VARCHAR(100)"),
-        ColumnDefinition("quantity", "INT"),
-        ColumnDefinition("price", "DECIMAL(10,2)"),
-        ColumnDefinition("region", "VARCHAR(50)"),
+        ColumnDefinition("product", "String"),
+        ColumnDefinition("quantity", "UInt32"),
+        ColumnDefinition("price", "Decimal(10, 2)"),
+        ColumnDefinition("region", "String"),
     ],
     if_not_exists=True,
 )

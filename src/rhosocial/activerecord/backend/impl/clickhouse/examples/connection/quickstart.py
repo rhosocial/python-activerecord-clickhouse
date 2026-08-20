@@ -6,6 +6,12 @@ This example demonstrates:
 2. How to view connection information
 3. How to execute expression-based queries
 4. How to access query results and handle transactions
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -66,18 +72,18 @@ def create_demo_tables():
         columns=[
             ColumnDefinition(
                 "id",
-                "INT",
+                "UInt32",
                 constraints=[
                     ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(ColumnConstraintType.NOT_NULL),
                 ],
             ),
             ColumnDefinition(
                 "name",
-                "VARCHAR(100)",
+                "String",
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
             ),
-            ColumnDefinition("status", "VARCHAR(20)"),
+            ColumnDefinition("status", "String"),
         ],
         if_not_exists=True,
     )
@@ -89,15 +95,15 @@ def create_demo_tables():
         columns=[
             ColumnDefinition(
                 "id",
-                "INT",
+                "UInt32",
                 constraints=[
                     ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                    ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                    ColumnConstraint(ColumnConstraintType.NOT_NULL),
                 ],
             ),
             ColumnDefinition(
                 "message",
-                "VARCHAR(255)",
+                "String",
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
             ),
         ],

@@ -6,6 +6,12 @@ This example demonstrates:
 2. REPEATABLE READ isolation level (ClickHouse default)
 3. SERIALIZABLE isolation level
 4. How to set isolation level on a transaction
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 import os

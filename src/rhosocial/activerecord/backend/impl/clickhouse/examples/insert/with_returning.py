@@ -5,6 +5,12 @@ This example demonstrates:
 1. INSERT and retrieve auto-generated ID using LAST_INSERT_ID()
 2. ClickHouse does not support RETURNING clause (unlike PostgreSQL/SQLite 3.35+)
 3. Using SELECT LAST_INSERT_ID() as the ClickHouse alternative
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -53,20 +59,20 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "name",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("email", "VARCHAR(200)"),
+        ColumnDefinition("email", "String"),
     ],
     if_not_exists=True,
 )

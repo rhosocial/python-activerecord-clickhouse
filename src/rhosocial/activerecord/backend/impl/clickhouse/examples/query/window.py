@@ -1,5 +1,11 @@
 """
 Window functions - ROW_NUMBER, RANK, and aggregate over windows.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -17,7 +23,6 @@ config = ClickHouseConnectionConfig(
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    charset="utf8mb4",
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
@@ -46,15 +51,15 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("salesperson", "VARCHAR(100)"),
-        ColumnDefinition("region", "VARCHAR(50)"),
-        ColumnDefinition("amount", "DECIMAL(10,2)"),
+        ColumnDefinition("salesperson", "String"),
+        ColumnDefinition("region", "String"),
+        ColumnDefinition("amount", "Decimal(10, 2)"),
     ],
     if_not_exists=True,
 )

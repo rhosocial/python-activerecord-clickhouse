@@ -5,6 +5,12 @@ This example demonstrates:
 1. Basic CTE with WITH clause
 2. Recursive CTE for hierarchical data
 3. CTE for simplifying complex queries
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -58,13 +64,13 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
             ],
         ),
-        ColumnDefinition("name", "VARCHAR(100)"),
-        ColumnDefinition("manager_id", "INT"),
+        ColumnDefinition("name", "String"),
+        ColumnDefinition("manager_id", "UInt32"),
     ],
     if_not_exists=True,
 )

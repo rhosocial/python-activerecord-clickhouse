@@ -10,6 +10,12 @@ vice versa, the differ will detect the data type mapping change.
 
 Supported versions: ClickHouse 5.6 — schema uses LONGTEXT for "JSON" columns.
                      ClickHouse 5.7+ — schema uses native JSON type.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -25,7 +31,6 @@ config = ClickHouseConnectionConfig(
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    charset="utf8mb4",
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
@@ -56,7 +61,7 @@ expr = CreateTableExpression(
         ColumnDefinition("id", IntegerType(),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
         ColumnDefinition("data", ClickHouseLongTextType()),
     ]
@@ -69,7 +74,7 @@ expr = CreateTableExpression(
         ColumnDefinition("id", IntegerType(),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True),
+                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
         ColumnDefinition("data", JsonType()),
     ]

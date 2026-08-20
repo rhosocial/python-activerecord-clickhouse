@@ -5,6 +5,12 @@ This example demonstrates:
 1. How to use the transaction context manager
 2. How to handle transaction rollback on error
 3. How to use savepoints for nested transactions
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

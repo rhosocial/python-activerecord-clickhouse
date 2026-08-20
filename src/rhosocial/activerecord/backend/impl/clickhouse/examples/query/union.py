@@ -5,6 +5,12 @@ This example demonstrates:
 1. UNION (distinct)
 2. UNION ALL
 3. UNION with ORDER BY
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -51,12 +57,12 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
             ],
         ),
-        ColumnDefinition("name", "VARCHAR(100)"),
+        ColumnDefinition("name", "String"),
     ],
     if_not_exists=True,
 )

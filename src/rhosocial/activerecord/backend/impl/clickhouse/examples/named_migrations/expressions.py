@@ -4,6 +4,12 @@ DDL named expression functions for ClickHouse migration examples.
 
 Each function receives a *dialect* and returns a DDL expression object.
 These are the building blocks used by NamedMigration up()/down() methods.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
@@ -14,29 +20,28 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     DropTableExpression,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
-    ClickHouseIntType,
-    ClickHouseTextType,
+    ClickHouseUInt32Type,
+    ClickHouseStringType,
 )
 
 
 def create_users_table(dialect):
-    """CREATE TABLE users (id INT PRIMARY KEY AUTO_INCREMENT, name TEXT, email TEXT)."""
+    """CREATE TABLE users (id UInt32 PRIMARY KEY, name String, email String)."""
     return CreateTableExpression(
         dialect,
         table="users",
         columns=[
             ColumnDefinition(
                 "id",
-                ClickHouseIntType(),
+                ClickHouseUInt32Type(),
                 constraints=[
                     ColumnConstraint(
                         ColumnConstraintType.PRIMARY_KEY,
-                        is_auto_increment=True,
                     ),
                 ],
             ),
-            ColumnDefinition("name", ClickHouseTextType()),
-            ColumnDefinition("email", ClickHouseTextType()),
+            ColumnDefinition("name", ClickHouseStringType()),
+            ColumnDefinition("email", ClickHouseStringType()),
         ],
     )
 
@@ -47,23 +52,22 @@ def drop_users_table(dialect):
 
 
 def create_posts_table(dialect):
-    """CREATE TABLE posts (id INT PRIMARY KEY AUTO_INCREMENT, title TEXT, user_id INT)."""
+    """CREATE TABLE posts (id UInt32 PRIMARY KEY, title String, user_id UInt32)."""
     return CreateTableExpression(
         dialect,
         table="posts",
         columns=[
             ColumnDefinition(
                 "id",
-                ClickHouseIntType(),
+                ClickHouseUInt32Type(),
                 constraints=[
                     ColumnConstraint(
                         ColumnConstraintType.PRIMARY_KEY,
-                        is_auto_increment=True,
                     ),
                 ],
             ),
-            ColumnDefinition("title", ClickHouseTextType()),
-            ColumnDefinition("user_id", ClickHouseIntType()),
+            ColumnDefinition("title", ClickHouseStringType()),
+            ColumnDefinition("user_id", ClickHouseUInt32Type()),
         ],
     )
 
@@ -74,7 +78,7 @@ def drop_posts_table(dialect):
 
 
 def create_custom_table(dialect, table_name: str = "custom_table"):
-    """CREATE TABLE <table_name> (id INT PRIMARY KEY AUTO_INCREMENT, value TEXT).
+    """CREATE TABLE <table_name> (id UInt32 PRIMARY KEY, value String).
 
     This expression accepts an extra ``table_name`` parameter, allowing
     the migration to control the target table name at runtime.
@@ -85,15 +89,14 @@ def create_custom_table(dialect, table_name: str = "custom_table"):
         columns=[
             ColumnDefinition(
                 "id",
-                ClickHouseIntType(),
+                ClickHouseUInt32Type(),
                 constraints=[
                     ColumnConstraint(
                         ColumnConstraintType.PRIMARY_KEY,
-                        is_auto_increment=True,
                     ),
                 ],
             ),
-            ColumnDefinition("value", ClickHouseTextType()),
+            ColumnDefinition("value", ClickHouseStringType()),
         ],
     )
 

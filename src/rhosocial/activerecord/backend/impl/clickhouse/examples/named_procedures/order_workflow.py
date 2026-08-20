@@ -15,6 +15,12 @@ This module is import-safe: no database connection is made at import time.
 Prepare the schema and seed data with
 ``rhosocial.activerecord.backend.impl.clickhouse.examples.named_expressions.order_expressions.prepare_orders_demo``
 before running the procedure.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

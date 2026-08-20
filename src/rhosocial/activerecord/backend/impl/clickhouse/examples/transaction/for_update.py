@@ -6,6 +6,12 @@ This example demonstrates:
 2. Preventing dirty reads in concurrent scenarios
 3. Using SKIP LOCKED for non-blocking locks
 4. NOWAIT for immediate failure on lock
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

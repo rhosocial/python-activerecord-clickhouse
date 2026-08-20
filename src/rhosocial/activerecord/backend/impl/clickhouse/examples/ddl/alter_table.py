@@ -7,6 +7,12 @@ but for simplicity we demonstrate individual operations.
 Note: MODIFY COLUMN is a ClickHouse-specific feature. The ClickHouse dialect's
 format_modify_column_action is not yet implemented, so this example
 only demonstrates ADD_COLUMN.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -34,7 +40,6 @@ config = ClickHouseConnectionConfig(
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    charset="utf8mb4",
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
@@ -54,13 +59,13 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("name", "VARCHAR(100)"),
+        ColumnDefinition("name", "String"),
     ],
     if_not_exists=True,
 )
@@ -101,7 +106,7 @@ add_col_action = AddColumn(
     dialect=dialect,
     column=ColumnDefinition(
         name="email",
-        data_type="VARCHAR(100)",
+        data_type="String",
     ),
 )
 
@@ -122,7 +127,7 @@ add_age_action = AddColumn(
     dialect=dialect,
     column=ColumnDefinition(
         "age",
-        "INT",
+        "UInt32",
         constraints=[
             ColumnConstraint(
                 ColumnConstraintType.DEFAULT,

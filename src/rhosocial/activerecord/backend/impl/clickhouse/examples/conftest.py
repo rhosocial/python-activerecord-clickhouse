@@ -16,6 +16,13 @@ Version-specific features:
 - JSON data type: ClickHouse 5.7+
 - Auto increment with negative values: ClickHouse 8.0+
 - CTE (WITH clause): ClickHouse 8.0+
+
+.. warning::
+
+    Examples in this metadata are derived from the MySQL template. Some contain
+    MySQL-specific syntax (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.)
+    not supported by ClickHouse. For illustration only; adjust for ClickHouse
+    before use.
 """
 
 EXAMPLES_META = {

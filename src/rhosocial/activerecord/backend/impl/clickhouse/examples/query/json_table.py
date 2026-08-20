@@ -3,6 +3,12 @@ ClickHouse JSON_TABLE - Convert JSON data to relational format (ClickHouse 8.0+)
 
 Demonstrates using ClickHouseJSONTableExpression with QueryExpression to build
 a SELECT query that flattens JSON array data into relational rows.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -18,7 +24,6 @@ config = ClickHouseConnectionConfig(
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USERNAME", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-    charset="utf8mb4",
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
@@ -47,10 +52,10 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition("order_data", "JSON"),
@@ -100,9 +105,9 @@ json_table = ClickHouseJSONTableExpression(
     json_doc="o.order_data",
     path="$.items[*]",
     columns=[
-        JSONTableColumn(name="product", type="VARCHAR(100)", path="$.product"),
-        JSONTableColumn(name="qty", type="INT", path="$.qty"),
-        JSONTableColumn(name="price", type="DECIMAL(10,2)", path="$.price"),
+        JSONTableColumn(name="product", type="String", path="$.product"),
+        JSONTableColumn(name="qty", type="UInt32", path="$.qty"),
+        JSONTableColumn(name="price", type="Decimal(10, 2)", path="$.price"),
     ],
     alias="items",
 )

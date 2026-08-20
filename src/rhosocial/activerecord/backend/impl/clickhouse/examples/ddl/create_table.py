@@ -3,10 +3,16 @@ Create a table with primary key, auto-increment, and ClickHouse-specific options
 
 This example demonstrates:
 1. CREATE TABLE with various column types and constraints
-2. AUTO_INCREMENT primary key
-3. ClickHouse-specific ENGINE and CHARSET options
+2. ClickHouse UInt32 primary key
+3. ClickHouse-specific ENGINE options
 4. Inline index definitions
 5. Default values and NOT NULL constraints
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -52,40 +58,40 @@ backend.execute(sql, params)
 columns = [
     ColumnDefinition(
         name="id",
-        data_type="INT",
+        data_type="UInt32",
         constraints=[
             ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+            ColumnConstraint(ColumnConstraintType.NOT_NULL),
         ],
     ),
     ColumnDefinition(
         name="name",
-        data_type="VARCHAR(200)",
+        data_type="String",
         constraints=[
             ColumnConstraint(ColumnConstraintType.NOT_NULL),
         ],
     ),
     ColumnDefinition(
         name="price",
-        data_type="DECIMAL(10,2)",
+        data_type="Decimal(10, 2)",
         constraints=[
             ColumnConstraint(ColumnConstraintType.NOT_NULL),
         ],
     ),
     ColumnDefinition(
         name="category",
-        data_type="VARCHAR(100)",
+        data_type="String",
     ),
     ColumnDefinition(
         name="is_active",
-        data_type="TINYINT(1)",
+        data_type="UInt8",
         constraints=[
             ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=1),
         ],
     ),
     ColumnDefinition(
         name="created_at",
-        data_type="TIMESTAMP",
+        data_type="DateTime",
         constraints=[
             ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=current_timestamp(dialect)),
         ],
@@ -99,7 +105,7 @@ indexes = [
     ),
 ]
 
-# Create table with ClickHouse-specific ENGINE and CHARSET options
+# Create table with ClickHouse-specific ENGINE option
 create_expr = CreateTableExpression(
     dialect=dialect,
     table_name="products",
@@ -107,8 +113,7 @@ create_expr = CreateTableExpression(
     indexes=indexes,
     if_not_exists=True,
     dialect_options={
-        "engine": "InnoDB",
-        "charset": "utf8mb4",
+        "engine": "MergeTree()",
     },
 )
 
@@ -140,8 +145,8 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use ColumnConstraint with is_auto_increment=True for AUTO_INCREMENT
-# 2. ClickHouse dialect_options supports 'engine' and 'charset' keys
+# 1. Use ColumnDefinition with ClickHouse column types (UInt32, String, etc.)
+# 2. ClickHouse dialect_options supports the 'engine' key (e.g. MergeTree())
 # 3. IndexDefinition creates inline indexes within CREATE TABLE
 # 4. Use current_timestamp(dialect) for SQL niladic functions (no parentheses)
 # 5. Use introspector.get_columns() to verify table structure

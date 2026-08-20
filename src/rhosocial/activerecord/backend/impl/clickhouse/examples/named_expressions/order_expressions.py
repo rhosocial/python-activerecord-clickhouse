@@ -13,6 +13,12 @@ import time. Importing this module must stay side-effect free (the CLI imports
 it for --list/--describe without a live database). Use ``prepare_orders_demo``
 to create the schema and seed data, then the CLI named-expression /
 named-procedure commands to execute the queries.
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -120,24 +126,24 @@ _PREPARE_STATEMENTS = [
     "DROP TABLE IF EXISTS orders",
     (
         "CREATE TABLE orders ("
-        " id INT PRIMARY KEY,"
-        " status VARCHAR(20) DEFAULT 'pending',"
-        " user_id INT NOT NULL)"
+        " id UInt32 PRIMARY KEY,"
+        " status String DEFAULT 'pending',"
+        " user_id UInt32 NOT NULL)"
     ),
-    "CREATE TABLE inventory (id INT PRIMARY KEY, order_id INT NOT NULL, available INT DEFAULT 0)",
-    "CREATE TABLE notifications (id INT PRIMARY KEY, user_id INT NOT NULL, type VARCHAR(20))",
+    "CREATE TABLE inventory (id UInt32 PRIMARY KEY, order_id UInt32 NOT NULL, available UInt32 DEFAULT 0)",
+    "CREATE TABLE notifications (id UInt32 PRIMARY KEY, user_id UInt32 NOT NULL, type String)",
     (
         "CREATE TABLE payments ("
-        " id INT PRIMARY KEY,"
-        " order_id INT NOT NULL,"
-        " status VARCHAR(20),"
-        " transaction_id VARCHAR(40))"
+        " id UInt32 PRIMARY KEY,"
+        " order_id UInt32 NOT NULL,"
+        " status String,"
+        " transaction_id String)"
     ),
     (
         "CREATE TABLE order_records ("
-        " id INT PRIMARY KEY,"
-        " order_id INT NOT NULL,"
-        " created_at VARCHAR(30))"
+        " id UInt32 PRIMARY KEY,"
+        " order_id UInt32 NOT NULL,"
+        " created_at String)"
     ),
     "INSERT INTO orders (id, status, user_id) VALUES (1, 'pending', 100)",
     "INSERT INTO inventory (id, order_id, available) VALUES (1, 1, 10)",

@@ -6,6 +6,12 @@ This example demonstrates:
 2. Using OnConflictClause for upsert
 3. Affected rows tracking
 4. UPSERT with multiple values
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================

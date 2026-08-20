@@ -4,6 +4,12 @@ CREATE UNIQUE INDEX - ClickHouse.
 This example demonstrates:
 1. CREATE UNIQUE INDEX
 2. CREATE INDEX with multiple columns
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -46,13 +52,13 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
             ],
         ),
-        ColumnDefinition("email", "VARCHAR(100)"),
-        ColumnDefinition("name", "VARCHAR(100)"),
+        ColumnDefinition("email", "String"),
+        ColumnDefinition("name", "String"),
     ],
     if_not_exists=True,
 )

@@ -3,8 +3,14 @@ Single row insert - ClickHouse.
 
 This example demonstrates:
 1. INSERT a single row with explicit column values
-2. INSERT with AUTO_INCREMENT primary key
+2. INSERT with UInt32 primary key (auto-generated)
 3. Verify inserted data using QueryExpression
+
+.. warning::
+
+    Example from MySQL template. Contains MySQL-specific syntax
+    (AUTO_INCREMENT, ON DUPLICATE KEY, transactions, etc.) not supported by
+    ClickHouse. For illustration only; adjust for ClickHouse before use.
 """
 
 # ============================================================
@@ -60,20 +66,20 @@ create_table = CreateTableExpression(
     columns=[
         ColumnDefinition(
             "id",
-            "INT",
+            "UInt32",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL, is_auto_increment=True),
+                ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
         ColumnDefinition(
             "name",
-            "VARCHAR(100)",
+            "String",
             constraints=[
                 ColumnConstraint(ColumnConstraintType.NOT_NULL),
             ],
         ),
-        ColumnDefinition("email", "VARCHAR(200)"),
+        ColumnDefinition("email", "String"),
     ],
     if_not_exists=True,
 )
@@ -122,7 +128,7 @@ sql, params = verify_query.to_sql()
 result = backend.execute(sql, params, options=dql_options)
 print(f"Inserted row: {result.data}")
 
-# 2. Insert another row (AUTO_INCREMENT id will be assigned automatically)
+# 2. Insert another row (id will be assigned automatically)
 insert_expr2 = InsertExpression(
     dialect=dialect,
     into=TableExpression(dialect, "users"),
@@ -166,6 +172,6 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. Use InsertExpression with ValuesSource containing a single row list
-# 2. AUTO_INCREMENT columns are omitted from the insert columns list
+# 2. The primary key id (UInt32) is auto-assigned and omitted from the insert columns list
 # 3. Verify inserts using QueryExpression with WHERE clause
 # 4. ClickHouse returns affected_rows = 1 for successful single insert
