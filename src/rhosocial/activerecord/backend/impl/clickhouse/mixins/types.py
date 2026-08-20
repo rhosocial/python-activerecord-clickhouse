@@ -9,6 +9,7 @@ from typing import Tuple
 from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
 from rhosocial.activerecord.backend.dialect.protocols import DDLTypeSupport
 from rhosocial.activerecord.backend.expression.types import (
+    ArrayType,
     BigIntType,
     BlobType,
     BooleanType,
@@ -32,33 +33,49 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 from ..expression.types import (
-    ClickHouseBigIntType,
-    ClickHouseBinaryType,
-    ClickHouseBitType,
-    ClickHouseBlobType,
-    ClickHouseEnumType,
+    ClickHouseAggregateFunctionType,
+    ClickHouseArrayType,
+    ClickHouseBoolType,
+    ClickHouseDate32Type,
+    ClickHouseDateType,
+    ClickHouseDateTime64Type,
+    ClickHouseDateTimeType,
+    ClickHouseDecimal32Type,
+    ClickHouseDecimal64Type,
+    ClickHouseDecimal128Type,
+    ClickHouseDecimalType,
+    ClickHouseEnum16Type,
+    ClickHouseEnum8Type,
+    ClickHouseFixedStringType,
+    ClickHouseFloat32Type,
+    ClickHouseFloat64Type,
     ClickHouseGeometryCollectionType,
     ClickHouseGeometryType,
-    ClickHouseIntType,
+    ClickHouseInt16Type,
+    ClickHouseInt32Type,
+    ClickHouseInt64Type,
+    ClickHouseInt8Type,
+    ClickHouseIPv4Type,
+    ClickHouseIPv6Type,
+    ClickHouseJSONType,
     ClickHouseLineStringType,
-    ClickHouseLongBlobType,
-    ClickHouseLongTextType,
-    ClickHouseMediumBlobType,
-    ClickHouseMediumTextType,
+    ClickHouseLowCardinalityType,
+    ClickHouseMapType,
     ClickHouseMultiLineStringType,
     ClickHouseMultiPointType,
     ClickHouseMultiPolygonType,
+    ClickHouseNullableType,
     ClickHousePointType,
     ClickHousePolygonType,
-    ClickHouseSetType,
-    ClickHouseSmallIntType,
-    ClickHouseTextType,
-    ClickHouseTinyBlobType,
-    ClickHouseTinyIntType,
-    ClickHouseTinyTextType,
-    ClickHouseVarBinaryType,
+    ClickHouseSimpleAggregateFunctionType,
+    ClickHouseStringType,
+    ClickHouseTupleType,
+    ClickHouseUInt16Type,
+    ClickHouseUInt32Type,
+    ClickHouseUInt64Type,
+    ClickHouseUInt8Type,
+    ClickHouseUUIDType,
     ClickHouseVectorType,
-    ClickHouseYearType,
 )
 
 
@@ -74,119 +91,187 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
     # DDLTypeSupport — formatting
     # ------------------------------------------------------------------
 
-    # --- ClickHouse-specific type formatters ---
+    # --- Integer types ---
 
-    @DDLTypeMixin.handles(ClickHouseTinyIntType)
-    def format_data_type_tiny_int(self, data_type: ClickHouseTinyIntType) -> Tuple[str, tuple]:
-        sql = "TINYINT"
-        if data_type.zerofill:
-            return f"{sql} ZEROFILL", ()
-        if data_type.unsigned:
-            return f"{sql} UNSIGNED", ()
-        return sql, ()
+    @DDLTypeMixin.handles(ClickHouseInt8Type)
+    def format_data_type_int8(self, data_type: ClickHouseInt8Type) -> Tuple[str, tuple]:
+        return "Int8", ()
 
-    @DDLTypeMixin.handles(ClickHouseSmallIntType)
-    def format_data_type_small_int(self, data_type: ClickHouseSmallIntType) -> Tuple[str, tuple]:
-        sql = "SMALLINT"
-        if data_type.zerofill:
-            return f"{sql} ZEROFILL", ()
-        if data_type.unsigned:
-            return f"{sql} UNSIGNED", ()
-        return sql, ()
+    @DDLTypeMixin.handles(ClickHouseInt16Type)
+    def format_data_type_int16(self, data_type: ClickHouseInt16Type) -> Tuple[str, tuple]:
+        return "Int16", ()
 
-    @DDLTypeMixin.handles(ClickHouseIntType)
-    def format_data_type_int(self, data_type: ClickHouseIntType) -> Tuple[str, tuple]:
-        sql = "INT"
-        if data_type.zerofill:
-            return f"{sql} ZEROFILL", ()
-        if data_type.unsigned:
-            return f"{sql} UNSIGNED", ()
-        return sql, ()
+    @DDLTypeMixin.handles(ClickHouseInt32Type)
+    def format_data_type_int32(self, data_type: ClickHouseInt32Type) -> Tuple[str, tuple]:
+        return "Int32", ()
 
-    @DDLTypeMixin.handles(ClickHouseBigIntType)
-    def format_data_type_big_int(self, data_type: ClickHouseBigIntType) -> Tuple[str, tuple]:
-        sql = "BIGINT"
-        if data_type.zerofill:
-            return f"{sql} ZEROFILL", ()
-        if data_type.unsigned:
-            return f"{sql} UNSIGNED", ()
-        return sql, ()
+    @DDLTypeMixin.handles(ClickHouseInt64Type)
+    def format_data_type_int64(self, data_type: ClickHouseInt64Type) -> Tuple[str, tuple]:
+        return "Int64", ()
 
-    @DDLTypeMixin.handles(ClickHouseTinyBlobType)
-    def format_data_type_tiny_blob(self, data_type: ClickHouseTinyBlobType) -> Tuple[str, tuple]:
-        return "TINYBLOB", ()
+    @DDLTypeMixin.handles(ClickHouseUInt8Type)
+    def format_data_type_uint8(self, data_type: ClickHouseUInt8Type) -> Tuple[str, tuple]:
+        return "UInt8", ()
 
-    @DDLTypeMixin.handles(ClickHouseBlobType)
-    def format_data_type_blob(self, data_type: ClickHouseBlobType) -> Tuple[str, tuple]:
-        return "BLOB", ()
+    @DDLTypeMixin.handles(ClickHouseUInt16Type)
+    def format_data_type_uint16(self, data_type: ClickHouseUInt16Type) -> Tuple[str, tuple]:
+        return "UInt16", ()
 
-    @DDLTypeMixin.handles(ClickHouseMediumBlobType)
-    def format_data_type_medium_blob(self, data_type: ClickHouseMediumBlobType) -> Tuple[str, tuple]:
-        return "MEDIUMBLOB", ()
+    @DDLTypeMixin.handles(ClickHouseUInt32Type)
+    def format_data_type_uint32(self, data_type: ClickHouseUInt32Type) -> Tuple[str, tuple]:
+        return "UInt32", ()
 
-    @DDLTypeMixin.handles(ClickHouseLongBlobType)
-    def format_data_type_long_blob(self, data_type: ClickHouseLongBlobType) -> Tuple[str, tuple]:
-        return "LONGBLOB", ()
+    @DDLTypeMixin.handles(ClickHouseUInt64Type)
+    def format_data_type_uint64(self, data_type: ClickHouseUInt64Type) -> Tuple[str, tuple]:
+        return "UInt64", ()
 
-    @DDLTypeMixin.handles(ClickHouseTinyTextType)
-    def format_data_type_tiny_text(self, data_type: ClickHouseTinyTextType) -> Tuple[str, tuple]:
-        return "TINYTEXT", ()
+    # --- Float types ---
 
-    @DDLTypeMixin.handles(ClickHouseTextType)
-    def format_data_type_text(self, data_type: ClickHouseTextType) -> Tuple[str, tuple]:
-        return "TEXT", ()
+    @DDLTypeMixin.handles(ClickHouseFloat32Type)
+    def format_data_type_float32(self, data_type: ClickHouseFloat32Type) -> Tuple[str, tuple]:
+        return "Float32", ()
 
-    @DDLTypeMixin.handles(ClickHouseMediumTextType)
-    def format_data_type_medium_text(self, data_type: ClickHouseMediumTextType) -> Tuple[str, tuple]:
-        return "MEDIUMTEXT", ()
+    @DDLTypeMixin.handles(ClickHouseFloat64Type)
+    def format_data_type_float64(self, data_type: ClickHouseFloat64Type) -> Tuple[str, tuple]:
+        return "Float64", ()
 
-    @DDLTypeMixin.handles(ClickHouseLongTextType)
-    def format_data_type_long_text(self, data_type: ClickHouseLongTextType) -> Tuple[str, tuple]:
-        return "LONGTEXT", ()
+    # --- Decimal types ---
 
-    @DDLTypeMixin.handles(ClickHouseBitType)
-    def format_data_type_bit(self, data_type: ClickHouseBitType) -> Tuple[str, tuple]:
-        if data_type.n is not None:
-            return f"BIT({data_type.n})", ()
-        return "BIT", ()
+    @DDLTypeMixin.handles(ClickHouseDecimalType)
+    def format_data_type_decimal(self, data_type: ClickHouseDecimalType) -> Tuple[str, tuple]:
+        return f"Decimal({data_type.precision}, {data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseYearType)
-    def format_data_type_year(self, data_type: ClickHouseYearType) -> Tuple[str, tuple]:
-        if data_type.display_width is not None:
-            return f"YEAR({data_type.display_width})", ()
-        return "YEAR", ()
+    @DDLTypeMixin.handles(ClickHouseDecimal32Type)
+    def format_data_type_decimal32(self, data_type: ClickHouseDecimal32Type) -> Tuple[str, tuple]:
+        return f"Decimal32({data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseBinaryType)
-    def format_data_type_binary(self, data_type: ClickHouseBinaryType) -> Tuple[str, tuple]:
-        if data_type.length is not None:
-            return f"BINARY({data_type.length})", ()
-        return "BINARY", ()
+    @DDLTypeMixin.handles(ClickHouseDecimal64Type)
+    def format_data_type_decimal64(self, data_type: ClickHouseDecimal64Type) -> Tuple[str, tuple]:
+        return f"Decimal64({data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseVarBinaryType)
-    def format_data_type_var_binary(self, data_type: ClickHouseVarBinaryType) -> Tuple[str, tuple]:
-        if data_type.length is not None:
-            return f"VARBINARY({data_type.length})", ()
-        return "VARBINARY", ()
+    @DDLTypeMixin.handles(ClickHouseDecimal128Type)
+    def format_data_type_decimal128(self, data_type: ClickHouseDecimal128Type) -> Tuple[str, tuple]:
+        return f"Decimal128({data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseEnumType)
-    def format_data_type_enum(self, data_type: ClickHouseEnumType) -> Tuple[str, tuple]:
-        values_str = ",".join(f"'{v}'" for v in data_type.values)
-        result = f"ENUM({values_str})"
-        if data_type.charset:
-            result += f" CHARACTER SET {data_type.charset}"
-        if data_type.collation:
-            result += f" COLLATE {data_type.collation}"
-        return result, ()
+    # --- String types ---
 
-    @DDLTypeMixin.handles(ClickHouseSetType)
-    def format_data_type_set(self, data_type: ClickHouseSetType) -> Tuple[str, tuple]:
-        values_str = ",".join(f"'{v}'" for v in data_type.values)
-        result = f"SET({values_str})"
-        if data_type.charset:
-            result += f" CHARACTER SET {data_type.charset}"
-        if data_type.collation:
-            result += f" COLLATE {data_type.collation}"
-        return result, ()
+    @DDLTypeMixin.handles(ClickHouseStringType)
+    def format_data_type_string(self, data_type: ClickHouseStringType) -> Tuple[str, tuple]:
+        return "String", ()
+
+    @DDLTypeMixin.handles(ClickHouseFixedStringType)
+    def format_data_type_fixed_string(self, data_type: ClickHouseFixedStringType) -> Tuple[str, tuple]:
+        return f"FixedString({data_type.length})", ()
+
+    # --- Date / Time types ---
+
+    @DDLTypeMixin.handles(ClickHouseDateType)
+    def format_data_type_date(self, data_type: ClickHouseDateType) -> Tuple[str, tuple]:
+        return "Date", ()
+
+    @DDLTypeMixin.handles(ClickHouseDate32Type)
+    def format_data_type_date32(self, data_type: ClickHouseDate32Type) -> Tuple[str, tuple]:
+        return "Date32", ()
+
+    @DDLTypeMixin.handles(ClickHouseDateTimeType)
+    def format_data_type_datetime(self, data_type: ClickHouseDateTimeType) -> Tuple[str, tuple]:
+        return "DateTime", ()
+
+    @DDLTypeMixin.handles(ClickHouseDateTime64Type)
+    def format_data_type_datetime64(self, data_type: ClickHouseDateTime64Type) -> Tuple[str, tuple]:
+        return f"DateTime64({data_type.precision})", ()
+
+    # --- Bool ---
+
+    @DDLTypeMixin.handles(ClickHouseBoolType)
+    def format_data_type_bool(self, data_type: ClickHouseBoolType) -> Tuple[str, tuple]:
+        return "Bool", ()
+
+    # --- UUID ---
+
+    @DDLTypeMixin.handles(ClickHouseUUIDType)
+    def format_data_type_uuid(self, data_type: ClickHouseUUIDType) -> Tuple[str, tuple]:
+        return "UUID", ()
+
+    # --- IP types ---
+
+    @DDLTypeMixin.handles(ClickHouseIPv4Type)
+    def format_data_type_ipv4(self, data_type: ClickHouseIPv4Type) -> Tuple[str, tuple]:
+        return "IPv4", ()
+
+    @DDLTypeMixin.handles(ClickHouseIPv6Type)
+    def format_data_type_ipv6(self, data_type: ClickHouseIPv6Type) -> Tuple[str, tuple]:
+        return "IPv6", ()
+
+    # --- Enum types ---
+
+    @DDLTypeMixin.handles(ClickHouseEnum8Type)
+    def format_data_type_enum8(self, data_type: ClickHouseEnum8Type) -> Tuple[str, tuple]:
+        values_str = ", ".join(f"'{name}' = {num}" for name, num in data_type.values)
+        return f"Enum8({values_str})", ()
+
+    @DDLTypeMixin.handles(ClickHouseEnum16Type)
+    def format_data_type_enum16(self, data_type: ClickHouseEnum16Type) -> Tuple[str, tuple]:
+        values_str = ", ".join(f"'{name}' = {num}" for name, num in data_type.values)
+        return f"Enum16({values_str})", ()
+
+    # --- Container types ---
+
+    @DDLTypeMixin.handles(ClickHouseArrayType)
+    def format_data_type_array(self, data_type: ClickHouseArrayType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(data_type.element_type)
+        return f"Array({inner_sql})", inner_params
+
+    @DDLTypeMixin.handles(ClickHouseMapType)
+    def format_data_type_map(self, data_type: ClickHouseMapType) -> Tuple[str, tuple]:
+        key_sql, key_params = self.format_data_type(data_type.key_type)
+        val_sql, val_params = self.format_data_type(data_type.value_type)
+        return f"Map({key_sql}, {val_sql})", key_params + val_params
+
+    @DDLTypeMixin.handles(ClickHouseTupleType)
+    def format_data_type_tuple(self, data_type: ClickHouseTupleType) -> Tuple[str, tuple]:
+        parts = []
+        params = []
+        for i, elem_type in enumerate(data_type.element_types):
+            elem_sql, elem_params = self.format_data_type(elem_type)
+            if data_type.element_names:
+                parts.append(f"{data_type.element_names[i]} {elem_sql}")
+            else:
+                parts.append(elem_sql)
+            params.extend(elem_params)
+        return f"Tuple({', '.join(parts)})", tuple(params)
+
+    # --- Type modifiers ---
+
+    @DDLTypeMixin.handles(ClickHouseNullableType)
+    def format_data_type_nullable(self, data_type: ClickHouseNullableType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(data_type.inner_type)
+        return f"Nullable({inner_sql})", inner_params
+
+    @DDLTypeMixin.handles(ClickHouseLowCardinalityType)
+    def format_data_type_low_cardinality(self, data_type: ClickHouseLowCardinalityType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(data_type.inner_type)
+        return f"LowCardinality({inner_sql})", inner_params
+
+    # --- JSON ---
+
+    @DDLTypeMixin.handles(ClickHouseJSONType)
+    def format_data_type_json(self, data_type: ClickHouseJSONType) -> Tuple[str, tuple]:
+        return "JSON", ()
+
+    # --- AggregateFunction ---
+
+    @DDLTypeMixin.handles(ClickHouseAggregateFunctionType)
+    def format_data_type_aggregate_function(self, data_type: ClickHouseAggregateFunctionType) -> Tuple[str, tuple]:
+        args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
+        return f"AggregateFunction({data_type.function_name}, {args})", ()
+
+    @DDLTypeMixin.handles(ClickHouseSimpleAggregateFunctionType)
+    def format_data_type_simple_aggregate_function(self, data_type: ClickHouseSimpleAggregateFunctionType) -> Tuple[str, tuple]:
+        args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
+        return f"SimpleAggregateFunction({data_type.function_name}, {args})", ()
+
+    # --- Spatial types ---
 
     @DDLTypeMixin.handles(ClickHouseGeometryType)
     def format_data_type_geometry(self, data_type: ClickHouseGeometryType) -> Tuple[str, tuple]:
@@ -236,133 +321,147 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             return f"GEOMETRYCOLLECTION SRID {data_type.srid}", ()
         return "GEOMETRYCOLLECTION", ()
 
+    # --- Vector ---
+
     @DDLTypeMixin.handles(ClickHouseVectorType)
     def format_data_type_vector(self, data_type: ClickHouseVectorType) -> Tuple[str, tuple]:
         return f"VECTOR({data_type.dim})", ()
 
-    # --- Core type overrides (ClickHouse-specific SQL) ---
-
-    @DDLTypeMixin.handles(DoubleType)
-    def format_data_type_double(self, data_type: DoubleType) -> Tuple[str, tuple]:
-        return "DOUBLE", ()
-
-    @DDLTypeMixin.handles(BooleanType)
-    def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
-        return "TINYINT(1)", ()
-
-    @DDLTypeMixin.handles(TimeTzType)
-    def format_data_type_timetz(self, data_type: TimeTzType) -> Tuple[str, tuple]:
-        return (f"TIME({data_type.precision})" if data_type.precision is not None else "TIME"), ()
-
-    @DDLTypeMixin.handles(TimestampTzType)
-    def format_data_type_timestamptz(self, data_type: TimestampTzType) -> Tuple[str, tuple]:
-        return (f"TIMESTAMP({data_type.precision})" if data_type.precision is not None else "TIMESTAMP"), ()
-
-    @DDLTypeMixin.handles(JsonBType)
-    def format_data_type_jsonb(self, data_type: JsonBType) -> Tuple[str, tuple]:
-        return "JSON", ()
-
-    # --- Core type handlers (render standard types to ClickHouse SQL) ---
+    # --- Core type overrides (map to ClickHouse equivalents) ---
 
     @DDLTypeMixin.handles(IntegerType)
     def format_data_type_integer(self, data_type: IntegerType) -> Tuple[str, tuple]:
-        return "INT", ()
+        return "Int32", ()
 
     @DDLTypeMixin.handles(BigIntType)
     def format_data_type_bigint(self, data_type: BigIntType) -> Tuple[str, tuple]:
-        return "BIGINT", ()
+        return "Int64", ()
 
     @DDLTypeMixin.handles(SmallIntType)
     def format_data_type_smallint(self, data_type: SmallIntType) -> Tuple[str, tuple]:
-        return "SMALLINT", ()
+        return "Int16", ()
 
     @DDLTypeMixin.handles(TinyIntType)
     def format_data_type_tinyint(self, data_type: TinyIntType) -> Tuple[str, tuple]:
-        return "TINYINT", ()
+        return "Int8", ()
 
     @DDLTypeMixin.handles(VarCharType)
     def format_data_type_varchar(self, data_type: VarCharType) -> Tuple[str, tuple]:
-        return (f"VARCHAR({data_type.length})" if data_type.length is not None else "VARCHAR"), ()
+        return "String", ()
 
     @DDLTypeMixin.handles(CharType)
     def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
-        return (f"CHAR({data_type.length})" if data_type.length is not None else "CHAR"), ()
+        return "String", ()
 
     @DDLTypeMixin.handles(TextType)
-    def format_data_type_text_core(self, data_type: TextType) -> Tuple[str, tuple]:
-        return "TEXT", ()
+    def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
+        return "String", ()
 
-    @DDLTypeMixin.handles(DateTimeType)
-    def format_data_type_datetime(self, data_type: DateTimeType) -> Tuple[str, tuple]:
-        return (f"DATETIME({data_type.precision})" if data_type.precision is not None else "DATETIME"), ()
+    @DDLTypeMixin.handles(BooleanType)
+    def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
+        return "Bool", ()
 
     @DDLTypeMixin.handles(DateType)
-    def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
-        return "DATE", ()
+    def format_data_type_date_core(self, data_type: DateType) -> Tuple[str, tuple]:
+        return "Date", ()
 
-    @DDLTypeMixin.handles(TimeType)
-    def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
-        return (f"TIME({data_type.precision})" if data_type.precision is not None else "TIME"), ()
+    @DDLTypeMixin.handles(DateTimeType)
+    def format_data_type_datetime_core(self, data_type: DateTimeType) -> Tuple[str, tuple]:
+        return "DateTime", ()
 
     @DDLTypeMixin.handles(TimestampType)
     def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
-        return (f"TIMESTAMP({data_type.precision})" if data_type.precision is not None else "TIMESTAMP"), ()
+        return "DateTime", ()
+
+    @DDLTypeMixin.handles(TimestampTzType)
+    def format_data_type_timestamptz(self, data_type: TimestampTzType) -> Tuple[str, tuple]:
+        return "DateTime", ()
+
+    @DDLTypeMixin.handles(TimeType)
+    def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
+        return "DateTime", ()
+
+    @DDLTypeMixin.handles(TimeTzType)
+    def format_data_type_timetz(self, data_type: TimeTzType) -> Tuple[str, tuple]:
+        return "DateTime", ()
 
     @DDLTypeMixin.handles(FloatType)
     def format_data_type_float(self, data_type: FloatType) -> Tuple[str, tuple]:
-        return (f"FLOAT({data_type.precision})" if data_type.precision is not None else "FLOAT"), ()
+        return "Float32", ()
+
+    @DDLTypeMixin.handles(DoubleType)
+    def format_data_type_double(self, data_type: DoubleType) -> Tuple[str, tuple]:
+        return "Float64", ()
 
     @DDLTypeMixin.handles(RealType)
     def format_data_type_real(self, data_type: RealType) -> Tuple[str, tuple]:
-        return "REAL", ()
+        return "Float32", ()
 
     @DDLTypeMixin.handles(DecimalType)
-    def format_data_type_decimal(self, data_type: DecimalType) -> Tuple[str, tuple]:
-        if data_type.precision is not None and data_type.scale is not None:
-            return f"DECIMAL({data_type.precision}, {data_type.scale})", ()
-        if data_type.precision is not None:
-            return f"DECIMAL({data_type.precision})", ()
-        return "DECIMAL", ()
+    def format_data_type_decimal_core(self, data_type: DecimalType) -> Tuple[str, tuple]:
+        p = data_type.precision
+        s = data_type.scale
+        if p is not None and s is not None:
+            return f"Decimal({p}, {s})", ()
+        if p is not None:
+            return f"Decimal({p})", ()
+        return "Decimal(10, 0)", ()
 
     @DDLTypeMixin.handles(JsonType)
-    def format_data_type_json(self, data_type: JsonType) -> Tuple[str, tuple]:
-        return "JSON", ()
+    def format_data_type_json_core(self, data_type: JsonType) -> Tuple[str, tuple]:
+        return "String", ()
+
+    @DDLTypeMixin.handles(JsonBType)
+    def format_data_type_jsonb(self, data_type: JsonBType) -> Tuple[str, tuple]:
+        return "String", ()
 
     @DDLTypeMixin.handles(BlobType)
-    def format_data_type_blob_core(self, data_type: BlobType) -> Tuple[str, tuple]:
-        return "BLOB", ()
+    def format_data_type_blob(self, data_type: BlobType) -> Tuple[str, tuple]:
+        return "String", ()
+
+    @DDLTypeMixin.handles(ArrayType)
+    def format_data_type_array_core(self, data_type: ArrayType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(data_type.element_type)
+        return f"Array({inner_sql})", inner_params
 
     # ------------------------------------------------------------------
     # DDLTypeSupport — parsing
     # ------------------------------------------------------------------
 
     _CLICKHOUSE_INTEGER_TYPES = re.compile(
-        r"^(?:TINYINT|SMALLINT|MEDIUMINT|INT|INTEGER|BIGINT)\b",
+        r"^(?:Int8|Int16|Int32|Int64|UInt8|UInt16|UInt32|UInt64)\b",
         re.IGNORECASE,
     )
     _CLICKHOUSE_FLOAT_TYPES = re.compile(
-        r"^(?:FLOAT|REAL|DOUBLE)\b",
+        r"^(?:Float32|Float64)\b",
         re.IGNORECASE,
     )
     _CLICKHOUSE_DECIMAL_TYPES = re.compile(
-        r"^(?:DECIMAL|NUMERIC|FIXED)\b",
+        r"^(?:Decimal(?:32|64|128)?(?:\(.*\))?)\b",
         re.IGNORECASE,
     )
     _CLICKHOUSE_STRING_TYPES = re.compile(
-        r"^(?:CHAR|VARCHAR|TEXT|TINYTEXT|MEDIUMTEXT|LONGTEXT|"
-        r"ENUM|SET|BINARY|VARBINARY)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_BLOB_TYPES = re.compile(
-        r"^(?:BLOB|TINYBLOB|MEDIUMBLOB|LONGBLOB)\b",
+        r"^(?:String|FixedString(?:\(.*\))?)\b",
         re.IGNORECASE,
     )
     _CLICKHOUSE_DATE_TYPES = re.compile(
-        r"^(?:DATE|DATETIME|TIMESTAMP|TIME|YEAR)\b",
+        r"^(?:Date|Date32|DateTime|DateTime64(?:\(.*\))?)\b",
         re.IGNORECASE,
     )
-    _CLICKHOUSE_JSON_TYPES = re.compile(
-        r"^(?:JSON)\b",
+    _CLICKHOUSE_OTHER_TYPES = re.compile(
+        r"^(?:Bool|UUID|IPv4|IPv6|JSON)\b",
+        re.IGNORECASE,
+    )
+    _CLICKHOUSE_ENUM_TYPES = re.compile(
+        r"^(?:Enum8|Enum16)\b",
+        re.IGNORECASE,
+    )
+    _CLICKHOUSE_CONTAINER_TYPES = re.compile(
+        r"^(?:Array|Map|Tuple|Nullable|LowCardinality)\b",
+        re.IGNORECASE,
+    )
+    _CLICKHOUSE_AGGREGATE_TYPES = re.compile(
+        r"^(?:AggregateFunction|SimpleAggregateFunction)\b",
         re.IGNORECASE,
     )
     _CLICKHOUSE_SPATIAL_TYPES = re.compile(
@@ -370,186 +469,132 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         r"MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|GEOMETRYCOLLECTION)\b",
         re.IGNORECASE,
     )
-    _CLICKHOUSE_BIT_TYPES = re.compile(
-        r"^(?:BIT)\b",
-        re.IGNORECASE,
-    )
     _CLICKHOUSE_VECTOR_TYPES = re.compile(
         r"^(?:VECTOR)\b",
         re.IGNORECASE,
     )
 
-    def parse_type(self, raw: str) -> DataType:
+    def parse_type(self, raw: str) -> "DataType":
         stripped = raw.strip()
         upper = stripped.upper()
 
-        # BIT type
-        if self._CLICKHOUSE_BIT_TYPES.match(upper):
-            nums = re.findall(r"\d+", stripped)
-            n = int(nums[0]) if nums else None
-            from ..expression.types import ClickHouseBitType
-            return ClickHouseBitType(n)
-
         # Integer family
         if self._CLICKHOUSE_INTEGER_TYPES.match(upper):
-            unsigned = "UNSIGNED" in upper
-            zerofill = "ZEROFILL" in upper
-            if upper.startswith("TINYINT"):
-                nums = re.findall(r"\d+", stripped)
-                display_width = int(nums[0]) if nums else None
-                from ..expression.types import ClickHouseTinyIntType
-                t = ClickHouseTinyIntType()
-                t.unsigned = unsigned
-                t.zerofill = zerofill
-                # TINYINT(1) is commonly used as BOOLEAN
-                if display_width == 1 and not unsigned and not zerofill:
-                    return BooleanType()
-                return t
-            if upper.startswith("SMALLINT"):
-                from ..expression.types import ClickHouseSmallIntType
-                t = ClickHouseSmallIntType()
-                t.unsigned = unsigned
-                t.zerofill = zerofill
-                return t
-            if upper.startswith("MEDIUMINT"):
-                from ..expression.types import ClickHouseIntType
-                t = ClickHouseIntType()
-                t.unsigned = unsigned
-                t.zerofill = zerofill
-                return t
-            if upper.startswith("BIGINT"):
-                from ..expression.types import ClickHouseBigIntType
-                t = ClickHouseBigIntType()
-                t.unsigned = unsigned
-                t.zerofill = zerofill
-                return t
-            # INT / INTEGER
-            from ..expression.types import ClickHouseIntType
-            t = ClickHouseIntType()
-            t.unsigned = unsigned
-            t.zerofill = zerofill
-            return t
+            if upper.startswith("INT8"):
+                return ClickHouseInt8Type()
+            if upper.startswith("INT16"):
+                return ClickHouseInt16Type()
+            if upper.startswith("INT32"):
+                return ClickHouseInt32Type()
+            if upper.startswith("INT64"):
+                return ClickHouseInt64Type()
+            if upper.startswith("UINT8"):
+                return ClickHouseUInt8Type()
+            if upper.startswith("UINT16"):
+                return ClickHouseUInt16Type()
+            if upper.startswith("UINT32"):
+                return ClickHouseUInt32Type()
+            if upper.startswith("UINT64"):
+                return ClickHouseUInt64Type()
 
         # Float family
         if self._CLICKHOUSE_FLOAT_TYPES.match(upper):
-            if upper.startswith("DOUBLE"):
-                return DoubleType()
-            if upper.startswith("REAL"):
-                return RealType()
-            # FLOAT
-            nums = re.findall(r"\d+", stripped)
-            precision = int(nums[0]) if nums else None
-            return FloatType(precision)
+            if upper.startswith("FLOAT32"):
+                return ClickHouseFloat32Type()
+            if upper.startswith("FLOAT64"):
+                return ClickHouseFloat64Type()
 
         # Decimal family
         if self._CLICKHOUSE_DECIMAL_TYPES.match(upper):
             nums = re.findall(r"\d+", stripped)
+            if upper.startswith("DECIMAL32"):
+                scale = int(nums[0]) if nums else 0
+                return ClickHouseDecimal32Type(scale)
+            if upper.startswith("DECIMAL64"):
+                scale = int(nums[0]) if nums else 0
+                return ClickHouseDecimal64Type(scale)
+            if upper.startswith("DECIMAL128"):
+                scale = int(nums[0]) if nums else 0
+                return ClickHouseDecimal128Type(scale)
+            # Decimal(P, S)
             if len(nums) >= 2:
-                return DecimalType(int(nums[0]), int(nums[1]))
+                return ClickHouseDecimalType(int(nums[0]), int(nums[1]))
             if len(nums) == 1:
-                return DecimalType(int(nums[0]))
-            return DecimalType()
+                return ClickHouseDecimalType(int(nums[0]))
+            return ClickHouseDecimalType(10, 0)
 
         # String family
         if self._CLICKHOUSE_STRING_TYPES.match(upper):
-            if upper.startswith("TINYTEXT"):
-                from ..expression.types import ClickHouseTinyTextType
-                return ClickHouseTinyTextType()
-            if upper.startswith("MEDIUMTEXT"):
-                from ..expression.types import ClickHouseMediumTextType
-                return ClickHouseMediumTextType()
-            if upper.startswith("LONGTEXT"):
-                from ..expression.types import ClickHouseLongTextType
-                return ClickHouseLongTextType()
-            if upper.startswith("TEXT"):
-                from ..expression.types import ClickHouseTextType
-                return ClickHouseTextType()
-            if upper.startswith("ENUM"):
-                from ..expression.types import ClickHouseEnumType
-                values = re.findall(r"'([^']*)'", stripped)
-                charset = None
-                collation = None
-                cs_match = re.search(r"CHARACTER\s+SET\s+(\w+)", upper)
-                if cs_match:
-                    charset = cs_match.group(1)
-                col_match = re.search(r"COLLATE\s+(\w+)", upper)
-                if col_match:
-                    collation = col_match.group(1)
-                return ClickHouseEnumType(values, charset=charset, collation=collation)
-            if upper.startswith("SET"):
-                from ..expression.types import ClickHouseSetType
-                values = re.findall(r"'([^']*)'", stripped)
-                charset = None
-                collation = None
-                cs_match = re.search(r"CHARACTER\s+SET\s+(\w+)", upper)
-                if cs_match:
-                    charset = cs_match.group(1)
-                col_match = re.search(r"COLLATE\s+(\w+)", upper)
-                if col_match:
-                    collation = col_match.group(1)
-                return ClickHouseSetType(values, charset=charset, collation=collation)
-            if upper.startswith("BINARY"):
+            if upper.startswith("FIXEDSTRING"):
                 nums = re.findall(r"\d+", stripped)
-                length = int(nums[0]) if nums else None
-                from ..expression.types import ClickHouseBinaryType
-                return ClickHouseBinaryType(length)
-            if upper.startswith("VARBINARY"):
-                nums = re.findall(r"\d+", stripped)
-                length = int(nums[0]) if nums else None
-                from ..expression.types import ClickHouseVarBinaryType
-                return ClickHouseVarBinaryType(length)
-            # CHAR / VARCHAR
-            length_match = re.search(r"\((\d+)\)", stripped)
-            length = int(length_match.group(1)) if length_match else None
-            if upper.startswith("VARCHAR"):
-                return VarCharType(length)
-            return CharType(length)
+                length = int(nums[0]) if nums else 1
+                return ClickHouseFixedStringType(length)
+            return ClickHouseStringType()
 
-        # BLOB family
-        if self._CLICKHOUSE_BLOB_TYPES.match(upper):
-            if upper.startswith("TINYBLOB"):
-                from ..expression.types import ClickHouseTinyBlobType
-                return ClickHouseTinyBlobType()
-            if upper.startswith("MEDIUMBLOB"):
-                from ..expression.types import ClickHouseMediumBlobType
-                return ClickHouseMediumBlobType()
-            if upper.startswith("LONGBLOB"):
-                from ..expression.types import ClickHouseLongBlobType
-                return ClickHouseLongBlobType()
-            from ..expression.types import ClickHouseBlobType
-            return ClickHouseBlobType()
-
-        # Date/time family
+        # Date / Time family
         if self._CLICKHOUSE_DATE_TYPES.match(upper):
-            if upper.startswith("YEAR"):
-                nums = re.findall(r"\d+", stripped)
-                display_width = int(nums[0]) if nums else None
-                from ..expression.types import ClickHouseYearType
-                return ClickHouseYearType(display_width)
-            if upper.startswith("DATE"):
-                if upper.strip() == "DATE":
-                    return DateType()
-                return DateTimeType()
+            if upper.startswith("DATETIME64"):
+                nums = re.findall(r"\((\d+)\)", stripped)
+                precision = int(nums[0]) if nums else 3
+                return ClickHouseDateTime64Type(precision)
             if upper.startswith("DATETIME"):
-                nums = re.findall(r"\d+", stripped)
-                precision = int(nums[0]) if nums else None
-                return DateTimeType(precision)
-            if upper.startswith("TIMESTAMP"):
-                nums = re.findall(r"\d+", stripped)
-                precision = int(nums[0]) if nums else None
-                if "WITH TIME ZONE" in upper:
-                    return TimestampTzType(precision)
-                return TimestampType(precision)
-            if upper.startswith("TIME"):
-                nums = re.findall(r"\d+", stripped)
-                precision = int(nums[0]) if nums else None
-                if "WITH TIME ZONE" in upper:
-                    return TimeTzType(precision)
-                return TimeType(precision)
+                return ClickHouseDateTimeType()
+            if upper.startswith("DATE32"):
+                return ClickHouseDate32Type()
+            if upper.startswith("DATE"):
+                return ClickHouseDateType()
 
-        # JSON
-        if self._CLICKHOUSE_JSON_TYPES.match(upper):
-            return JsonType()
+        # Other simple types
+        if self._CLICKHOUSE_OTHER_TYPES.match(upper):
+            if upper.startswith("BOOL"):
+                return ClickHouseBoolType()
+            if upper.startswith("UUID"):
+                return ClickHouseUUIDType()
+            if upper.startswith("IPV4"):
+                return ClickHouseIPv4Type()
+            if upper.startswith("IPV6"):
+                return ClickHouseIPv6Type()
+            if upper.startswith("JSON"):
+                return ClickHouseJSONType()
+
+        # Enum types
+        if self._CLICKHOUSE_ENUM_TYPES.match(upper):
+            pairs = re.findall(r"'([^']*)'\s*=\s*(-?\d+)", stripped)
+            values = [(name, int(num)) for name, num in pairs]
+            if upper.startswith("ENUM8"):
+                return ClickHouseEnum8Type(values)
+            return ClickHouseEnum16Type(values)
+
+        # Container types
+        if self._CLICKHOUSE_CONTAINER_TYPES.match(upper):
+            # Extract inner type(s) from parentheses
+            inner = self._extract_inner_types(stripped)
+            if upper.startswith("ARRAY") and inner:
+                inner_type = self.parse_type(inner[0])
+                return ClickHouseArrayType(inner_type)
+            if upper.startswith("MAP") and len(inner) >= 2:
+                key_type = self.parse_type(inner[0])
+                val_type = self.parse_type(inner[1])
+                return ClickHouseMapType(key_type, val_type)
+            if upper.startswith("TUPLE") and inner:
+                types = [self.parse_type(t) for t in inner]
+                return ClickHouseTupleType(types)
+            if upper.startswith("NULLABLE") and inner:
+                inner_type = self.parse_type(inner[0])
+                return ClickHouseNullableType(inner_type)
+            if upper.startswith("LOWCARDINALITY") and inner:
+                inner_type = self.parse_type(inner[0])
+                return ClickHouseLowCardinalityType(inner_type)
+
+        # AggregateFunction
+        if self._CLICKHOUSE_AGGREGATE_TYPES.match(upper):
+            inner = self._extract_inner_types(stripped)
+            if inner:
+                func_name = inner[0]
+                arg_types = [self.parse_type(t) for t in inner[1:]]
+                if upper.startswith("SIMPLEAGGREGATEFUNCTION"):
+                    return ClickHouseSimpleAggregateFunctionType(func_name, arg_types)
+                return ClickHouseAggregateFunctionType(func_name, arg_types)
 
         # Spatial
         if self._CLICKHOUSE_SPATIAL_TYPES.match(upper):
@@ -557,16 +602,6 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             srid_match = re.search(r"SRID\s+(\d+)", upper)
             if srid_match:
                 srid = int(srid_match.group(1))
-            from ..expression.types import (
-                ClickHouseGeometryCollectionType,
-                ClickHouseGeometryType,
-                ClickHouseLineStringType,
-                ClickHouseMultiLineStringType,
-                ClickHouseMultiPointType,
-                ClickHouseMultiPolygonType,
-                ClickHousePointType,
-                ClickHousePolygonType,
-            )
             spatial_map = {
                 "GEOMETRY": ClickHouseGeometryType,
                 "POINT": ClickHousePointType,
@@ -582,13 +617,42 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
                     return cls(srid)
             return ClickHouseGeometryType(srid)
 
-        # Vector (ClickHouse 9.0+)
+        # Vector
         if self._CLICKHOUSE_VECTOR_TYPES.match(upper):
             nums = re.findall(r"\d+", stripped)
             dim = int(nums[0]) if nums else 0
-            from ..expression.types import ClickHouseVectorType
             return ClickHouseVectorType(dim)
 
         # Fallback
         from rhosocial.activerecord.backend.expression.types import CustomType
         return CustomType(stripped)
+
+    @staticmethod
+    def _extract_inner_types(raw: str) -> list:
+        """Extract comma-separated type arguments from the outermost parentheses.
+
+        Handles nested parentheses like ``Array(Nullable(Int32))``.
+        """
+        start = raw.find("(")
+        if start == -1:
+            return []
+        depth = 0
+        parts = []
+        current = []
+        for ch in raw[start + 1:]:
+            if ch == "(":
+                depth += 1
+                current.append(ch)
+            elif ch == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+                current.append(ch)
+            elif ch == "," and depth == 0:
+                parts.append("".join(current).strip())
+                current = []
+            else:
+                current.append(ch)
+        if current:
+            parts.append("".join(current).strip())
+        return parts

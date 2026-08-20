@@ -7,7 +7,6 @@ This module provides:
 - ClickHouse-specific connection configuration
 - Type mapping and value conversion
 - ClickHouse dialect and expression handling
-- ClickHouse-specific SQL function factories
 """
 
 from .backend import ClickHouseBackend
@@ -15,7 +14,6 @@ from .config import ClickHouseConnectionConfig
 from .collation import ClickHouseCollation, ClickHouseCollationValidator
 from .dialect import ClickHouseDialect
 from .transaction import ClickHouseTransactionManager
-from .types import ClickHouseEnumType, ClickHouseSetType
 from .explain import ClickHouseExplainResult, ClickHouseExplainRow
 
 
@@ -26,8 +24,6 @@ __all__ = [
     "ClickHouseCollation",
     "ClickHouseCollationValidator",
     "ClickHouseTransactionManager",
-    "ClickHouseEnumType",
-    "ClickHouseSetType",
     "ClickHouseExplainResult",
     "ClickHouseExplainRow",
 ]
