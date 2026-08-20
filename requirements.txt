@@ -1,0 +1,6 @@
+# requirements.txt
+# Backend-specific dependencies only
+# Core dependency (rhosocial-activerecord) is installed via CI workflow
+
+# MySQL driver
+mysql-connector-python>=9.0.0

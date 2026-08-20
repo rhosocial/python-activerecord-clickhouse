@@ -1,0 +1,11 @@
+pyyaml
+tomli
+rhosocial-activerecord-testsuite
+pydantic[email]
+pytz
+pytest-asyncio
+pytest-benchmark
+pytest-xdist
+pytest-cov
+fastapi>=0.110
+httpx>=0.27
