@@ -29,7 +29,10 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.types import ClickHouseEnumType, ClickHouseSetType
+try:
+    from rhosocial.activerecord.backend.impl.clickhouse.types import ClickHouseEnumType, ClickHouseSetType
+except (ImportError, ModuleNotFoundError):
+    pytest.skip("MySQL-specific test, skip for ClickHouse backend", allow_module_level=True)
 
 
 class TestClickHouseStorageOptions:

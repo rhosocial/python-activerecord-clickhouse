@@ -28,7 +28,10 @@ from rhosocial.activerecord.backend.expression import (
 )
 from rhosocial.activerecord.backend.expression.types import BigIntType, DateTimeType, DateType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse import ShowCreateTableExpression
+try:
+    from rhosocial.activerecord.backend.impl.clickhouse import ShowCreateTableExpression
+except (ImportError, ModuleNotFoundError):
+    pytest.skip("MySQL-specific test, skip for ClickHouse backend", allow_module_level=True)
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseAddPartitionExpression,
     ClickHouseCoalescePartitionExpression,

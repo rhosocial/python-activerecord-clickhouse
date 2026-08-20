@@ -12,11 +12,14 @@ import asyncio
 import pytest
 import pytest_asyncio
 
-from clickhouse.connector.errors import (
-    Error as ClickHouseError,
-    DatabaseError as ClickHouseDatabaseError,
-    OperationalError as ClickHouseOperationalError,
-)
+try:
+    from clickhouse.connector.errors import (
+        Error as ClickHouseError,
+        DatabaseError as ClickHouseDatabaseError,
+        OperationalError as ClickHouseOperationalError,
+    )
+except (ImportError, ModuleNotFoundError):
+    pytest.skip("MySQL-specific test, skip for ClickHouse backend", allow_module_level=True)
 
 from rhosocial.activerecord.backend.impl.clickhouse import AsyncClickHouseBackend
 from rhosocial.activerecord.backend.errors import (

@@ -20,8 +20,12 @@ from rhosocial.activerecord.backend.introspection.status import (
     InnoDBInfo,
     BinaryLogInfo,
     SlowQueryInfo,
-    ClickHouseReplicationInfo,
 )
+
+try:
+    from rhosocial.activerecord.backend.introspection.status import ClickHouseReplicationInfo
+except (ImportError, ModuleNotFoundError):
+    pytest.skip("MySQL-specific test, skip for ClickHouse backend", allow_module_level=True)
 
 
 class TestSyncClickHouseStatusIntrospector:

@@ -15,6 +15,8 @@ from .collation import ClickHouseCollation, ClickHouseCollationValidator
 from .dialect import ClickHouseDialect
 from .transaction import ClickHouseTransactionManager
 from .explain import ClickHouseExplainResult, ClickHouseExplainRow
+from .async_backend import AsyncClickHouseBackend
+from .async_transaction import AsyncClickHouseTransactionManager
 
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "ClickHouseTransactionManager",
     "ClickHouseExplainResult",
     "ClickHouseExplainRow",
+    "AsyncClickHouseBackend",
+    "AsyncClickHouseTransactionManager",
 ]
