@@ -78,15 +78,8 @@ class ClickHouseBackend(
                 "database",
                 "username",
                 "password",
-                "charset",
-                "collation",
                 "timezone",
                 "version",
-                "pool_size",
-                "pool_timeout",
-                "pool_name",
-                "pool_reset_session",
-                "pool_pre_ping",
                 "ssl_ca",
                 "ssl_cert",
                 "ssl_key",
@@ -94,31 +87,11 @@ class ClickHouseBackend(
                 "ssl_verify_identity",
                 "log_queries",
                 "log_level",
-                "auth_plugin",
                 "autocommit",
-                "init_command",
                 "connect_timeout",
-                "read_timeout",
-                "write_timeout",
-                "use_pure",
-                "get_warnings",
-                "raise_on_warnings",
-                "buffered",
-                "raw",
-                "consume_results",
-                "force_ipv6",
-                "option_files",
-                "option_groups",
-                "use_unicode",
-                "sql_mode",
-                "time_zone",
-                "sql_log_off",
+                "send_receive_timeout",
                 "compress",
-                "allow_local_infile",
-                "conn_attrs",
-                "client_flags",
-                "unix_socket",
-                "allow_local_infile_in_path",
+                "settings",
                 "dsn",
             ]
 
@@ -127,14 +100,12 @@ class ClickHouseBackend(
                     config_params[param] = kwargs[param]
 
             # Set defaults if not provided
-            if "charset" not in config_params:
-                config_params["charset"] = "utf8mb4"
             if "autocommit" not in config_params:
                 config_params["autocommit"] = True
             if "host" not in config_params:
                 config_params["host"] = "localhost"
             if "port" not in config_params:
-                config_params["port"] = 3306
+                config_params["port"] = 8123
 
             kwargs["connection_config"] = ClickHouseConnectionConfig(**config_params)
 
