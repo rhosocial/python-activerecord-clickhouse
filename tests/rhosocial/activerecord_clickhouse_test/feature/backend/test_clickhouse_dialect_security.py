@@ -91,8 +91,10 @@ def test_clickhouse_format_column_definition_data_type_rejects_injection(dialect
         )
 
 
-def test_clickhouse_json_table_path_escaping(dialect):
-    """Test JSON_TABLE path is escaped."""
+def test_clickhouse_json_table_unsupported(dialect):
+    """ClickHouse does not support JSON_TABLE; formatting fails fast."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
     expr = ClickHouseJSONTableExpression(
         dialect=dialect,
         json_doc='{"key": "value"}',
@@ -106,14 +108,16 @@ def test_clickhouse_json_table_path_escaping(dialect):
         ],
     )
 
-    sql, params = dialect.format_json_table_expression(expr)
+    with pytest.raises(UnsupportedFeatureError):
+        dialect.format_json_table_expression(expr)
 
-    assert "key''s" in sql
-    assert "'; DROP" not in sql
+    assert dialect.supports_json_table() is False
 
 
-def test_clickhouse_json_table_column_path_escaping(dialect):
-    """Test JSON_TABLE column path is escaped."""
+def test_clickhouse_json_table_unsupported_validates_expression(dialect):
+    """JSON_TABLE expression is rejected via validate when unsupported."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
     expr = ClickHouseJSONTableExpression(
         dialect=dialect,
         json_doc='{"data": "test"}',
@@ -125,33 +129,11 @@ def test_clickhouse_json_table_column_path_escaping(dialect):
                 path="$.field's",
             ),
         ],
-    )
-
-    sql, params = dialect.format_json_table_expression(expr)
-
-    assert "field''s" in sql
-
-
-def test_clickhouse_json_table_alias_quoted(dialect):
-    """Test JSON_TABLE alias uses format_identifier (backticks for ClickHouse)."""
-    expr = ClickHouseJSONTableExpression(
-        dialect=dialect,
-        json_doc='{"data": "test"}',
-        path="$.data",
-        columns=[
-            JSONTableColumn(
-                name="col1",
-                type="VARCHAR(255)",
-                path="$.col1",
-            ),
-        ],
         alias="test_alias",
     )
 
-    sql, params = dialect.format_json_table_expression(expr)
-
-    # ClickHouse uses backticks for identifier quotes
-    assert "`test_alias`" in sql
+    with pytest.raises(UnsupportedFeatureError):
+        dialect.format_json_table_expression(expr)
 
 
 def test_clickhouse_format_cast_expression_valid(dialect):
@@ -187,10 +169,12 @@ class TestClickHouseEscapeSqlStringBackslash:
 
 
 class TestClickHouseJSONTableTypeValidation:
-    """Tests for JSON_TABLE col.type validation."""
+    """Tests for JSON_TABLE col.type validation (fast-fail on unsupported)."""
 
     def test_json_table_valid_data_type(self, dialect):
-        """Test valid data type in JSON_TABLE column."""
+        """Test valid data type in JSON_TABLE column still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -204,11 +188,13 @@ class TestClickHouseJSONTableTypeValidation:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "VARCHAR(255)" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_invalid_data_type_rejected(self, dialect):
-        """Test invalid data type in JSON_TABLE column is rejected."""
+        """Test invalid data type in JSON_TABLE column fails fast as unsupported."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -222,15 +208,17 @@ class TestClickHouseJSONTableTypeValidation:
             ],
         )
 
-        with pytest.raises(ValueError, match="Invalid data type"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
 
 class TestClickHouseJSONTableErrorHandling:
-    """Tests for JSON_TABLE col.error_handling validation."""
+    """Tests for JSON_TABLE col.error_handling validation (fast-fail on unsupported)."""
 
     def test_json_table_valid_error_handling_null(self, dialect):
-        """Test valid error_handling: NULL."""
+        """Test valid error_handling: NULL still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -245,11 +233,13 @@ class TestClickHouseJSONTableErrorHandling:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "NULL ON ERROR" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_valid_error_handling_error(self, dialect):
-        """Test valid error_handling: ERROR."""
+        """Test valid error_handling: ERROR still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -264,11 +254,13 @@ class TestClickHouseJSONTableErrorHandling:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "ERROR ON ERROR" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_valid_error_handling_default(self, dialect):
-        """Test valid error_handling: DEFAULT with default_value."""
+        """Test valid error_handling: DEFAULT with default_value still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -284,12 +276,13 @@ class TestClickHouseJSONTableErrorHandling:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "DEFAULT" in sql
-        assert "fallback" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_invalid_error_handling_rejected(self, dialect):
-        """Test invalid error_handling is rejected."""
+        """Test invalid error_handling fails fast as unsupported."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -304,15 +297,17 @@ class TestClickHouseJSONTableErrorHandling:
             ],
         )
 
-        with pytest.raises(ValueError, match="Invalid error_handling"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
 
 class TestClickHouseJSONTableDefaultValueEscaping:
-    """Tests for JSON_TABLE col.default_value escaping."""
+    """Tests for JSON_TABLE col.default_value escaping (fast-fail on unsupported)."""
 
     def test_json_table_default_value_escaped(self, dialect):
-        """Test default_value with single quotes is escaped."""
+        """Test default_value with single quotes still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"data": "test"}',
@@ -328,16 +323,17 @@ class TestClickHouseJSONTableDefaultValueEscaping:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "it''s broken" in sql
-        assert "'; DROP" not in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
 
 class TestClickHouseJSONTableJsonDocSecurity:
-    """Tests for JSON_TABLE json_doc type validation."""
+    """Tests for JSON_TABLE json_doc type validation (fast-fail on unsupported)."""
 
     def test_json_table_json_doc_string(self, dialect):
-        """Test json_doc as string is properly escaped."""
+        """Test json_doc as string still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc='{"key": "value"}',
@@ -351,16 +347,16 @@ class TestClickHouseJSONTableJsonDocSecurity:
             ],
         )
 
-        sql, params = dialect.format_json_table_expression(expr)
-        assert "key" in sql
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_json_table_expression(expr)
 
     def test_json_table_json_doc_to_sql_protocol_rejected_by_validate(self, dialect):
-        """Test json_doc as ToSQLProtocol is rejected by validate in strict mode.
+        """Test json_doc as ToSQLProtocol still constructs, then fails fast.
 
-        Note: This test demonstrates the current limitation - the dialect code at
-        lines 1614-1616 supports ToSQLProtocol, but validate() at line 1605 rejects
-        it in strict mode. To enable ToSQLProtocol support, validate() needs modification.
+        Note: The dialect previously rejected ToSQLProtocol json_doc in strict
+        mode, but JSON_TABLE itself is unsupported so formatting always fails fast.
         """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
         class MockExpression(BaseExpression):
@@ -384,11 +380,13 @@ class TestClickHouseJSONTableJsonDocSecurity:
             ],
         )
 
-        with pytest.raises(TypeError, match="json_doc must be str"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
     def test_json_table_json_doc_invalid_type_rejected(self, dialect):
-        """Test json_doc with invalid type is rejected (raises before our check)."""
+        """Test json_doc with invalid type still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
             json_doc={"key": "value"},
@@ -402,7 +400,7 @@ class TestClickHouseJSONTableJsonDocSecurity:
             ],
         )
 
-        with pytest.raises(TypeError, match="json_doc must be str"):
+        with pytest.raises(UnsupportedFeatureError):
             dialect.format_json_table_expression(expr)
 
 

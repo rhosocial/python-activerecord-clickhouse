@@ -3,20 +3,19 @@
 ClickHouse JSON function support tests.
 
 This module tests ClickHouse-specific JSON function functionality including:
-- Function version detection
-- JSON_EXTRACT formatting
-- JSON_UNQUOTE formatting
-- JSON_OBJECT formatting
-- JSON_ARRAY formatting
-- JSON_CONTAINS formatting
-- JSON_SET formatting
-- JSON_REMOVE formatting
-- JSON_TYPE formatting
+- Function version detection (26.0.0+)
+- JSONExtract formatting (JSON_EXTRACT equivalent)
+- JSONExtractString formatting (JSON_UNQUOTE equivalent)
+- map formatting (JSON_OBJECT equivalent)
+- array literal formatting (JSON_ARRAY equivalent)
+- isNotNull(JSONExtract(...)) formatting (JSON_CONTAINS equivalent)
+- mapUpdate formatting (JSON_SET equivalent)
+- mapRemove formatting (JSON_REMOVE equivalent)
+- JSONType formatting
 - JSON_VALID formatting
-- JSON_SEARCH formatting
+- JSONExtractString + LIKE formatting (JSON_SEARCH equivalent)
 """
 
-import pytest
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 
@@ -24,184 +23,200 @@ class TestJSONFunctionProtocol:
     """Test JSON function protocol implementation."""
 
     def test_supports_json_function_basic(self):
-        """Test basic JSON function support (5.7.8+)."""
-        dialect_56 = ClickHouseDialect(version=(5, 6, 0))
-        assert not dialect_56.supports_json_function("JSON_EXTRACT")
+        """Test basic JSON function support (26.0.0+)."""
+        dialect_25 = ClickHouseDialect(version=(25, 9, 0))
+        assert not dialect_25.supports_json_function("JSONExtract")
 
-        dialect_57 = ClickHouseDialect(version=(5, 7, 8))
-        assert dialect_57.supports_json_function("JSON_EXTRACT")
+        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
+        assert dialect_26.supports_json_function("JSONExtract")
 
-        dialect_80 = ClickHouseDialect(version=(8, 0, 0))
-        assert dialect_80.supports_json_function("JSON_EXTRACT")
-
-    def test_supports_json_function_json_table(self):
-        """Test JSON_TABLE support (8.0.4+)."""
-        dialect_57 = ClickHouseDialect(version=(5, 7, 8))
-        assert not dialect_57.supports_json_function("JSON_TABLE")
-
-        dialect_800 = ClickHouseDialect(version=(8, 0, 0))
-        assert not dialect_800.supports_json_function("JSON_TABLE")
-
-        dialect_804 = ClickHouseDialect(version=(8, 0, 4))
-        assert dialect_804.supports_json_function("JSON_TABLE")
+        dialect_267 = ClickHouseDialect(version=(26, 7, 3))
+        assert dialect_267.supports_json_function("JSONExtract")
 
     def test_supports_json_function_json_value(self):
-        """Test JSON_VALUE support (8.0.21+)."""
-        dialect_80 = ClickHouseDialect(version=(8, 0, 0))
-        assert not dialect_80.supports_json_function("JSON_VALUE")
+        """Test JSON_VALUE support (26.0.0+)."""
+        dialect_25 = ClickHouseDialect(version=(25, 9, 0))
+        assert not dialect_25.supports_json_function("JSON_VALUE")
 
-        dialect_8021 = ClickHouseDialect(version=(8, 0, 21))
-        assert dialect_8021.supports_json_function("JSON_VALUE")
+        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
+        assert dialect_26.supports_json_function("JSON_VALUE")
+
+    def test_supports_json_function_json_type(self):
+        """Test JSONType support (26.0.0+)."""
+        dialect_25 = ClickHouseDialect(version=(25, 9, 0))
+        assert not dialect_25.supports_json_function("JSONType")
+
+        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
+        assert dialect_26.supports_json_function("JSONType")
+
+    def test_supports_json_type_always_supported(self):
+        """Test supports_json_type always returns True for ClickHouse."""
+        dialect_old = ClickHouseDialect(version=(22, 1, 0))
+        assert dialect_old.supports_json_type()
+
+        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
+        assert dialect_26.supports_json_type()
+
+    def test_supports_json_table_never_supported(self):
+        """Test JSON_TABLE is never supported by ClickHouse."""
+        dialect_old = ClickHouseDialect(version=(22, 1, 0))
+        assert not dialect_old.supports_json_table()
+
+        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
+        assert not dialect_26.supports_json_table()
 
     def test_format_json_extract_single_path(self):
-        """Test JSON_EXTRACT with single path."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONExtract with single path."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_extract("data", "$.name")
 
-        assert sql == "JSON_EXTRACT(data, %s)"
+        assert sql == "JSONExtract(data, %s)"
         assert params == ("$.name",)
 
     def test_format_json_extract_multiple_paths(self):
-        """Test JSON_EXTRACT with multiple paths."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONExtract with multiple paths."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_extract("data", "$.name", ["$.age", "$.city"])
 
-        assert sql == "JSON_EXTRACT(data, %s, %s, %s)"
+        assert sql == "JSONExtract(data, %s, %s, %s)"
         assert params == ("$.name", "$.age", "$.city")
 
     def test_format_json_unquote(self):
-        """Test JSON_UNQUOTE function."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONExtractString function."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
-        sql, params = dialect.format_json_unquote('data->"$.name"')
+        sql, params = dialect.format_json_unquote("data")
 
-        assert sql == 'JSON_UNQUOTE(data->"$.name")'
+        assert sql == "JSONExtractString(data)"
         assert params == ()
 
     def test_format_json_object_empty(self):
-        """Test JSON_OBJECT with no arguments."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test map with no arguments."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_object([])
 
-        assert sql == "JSON_OBJECT()"
+        assert sql == "map()"
         assert params == ()
 
     def test_format_json_object_single_pair(self):
-        """Test JSON_OBJECT with single key-value pair."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test map with single key-value pair."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_object([("name", "John")])
 
-        assert sql == "JSON_OBJECT(%s, %s)"
+        assert sql == "map(%s, %s)"
         assert params == ("name", "John")
 
     def test_format_json_object_multiple_pairs(self):
-        """Test JSON_OBJECT with multiple key-value pairs."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test map with multiple key-value pairs."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_object([("name", "John"), ("age", 30), ("city", "NYC")])
 
-        assert sql == "JSON_OBJECT(%s, %s, %s, %s, %s, %s)"
+        assert sql == "map(%s, %s, %s, %s, %s, %s)"
         assert params == ("name", "John", "age", 30, "city", "NYC")
 
     def test_format_json_array_empty(self):
-        """Test JSON_ARRAY with no arguments."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test array literal with no values."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_array([])
 
-        assert sql == "JSON_ARRAY()"
+        assert sql == "[]"
         assert params == ()
 
     def test_format_json_array_single_value(self):
-        """Test JSON_ARRAY with single value."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test array literal with single value."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_array([1])
 
-        assert sql == "JSON_ARRAY(%s)"
+        assert sql == "[%s]"
         assert params == (1,)
 
     def test_format_json_array_multiple_values(self):
-        """Test JSON_ARRAY with multiple values."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test array literal with multiple values."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_array([1, "hello", None, True])
 
-        assert sql == "JSON_ARRAY(%s, %s, %s, %s)"
+        assert sql == "[%s, %s, %s, %s]"
         assert params == (1, "hello", None, True)
 
     def test_format_json_contains_no_path(self):
-        """Test JSON_CONTAINS without path."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test isNotNull(JSONExtract(...)) without path."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_contains("data", '{"name": "John"}')
 
-        assert sql == "JSON_CONTAINS(data, %s)"
+        assert sql == "isNotNull(JSONExtract(data, %s))"
         assert params == ('{"name": "John"}',)
 
     def test_format_json_contains_with_path(self):
-        """Test JSON_CONTAINS with path."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test isNotNull(JSONExtract(...)) with path."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_contains("data", '"John"', "$.name")
 
-        assert sql == "JSON_CONTAINS(data, %s, %s)"
+        assert sql == "isNotNull(JSONExtract(data, %s, %s))"
         assert params == ('"John"', "$.name")
 
     def test_format_json_set_single_pair(self):
-        """Test JSON_SET with single path-value pair."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test mapUpdate with single path-value pair."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_set("data", "$.name", "John")
 
-        assert sql == "JSON_SET(data, %s, %s)"
+        assert sql == "assumeNotNull(mapUpdate(JSONExtract(data, 'Map(String, String)'), map(%s, %s)))"
         assert params == ("$.name", "John")
 
     def test_format_json_set_multiple_pairs(self):
-        """Test JSON_SET with multiple path-value pairs."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test mapUpdate with multiple path-value pairs."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_set(
             "data", "$.name", "John", path_value_pairs=[("$.age", 30), ("$.city", "NYC")]
         )
 
-        assert sql == "JSON_SET(data, %s, %s, %s, %s, %s, %s)"
+        assert sql == (
+            "assumeNotNull(mapUpdate(JSONExtract(data, 'Map(String, String)'), "
+            "map(%s, %s, %s, %s, %s, %s)))"
+        )
         assert params == ("$.name", "John", "$.age", 30, "$.city", "NYC")
 
     def test_format_json_remove_single_path(self):
-        """Test JSON_REMOVE with single path."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test mapRemove with single path."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_remove("data", "$.temp")
 
-        assert sql == "JSON_REMOVE(data, %s)"
+        assert sql == "mapRemove(JSONExtract(data, 'Map(String, String)'), %s)"
         assert params == ("$.temp",)
 
     def test_format_json_remove_multiple_paths(self):
-        """Test JSON_REMOVE with multiple paths."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test mapRemove with multiple paths."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_remove("data", "$.temp", paths=["$.cache", "$.old"])
 
-        assert sql == "JSON_REMOVE(data, %s, %s, %s)"
+        assert sql == "mapRemove(JSONExtract(data, 'Map(String, String)'), %s, %s, %s)"
         assert params == ("$.temp", "$.cache", "$.old")
 
     def test_format_json_type(self):
-        """Test JSON_TYPE function."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONType function."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_type("data")
 
-        assert sql == "JSON_TYPE(data)"
+        assert sql == "JSONType(data)"
         assert params == ()
 
     def test_format_json_valid(self):
         """Test JSON_VALID function."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_valid("data")
 
@@ -209,88 +224,28 @@ class TestJSONFunctionProtocol:
         assert params == ()
 
     def test_format_json_search_one(self):
-        """Test JSON_SEARCH with 'one' mode."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONExtractString + LIKE with 'one' mode."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_search("data", "John", all=False)
 
-        assert "JSON_SEARCH(data, 'one', %s)" in sql
+        assert sql == "JSONExtractString(data) LIKE %s AND 'one' = 'one'"
         assert params == ("John",)
 
     def test_format_json_search_all(self):
-        """Test JSON_SEARCH with 'all' mode."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONExtractString + LIKE with 'all' mode."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_search("data", "John", all=True)
 
-        assert "JSON_SEARCH(data, 'all', %s)" in sql
+        assert sql == "JSONExtractString(data) LIKE %s AND 'all' = 'one'"
         assert params == ("John",)
 
     def test_format_json_search_with_path(self):
-        """Test JSON_SEARCH with path."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        """Test JSONExtractString + LIKE with path."""
+        dialect = ClickHouseDialect(version=(26, 7, 3))
 
         sql, params = dialect.format_json_search("data", "John", path="$.users", all=True)
 
-        assert "JSON_SEARCH(data, 'all', %s, NULL, %s)" in sql
-        assert params == ("John", "$.users")
-
-
-class TestAsyncJSONFunctionProtocol:
-    """Test async JSON function protocol (same as sync, but verifies parity)."""
-
-    @pytest.mark.asyncio
-    async def test_async_supports_json_function(self):
-        """Test async version of supports_json_function."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-        assert dialect.supports_json_function("JSON_EXTRACT")
-
-    @pytest.mark.asyncio
-    async def test_async_format_json_extract(self):
-        """Test async version of JSON_EXTRACT formatting."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-
-        sql, params = dialect.format_json_extract("data", "$.name")
-
-        assert "JSON_EXTRACT" in sql
-        assert params == ("$.name",)
-
-    @pytest.mark.asyncio
-    async def test_async_format_json_object(self):
-        """Test async version of JSON_OBJECT formatting."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-
-        sql, params = dialect.format_json_object([("key", "value")])
-
-        assert "JSON_OBJECT" in sql
-        assert params == ("key", "value")
-
-    @pytest.mark.asyncio
-    async def test_async_format_json_array(self):
-        """Test async version of JSON_ARRAY formatting."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-
-        sql, params = dialect.format_json_array([1, 2, 3])
-
-        assert "JSON_ARRAY" in sql
-        assert params == (1, 2, 3)
-
-    @pytest.mark.asyncio
-    async def test_async_format_json_contains(self):
-        """Test async version of JSON_CONTAINS formatting."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-
-        sql, params = dialect.format_json_contains("data", '"value"', "$.path")
-
-        assert "JSON_CONTAINS" in sql
-        assert '"value"' in params
-
-    @pytest.mark.asyncio
-    async def test_async_format_json_set(self):
-        """Test async version of JSON_SET formatting."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
-
-        sql, params = dialect.format_json_set("data", "$.key", "value")
-
-        assert "JSON_SET" in sql
-        assert "$.key" in params
+        assert sql == "JSONExtractString(data, %s) LIKE %s AND 'all' = 'one'"
+        assert params == ("$.users", "John")

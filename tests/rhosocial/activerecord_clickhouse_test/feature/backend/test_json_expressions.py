@@ -28,7 +28,7 @@ class TestClickHouseJSONExtractExpression:
         expr = ClickHouseJSONExtractExpression(dialect, "data", "$.name")
         sql, params = expr.to_sql()
 
-        assert "JSON_EXTRACT" in sql
+        assert "JSONExtract" in sql
         assert "data" in sql
         assert "$.name" in params
 
@@ -39,7 +39,7 @@ class TestClickHouseJSONExtractExpression:
         expr = ClickHouseJSONExtractExpression(dialect, "data", "$.name").as_("extracted_name")
         sql, params = expr.to_sql()
 
-        assert "JSON_EXTRACT" in sql
+        assert "JSONExtract" in sql
         assert "AS `extracted_name`" in sql
 
     def test_json_extract_array_path(self):
@@ -49,7 +49,7 @@ class TestClickHouseJSONExtractExpression:
         expr = ClickHouseJSONExtractExpression(dialect, "data", "$[0]")
         sql, params = expr.to_sql()
 
-        assert "JSON_EXTRACT" in sql
+        assert "JSONExtract" in sql
         assert "$[0]" in params
 
 
@@ -63,7 +63,7 @@ class TestClickHouseJSONObjectExpression:
         expr = ClickHouseJSONObjectExpression(dialect, data={"name": "John", "age": 30})
         sql, params = expr.to_sql()
 
-        assert "JSON_OBJECT" in sql
+        assert "map" in sql
         assert "name" in params
         assert "age" in params
 
@@ -74,7 +74,7 @@ class TestClickHouseJSONObjectExpression:
         expr = ClickHouseJSONObjectExpression(dialect, name="John", age=30).as_("obj")
         sql, params = expr.to_sql()
 
-        assert "JSON_OBJECT" in sql
+        assert "map" in sql
         assert "AS `obj`" in sql
 
 
@@ -88,7 +88,7 @@ class TestClickHouseJSONArrayExpression:
         expr = ClickHouseJSONArrayExpression(dialect, values=[1, 2, 3])
         sql, params = expr.to_sql()
 
-        assert "JSON_ARRAY" in sql
+        assert "[" in sql
         assert params[0] == 1
 
     def test_json_array_with_args(self):
@@ -98,7 +98,7 @@ class TestClickHouseJSONArrayExpression:
         expr = ClickHouseJSONArrayExpression(dialect, 1, 2, 3)
         sql, params = expr.to_sql()
 
-        assert "JSON_ARRAY" in sql
+        assert "[" in sql
         assert len(params) == 3
 
     def test_json_array_with_alias(self):
@@ -108,7 +108,7 @@ class TestClickHouseJSONArrayExpression:
         expr = ClickHouseJSONArrayExpression(dialect, ["a", "b"]).as_("arr")
         sql, params = expr.to_sql()
 
-        assert "JSON_ARRAY" in sql
+        assert "[" in sql
         assert "AS `arr`" in sql
 
 
@@ -122,7 +122,7 @@ class TestClickHouseJSONContainsExpression:
         expr = ClickHouseJSONContainsExpression(dialect, "data", "John", "$.name")
         sql, params = expr.to_sql()
 
-        assert "JSON_CONTAINS" in sql
+        assert "isNotNull" in sql
         assert "data" in sql
         assert "John" in params
 
@@ -133,5 +133,5 @@ class TestClickHouseJSONContainsExpression:
         expr = ClickHouseJSONContainsExpression(dialect, "data", "value", "$.key").as_("contains")
         sql, params = expr.to_sql()
 
-        assert "JSON_CONTAINS" in sql
+        assert "isNotNull" in sql
         assert "AS `contains`" in sql

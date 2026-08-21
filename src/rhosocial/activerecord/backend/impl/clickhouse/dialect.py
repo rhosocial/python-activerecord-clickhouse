@@ -9,7 +9,6 @@ based on the ClickHouse version provided at initialization.
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
-from rhosocial.activerecord.backend.expression.bases import ToSQLProtocol
 from rhosocial.activerecord.backend.dialect.protocols import (
     CollationSupport,
     CTESupport,
@@ -1606,89 +1605,11 @@ class ClickHouseDialect(
         return False
 
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
-        """Format JSON_TABLE expression.
-
-        Args:
-            expr: ClickHouseJSONTableExpression instance
-
-        Returns:
-            Tuple of (SQL string, empty tuple)
-        """
-        expr.validate(strict=self.strict_validation)
-
-        parts = ["JSON_TABLE("]
-
-        # Handle json_doc: if it's a string literal, escape and quote it;
-        # if it's a ToSQLProtocol expression, use to_sql() for parameterized query;
-        # otherwise raise an error to prevent SQL injection.
-        if isinstance(expr.json_doc, str):
-            parts.append(f"'{self._escape_sql_string(expr.json_doc)}'")
-        elif isinstance(expr.json_doc, ToSQLProtocol):
-            json_sql, _ = expr.json_doc.to_sql()
-            parts.append(json_sql)
-        else:
-            raise ValueError(
-                f"json_doc must be a string or implement ToSQLProtocol, got {type(expr.json_doc).__name__}"
-            )
-
-        parts.append(",")
-        escaped_path = self._escape_sql_string(expr.path)
-        parts.append(f"'{escaped_path}'")
-        parts.append(" COLUMNS (")
-
-        # Format columns
-        column_parts = []
-        for col in expr.columns:
-            if col.ordinality:
-                column_parts.append(f"{self.format_identifier(col.name)} FOR ORDINALITY")
-            elif col.exists:
-                escaped_col_path = self._escape_sql_string(col.path) if col.path else ""
-                column_parts.append(f"{self.format_identifier(col.name)} {col.type} EXISTS PATH '{escaped_col_path}'")
-            else:
-                if not self._validate_data_type(col.type):
-                    raise ValueError(f"Invalid data type: {col.type}")
-                col_def = f"{self.format_identifier(col.name)} {col.type}"
-                if col.path:
-                    escaped_col_path = self._escape_sql_string(col.path)
-                    col_def += f" PATH '{escaped_col_path}'"
-                if col.error_handling:
-                    valid_error_handling = {"NULL", "ERROR", "DEFAULT"}
-                    error_handling_upper = col.error_handling.upper()
-                    if error_handling_upper not in valid_error_handling:
-                        raise ValueError(
-                            f"Invalid error_handling: {col.error_handling}. Must be one of {valid_error_handling}"
-                        )
-                    if error_handling_upper == "DEFAULT":
-                        escaped_default = self._escape_sql_string(str(col.default_value))
-                        col_def += f" DEFAULT '{escaped_default}' ON ERROR"
-                    else:
-                        col_def += f" {error_handling_upper} ON ERROR"
-                column_parts.append(col_def)
-
-        # Format nested paths
-        for nested in expr.nested_paths:
-            escaped_nested_path = self._escape_sql_string(nested.path)
-            nested_def = f"NESTED PATH '{escaped_nested_path}' COLUMNS ("
-            nested_cols = []
-            for col in nested.columns:
-                if col.ordinality:
-                    nested_cols.append(f"{self.format_identifier(col.name)} FOR ORDINALITY")
-                else:
-                    escaped_nested_col_path = self._escape_sql_string(col.path) if col.path else ""
-                    nested_cols.append(
-                        f"{self.format_identifier(col.name)} {col.type} PATH '{escaped_nested_col_path}'"
-                    )
-            nested_def += ", ".join(nested_cols) + ")"
-            if nested.alias:
-                nested_def = f"{self.format_identifier(nested.alias)} AS " + nested_def
-            column_parts.append(nested_def)
-
-        parts.append(", ".join(column_parts))
-        parts.append("))")
-
-        if expr.alias:
-            parts.append(f" AS {self.format_identifier(expr.alias)}")
-
-        return "".join(parts), ()
+        """JSON_TABLE is not supported by ClickHouse."""
+        raise UnsupportedFeatureError(
+            self.name,
+            "JSON_TABLE",
+            suggestion="Use JSONExtract/JSONExtractKeys with arrayJoin or subqueries instead.",
+        )
 
     # endregion
