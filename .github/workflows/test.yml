@@ -1,0 +1,132 @@
+# .github/workflows/test.yml
+name: Python Test and Coverage with ClickHouse
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/v**'
+      - 'maint/**'
+  pull_request:
+    branches:
+      - main
+      - 'release/v**'
+      - 'maint/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Python ${{ matrix.python-version }} / ClickHouse ${{ matrix.clickhouse-version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # One job per supported CPython major/minor (clickhouse-connect
+          # requires >=3.10,<3.15), spread across the ClickHouse release
+          # lines currently under maintenance (25.8 LTS, 26.3 LTS, 26.7).
+          - { python-version: '3.10', clickhouse-version: '25.8', port: 3100 }
+          - { python-version: '3.11', clickhouse-version: '25.8', port: 3101 }
+          - { python-version: '3.12', clickhouse-version: '26.3', port: 3102 }
+          - { python-version: '3.13', clickhouse-version: '26.3', port: 3103 }
+          - { python-version: '3.14', clickhouse-version: '26.7', port: 3104, coverage: true }
+
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:${{ matrix.clickhouse-version }}
+        env:
+          CLICKHOUSE_USER: root
+          CLICKHOUSE_PASSWORD: password
+          CLICKHOUSE_DB: test_db
+        options: >-
+          --health-cmd "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - ${{ matrix.port }}:8123
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Check out activerecord and testsuite (feature branches)
+        uses: actions/checkout@v6
+        with:
+          repository: rhosocial/python-activerecord
+          ref: feature/parallel-testing
+          path: _activerecord
+
+      - name: Check out testsuite (feature branch)
+        uses: actions/checkout@v6
+        with:
+          repository: rhosocial/python-activerecord-testsuite
+          ref: feature/parallel-testing
+          path: _testsuite
+
+      - name: Install activerecord and testsuite (editable)
+        run: |
+          pip install -e ./_activerecord
+          pip install -e ./_testsuite
+
+      - name: Verify ClickHouse connectivity
+        run: |
+          python -c "
+          import clickhouse_connect
+          client = clickhouse_connect.get_client(
+              host='127.0.0.1',
+              port=${{ matrix.port }},
+              username='root',
+              password='password',
+              database='test_db',
+          )
+          print('ClickHouse ${{ matrix.clickhouse-version }} connectivity test passed - version:', client.command('SELECT version()'))
+          client.close()
+          "
+
+      - name: Create ClickHouse scenario config
+        run: |
+          cat > clickhouse_scenarios.yaml << EOF
+          scenarios:
+            clickhouse_http:
+              host: 127.0.0.1
+              port: ${{ matrix.port }}
+              database: test_db
+              username: root
+              password: password
+              autocommit: true
+          EOF
+          echo "CLICKHOUSE_SCENARIOS_CONFIG_PATH=$(pwd)/clickhouse_scenarios.yaml" >> $GITHUB_ENV
+
+      - name: Run tests with coverage (only for ClickHouse ${{ matrix.clickhouse-version }} / Python ${{ matrix.python-version }})
+        if: matrix.coverage
+        run: |
+          export PYTHONPATH=src:tests
+          coverage run --source=src -m pytest tests/ --tb=short
+          coverage xml
+          coverage report
+
+      - name: Run tests
+        if: '!matrix.coverage'
+        run: |
+          export PYTHONPATH=src:tests
+          python -m pytest tests/ --tb=short
