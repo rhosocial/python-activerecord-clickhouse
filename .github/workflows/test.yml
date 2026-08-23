@@ -1,17 +1,14 @@
 # .github/workflows/test.yml
 name: Python Test and Coverage with ClickHouse
 
+# Single-branch project: all development happens on main.
 on:
   push:
     branches:
       - main
-      - 'release/v**'
-      - 'maint/**'
   pull_request:
     branches:
       - main
-      - 'release/v**'
-      - 'maint/**'
   workflow_dispatch:
 
 permissions:
