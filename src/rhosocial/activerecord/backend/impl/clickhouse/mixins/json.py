@@ -29,6 +29,61 @@ class ClickHouseJSONFunctionMixin:
     def supports_json_table(self) -> bool:
         return False
 
+    def supports_json_arrow_operators(self) -> bool:
+        """ClickHouse does not support the MySQL-style ``->`` / ``->>`` operators."""
+        return False
+
+    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
+        """Format a JSON path expression using native ClickHouse functions.
+
+        ``->``  (JSON value) maps to ``JSONExtractRaw(col, ...parts...)``
+        ``->>`` (as text)    maps to ``JSONExtractString(col, ...parts...)``
+
+        Simple dotted paths (``$.a.b``) are split into key arguments; complex
+        paths (arrays, wildcards, filters) fall back to ``JSON_VALUE``.
+        """
+        if isinstance(expr.column, bases.BaseExpression):
+            col_sql, col_params = expr.column.to_sql()
+        else:
+            col_sql, col_params = self.format_identifier(str(expr.column)), ()
+
+        escaped_path = self._escape_sql_string(expr.path)
+        is_simple = (
+            expr.path.startswith("$")
+            and "{" not in expr.path
+            and "[" not in expr.path
+            and "*" not in expr.path
+            and "(" not in expr.path
+        )
+
+        if expr.operation == "->":
+            if is_simple:
+                parts = [p for p in expr.path.lstrip("$.").split(".") if p]
+                args = "".join(f", '{self._escape_sql_string(p)}'" for p in parts)
+                sql = f"JSONExtractRaw({col_sql}{args})"
+            else:
+                sql = f"JSON_VALUE({col_sql}, '{escaped_path}')"
+        elif expr.operation == "->>":
+            if is_simple:
+                parts = [p for p in expr.path.lstrip("$.").split(".") if p]
+                args = "".join(f", '{self._escape_sql_string(p)}'" for p in parts)
+                sql = f"JSONExtractString({col_sql}{args})"
+            else:
+                sql = f"JSON_VALUE({col_sql}, '{escaped_path}')"
+        else:
+            sql = f"{col_sql} {expr.operation} '{escaped_path}'"
+
+        params = col_params
+
+        if expr.cast_types:
+            for target_type in expr.cast_types:
+                sql, params = self.format_cast_expression(sql, target_type, params, None)
+
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+
+        return sql, params
+
     def supports_json_function(self, function_name: str) -> bool:
         if function_name in self._JSON_FUNCTION_VERSIONS:
             return self.version >= self._JSON_FUNCTION_VERSIONS[function_name]
@@ -134,68 +189,6 @@ class ClickHouseJSONFunctionMixin:
         if path:
             return f"JSONExtractString({json_doc}, %s) LIKE %s AND {one_or_all} = 'one'", (path, search_str)
         return f"JSONExtractString({json_doc}) LIKE %s AND {one_or_all} = 'one'", (search_str,)
-
-    def format_json_arrow_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
-        """Format JSON expression using arrow operators for ClickHouse.
-
-        ClickHouse's -> and ->> operators require:
-        1. The JSON path as a string literal, not a parameter placeholder
-        2. No parentheses around the expression
-        """
-        if isinstance(expr.column, bases.BaseExpression):
-            col_sql, col_params = expr.column.to_sql()
-        else:
-            col_sql, col_params = self.format_identifier(str(expr.column)), ()
-
-        if expr.operation in ("->", "->>"):
-            escaped_path = self._escape_sql_string(expr.path)
-            sql = f"{col_sql}{expr.operation}'{escaped_path}'"
-            params = col_params
-        else:
-            sql = f"({col_sql} {expr.operation} {self.get_parameter_placeholder()})"
-            params = col_params + (expr.path,)
-
-        if expr.cast_types:
-            for target_type in expr.cast_types:
-                sql, params = self.format_cast_expression(sql, target_type, params, None)
-
-        if expr.alias:
-            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
-
-        return sql, params
-
-    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
-        """Format JSON expression using ClickHouse native JSON functions.
-
-        ClickHouse supports JSONExtract and JSONExtractString, and also supports
-        the native arrow operators. Both paths are available.
-        This is the function-based path, usable via JSONPathMode.FUNCTION.
-        """
-        if isinstance(expr.column, bases.BaseExpression):
-            col_sql, col_params = expr.column.to_sql()
-        else:
-            col_sql, col_params = self.format_identifier(str(expr.column)), ()
-
-        escaped_path = self._escape_sql_string(expr.path)
-
-        if expr.operation == "->":
-            sql = f"JSONExtract({col_sql}, '{escaped_path}')"
-            params = col_params
-        elif expr.operation == "->>":
-            sql = f"JSONExtractString({col_sql}, '{escaped_path}')"
-            params = col_params
-        else:
-            sql = f"{col_sql} {expr.operation} '{escaped_path}'"
-            params = col_params
-
-        if expr.cast_types:
-            for target_type in expr.cast_types:
-                sql, params = self.format_cast_expression(sql, target_type, params, None)
-
-        if expr.alias:
-            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
-
-        return sql, params
 
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
         """JSON_TABLE is not supported by ClickHouse."""

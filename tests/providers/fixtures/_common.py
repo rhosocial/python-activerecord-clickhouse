@@ -40,6 +40,18 @@ _FK_RE = re.compile(
     r"(FOREIGN KEY \([`A-Za-z0-9_ ,]+\) REFERENCES [`A-Za-z0-9_.]+ \([`A-Za-z0-9_ ,]+\))"
     r"(?=[,)])"
 )
+# Remove AUTO_INCREMENT, UNIQUE, and FOREIGN KEY constraints that ClickHouse rejects
+_AUTOINC_RE = re.compile(r" AUTO_INCREMENT", re.IGNORECASE)
+_UNIQUE_RE = re.compile(r"\s+UNIQUE", re.IGNORECASE)
+_FOREIGN_KEY_COL_RE = re.compile(
+    r",\s+FOREIGN KEY \([`A-Za-z0-9_ ,]+\) REFERENCES [`A-Za-z0-9_.]+ \([`A-Za-z0-9_ ,]+\)( ON DELETE \w+)?( ON UPDATE \w+)?",
+    re.IGNORECASE,
+)
+# Replace MySQL storage options with ClickHouse equivalents
+_ENGINE_RE = re.compile(
+    r"ENGINE\s*=\s*InnoDB\s*(?:DEFAULT CHARSET\s*=\s*\w+(?:\s+COLLATE\s*=\s*\w+)?)?",
+    re.IGNORECASE,
+)
 
 
 def _strip_storage_option_quotes(sql: str) -> str:
@@ -94,12 +106,20 @@ def to_clickhouse_ddl_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
     1. Drop quotes around storage option values.
     2. Re-insert ``ON DELETE`` / ``ON UPDATE`` referential actions for
        inline ``FOREIGN KEY`` table constraints.
+    3. Remove ``AUTO_INCREMENT``, ``UNIQUE``, and ``FOREIGN KEY`` clauses
+       that ClickHouse does not support.
+    4. Replace MySQL ``ENGINE=InnoDB`` storage options with ClickHouse
+       ``ENGINE = MergeTree`` / ``ORDER BY`` settings.
 
     Returns the ``(sql, params)`` tuple suitable for ``backend.execute``.
     """
     sql, params = expr.to_sql()
     sql = _strip_storage_option_quotes(sql)
     sql = _append_fk_actions(expr, sql)
+    sql = _AUTOINC_RE.sub("", sql)
+    sql = _UNIQUE_RE.sub("", sql)
+    sql = _FOREIGN_KEY_COL_RE.sub("", sql)
+    sql = _ENGINE_RE.sub("ENGINE = MergeTree", sql)
     return sql, params
 
 

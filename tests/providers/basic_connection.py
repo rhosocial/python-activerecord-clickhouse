@@ -58,11 +58,13 @@ class BasicConnectionProvider(IBasicConnectionProvider):
 
         backend.execute(
             """
-            CREATE TABLE test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL
-            )
+            CREATE TABLE IF NOT EXISTS test_users (
+                id Int64,
+                name String,
+                email String
+            ) ENGINE = MergeTree
+            ORDER BY id
+            SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """,
             options=ExecutionOptions(stmt_type=StatementType.DDL),
         )
@@ -78,11 +80,13 @@ class BasicConnectionProvider(IBasicConnectionProvider):
 
         await backend.execute(
             """
-            CREATE TABLE test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL
-            )
+            CREATE TABLE IF NOT EXISTS test_users (
+                id Int64,
+                name String,
+                email String
+            ) ENGINE = MergeTree
+            ORDER BY id
+            SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """,
             options=ExecutionOptions(stmt_type=StatementType.DDL),
         )

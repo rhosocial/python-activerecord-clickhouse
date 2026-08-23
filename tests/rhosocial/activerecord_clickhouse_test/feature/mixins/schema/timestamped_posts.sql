@@ -1,10 +1,10 @@
--- tests/rhosocial/activerecord_mysql_test/feature/mixins/schema/timestamped_posts.sql
--- MySQL version of the timestamped_posts table schema
-
-CREATE TABLE `timestamped_posts` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `title` VARCHAR(255) NOT NULL,
-    `content` TEXT NOT NULL,
-    `created_at` DATETIME(6),
-    `updated_at` DATETIME(6)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for mixins/timestamped_posts table
+CREATE TABLE IF NOT EXISTS timestamped_posts (
+    id Int64,
+    title String NOT NULL,
+    content String NOT NULL,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

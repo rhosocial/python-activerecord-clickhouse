@@ -1,15 +1,15 @@
--- tests/rhosocial/activerecord_mysql_test/feature/basic/schema/pydantic_validated_models.sql
--- MySQL version of the pydantic_validated_models table schema
-
-CREATE TABLE `pydantic_validated_models` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `code` VARCHAR(32),
-    `quantity` INT,
-    `step_count` INT,
-    `price` DECIMAL(10, 2),
-    `start_at` DATETIME,
-    `end_at` DATETIME,
-    `status` VARCHAR(32),
-    `normalized_name` VARCHAR(50),
-    `created_token` VARCHAR(255)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for basic/pydantic_validated_models table
+CREATE TABLE IF NOT EXISTS pydantic_validated_models (
+    id Int64,
+    code String,
+    quantity Int64,
+    step_count Int64,
+    price Decimal(10, 2),
+    start_at DateTime,
+    end_at DateTime,
+    status String,
+    normalized_name String,
+    created_token String
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

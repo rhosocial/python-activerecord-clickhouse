@@ -7,10 +7,12 @@ DDL is semantically equivalent to the reference ``.sql`` schema files under
 ``.sql`` files are kept as the authoritative reference and are no longer
 loaded at runtime.
 
-Storage option values (ENGINE/CHARSET/COLLATE), inline ``INDEX`` definitions,
-``FOREIGN KEY ... ON DELETE CASCADE`` clauses, ``TINYINT(1)`` booleans,
-``DATETIME(6)`` timestamps, ``ENUM`` and ``JSON`` column types are all
-emitted by routing through :func:`providers.fixtures._common.to_clickhouse_ddl_sql`.
+ClickHouse-specific notes:
+- Primary keys are plain ``Int64`` columns; ids are generated client-side by
+  the backend (snowflake), so no ``AUTO_INCREMENT`` is emitted.
+- ``UNIQUE`` and ``FOREIGN KEY`` constraints are not supported and are omitted.
+- Tables use ``ENGINE = MergeTree`` with ``ORDER BY id`` and the lightweight
+  update/delete settings required by modern ClickHouse.
 """
 
 from typing import Callable, Dict
@@ -22,13 +24,12 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
     ColumnConstraintType,
-    ForeignKeyConstraint,
     IndexDefinition,
     TableConstraint,
     TableConstraintType,
-    ReferentialAction,
 )
 from rhosocial.activerecord.backend.expression.types import (
+    BigIntType,
     BooleanType,
     CharType,
     DateTimeType,
@@ -42,20 +43,20 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 
-from rhosocial.activerecord.backend.impl.clickhouse.expression import ClickHouseEnumType
+from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+    ClickHouseEnum8Type,
+    ClickHouseNullableType,
+    ClickHouseStringType,
+)
 
 from . import _common
 
-# Standard ClickHouse table options used by the reference SQL files.
+# Standard ClickHouse table options.
 _DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "InnoDB",
-    "DEFAULT CHARSET": "utf8mb4",
-    "COLLATE": "utf8mb4_unicode_ci",
+    "ENGINE": "MergeTree",
+    "ORDER BY": "id",
+    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
 }
-
-# Shorthand for the common ON DELETE CASCADE referential action used by the
-# basic posts/comments tables.
-_CASCADE = ReferentialAction.CASCADE
 
 
 def to_sql(expr: CreateTableExpression):
@@ -73,14 +74,12 @@ def create_users_table(dialect, table_name: str = "users") -> CreateTableExpress
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("username", VarCharType(191),
-                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(ColumnConstraintType.UNIQUE)]),
+                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("email", VarCharType(191),
-                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(ColumnConstraintType.UNIQUE)]),
+                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("age", IntegerType()),
             ColumnDefinition("balance", FloatType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
@@ -164,7 +163,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
             ColumnDefinition("datetime_field", TextType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("json_field", JsonType()),
-            ColumnDefinition("nullable_field", VarCharType(255)),
+            ColumnDefinition("nullable_field", ClickHouseNullableType(ClickHouseStringType())),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -176,14 +175,14 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
 
 def create_validated_field_users_table(dialect, table_name: str = "validated_field_users") -> CreateTableExpression:
     # ClickHouse ENUM column for status.
-    status_enum = ClickHouseEnumType(['active', 'inactive', 'banned', 'pending', 'suspended'])
+    status_enum = ClickHouseEnum8Type([('active', 1), ('inactive', 2), ('banned', 3), ('pending', 4), ('suspended', 5)])
     return CreateTableExpression(
         dialect=dialect,
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("username", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("email", VarCharType(255),
@@ -213,13 +212,13 @@ def create_validated_users_table(dialect, table_name: str = "validated_users") -
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("username", VarCharType(50),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("email", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("age", IntegerType()),
+            ColumnDefinition("age", ClickHouseNullableType(IntegerType())),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -235,8 +234,8 @@ def create_pydantic_validated_models_table(dialect, table_name: str = "pydantic_
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("code", VarCharType(32)),
             ColumnDefinition("quantity", IntegerType()),
             ColumnDefinition("step_count", IntegerType()),
@@ -261,8 +260,8 @@ def create_bulk_users_table(dialect, table_name: str = "bulk_users") -> CreateTa
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("age", IntegerType(),
@@ -284,9 +283,9 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableExpress
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("author", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("author", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("title", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -298,10 +297,6 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableExpress
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
         indexes=[IndexDefinition(name="idx_author", columns=["author"])],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["author"], foreign_key_table="users", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
@@ -316,11 +311,11 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableE
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("post_ref", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("post_ref", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("author", IntegerType(),
+            ColumnDefinition("author", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("text", TextType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -333,12 +328,6 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableE
         indexes=[
             IndexDefinition(name="idx_post_ref", columns=["post_ref"]),
             IndexDefinition(name="idx_author", columns=["author"]),
-        ],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["post_ref"], foreign_key_table="posts", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-            ForeignKeyConstraint(columns=["author"], foreign_key_table="users", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -354,8 +343,8 @@ def create_column_mapping_items_table(dialect, table_name: str = "column_mapping
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("item_total", IntegerType(),
@@ -376,8 +365,8 @@ def create_mixed_annotation_items_table(dialect, table_name: str = "mixed_annota
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("tags", TextType()),
@@ -399,23 +388,26 @@ def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tes
         table=table_name,
         if_not_exists=True,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("optional_name", VarCharType(255)),
-            ColumnDefinition("optional_age", IntegerType()),
-            ColumnDefinition("last_login", TextType()),
-            ColumnDefinition("is_premium", BooleanType()),
+            # Optional[T] model fields must map to Nullable columns so that None
+            # is stored/returned as SQL NULL instead of ClickHouse's empty string.
+            ColumnDefinition("optional_name", ClickHouseNullableType(VarCharType(255))),
+            ColumnDefinition("optional_age", ClickHouseNullableType(IntegerType())),
+            ColumnDefinition("last_login", ClickHouseNullableType(TextType())),
+            ColumnDefinition("is_premium", ClickHouseNullableType(BooleanType())),
             ColumnDefinition("unsupported_union", VarCharType(255)),
             ColumnDefinition("custom_bool", VarCharType(3)),
-            ColumnDefinition("optional_custom_bool", VarCharType(3)),
+            ColumnDefinition("optional_custom_bool", ClickHouseNullableType(VarCharType(3))),
         ],
+        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
 
 # ---------------------------------------------------------------------------
-# basic/order_items.sql (composite PK, FK -> orders)
+# basic/order_items.sql (composite PK)
 # ---------------------------------------------------------------------------
 
 def create_composite_pk_order_items_table(dialect, table_name: str = "order_items") -> CreateTableExpression:
@@ -438,7 +430,11 @@ def create_composite_pk_order_items_table(dialect, table_name: str = "order_item
             TableConstraint(constraint_type=TableConstraintType.PRIMARY_KEY,
                 columns=["order_id", "product_id"]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        storage_options={
+            "ENGINE": "MergeTree",
+            "ORDER BY": ("order_id", "product_id"),
+            "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
+        },
     )
 
 
@@ -466,7 +462,11 @@ def create_store_inventory_table(dialect, table_name: str = "store_inventory") -
             TableConstraint(constraint_type=TableConstraintType.PRIMARY_KEY,
                 columns=["store_id", "product_id", "batch_id"]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        storage_options={
+            "ENGINE": "MergeTree",
+            "ORDER BY": ("store_id", "product_id", "batch_id"),
+            "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
+        },
     )
 
 
@@ -480,8 +480,8 @@ def create_orders_table(dialect, table_name: str = "orders") -> CreateTableExpre
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("total", DecimalType(precision=10, scale=2),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("created_at", TextType()),
@@ -501,8 +501,8 @@ def create_product_table(dialect, table_name: str = "product") -> CreateTableExp
         table=table_name,
         if_not_exists=True,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", TextType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("price", FloatType(),
@@ -510,6 +510,7 @@ def create_product_table(dialect, table_name: str = "product") -> CreateTableExp
             ColumnDefinition("quantity", IntegerType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
         ],
+        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
 

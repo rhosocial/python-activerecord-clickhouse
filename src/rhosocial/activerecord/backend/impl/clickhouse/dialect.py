@@ -30,6 +30,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     ViewSupport,
     SchemaSupport,
     SequenceSupport,
+    AutoIncrementSupport,
     ConstraintSupport,
     IntrospectionSupport,
     # TRUNCATE TABLE support protocol
@@ -64,6 +65,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     SchemaMixin,
     IndexMixin,
     SequenceMixin,
+    AutoIncrementMixin,
     TableMixin,
     ConstraintMixin,
     TruncateMixin,
@@ -182,6 +184,7 @@ class ClickHouseDialect(
     SchemaMixin,
     IndexMixin,
     SequenceMixin,
+    AutoIncrementMixin,
     ClickHousePartitionMixin,
     PartitionMixin,
     # ClickHouse-specific mixins (before generic IntrospectionMixin to override methods)
@@ -243,6 +246,7 @@ class ClickHouseDialect(
     ViewSupport,
     SchemaSupport,
     SequenceSupport,
+    AutoIncrementSupport,
     ClickHouseTableSupport,  # extends TableSupport
     ConstraintSupport,
     IntrospectionSupport,
@@ -393,8 +397,8 @@ class ClickHouseDialect(
         return True
 
     def supports_returning_insert(self) -> bool:
-        """ClickHouse supports RETURNING clause for INSERT."""
-        return True
+        """ClickHouse does not support RETURNING clause for INSERT (26.7 tested)."""
+        return False
 
     def supports_returning_update(self) -> bool:
         """ClickHouse does not support RETURNING clause for UPDATE."""
@@ -402,6 +406,14 @@ class ClickHouseDialect(
 
     def supports_returning_delete(self) -> bool:
         """ClickHouse does not support RETURNING clause for DELETE."""
+        return False
+
+    def supports_auto_increment(self) -> bool:
+        """ClickHouse does not natively support AUTO_INCREMENT/IDENTITY primary keys.
+
+        Primary keys must be supplied explicitly (e.g. a snowflake ID or UUID)
+        before inserting new records.
+        """
         return False
 
     def supports_window_functions(self) -> bool:
@@ -596,6 +608,44 @@ class ClickHouseDialect(
         """Set operations do not support FOR UPDATE."""
         return False
 
+    def format_set_operation_expression(
+        self,
+        left: "bases.BaseExpression",
+        right: "bases.BaseExpression",
+        operation: str,
+        alias,
+        all_: bool,
+        order_by_clause=None,
+        limit_offset_clause=None,
+        for_update_clause=None,
+    ) -> Tuple[str, Tuple]:
+        """Format set operations with an explicit ALL/DISTINCT modifier.
+
+        ClickHouse rejects a bare ``UNION`` when ``union_default_mode`` is
+        empty (the default): ``Expected ALL or DISTINCT in SelectWithUnion
+        query``. A bare SQL-standard ``UNION`` means ``UNION DISTINCT``, so
+        we always emit the explicit modifier.
+        """
+        left_sql, left_params = left.to_sql()
+        right_sql, right_params = right.to_sql()
+        modifier = "ALL" if all_ else "DISTINCT"
+        base_sql = f"{left_sql} {operation} {modifier} {right_sql}"
+        all_params = list(left_params + right_params)
+
+        sql_parts = [base_sql]
+        if alias:
+            sql_parts.append(f"AS {self.format_identifier(alias)}")
+        if order_by_clause:
+            order_by_sql, order_by_params = order_by_clause.to_sql()
+            sql_parts.append(order_by_sql)
+            all_params.extend(order_by_params)
+        if limit_offset_clause:
+            limit_offset_sql, limit_offset_params = limit_offset_clause.to_sql()
+            sql_parts.append(limit_offset_sql)
+            all_params.extend(limit_offset_params)
+        # FOR UPDATE is unsupported in ClickHouse; ignore silently.
+        return " ".join(sql_parts), tuple(all_params)
+
     # endregion
 
     def format_identifier(self, identifier: str) -> str:
@@ -659,10 +709,6 @@ class ClickHouseDialect(
             return None, []
 
         return " ".join(sql_parts), params
-
-    def supports_json_arrow_operators(self) -> bool:
-        """ClickHouse supports -> and ->> operators for JSON access."""
-        return True
 
     # region View Support
     def supports_or_replace_view(self) -> bool:
@@ -910,7 +956,7 @@ class ClickHouseDialect(
 
         # Add storage options (ClickHouse-specific format)
         if expr.storage_options:
-            storage_sql = self.format_storage_options(expr.storage_options)
+            storage_sql = self.format_table_engine_clauses(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 

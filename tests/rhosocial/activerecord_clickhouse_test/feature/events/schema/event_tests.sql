@@ -1,12 +1,12 @@
--- tests/rhosocial/activerecord_mysql_test/feature/events/schema/event_tests.sql
--- MySQL version of the event_tests table schema
-
-CREATE TABLE `event_tests` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL,
-    `status` VARCHAR(50) NOT NULL DEFAULT 'draft',
-    `revision` INT NOT NULL DEFAULT 1,
-    `content` TEXT,
-    `created_at` DATETIME(6),
-    `updated_at` DATETIME(6)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for events/event_tests table
+CREATE TABLE IF NOT EXISTS event_tests (
+    id Int64,
+    name String NOT NULL,
+    status String NOT NULL DEFAULT 'draft',
+    revision Int32 NOT NULL DEFAULT 1,
+    content String,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

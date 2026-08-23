@@ -1,8 +1,11 @@
-CREATE TABLE `mixed_annotation_items` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL,
-    `tags` TEXT,
-    `meta` TEXT,
-    `description` TEXT,
-    `status` TEXT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for basic/mixed_annotation_items table
+CREATE TABLE IF NOT EXISTS mixed_annotation_items (
+    id Int64,
+    name String,
+    tags String,
+    meta String,
+    description String,
+    status String
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

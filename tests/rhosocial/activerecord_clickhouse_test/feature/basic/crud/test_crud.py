@@ -24,5 +24,19 @@ tests against our specific (SQLite) backend.
 # from the generic testsuite file into this module's scope. `pytest` then
 # discovers and runs them as if they were defined directly in this file.
 from rhosocial.activerecord.testsuite.feature.basic.crud.test_crud import *  # noqa: F403
-from rhosocial.activerecord.testsuite.feature.basic.crud.test_crud_async import *  # noqa: F403
+
+import pytest  # noqa: E402
+
+
+# ClickHouse does not support ACID transactions (no BEGIN/COMMIT/ROLLBACK), so
+# the generic rollback-based transaction test cannot apply. The backend's
+# transaction() context manager degrades to a no-op for compatibility with
+# generic operations (e.g. bulk_create), but rollback guarantees are absent.
+def _clickhouse_test_transaction_crud(self, user_class):  # noqa: F811
+    pytest.skip("ClickHouse does not support ACID transactions (rollback unavailable)")
+
+
+TestSyncCRUD.test_transaction_crud = _clickhouse_test_transaction_crud
+# Async tests are not imported (clickhouse-connect is sync-only; the conftest
+# hook skips them), so there is no TestAsyncCRUD to patch here.
 

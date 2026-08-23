@@ -5,11 +5,10 @@ query requires connection arguments, output arguments, and --log-level.
 """
 
 import argparse
-import asyncio
 import logging
 import sys
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
 from .connection import add_connection_args, resolve_connection_config_from_args
@@ -138,8 +137,12 @@ def handle(args):
     kwargs = {"use_ascii": args.rich_ascii}
 
     if args.is_async:
-        backend = AsyncClickHouseBackend(connection_config=config)
-        asyncio.run(_execute_query_async(sql_source, backend, provider, **kwargs))
+        print(
+            "Error: --async is not supported by the ClickHouse backend. "
+            "clickhouse-connect is a synchronous-only library.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     else:
         backend = ClickHouseBackend(connection_config=config)
         _execute_query_sync(sql_source, backend, provider, **kwargs)
@@ -180,33 +183,3 @@ def _execute_query_sync(sql_query: str, backend: ClickHouseBackend, provider, **
             backend.disconnect()
             provider.display_disconnect(is_async=False)
 
-
-async def _execute_query_async(sql_query: str, backend: AsyncClickHouseBackend, provider, **kwargs):
-    """Execute a SQL query asynchronously."""
-    try:
-        await backend.connect()
-        provider.display_query(sql_query, is_async=True)
-        result = await backend.execute(sql_query)
-
-        if not result:
-            provider.display_no_result_object()
-        else:
-            provider.display_success(result.affected_rows, result.duration)
-            if result.data:
-                provider.display_results(result.data, **kwargs)
-            else:
-                provider.display_no_data()
-
-    except ConnectionError as e:
-        provider.display_connection_error(e)
-        sys.exit(1)
-    except QueryError as e:
-        provider.display_query_error(e)
-        sys.exit(1)
-    except Exception as e:
-        provider.display_unexpected_error(e, is_async=True)
-        sys.exit(1)
-    finally:
-        if backend._connection:  # type: ignore
-            await backend.disconnect()
-            provider.display_disconnect(is_async=True)

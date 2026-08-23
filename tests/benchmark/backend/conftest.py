@@ -6,7 +6,7 @@ from typing import Any, Callable, List
 
 import pytest
 
-from rhosocial.activerecord.backend.options import ExecutionOptions
+from rhosocial.activerecord.backend.options import ExecutionOptions, InsertOptions
 from rhosocial.activerecord.backend.schema import StatementType
 from rhosocial.activerecord.testsuite.benchmark.crud.fixtures.data import (
     make_user_payloads,
@@ -134,13 +134,12 @@ async def _initialize_schema_async(backend):
 
 
 def _seed_sync(backend, payloads):
+    # Seed through the backend insert contract: ClickHouse has no AUTO_INCREMENT
+    # and the driver reports no rowcount/lastrowid for raw SQL, so ids are
+    # generated client-side (snowflake) by backend.insert().
     record_ids = []
     for payload in payloads:
-        result = backend.execute(
-            _sql_templates()["insert"],
-            _params_factory("insert", payload),
-            options=DML_OPTIONS,
-        )
+        result = backend.insert(InsertOptions(table="benchmark_users", data=dict(payload)))
         if result.affected_rows != 1 or result.last_insert_id is None:
             raise AssertionError("failed to seed sync ClickHouse backend benchmark row")
         record_ids.append(result.last_insert_id)
@@ -150,11 +149,7 @@ def _seed_sync(backend, payloads):
 async def _seed_async(backend, payloads):
     record_ids = []
     for payload in payloads:
-        result = await backend.execute(
-            _sql_templates()["insert"],
-            _params_factory("insert", payload),
-            options=DML_OPTIONS,
-        )
+        result = await backend.insert(InsertOptions(table="benchmark_users", data=dict(payload)))
         if result.affected_rows != 1 or result.last_insert_id is None:
             raise AssertionError("failed to seed async ClickHouse backend benchmark row")
         record_ids.append(result.last_insert_id)
@@ -190,14 +185,14 @@ def _params_factory(operation, payload):
 def _schema_sql():
     return """
 CREATE TABLE benchmark_users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    age INT,
-    balance DOUBLE NOT NULL DEFAULT 0.0,
-    notes TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at DATETIME,
-    updated_at DATETIME
-)
+    id Int64,
+    username String NOT NULL,
+    email String NOT NULL,
+    age Int32,
+    balance Float64 NOT NULL DEFAULT 0.0,
+    notes String,
+    is_active Bool NOT NULL DEFAULT 1,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
 """

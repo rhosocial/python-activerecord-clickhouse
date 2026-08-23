@@ -29,7 +29,9 @@ class TestClickHouseCapabilities:
 
     def test_json_supported(self, dialect):
         assert dialect.supports_json_type() is True
-        assert dialect.supports_json_arrow_operators() is True
+        # ClickHouse has no MySQL-style -> / ->> operators; JSON access uses
+        # JSONExtractString / JSON_VALUE instead.
+        assert dialect.supports_json_arrow_operators() is False
 
     def test_cte_supported(self, dialect):
         assert dialect.supports_basic_cte() is True
@@ -67,7 +69,10 @@ class TestClickHouseCapabilities:
         assert dialect.supports_ilike() is True
 
     def test_returning_insert_only(self, dialect):
-        assert dialect.supports_returning_insert() is True
+        # Verified against ClickHouse 26.7: INSERT ... VALUES ... RETURNING is
+        # not accepted (RETURNING only applies to INSERT SELECT), so insert
+        # returning is disabled and ids are generated client-side.
+        assert dialect.supports_returning_insert() is False
         assert dialect.supports_returning_update() is False
         assert dialect.supports_returning_delete() is False
 

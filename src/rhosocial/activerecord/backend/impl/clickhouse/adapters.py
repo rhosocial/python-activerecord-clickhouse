@@ -37,6 +37,84 @@ class ClickHouseBlobAdapter(SQLTypeAdapter):
         return value
 
 
+class ClickHouseArrayAdapter(SQLTypeAdapter):
+    """
+    Adapts Python list/tuple to a ClickHouse array literal string.
+
+    ClickHouse array literals use single-quoted string elements
+    (``['a', 'b']``); the JSON-style double quoting produced by
+    ``json.dumps`` is rejected by the server when binding parameters for
+    ``Array(T)`` columns. Nested lists are rendered recursively.
+    """
+
+    @property
+    def supported_types(self) -> Dict[Type, List[Any]]:
+        return {list: [str], tuple: [str]}
+
+    def _render(self, value: Any) -> str:
+        if value is None:
+            return "NULL"
+        if isinstance(value, (list, tuple)):
+            return "[" + ", ".join(self._render(v) for v in value) + "]"
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        if isinstance(value, str):
+            escaped = value.replace("\\", "\\\\").replace("'", "\\'")
+            return f"'{escaped}'"
+        if isinstance(value, uuid.UUID):
+            return f"'{value}'"
+        if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
+            return f"'{value.isoformat()}'"
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, (int, float)):
+            return str(value)
+        raise TypeError(f"Unsupported array element type: {type(value).__name__}")
+
+    def to_database(self, value: Union[list, tuple], target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
+        if value is None:
+            return None
+        return self._render(value)
+
+    def from_database(
+        self, value: Any, target_type: Type, options: Optional[Dict[str, Any]] = None, **kwargs
+    ) -> Optional[list]:
+        """Convert stored array data back to a Python list.
+
+        The clickhouse-connect driver returns real Python lists for
+        ``Array(T)`` columns. Values stored in ``String`` columns come back as
+        text — either the array literal we wrote (single-quoted elements) or
+        JSON — both of which are parsed here.
+        """
+        if value is None:
+            return None
+        if isinstance(value, (list, tuple)):
+            return list(value)
+        if isinstance(value, str):
+            text = value.strip()
+            if text.startswith("[") and text.endswith("]"):
+                import json
+
+                try:
+                    parsed = json.loads(text)
+                    if isinstance(parsed, list):
+                        return parsed
+                except ValueError:
+                    # Fall back to ClickHouse's single-quoted array literal,
+                    # which is *not* valid JSON.
+                    inner = text[1:-1].strip()
+                    if not inner:
+                        return []
+                    items = []
+                    for part in inner.split(","):
+                        part = part.strip()
+                        if len(part) >= 2 and part[0] == "'" and part[-1] == "'":
+                            part = part[1:-1].replace("\\'", "'").replace("\\\\", "\\")
+                        items.append(part)
+                    return items
+        return value
+
+
 class ClickHouseJSONAdapter(SQLTypeAdapter):
     """
     Adapts Python dict/list to ClickHouse JSON or String type and vice-versa.
@@ -60,7 +138,7 @@ class ClickHouseJSONAdapter(SQLTypeAdapter):
     def from_database(
         self, value: Any, target_type: Type, options: Optional[Dict[str, Any]] = None, **kwargs
     ) -> Optional[Union[dict, list]]:
-        if value is None:
+        if value is None or value == "":
             return None
         # ClickHouse connector might return str for JSON, or already dict/list for some drivers
         if isinstance(value, (dict, list)):

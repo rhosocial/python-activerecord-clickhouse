@@ -1,6 +1,9 @@
-CREATE TABLE `column_mapping_items` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL,
-    `item_total` INT NOT NULL,
-    `remarks` INT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for basic/column_mapping_items table
+CREATE TABLE IF NOT EXISTS column_mapping_items (
+    id Int64,
+    name String,
+    item_total Int64,
+    remarks Int64
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

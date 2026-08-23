@@ -144,16 +144,16 @@ class CrudBenchmarkProvider:
     def _schema_sql(self):
         return """
 CREATE TABLE benchmark_users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    age INT,
-    balance DOUBLE NOT NULL DEFAULT 0.0,
-    notes TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at DATETIME,
-    updated_at DATETIME
-)
+    id Int64,
+    username String NOT NULL,
+    email String NOT NULL,
+    age Int32,
+    balance Float64 NOT NULL DEFAULT 0.0,
+    notes String,
+    is_active Bool NOT NULL DEFAULT 1,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
 """
 
     def _cleanup_sync(self):

@@ -1,9 +1,11 @@
-CREATE TABLE `profiles` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `user_id` INT NOT NULL,
-    `bio` TEXT,
-    `avatar_url` VARCHAR(512),
-    `created_at` DATETIME(6),
-    `updated_at` DATETIME(6),
-    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for query/profiles table
+CREATE TABLE IF NOT EXISTS profiles (
+    id Int64,
+    user_id Int64 NOT NULL,
+    bio String,
+    avatar_url String,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

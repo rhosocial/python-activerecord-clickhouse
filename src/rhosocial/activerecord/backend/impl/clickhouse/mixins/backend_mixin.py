@@ -104,9 +104,18 @@ class ClickHouseBackendMixin:
             (Decimal, Decimal),
             (UUID, str),
             (Enum, str),
+            # dict -> JSON string; list/tuple -> ClickHouse array literal.
+            (dict, str),
+            (list, str),
+            (tuple, str),
         ]
 
         for py_type, db_type in type_mappings:
+            if py_type in (list, tuple):
+                from ..adapters import ClickHouseArrayAdapter
+
+                suggestions[py_type] = (ClickHouseArrayAdapter(), str)
+                continue
             adapter = self.adapter_registry.get_adapter(py_type, db_type)
             if adapter:
                 suggestions[py_type] = (adapter, db_type)

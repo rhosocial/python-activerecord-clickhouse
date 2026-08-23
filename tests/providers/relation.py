@@ -30,89 +30,89 @@ from .scenarios import get_enabled_scenarios, get_scenario, get_scenario_raw
 
 EMPLOYEE_DEPARTMENT_SCHEMA = """
     CREATE TABLE IF NOT EXISTS departments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        description TEXT
-    );
+        id Int64,
+        name String NOT NULL,
+        description String
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS employees (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        username VARCHAR(255) NOT NULL,
-        department_id INT NOT NULL
-    );
-    DELETE FROM employees;
-    DELETE FROM departments;
+        id Int64,
+        username String NOT NULL,
+        department_id Int64 NOT NULL
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    TRUNCATE TABLE employees;
+    TRUNCATE TABLE departments;
 """
 
 AUTHOR_BOOK_SCHEMA = """
     CREATE TABLE IF NOT EXISTS authors (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL
-    );
+        id Int64,
+        name String NOT NULL
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS books (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        author_id INT NOT NULL
-    );
+        id Int64,
+        title String NOT NULL,
+        author_id Int64 NOT NULL
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS chapters (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        book_id INT NOT NULL
-    );
+        id Int64,
+        title String NOT NULL,
+        book_id Int64 NOT NULL
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS profiles (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        bio TEXT NOT NULL,
-        author_id INT NOT NULL
-    );
-    DELETE FROM chapters;
-    DELETE FROM books;
-    DELETE FROM profiles;
-    DELETE FROM authors;
+        id Int64,
+        bio String NOT NULL,
+        author_id Int64 NOT NULL
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    TRUNCATE TABLE chapters;
+    TRUNCATE TABLE books;
+    TRUNCATE TABLE profiles;
+    TRUNCATE TABLE authors;
 """
 
 USER_POST_COMMENT_SCHEMA = """
     CREATE TABLE IF NOT EXISTS users (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        email VARCHAR(255),
-        settings JSON
-    );
+        id Int64,
+        name String NOT NULL,
+        email String,
+        settings String
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS posts (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        body TEXT NOT NULL,
-        user_id INT NOT NULL,
-        view_count INT NOT NULL DEFAULT 0,
-        metadata JSON
-    );
+        id Int64,
+        title String NOT NULL,
+        body String NOT NULL,
+        user_id Int64 NOT NULL,
+        view_count Int32 NOT NULL DEFAULT 0,
+        metadata String
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS comments (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        body TEXT NOT NULL,
-        post_id INT NOT NULL,
-        meta JSON
-    );
-    DELETE FROM comments;
-    DELETE FROM posts;
-    DELETE FROM users;
+        id Int64,
+        body String NOT NULL,
+        post_id Int64 NOT NULL,
+        meta String
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    TRUNCATE TABLE comments;
+    TRUNCATE TABLE posts;
+    TRUNCATE TABLE users;
 """
 
 RELATION_BOUNDARY_SCHEMA = """
     CREATE TABLE IF NOT EXISTS relation_boundary_owners (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL
-    );
+        id Int64,
+        name String NOT NULL
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS relation_boundary_profiles (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        bio TEXT NOT NULL,
-        owner_id INT NULL
-    );
+        id Int64,
+        bio String NOT NULL,
+        owner_id Nullable(Int64)
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
     CREATE TABLE IF NOT EXISTS relation_boundary_posts (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        title VARCHAR(255) NOT NULL,
-        owner_id INT NULL
-    );
-    DELETE FROM relation_boundary_posts;
-    DELETE FROM relation_boundary_profiles;
-    DELETE FROM relation_boundary_owners;
+        id Int64,
+        title String NOT NULL,
+        owner_id Nullable(Int64)
+    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    TRUNCATE TABLE relation_boundary_posts;
+    TRUNCATE TABLE relation_boundary_profiles;
+    TRUNCATE TABLE relation_boundary_owners;
 """
 
 
@@ -306,18 +306,11 @@ class RelationSyncProvider(RelationProviderBase, IRelationSyncProvider):
         for backend in self._active_backends:
             try:
                 if self._created_tables:
-                    backend.execute("SET FOREIGN_KEY_CHECKS = 0")
                     for table in list(self._created_tables):
                         try:
                             backend.execute(f"DROP TABLE IF EXISTS `{table}`")
                         except Exception:
                             pass
-                    backend.execute("SET FOREIGN_KEY_CHECKS = 1")
-            except Exception:
-                try:
-                    backend.execute("SET FOREIGN_KEY_CHECKS = 1")
-                except Exception:
-                    pass
             finally:
                 try:
                     backend.disconnect()
@@ -334,6 +327,10 @@ class RelationAsyncProvider(RelationProviderBase, IRelationAsyncProvider):
         self._active_async_backends = []
         self._async_user_post_comment_setup = False
         self._async_relation_boundary_setup = False
+
+    def get_test_scenarios(self) -> List[str]:
+        # clickhouse-connect is a synchronous-only library; async is unsupported.
+        return []
 
     async def _execute_script_async(self, backend, sql: str):
         for statement in sql.split(";"):
@@ -493,20 +490,12 @@ class RelationAsyncProvider(RelationProviderBase, IRelationAsyncProvider):
     async def cleanup_after_test(self, scenario_name: str):
         for backend in self._active_async_backends:
             try:
-                try:
-                    if self._created_tables:
-                        await backend.execute("SET FOREIGN_KEY_CHECKS = 0")
-                        for table in list(self._created_tables):
-                            try:
-                                await backend.execute(f"DROP TABLE IF EXISTS `{table}`")
-                            except Exception:
-                                pass
-                        await backend.execute("SET FOREIGN_KEY_CHECKS = 1")
-                except Exception:
-                    try:
-                        await backend.execute("SET FOREIGN_KEY_CHECKS = 1")
-                    except Exception:
-                        pass
+                if self._created_tables:
+                    for table in list(self._created_tables):
+                        try:
+                            await backend.execute(f"DROP TABLE IF EXISTS `{table}`")
+                        except Exception:
+                            pass
             finally:
                 try:
                     await backend.disconnect()

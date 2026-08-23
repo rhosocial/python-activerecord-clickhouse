@@ -2,6 +2,12 @@
 """DDL expressions for the ``feature/mixins`` table group (ClickHouse).
 
 Reference: ``tests/rhosocial/activerecord_clickhouse_test/feature/mixins/schema/``.
+
+ClickHouse-specific notes:
+- Primary keys are plain ``Int64`` columns; ids are generated client-side by
+  the backend (snowflake), so no ``AUTO_INCREMENT`` is emitted.
+- Tables use ``ENGINE = MergeTree`` with ``ORDER BY id`` and the lightweight
+  update/delete settings required by modern ClickHouse.
 """
 
 from typing import Callable, Dict
@@ -15,21 +21,22 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
 )
 from rhosocial.activerecord.backend.expression.types import (
+    BigIntType,
     BooleanType,
     DateTimeType,
     DecimalType,
     IntegerType,
     TextType,
-    TinyIntType,
     VarCharType,
 )
 
 from . import _common
 
+# Standard ClickHouse table options.
 _DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "InnoDB",
-    "DEFAULT CHARSET": "utf8mb4",
-    "COLLATE": "utf8mb4_unicode_ci",
+    "ENGINE": "MergeTree",
+    "ORDER BY": "id",
+    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
 }
 
 
@@ -47,8 +54,8 @@ def create_combined_articles_table(dialect, table_name: str = "combined_articles
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("title", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("content", TextType(),
@@ -78,8 +85,8 @@ def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableExpress
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("title", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("is_completed", BooleanType(),
@@ -102,8 +109,8 @@ def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("title", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("content", TextType(),
@@ -125,8 +132,8 @@ def create_versioned_products_table(dialect, table_name: str = "versioned_produc
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("price", DecimalType(precision=10, scale=2),

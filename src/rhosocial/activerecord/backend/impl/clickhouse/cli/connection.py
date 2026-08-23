@@ -125,18 +125,18 @@ def resolve_connection_config_from_args(args):
             return resolver.resolve(conn_params)
         return resolver.resolve({})
 
-    # Fallback to explicit connection parameters
-    # SSL parameter mapping (simplified for CLI unification)
+    # Fallback to explicit connection parameters.
+    # The core config has no ``ssl_disabled`` field: ClickHouse's HTTP
+    # interface is plain unless explicit certificate options are provided,
+    # so the simplified CLI ``--ssl disabled`` flag simply means defaults.
     ssl_param = getattr(args, "ssl", None)
-    ssl_disabled = True if ssl_param == "disabled" else False
 
     return ClickHouseConnectionConfig(
         host=args.host or "localhost",
-        port=args.port or 3306,
+        port=args.port or 8123,
         database=args.database,
         username=args.user,
         password=args.password,
-        ssl_disabled=ssl_disabled,
     )
 
 

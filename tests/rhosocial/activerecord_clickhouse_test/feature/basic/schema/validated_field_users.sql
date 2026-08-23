@@ -1,13 +1,14 @@
--- tests/rhosocial/activerecord_mysql_test/feature/basic/schema/validated_field_users.sql
--- MySQL version of the validated_field_users table schema
-
-CREATE TABLE `validated_field_users` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `username` VARCHAR(255) NOT NULL,
-    `email` VARCHAR(255) NOT NULL,
-    `age` INT,
-    `balance` DECIMAL(10,2),
-    `credit_score` INT NOT NULL,
-    `status` ENUM('active', 'inactive', 'banned', 'pending', 'suspended') NOT NULL DEFAULT 'active',
-    `is_active` TINYINT NOT NULL DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for basic/validated_field_users table
+-- status is an Enum8 with explicit values
+CREATE TABLE IF NOT EXISTS validated_field_users (
+    id Int64,
+    username String,
+    email String,
+    age Int64,
+    balance Decimal(10, 2),
+    credit_score Int64,
+    status Enum8('active' = 1, 'inactive' = 2, 'banned' = 3, 'pending' = 4, 'suspended' = 5) DEFAULT 'active',
+    is_active Bool DEFAULT true
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

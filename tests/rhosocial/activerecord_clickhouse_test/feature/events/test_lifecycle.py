@@ -15,7 +15,9 @@ ensuring ClickHouse backend compatibility.
 # in some IDEs. These fixtures are defined in the testsuite package and are
 # parameterized to run against the scenarios defined in `providers/scenarios.py`.
 
-# Import shared tests from testsuite package
+# Import shared tests from testsuite package (sync only — clickhouse-connect
+# is a synchronous-only library, so async tests are skipped by the conftest).
+# DO NOT import test_lifecycle_async: its module-level async coroutines have
+# the same names as the sync functions and would override them.
 from rhosocial.activerecord.testsuite.feature.events.test_lifecycle import *  # noqa: F403
-from rhosocial.activerecord.testsuite.feature.events.test_lifecycle_async import *  # noqa: F403
 

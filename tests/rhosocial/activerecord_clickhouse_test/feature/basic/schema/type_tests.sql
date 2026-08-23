@@ -1,14 +1,15 @@
--- tests/rhosocial/activerecord_mysql_test/feature/basic/schema/type_tests.sql
--- MySQL version of the type_tests table schema
-
-CREATE TABLE `type_tests` (
-    `id` CHAR(36) NOT NULL PRIMARY KEY,
-    `string_field` VARCHAR(255) NOT NULL DEFAULT 'test string',
-    `int_field` INT NOT NULL DEFAULT 42,
-    `float_field` FLOAT NOT NULL DEFAULT 3.14,
-    `decimal_field` DOUBLE NOT NULL DEFAULT 10.99,
-    `bool_field` TINYINT NOT NULL DEFAULT 1,
-    `datetime_field` TEXT NOT NULL,
-    `json_field` JSON,
-    `nullable_field` VARCHAR(255)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for basic/type_tests table
+-- id is a UUID string; json_field stored as String
+CREATE TABLE IF NOT EXISTS type_tests (
+    id String,
+    string_field String DEFAULT 'test string',
+    int_field Int64 DEFAULT 42,
+    float_field Float32 DEFAULT 3.14,
+    decimal_field Float64 DEFAULT 10.99,
+    bool_field Bool DEFAULT true,
+    datetime_field String,
+    json_field String,
+    nullable_field Nullable(String)
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

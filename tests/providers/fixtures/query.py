@@ -6,6 +6,13 @@ is semantically equivalent to the reference ``.sql`` schema files under
 ``tests/rhosocial/activerecord_clickhouse_test/feature/query/schema/``.  Those
 ``.sql`` files are kept as the authoritative reference and are no longer
 loaded at runtime.
+
+ClickHouse-specific notes:
+- Primary keys and FK reference columns are ``Int64`` (snowflake ids are
+  generated client-side by the backend; no ``AUTO_INCREMENT`` is emitted).
+- ``UNIQUE`` and ``FOREIGN KEY`` constraints are not supported and are dropped.
+- Tables use ``ENGINE = MergeTree`` with ``ORDER BY id`` and the lightweight
+  update/delete settings required by modern ClickHouse.
 """
 
 from typing import Callable, Dict
@@ -22,6 +29,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ReferentialAction,
 )
 from rhosocial.activerecord.backend.expression.types import (
+    BigIntType,
     BooleanType,
     DateTimeType,
     DecimalType,
@@ -32,12 +40,17 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 
+from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+    ClickHouseNullableType,
+)
+
 from . import _common
 
+# Standard ClickHouse table options.
 _DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "InnoDB",
-    "DEFAULT CHARSET": "utf8mb4",
-    "COLLATE": "utf8mb4_unicode_ci",
+    "ENGINE": "MergeTree",
+    "ORDER BY": "id",
+    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
 }
 
 _CASCADE = ReferentialAction.CASCADE
@@ -57,15 +70,15 @@ def create_users_table(dialect, table_name: str = "users") -> CreateTableExpress
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("username", VarCharType(191),
-                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(ColumnConstraintType.UNIQUE)]),
+                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("email", VarCharType(191),
-                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(ColumnConstraintType.UNIQUE)]),
-            ColumnDefinition("age", IntegerType()),
+                constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
+            # Optional[T] model fields must map to Nullable columns so that None
+            # is stored/returned as SQL NULL instead of ClickHouse's zero value.
+            ColumnDefinition("age", ClickHouseNullableType(IntegerType())),
             ColumnDefinition("balance", DoubleType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=0.0)]),
@@ -89,9 +102,9 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableExpress
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("user_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("user_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("title", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -102,14 +115,8 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableExpress
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
-        indexes=[
-            IndexDefinition(name="idx_user_id", columns=["user_id"]),
-            IndexDefinition(name="idx_status", columns=["status"]),
-        ],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["user_id"], foreign_key_table="users", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
+        indexes=[IndexDefinition(name="idx_user_id", columns=["user_id"]),
+                 IndexDefinition(name="idx_status", columns=["status"])],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
@@ -124,11 +131,11 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableE
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("user_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("user_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("post_id", IntegerType(),
+            ColumnDefinition("post_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("content", TextType()),
             ColumnDefinition("is_hidden", BooleanType(),
@@ -136,16 +143,8 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableE
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
-        indexes=[
-            IndexDefinition(name="idx_user_id", columns=["user_id"]),
-            IndexDefinition(name="idx_post_id", columns=["post_id"]),
-        ],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["user_id"], foreign_key_table="users", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-            ForeignKeyConstraint(columns=["post_id"], foreign_key_table="posts", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
+        indexes=[IndexDefinition(name="idx_user_id", columns=["user_id"]),
+                 IndexDefinition(name="idx_post_id", columns=["post_id"])],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
@@ -160,9 +159,9 @@ def create_orders_table(dialect, table_name: str = "orders") -> CreateTableExpre
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("user_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("user_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("order_number", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -176,9 +175,6 @@ def create_orders_table(dialect, table_name: str = "orders") -> CreateTableExpre
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
         indexes=[IndexDefinition(name="idx_user_id", columns=["user_id"])],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["user_id"], foreign_key_table="users", foreign_key_columns=["id"]),
-        ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
@@ -193,9 +189,9 @@ def create_order_items_table(dialect, table_name: str = "order_items") -> Create
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("order_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("order_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("product_name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -211,10 +207,6 @@ def create_order_items_table(dialect, table_name: str = "order_items") -> Create
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
         indexes=[IndexDefinition(name="idx_order_id", columns=["order_id"])],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["order_id"], foreign_key_table="orders", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
@@ -229,17 +221,14 @@ def create_profiles_table(dialect, table_name: str = "profiles") -> CreateTableE
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("user_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("user_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("bio", TextType()),
             ColumnDefinition("avatar_url", VarCharType(512)),
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
-        ],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["user_id"], foreign_key_table="users", foreign_key_columns=["id"]),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -255,13 +244,13 @@ def create_json_users_table(dialect, table_name: str = "json_users") -> CreateTa
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("username", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("email", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("age", IntegerType()),
+            ColumnDefinition("age", ClickHouseNullableType(IntegerType())),
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
             ColumnDefinition("settings", JsonType()),
@@ -286,11 +275,11 @@ def create_nodes_table(dialect, table_name: str = "nodes") -> CreateTableExpress
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("parent_id", IntegerType(),
+            ColumnDefinition("parent_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NULL)]),
             ColumnDefinition("value", DecimalType(precision=10, scale=2),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
@@ -298,17 +287,12 @@ def create_nodes_table(dialect, table_name: str = "nodes") -> CreateTableExpress
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
-        indexes=[IndexDefinition(name="idx_parent_id", columns=["parent_id"])],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["parent_id"], foreign_key_table="nodes", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
 
 # ---------------------------------------------------------------------------
-# query/searchable_items.sql (no CHARSET/COLLATE in reference file)
+# query/searchable_items.sql
 # ---------------------------------------------------------------------------
 
 def create_searchable_items_table(dialect, table_name: str = "searchable_items") -> CreateTableExpression:
@@ -317,14 +301,14 @@ def create_searchable_items_table(dialect, table_name: str = "searchable_items")
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition("name", VarCharType(255)),
             ColumnDefinition("tags", TextType()),
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
-        storage_options={"ENGINE": "InnoDB"},
+        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
 
@@ -338,9 +322,9 @@ def create_extended_orders_table(dialect, table_name: str = "extended_orders") -
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("user_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("user_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("order_number", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -364,16 +348,10 @@ def create_extended_orders_table(dialect, table_name: str = "extended_orders") -
             ColumnDefinition("created_at", DateTimeType(precision=6)),
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
-        indexes=[
-            IndexDefinition(name="idx_user_id", columns=["user_id"]),
-            IndexDefinition(name="idx_status", columns=["status"]),
-            IndexDefinition(name="idx_priority", columns=["priority"]),
-            IndexDefinition(name="idx_region", columns=["region"]),
-        ],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["user_id"], foreign_key_table="users", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
+        indexes=[IndexDefinition(name="idx_user_id", columns=["user_id"]),
+                 IndexDefinition(name="idx_status", columns=["status"]),
+                 IndexDefinition(name="idx_priority", columns=["priority"]),
+                 IndexDefinition(name="idx_region", columns=["region"])],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 
@@ -388,9 +366,9 @@ def create_extended_order_items_table(dialect, table_name: str = "extended_order
         table=table_name,
         if_not_exists=False,
         columns=[
-            ColumnDefinition("id", IntegerType(),
-                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)]),
-            ColumnDefinition("order_id", IntegerType(),
+            ColumnDefinition("id", BigIntType(),
+                constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
+            ColumnDefinition("order_id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("product_name", VarCharType(255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
@@ -405,10 +383,6 @@ def create_extended_order_items_table(dialect, table_name: str = "extended_order
             ColumnDefinition("updated_at", DateTimeType(precision=6)),
         ],
         indexes=[IndexDefinition(name="idx_order_id", columns=["order_id"])],
-        table_constraints=[
-            ForeignKeyConstraint(columns=["order_id"], foreign_key_table="extended_orders", foreign_key_columns=["id"],
-                on_delete=_CASCADE),
-        ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
 

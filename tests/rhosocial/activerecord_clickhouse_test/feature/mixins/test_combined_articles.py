@@ -8,5 +8,4 @@ ensuring ClickHouse backend compatibility.
 
 # Import shared tests from testsuite package
 from rhosocial.activerecord.testsuite.feature.mixins.test_combined_articles import *  # noqa: F403
-from rhosocial.activerecord.testsuite.feature.mixins.test_combined_articles_async import *  # noqa: F403
 

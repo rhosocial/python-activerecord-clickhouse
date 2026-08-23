@@ -59,10 +59,10 @@ class QueryConnectionProvider(IQueryConnectionProvider):
         backend.execute(
             """
             CREATE TABLE test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL
-            )
+                id Int64,
+                name String NOT NULL,
+                email String NOT NULL
+            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """,
             options=ExecutionOptions(stmt_type=StatementType.DDL),
         )
@@ -79,10 +79,10 @@ class QueryConnectionProvider(IQueryConnectionProvider):
         await backend.execute(
             """
             CREATE TABLE test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                name VARCHAR(255) NOT NULL,
-                email VARCHAR(255) NOT NULL
-            )
+                id Int64,
+                name String NOT NULL,
+                email String NOT NULL
+            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """,
             options=ExecutionOptions(stmt_type=StatementType.DDL),
         )

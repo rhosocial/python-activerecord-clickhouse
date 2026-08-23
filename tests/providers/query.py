@@ -169,26 +169,16 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
         if backend_instance not in self._active_backends:
             self._active_backends.append(backend_instance)
         options = ExecutionOptions(stmt_type=StatementType.DDL)
+        # ClickHouse has no FK constraints; just drop the old table.
         try:
-            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-            try:
-                drop_expr = DropTableExpression(
-                    dialect=backend_instance.dialect,
-                    table=TableExpression(backend_instance.dialect, table_name),
-                    if_exists=True,
-                )
-                backend_instance.execute(*drop_expr.to_sql(), options=options)
-            except Exception:
-                backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+            drop_expr = DropTableExpression(
+                dialect=backend_instance.dialect,
+                table=TableExpression(backend_instance.dialect, table_name),
+                if_exists=True,
+            )
+            backend_instance.execute(*drop_expr.to_sql(), options=options)
         except Exception:
-            try:
-                backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-            except Exception:
-                pass
-        try:
-            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-        except Exception:
-            pass
+            backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
         if fn := TABLE_EXPRESSIONS.get(table_name):
             create_expr = fn(backend_instance.dialect, table_name)
             create_sql, params = to_clickhouse_ddl_sql(create_expr)
@@ -227,19 +217,16 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         if backend_instance not in self._active_backends:
             self._active_backends.append(backend_instance)
+        # ClickHouse has no FK constraints; just drop the old table.
         try:
-            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-            try:
-                drop_expr = DropTableExpression(
-                    dialect=backend_instance.dialect,
-                    table=TableExpression(backend_instance.dialect, table_name),
-                    if_exists=True,
-                )
-                backend_instance.execute(*drop_expr.to_sql(), options=options)
-            except Exception:
-                backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
-        finally:
-            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+            drop_expr = DropTableExpression(
+                dialect=backend_instance.dialect,
+                table=TableExpression(backend_instance.dialect, table_name),
+                if_exists=True,
+            )
+            backend_instance.execute(*drop_expr.to_sql(), options=options)
+        except Exception:
+            backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
         if fn := TABLE_EXPRESSIONS.get(table_name):
             create_expr = fn(backend_instance.dialect, table_name)
             create_sql, params = to_clickhouse_ddl_sql(create_expr)
@@ -328,23 +315,16 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
         if backend_instance not in self._active_backends:
             self._active_backends.append(backend_instance)
         options = ExecutionOptions(stmt_type=StatementType.DDL)
+        # ClickHouse has no FK constraints; just drop the old table.
         try:
-            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-            try:
-                drop_expr = DropTableExpression(
-                    dialect=backend_instance.dialect,
-                    table=TableExpression(backend_instance.dialect, "order_items"),
-                    if_exists=True,
-                )
-                backend_instance.execute(*drop_expr.to_sql(), options=options)
-            except Exception:
-                backend_instance.execute("DROP TABLE IF EXISTS `order_items`")
+            drop_expr = DropTableExpression(
+                dialect=backend_instance.dialect,
+                table=TableExpression(backend_instance.dialect, "order_items"),
+                if_exists=True,
+            )
+            backend_instance.execute(*drop_expr.to_sql(), options=options)
         except Exception:
-            pass
-        try:
-            backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-        except Exception:
-            pass
+            backend_instance.execute("DROP TABLE IF EXISTS `order_items`")
         if fn := BASIC_EXPRS.get("order_items"):
             create_expr = fn(backend_instance.dialect, "order_items")
             create_sql, params = to_clickhouse_ddl_sql(create_expr)
@@ -354,7 +334,6 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
     def cleanup_after_test(self, scenario_name: str):
         for backend_instance in self._active_backends:
             try:
-                backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
                 for table_name in [
                     "users",
                     "orders",
@@ -372,12 +351,6 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
                         backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
                     except Exception:
                         pass
-                backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-            except Exception:
-                try:
-                    backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-                except Exception:
-                    pass
             finally:
                 try:
                     backend_instance.disconnect()
@@ -454,6 +427,10 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         super().__init__()
         self._active_async_backends = []
 
+    def get_test_scenarios(self) -> List[str]:
+        # clickhouse-connect is a synchronous-only library; async is unsupported.
+        return []
+
     async def _setup_model_async(
         self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str, shared_backend=None
     ) -> Type[ActiveRecord]:
@@ -475,19 +452,16 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         if backend_instance not in self._active_async_backends:
             self._active_async_backends.append(backend_instance)
         options = ExecutionOptions(stmt_type=StatementType.DDL)
+        # ClickHouse has no FK constraints; just drop the old table.
         try:
-            await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-            try:
-                drop_expr = DropTableExpression(
-                    dialect=backend_instance.dialect,
-                    table=TableExpression(backend_instance.dialect, table_name),
-                    if_exists=True,
-                )
-                await backend_instance.execute(*drop_expr.to_sql(), options=options)
-            except Exception:
-                await backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
-        finally:
-            await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
+            drop_expr = DropTableExpression(
+                dialect=backend_instance.dialect,
+                table=TableExpression(backend_instance.dialect, table_name),
+                if_exists=True,
+            )
+            await backend_instance.execute(*drop_expr.to_sql(), options=options)
+        except Exception:
+            await backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
         if fn := TABLE_EXPRESSIONS.get(table_name):
             create_expr = fn(backend_instance.dialect, table_name)
             create_sql, params = to_clickhouse_ddl_sql(create_expr)
@@ -640,23 +614,16 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         if backend_instance not in self._active_async_backends:
             self._active_async_backends.append(backend_instance)
         options = ExecutionOptions(stmt_type=StatementType.DDL)
+        # ClickHouse has no FK constraints; just drop the old table.
         try:
-            await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
-            try:
-                drop_expr = DropTableExpression(
-                    dialect=backend_instance.dialect,
-                    table=TableExpression(backend_instance.dialect, "order_items"),
-                    if_exists=True,
-                )
-                await backend_instance.execute(*drop_expr.to_sql(), options=options)
-            except Exception:
-                await backend_instance.execute("DROP TABLE IF EXISTS `order_items`")
+            drop_expr = DropTableExpression(
+                dialect=backend_instance.dialect,
+                table=TableExpression(backend_instance.dialect, "order_items"),
+                if_exists=True,
+            )
+            await backend_instance.execute(*drop_expr.to_sql(), options=options)
         except Exception:
-            pass
-        try:
-            await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-        except Exception:
-            pass
+            await backend_instance.execute("DROP TABLE IF EXISTS `order_items`")
         if fn := BASIC_EXPRS.get("order_items"):
             create_expr = fn(backend_instance.dialect, "order_items")
             create_sql, params = to_clickhouse_ddl_sql(create_expr)
@@ -667,7 +634,6 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         from rhosocial.activerecord.backend.impl.clickhouse import AsyncClickHouseBackend
         for backend_instance in self._active_async_backends:
             try:
-                await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 0")
                 for table_name in [
                     "users",
                     "orders",
@@ -685,12 +651,6 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
                         await backend_instance.execute(f"DROP TABLE IF EXISTS `{table_name}`")
                     except Exception:
                         pass
-                await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-            except Exception:
-                try:
-                    await backend_instance.execute("SET FOREIGN_KEY_CHECKS = 1")
-                except Exception:
-                    pass
             finally:
                 try:
                     await backend_instance.disconnect()

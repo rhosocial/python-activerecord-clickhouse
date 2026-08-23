@@ -35,7 +35,14 @@ from rhosocial.activerecord.backend.errors import (
     IntegrityError,
     QueryError,
 )
-from rhosocial.activerecord.backend.options import ExecutionOptions
+from rhosocial.activerecord.backend.options import (
+    BulkInsertOptions,
+    BulkUpdateOptions,
+    DeleteOptions,
+    ExecutionOptions,
+    InsertOptions,
+    UpdateOptions,
+)
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
@@ -43,6 +50,7 @@ from .config import ClickHouseConnectionConfig
 from .dialect import ClickHouseDialect
 from .transaction import ClickHouseTransactionManager
 from .mixins import ClickHouseBackendMixin, ClickHouseConcurrencyMixin
+from .id_generator import generate_id, generate_id_sequence
 
 
 class ClickHouseBackend(
@@ -145,6 +153,177 @@ class ClickHouseBackend(
             self._dialect = ClickHouseDialect(actual_version)
             self._register_clickhouse_adapters()
             self.log(logging.INFO, f"Adapted to ClickHouse server version {actual_version}")
+
+    def insert(self, options: InsertOptions) -> QueryResult:
+        """Insert a record, generating an integer primary key if needed.
+
+        ClickHouse has no ``AUTO_INCREMENT`` and no ``INSERT ... RETURNING``,
+        so when the model relies on an auto-generated integer primary key
+        (``__pk_auto_generated__``), the backend generates a snowflake-style
+        ID in the client, includes it in the INSERT, and reports it through
+        ``QueryResult.last_insert_id`` for the model layer to assign back.
+        """
+        pk = options.primary_key
+        generated_id = None
+        if pk and not isinstance(pk, tuple):
+            col = pk
+            if options.data.get(col) is None:
+                generated_id = generate_id()
+                options.data = {**options.data, col: generated_id}
+
+        result = super().insert(options)
+
+        if generated_id is not None:
+            result.last_insert_id = generated_id
+        if result.affected_rows == 0:
+            result.affected_rows = 1
+        return result
+
+    def bulk_insert(self, options: BulkInsertOptions) -> QueryResult:
+        """Bulk-insert rows, generating consecutive integer primary keys if needed.
+
+        ClickHouse has no ``AUTO_INCREMENT`` and no ``INSERT ... RETURNING``, so
+        when the model relies on auto-generated integer primary keys, the backend
+        generates consecutive snowflake-style IDs in the client, injects them as a
+        new leading column, and reports the first ID through
+        ``QueryResult.last_insert_id`` so the model layer can assign ids as
+        ``last_insert_id + j``.
+        """
+        pk = options.primary_key
+        generated_ids = None
+        if pk and not isinstance(pk, tuple) and pk not in options.columns:
+            count = len(options.rows)
+            generated_ids = generate_id_sequence(count)
+            new_columns = [pk] + list(options.columns)
+            new_rows = [[gid] + list(row) for gid, row in zip(generated_ids, options.rows)]
+            options = BulkInsertOptions(
+                table=options.table,
+                schema_name=options.schema_name,
+                columns=new_columns,
+                rows=new_rows,
+                column_adapters=options.column_adapters,
+                column_mapping=options.column_mapping,
+                returning_columns=options.returning_columns,
+                auto_commit=options.auto_commit,
+                primary_key=options.primary_key,
+            )
+
+        result = super().bulk_insert(options)
+
+        if generated_ids:
+            result.last_insert_id = generated_ids[0]
+        if result.affected_rows == 0 and options.rows:
+            result.affected_rows = len(options.rows)
+        return result
+
+    def update(self, options: UpdateOptions) -> QueryResult:
+        """Update records, stripping primary key columns from SET clause.
+
+        ClickHouse refuses to UPDATE a column that is part of the table's
+        ``ORDER BY`` (sorting key).  Some model mixins (e.g. ``UUIDMixin``)
+        re-inject the primary key into the update data, which would fail.
+        We drop any primary-key column from the SET assignments before
+        executing the UPDATE.
+        """
+        pk = options.primary_key
+        if pk:
+            pk_cols = (pk,) if isinstance(pk, str) else pk
+            stripped = {k: v for k, v in options.data.items() if k not in pk_cols}
+            if len(stripped) != len(options.data):
+                options = UpdateOptions(
+                    table=options.table,
+                    schema_name=options.schema_name,
+                    data=stripped,
+                    where=options.where,
+                    column_adapters=options.column_adapters,
+                    column_mapping=options.column_mapping,
+                    returning_columns=options.returning_columns,
+                    auto_commit=options.auto_commit,
+                    primary_key=options.primary_key,
+                )
+        # ClickHouse cannot report how many rows a mutation affected, so capture
+        # the matching-row count BEFORE running the mutation (the WHERE columns
+        # may be modified by the UPDATE itself).
+        expected = self._count_predicate_rows(options.table, options.schema_name, options.where) if options.where else 0
+        result = super().update(options)
+        if expected >= 0 and options.where is not None:
+            result.affected_rows = expected
+        return result
+
+    def delete(self, options: DeleteOptions) -> QueryResult:
+        """Delete records, recalculating the affected-row count.
+
+        ClickHouse DELETE is an asynchronous mutation whose reported
+        ``rowcount`` is always 0/1, so the real number of deleted rows is
+        derived from a pre-count on the same WHERE predicate.
+        """
+        expected = self._count_predicate_rows(options.table, options.schema_name, options.where) if options.where else 0
+        result = super().delete(options)
+        if options.where is not None:
+            result.affected_rows = expected
+        return result
+
+    def bulk_update(self, options: BulkUpdateOptions) -> QueryResult:
+        """Bulk-update via a single UPDATE, recalculating the affected-row count.
+
+        ClickHouse mutations report ``rowcount=1`` no matter how many rows were
+        touched, so we count the rows matched by the ``IN (pk, ...)`` predicate
+        and use that value as the affected-row count.
+        """
+        expected = 0
+        if options.pk_values:
+            from rhosocial.activerecord.backend.expression import Column
+            from rhosocial.activerecord.backend.expression.core import Literal
+            from rhosocial.activerecord.backend.expression.predicates import InPredicate
+
+            pk_col = Column(self.dialect, options.pk_column)
+            pk_literals = Literal(self.dialect, options.pk_values)
+            predicate = InPredicate(self.dialect, pk_col, pk_literals)
+            expected = self._count_predicate_rows(options.table, options.schema_name, predicate)
+        result = super().bulk_update(options)
+        if options.pk_values:
+            result.affected_rows = expected
+        return result
+
+    def _count_predicate_rows(self, table: str, schema_name: Optional[str], where) -> int:
+        """Count rows matched by a WHERE predicate without running a mutation.
+
+        ClickHouse cannot report how many rows an UPDATE/DELETE mutation
+        affected, so we translate the same predicate into a ``SELECT count()``
+        and use its result as the affected-row count.
+        """
+        if where is None:
+            return 0
+        table_sql, _ = self.dialect.format_table(table, schema_name=schema_name)
+        if hasattr(where, "to_sql"):
+            where_sql, where_params = where.to_sql()
+            if where_sql.lstrip().upper().startswith("WHERE"):
+                where_sql = where_sql.lstrip()[len("WHERE"):]
+        else:
+            where_sql, where_params = str(where), ()
+        count_sql = f"SELECT count() FROM {table_sql} WHERE {where_sql}"
+        result = self.execute(count_sql, where_params)
+        if result.data and result.data[0]:
+            return int(next(iter(result.data[0].values())))
+        return 0
+
+    def _execute_query(self, cursor, sql: str, params: Optional[Tuple]):
+        """Execute a query with ClickHouse compatibility settings.
+
+        - ``mutations_sync=1``: UPDATE/DELETE are asynchronous mutations by
+          default; the ``rowcount`` is meaningless and subsequent reads may
+          not observe the change. This makes each statement block until the
+          mutation is applied.
+        - ``joined_subquery_requires_alias=0``: ClickHouse requires JOINed
+          subqueries to have aliases, which the generic query builder does
+          not emit (e.g. when a join chain is wrapped as a subquery).
+        """
+        settings = {"mutations_sync": 1, "joined_subquery_requires_alias": 0}
+        if params:
+            cursor.execute(sql, params, settings=settings)
+        else:
+            cursor.execute(sql, settings=settings)
+        return cursor
 
     def connect(self) -> None:
         """Establish connection to ClickHouse database.

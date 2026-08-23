@@ -1,10 +1,10 @@
--- tests/rhosocial/activerecord_mysql_test/feature/query/schema/searchable_items.sql
-
-CREATE TABLE `searchable_items` (
-    `id` INT NOT NULL AUTO_INCREMENT,
-    `name` VARCHAR(255),
-    `tags` TEXT,
-    `created_at` DATETIME(6),
-    `updated_at` DATETIME(6),
-    PRIMARY KEY (`id`)
-) ENGINE=InnoDB;
+-- ClickHouse schema for query/searchable_items table
+CREATE TABLE IF NOT EXISTS searchable_items (
+    id Int64,
+    name String,
+    tags String,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

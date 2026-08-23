@@ -70,9 +70,11 @@ class TestQuery:
         assert json.loads(out) == [{"one": 1}]
 
     def test_query_async(self, conn_args):
+        # clickhouse-connect is a synchronous-only library, so the ClickHouse
+        # backend has no async implementation; the CLI fast-fails with a
+        # friendly message instead of running an async query.
         out, _, exc = run_cli(["query"] + conn_args + ["SELECT 1 AS one", "-o", "json", "--async"])
-        assert exc is None
-        assert json.loads(out) == [{"one": 1}]
+        assert exc is not None
 
 
 class TestInfoStatus:

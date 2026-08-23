@@ -2,8 +2,9 @@
 """
 ClickHouse transaction behavior tests.
 
-ClickHouse does not support ACID transactions, so all transaction operations
-must fail fast. These tests verify the fast-fail behavior.
+ClickHouse does not support ACID transactions. The ``transaction()`` context
+manager degrades to a no-op so that generic operations (e.g. ``bulk_create``)
+work, but ``begin()`` / ``commit()`` / ``rollback()`` still fail fast.
 """
 
 import pytest
@@ -29,11 +30,12 @@ class TestClickHouseTransactionsUnsupported:
         yield "test_tx_unsupported"
         backend.execute("DROP TABLE IF EXISTS test_tx_unsupported")
 
-    def test_transaction_context_manager_fails(self, clickhouse_backend, test_table):
-        """Entering a transaction context manager must raise."""
-        with pytest.raises(TransactionError):
-            with clickhouse_backend.transaction():
-                pass
+    def test_transaction_context_manager_is_noop(self, clickhouse_backend, test_table):
+        """The context manager degrades to a no-op (no exception)."""
+        # The context manager silently succeeds to keep generic operations
+        # (e.g. bulk_create) working.
+        with clickhouse_backend.transaction():
+            pass
 
     def test_begin_transaction_fails(self, clickhouse_backend):
         """Calling transaction_manager.begin() must fail."""

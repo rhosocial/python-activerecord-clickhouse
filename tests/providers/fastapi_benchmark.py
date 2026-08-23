@@ -189,16 +189,16 @@ class FastAPIBenchmarkProvider:
     def _schema_sql(self):
         return """
 CREATE TABLE benchmark_users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    username VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL,
-    age INT,
-    balance DOUBLE NOT NULL DEFAULT 0.0,
-    notes TEXT,
-    is_active BOOLEAN NOT NULL DEFAULT TRUE,
-    created_at DATETIME,
-    updated_at DATETIME
-)
+    id Int64,
+    username String NOT NULL,
+    email String NOT NULL,
+    age Int32,
+    balance Float64 NOT NULL DEFAULT 0.0,
+    notes String,
+    is_active Bool NOT NULL DEFAULT 1,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
 """
 
     async def _cleanup_async(self):
@@ -229,8 +229,4 @@ CREATE TABLE benchmark_users (
         self._active_async_backends.clear()
 
     async def _drop_benchmark_table(self, backend, options):
-        await backend.execute("SET FOREIGN_KEY_CHECKS = 0", options=options)
-        try:
-            await backend.execute("DROP TABLE IF EXISTS `benchmark_users`", options=options)
-        finally:
-            await backend.execute("SET FOREIGN_KEY_CHECKS = 1", options=options)
+        await backend.execute("DROP TABLE IF EXISTS `benchmark_users`", options=options)

@@ -95,3 +95,31 @@ def pytest_addoption(parser):
         )
     except ValueError:
         pass
+
+
+def pytest_collection_modifyitems(config, items):
+    """Skip tests that depend on transaction semantics (unsupported in ClickHouse).
+
+    ClickHouse does not support ACID transactions.  The ``transaction()``
+    context manager degrades to a no-op, but tests that assert rollback /
+    savepoint / isolation semantics are inapplicable and are skipped.
+
+    ClickHouse-specific backend transaction tests (``feature/backend/``) are
+    excluded because they verify the explicit fast-fail behavior.
+
+    Async tests from the generic testsuite are also skipped because
+    ``clickhouse-connect`` is a synchronous-only library.
+    """
+    skip_transaction = pytest.mark.skip(reason="ClickHouse does not support ACID transactions")
+    skip_async = pytest.mark.skip(reason="clickhouse-connect is sync-only; async unsupported")
+    for item in items:
+        nodeid = item.nodeid.lower()
+        is_backend = "/feature/backend/" in nodeid
+        # Skip only generic testsuite transaction tests, not the backend's own
+        if not is_backend:
+            if any(kw in nodeid for kw in ("transaction", "savepoint", "rollback")):
+                item.add_marker(skip_transaction)
+            # Skip async testsuite tests (class names containing "async")
+            cls = getattr(item, "cls", None)
+            if cls and "async" in cls.__name__.lower():
+                item.add_marker(skip_async)

@@ -216,9 +216,22 @@ class ClickHouseStatusIntrospectorMixin:
         binary_log: Optional[BinaryLogInfo] = None,
         processes: Optional[List[ProcessInfo]] = None,
         slow_query: Optional[SlowQueryInfo] = None,
-        clickhouse_replication: Optional[ClickHouseReplicationInfo] = None,
     ) -> ServerOverview:
-        """Build ServerOverview from collected data."""
+        """Build ServerOverview from collected data.
+
+        ClickHouse-specific replication details are exposed through
+        ``system.replicas`` in ``extra`` rather than a dedicated dataclass.
+        """
+        replication_summary = None
+        try:
+            result = self._backend.execute(
+                "SELECT database, table, is_leader, is_readonly, total_replicas "
+                "FROM system.replicas LIMIT 20"
+            )
+            replication_summary = result.data
+        except Exception:
+            pass
+
         return ServerOverview(
             server_version=version,
             server_vendor=self._get_vendor_name(),
@@ -233,7 +246,7 @@ class ClickHouseStatusIntrospectorMixin:
             binary_log=binary_log,
             processes=processes or [],
             slow_query=slow_query,
-            clickhouse_replication=clickhouse_replication,
+            extra={"replicas": replication_summary} if replication_summary else {},
         )
 
 
@@ -255,7 +268,11 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         self._show = backend.introspector.show
 
     def get_overview(self) -> ServerOverview:
-        """Get complete ClickHouse status overview."""
+        """Get complete ClickHouse status overview.
+
+        MySQL-specific sections (InnoDB, binary log, slow queries) are not
+        applicable to ClickHouse and degrade to ``None`` instead of failing.
+        """
         configuration = self.list_configuration()
         performance = self.list_performance_metrics()
         connections = self.get_connection_info()
@@ -263,11 +280,7 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         databases = self.list_databases()
         users = self.list_users()
         session = self.get_session_info()
-        innodb = self.get_innodb_info()
-        binary_log = self.get_binary_log_info()
         processes = self.list_processes()
-        slow_query = self.get_slow_query_info()
-        clickhouse_replication = self.get_clickhouse_replication_info()
 
         version = self._get_version_string()
 
@@ -280,32 +293,36 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
             users=users,
             version=version,
             session=session,
-            innodb=innodb,
-            binary_log=binary_log,
+            innodb=None,
+            binary_log=None,
             processes=processes,
-            slow_query=slow_query,
-            clickhouse_replication=clickhouse_replication,
+            slow_query=None,
         )
 
     def _get_version_string(self) -> str:
         """Get ClickHouse version string."""
-        variables = self._show.variables(like="version")
-        if variables:
-            for var in variables:
-                if var.variable_name == "version":
-                    return str(var.value)
+        try:
+            result = self._backend.execute("SELECT version()")
+            if result.data and result.data[0]:
+                return str(next(iter(result.data[0].values())))
+        except Exception:
+            pass
         version_tuple = getattr(self._backend, "_version", (8, 0, 0))
         return ".".join(str(v) for v in version_tuple)
 
     def list_configuration(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
-        """List ClickHouse configuration parameters via SHOW VARIABLES."""
+        """List ClickHouse configuration parameters via ``system.settings``."""
         items = []
 
-        # Get all variables
-        all_vars = self._show.variables()
         var_dict = {}
-        for var in all_vars:
-            var_dict[var.variable_name] = var.value
+        try:
+            result = self._backend.execute(
+                "SELECT name, value, changed FROM system.settings"
+            )
+            for row in result.data or []:
+                var_dict[row.get("name")] = row.get("value")
+        except Exception:
+            return items
 
         # Build status items for known variables
         for var_name, var_category, description, unit, is_readonly in CLICKHOUSE_CONFIG_VARIABLES:
@@ -326,14 +343,18 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         return items
 
     def list_performance_metrics(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
-        """List ClickHouse performance metrics via SHOW STATUS."""
+        """List ClickHouse performance metrics via ``system.metrics``."""
         items = []
 
-        # Get all status variables
-        all_status = self._show.status()
         status_dict = {}
-        for stat in all_status:
-            status_dict[stat.variable_name] = stat.value
+        try:
+            result = self._backend.execute(
+                "SELECT metric, value FROM system.metrics"
+            )
+            for row in result.data or []:
+                status_dict[row.get("metric")] = row.get("value")
+        except Exception:
+            return items
 
         # Build status items for known status variables
         for var_name, var_category, description, unit in CLICKHOUSE_STATUS_VARIABLES:
@@ -353,40 +374,51 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         return items
 
     def get_connection_info(self) -> ConnectionInfo:
-        """Get connection information."""
-        all_status = self._show.status()
+        """Get connection information from ``system.metrics`` / ``system.settings``."""
         status_dict = {}
-        for stat in all_status:
-            status_dict[stat.variable_name] = stat.value
+        try:
+            result = self._backend.execute(
+                "SELECT metric, value FROM system.metrics "
+                "WHERE metric IN ('Connection', 'HTTPConnection', 'TCPConnection', 'InterserverConnection')"
+            )
+            for row in result.data or []:
+                status_dict[row.get("metric")] = row.get("value")
+        except Exception:
+            pass
 
-        all_vars = self._show.variables()
         var_dict = {}
-        for var in all_vars:
-            var_dict[var.variable_name] = var.value
+        try:
+            result = self._backend.execute(
+                "SELECT value FROM system.settings WHERE name = 'max_connections'"
+            )
+            if result.data:
+                var_dict["max_connections"] = next(iter(result.data[0].values()))
+        except Exception:
+            pass
+
+        active = sum(
+            self._parse_variable_value(v) or 0
+            for k, v in status_dict.items()
+            if "connection" in k.lower()
+        )
 
         return ConnectionInfo(
-            active_count=self._parse_variable_value(status_dict.get("Threads_connected")),
+            active_count=active or None,
             max_connections=self._parse_variable_value(var_dict.get("max_connections")),
-            idle_count=self._parse_variable_value(status_dict.get("Threads_cached")),
+            idle_count=None,
             extra={
-                "threads_running": self._parse_variable_value(status_dict.get("Threads_running")),
+                "http_connections": self._parse_variable_value(status_dict.get("HTTPConnection")),
+                "tcp_connections": self._parse_variable_value(status_dict.get("TCPConnection")),
             },
         )
 
     def get_storage_info(self) -> StorageInfo:
-        """Get storage information."""
-        all_vars = self._show.variables()
-        var_dict = {}
-        for var in all_vars:
-            var_dict[var.variable_name] = var.value
-
-        # Get database size from information_schema if available
+        """Get storage information from ``system.tables`` / ``system.disks``."""
         total_size = None
         try:
             result = self._backend.execute(
-                "SELECT SUM(data_length + index_length) as total_size "
-                "FROM information_schema.TABLES "
-                "WHERE table_schema = %s",
+                "SELECT sum(total_bytes) AS total_size FROM system.tables "
+                "WHERE database = %s",
                 (self._backend.config.database,),
             )
             if result and result.data:
@@ -394,11 +426,23 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         except Exception:
             pass
 
+        datadir = None
+        buffer_size = None
+        try:
+            result = self._backend.execute(
+                "SELECT path, free_space FROM system.disks WHERE name = 'default'"
+            )
+            if result.data:
+                datadir = result.data[0].get("path")
+                buffer_size = result.data[0].get("free_space")
+        except Exception:
+            pass
+
         return StorageInfo(
             total_size_bytes=self._parse_variable_value(total_size),
             extra={
-                "datadir": var_dict.get("datadir"),
-                "innodb_buffer_pool_size": self._parse_variable_value(var_dict.get("innodb_buffer_pool_size")),
+                "datadir": datadir,
+                "free_space": self._parse_variable_value(buffer_size),
             },
         )
 
@@ -470,41 +514,19 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
 
         # Get current user
         try:
-            result = self._backend.execute("SELECT CURRENT_USER()", ())
+            result = self._backend.execute("SELECT currentUser()", ())
             if result and result.data:
-                current_user = result.data[0].get("CURRENT_USER()")
+                current_user = next(iter(result.data[0].values()))
                 if current_user:
-                    # Parse user@host format
-                    parts = current_user.split("@")
-                    session.user = parts[0] if parts else current_user
-                    if len(parts) > 1:
-                        session.host = parts[1]
+                    session.user = str(current_user)
         except Exception:
             pass
 
         # Get current database
         session.database = self._backend.config.database
 
-        # Get SSL status
-        try:
-            result = self._backend.execute("SHOW STATUS LIKE 'Ssl_version'", ())
-            if result and result.data:
-                ssl_version = result.data[0].get("Value")
-                if ssl_version:
-                    session.ssl_enabled = True
-                    session.ssl_version = ssl_version
-        except Exception:
-            pass
-
-        # Get SSL cipher
-        try:
-            result = self._backend.execute("SHOW STATUS LIKE 'Ssl_cipher'", ())
-            if result and result.data:
-                ssl_cipher = result.data[0].get("Value")
-                if ssl_cipher:
-                    session.ssl_cipher = ssl_cipher
-        except Exception:
-            pass
+        # The HTTP interface reports no TLS session details to the client;
+        # ssl_enabled stays at its default (None).
 
         # Check if password was used (connection was made with password)
         session.password_used = bool(self._backend.config.password)
@@ -692,21 +714,25 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         return binary_log
 
     def list_processes(self) -> List[ProcessInfo]:
-        """List current running processes/queries."""
+        """List current running processes/queries via ``system.processes``."""
         processes = []
         try:
-            result = self._backend.execute("SHOW FULL PROCESSLIST", ())
+            result = self._backend.execute(
+                "SELECT query_id, user, address, currentDatabase, elapsed, query "
+                "FROM system.processes",
+                (),
+            )
             if result and result.data:
                 for row in result.data:
                     proc = ProcessInfo(
-                        id=row.get("Id", 0) or row.get("ID"),
-                        user=row.get("User"),
-                        host=row.get("Host"),
-                        database=row.get("db"),
-                        command=row.get("Command"),
-                        time=row.get("Time"),
-                        state=row.get("State"),
-                        info=row.get("Info"),
+                        id=row.get("query_id"),
+                        user=row.get("user"),
+                        host=str(row.get("address") or "") or None,
+                        database=row.get("currentDatabase"),
+                        command="QUERY",
+                        time=row.get("elapsed"),
+                        state=None,
+                        info=row.get("query"),
                     )
                     processes.append(proc)
         except Exception:
@@ -896,7 +922,11 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         self._show = backend.introspector.show
 
     async def get_overview(self) -> ServerOverview:
-        """Get complete ClickHouse status overview."""
+        """Get complete ClickHouse status overview.
+
+        MySQL-specific sections (InnoDB, binary log, slow queries) are not
+        applicable to ClickHouse and degrade to ``None`` instead of failing.
+        """
         configuration = await self.list_configuration()
         performance = await self.list_performance_metrics()
         connections = await self.get_connection_info()
@@ -904,11 +934,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         databases = await self.list_databases()
         users = await self.list_users()
         session = await self.get_session_info()
-        innodb = await self.get_innodb_info()
-        binary_log = await self.get_binary_log_info()
         processes = await self.list_processes()
-        slow_query = await self.get_slow_query_info()
-        clickhouse_replication = await self.get_clickhouse_replication_info()
 
         version = await self._get_version_string()
 
@@ -921,31 +947,36 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
             users=users,
             version=version,
             session=session,
-            innodb=innodb,
-            binary_log=binary_log,
+            innodb=None,
+            binary_log=None,
             processes=processes,
-            slow_query=slow_query,
-            clickhouse_replication=clickhouse_replication,
+            slow_query=None,
         )
 
     async def _get_version_string(self) -> str:
         """Get ClickHouse version string."""
-        variables = await self._show.variables(like="version")
-        if variables:
-            for var in variables:
-                if var.variable_name == "version":
-                    return str(var.value)
+        try:
+            result = await self._backend.execute("SELECT version()")
+            if result.data and result.data[0]:
+                return str(next(iter(result.data[0].values())))
+        except Exception:
+            pass
         version_tuple = getattr(self._backend, "_version", (8, 0, 0))
         return ".".join(str(v) for v in version_tuple)
 
     async def list_configuration(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
-        """List ClickHouse configuration parameters via SHOW VARIABLES."""
+        """List ClickHouse configuration parameters via ``system.settings``."""
         items = []
 
-        all_vars = await self._show.variables()
         var_dict = {}
-        for var in all_vars:
-            var_dict[var.variable_name] = var.value
+        try:
+            result = await self._backend.execute(
+                "SELECT name, value, changed FROM system.settings"
+            )
+            for row in result.data or []:
+                var_dict[row.get("name")] = row.get("value")
+        except Exception:
+            return items
 
         for var_name, var_category, description, unit, is_readonly in CLICKHOUSE_CONFIG_VARIABLES:
             if category and var_category != category:
@@ -965,13 +996,18 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         return items
 
     async def list_performance_metrics(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
-        """List ClickHouse performance metrics via SHOW STATUS."""
+        """List ClickHouse performance metrics via ``system.metrics``."""
         items = []
 
-        all_status = await self._show.status()
         status_dict = {}
-        for stat in all_status:
-            status_dict[stat.variable_name] = stat.value
+        try:
+            result = await self._backend.execute(
+                "SELECT metric, value FROM system.metrics"
+            )
+            for row in result.data or []:
+                status_dict[row.get("metric")] = row.get("value")
+        except Exception:
+            return items
 
         for var_name, var_category, description, unit in CLICKHOUSE_STATUS_VARIABLES:
             if category and var_category != category:
@@ -990,39 +1026,51 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         return items
 
     async def get_connection_info(self) -> ConnectionInfo:
-        """Get connection information."""
-        all_status = await self._show.status()
+        """Get connection information from ``system.metrics`` / ``system.settings``."""
         status_dict = {}
-        for stat in all_status:
-            status_dict[stat.variable_name] = stat.value
+        try:
+            result = await self._backend.execute(
+                "SELECT metric, value FROM system.metrics "
+                "WHERE metric IN ('Connection', 'HTTPConnection', 'TCPConnection', 'InterserverConnection')"
+            )
+            for row in result.data or []:
+                status_dict[row.get("metric")] = row.get("value")
+        except Exception:
+            pass
 
-        all_vars = await self._show.variables()
         var_dict = {}
-        for var in all_vars:
-            var_dict[var.variable_name] = var.value
+        try:
+            result = await self._backend.execute(
+                "SELECT value FROM system.settings WHERE name = 'max_connections'"
+            )
+            if result.data:
+                var_dict["max_connections"] = next(iter(result.data[0].values()))
+        except Exception:
+            pass
+
+        active = sum(
+            self._parse_variable_value(v) or 0
+            for k, v in status_dict.items()
+            if "connection" in k.lower()
+        )
 
         return ConnectionInfo(
-            active_count=self._parse_variable_value(status_dict.get("Threads_connected")),
+            active_count=active or None,
             max_connections=self._parse_variable_value(var_dict.get("max_connections")),
-            idle_count=self._parse_variable_value(status_dict.get("Threads_cached")),
+            idle_count=None,
             extra={
-                "threads_running": self._parse_variable_value(status_dict.get("Threads_running")),
+                "http_connections": self._parse_variable_value(status_dict.get("HTTPConnection")),
+                "tcp_connections": self._parse_variable_value(status_dict.get("TCPConnection")),
             },
         )
 
     async def get_storage_info(self) -> StorageInfo:
-        """Get storage information."""
-        all_vars = await self._show.variables()
-        var_dict = {}
-        for var in all_vars:
-            var_dict[var.variable_name] = var.value
-
+        """Get storage information from ``system.tables`` / ``system.disks``."""
         total_size = None
         try:
             result = await self._backend.execute(
-                "SELECT SUM(data_length + index_length) as total_size "
-                "FROM information_schema.TABLES "
-                "WHERE table_schema = %s",
+                "SELECT sum(total_bytes) AS total_size FROM system.tables "
+                "WHERE database = %s",
                 (self._backend.config.database,),
             )
             if result and result.data:
@@ -1030,11 +1078,23 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         except Exception:
             pass
 
+        datadir = None
+        free_space = None
+        try:
+            result = await self._backend.execute(
+                "SELECT path, free_space FROM system.disks WHERE name = 'default'"
+            )
+            if result.data:
+                datadir = result.data[0].get("path")
+                free_space = result.data[0].get("free_space")
+        except Exception:
+            pass
+
         return StorageInfo(
             total_size_bytes=self._parse_variable_value(total_size),
             extra={
-                "datadir": var_dict.get("datadir"),
-                "innodb_buffer_pool_size": self._parse_variable_value(var_dict.get("innodb_buffer_pool_size")),
+                "datadir": datadir,
+                "free_space": self._parse_variable_value(free_space),
             },
         )
 
@@ -1105,40 +1165,19 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
 
         # Get current user
         try:
-            result = await self._backend.execute("SELECT CURRENT_USER()", ())
+            result = await self._backend.execute("SELECT currentUser()", ())
             if result and result.data:
-                current_user = result.data[0].get("CURRENT_USER()")
+                current_user = next(iter(result.data[0].values()))
                 if current_user:
-                    parts = current_user.split("@")
-                    session.user = parts[0] if parts else current_user
-                    if len(parts) > 1:
-                        session.host = parts[1]
+                    session.user = str(current_user)
         except Exception:
             pass
 
         # Get current database
         session.database = self._backend.config.database
 
-        # Get SSL status
-        try:
-            result = await self._backend.execute("SHOW STATUS LIKE 'Ssl_version'", ())
-            if result and result.data:
-                ssl_version = result.data[0].get("Value")
-                if ssl_version:
-                    session.ssl_enabled = True
-                    session.ssl_version = ssl_version
-        except Exception:
-            pass
-
-        # Get SSL cipher
-        try:
-            result = await self._backend.execute("SHOW STATUS LIKE 'Ssl_cipher'", ())
-            if result and result.data:
-                ssl_cipher = result.data[0].get("Value")
-                if ssl_cipher:
-                    session.ssl_cipher = ssl_cipher
-        except Exception:
-            pass
+        # The HTTP interface reports no TLS session details to the client;
+        # ssl_enabled stays at its default (None).
 
         # Check if password was used
         session.password_used = bool(self._backend.config.password)
@@ -1315,21 +1354,25 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         return binary_log
 
     async def list_processes(self) -> List[ProcessInfo]:
-        """List current running processes/queries."""
+        """List current running processes/queries via ``system.processes``."""
         processes = []
         try:
-            result = await self._backend.execute("SHOW FULL PROCESSLIST", ())
+            result = await self._backend.execute(
+                "SELECT query_id, user, address, currentDatabase, elapsed, query "
+                "FROM system.processes",
+                (),
+            )
             if result and result.data:
                 for row in result.data:
                     proc = ProcessInfo(
-                        id=row.get("Id", 0) or row.get("ID"),
-                        user=row.get("User"),
-                        host=row.get("Host"),
-                        database=row.get("db"),
-                        command=row.get("Command"),
-                        time=row.get("Time"),
-                        state=row.get("State"),
-                        info=row.get("Info"),
+                        id=row.get("query_id"),
+                        user=row.get("user"),
+                        host=str(row.get("address") or "") or None,
+                        database=row.get("currentDatabase"),
+                        command="QUERY",
+                        time=row.get("elapsed"),
+                        state=None,
+                        info=row.get("query"),
                     )
                     processes.append(proc)
         except Exception:

@@ -1,16 +1,15 @@
--- tests/rhosocial/activerecord_mysql_test/feature/query/schema/extended_order_items.sql
--- MySQL version of the extended_order_items table schema
-
-CREATE TABLE `extended_order_items` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `order_id` INT NOT NULL,
-    `product_name` VARCHAR(255) NOT NULL,
-    `quantity` INT NOT NULL DEFAULT 1,
-    `price` DECIMAL(10,2) NOT NULL,
-    `category` VARCHAR(255),
-    `region` VARCHAR(50),
-    `created_at` DATETIME(6),
-    `updated_at` DATETIME(6),
-    INDEX `idx_order_id` (`order_id`),
-    FOREIGN KEY (`order_id`) REFERENCES `extended_orders`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for query/extended_order_items table
+CREATE TABLE IF NOT EXISTS extended_order_items (
+    id Int64,
+    order_id Int64 NOT NULL,
+    product_name String NOT NULL,
+    quantity Int32 NOT NULL DEFAULT 1,
+    price Decimal(10, 2) NOT NULL,
+    category String,
+    region String,
+    created_at DateTime,
+    updated_at DateTime,
+    INDEX idx_order_id (order_id) TYPE minmax
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

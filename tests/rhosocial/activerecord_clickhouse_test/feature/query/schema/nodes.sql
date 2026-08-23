@@ -1,13 +1,11 @@
--- tests/rhosocial/activerecord_mysql_test/feature/query/schema/nodes.sql
--- MySQL version of the nodes table schema for tree structure tests
-
-CREATE TABLE `nodes` (
-    `id` INT AUTO_INCREMENT PRIMARY KEY,
-    `name` VARCHAR(255) NOT NULL,
-    `parent_id` INT NULL,
-    `value` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
-    `created_at` DATETIME(6),
-    `updated_at` DATETIME(6),
-    INDEX `idx_parent_id` (`parent_id`),
-    FOREIGN KEY (`parent_id`) REFERENCES `nodes`(`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+-- ClickHouse schema for query/nodes table
+CREATE TABLE IF NOT EXISTS nodes (
+    id Int64,
+    name String NOT NULL,
+    parent_id Nullable(Int64),
+    value Decimal(10, 2) NOT NULL DEFAULT 0.0,
+    created_at DateTime,
+    updated_at DateTime
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

@@ -7,7 +7,8 @@ Cloud), so the backend fails fast when a transaction is requested.
 """
 
 import logging
-from typing import TYPE_CHECKING, Optional
+from contextlib import contextmanager
+from typing import TYPE_CHECKING, Generator, Optional
 
 from rhosocial.activerecord.backend.transaction import (
     TransactionManager,
@@ -22,8 +23,11 @@ if TYPE_CHECKING:
 class ClickHouseTransactionManager(ClickHouseTransactionMixin, TransactionManager):
     """ClickHouse synchronous transaction manager implementation.
 
-    ClickHouse does not support ACID transactions. Attempting to begin a
-    transaction raises UnsupportedFeatureError.
+    ClickHouse does not support ACID transactions. Explicit ``BEGIN`` /
+    ``COMMIT`` / ``ROLLBACK`` raise :class:`UnsupportedFeatureError`, while
+    the :meth:`transaction` context manager degrades to a no-op so that
+    generic model operations that wrap work in a transaction context (e.g.
+    ``bulk_create``) continue to work without atomicity guarantees.
     """
 
     def __init__(
@@ -58,6 +62,21 @@ class ClickHouseTransactionManager(ClickHouseTransactionMixin, TransactionManage
             "transactions",
             "ClickHouse does not support ACID transactions.",
         )
+
+    @contextmanager
+    def transaction(
+        self,
+        isolation_level: Optional[str] = None,
+        mode: Optional[str] = None,
+    ) -> Generator[None, None, None]:
+        """No-op transaction context manager.
+
+        ClickHouse does not support ACID transactions, so ``with
+        manager.transaction():`` degrades to a no-op. This keeps generic
+        model operations (e.g. ``bulk_create``) usable without atomicity.
+        """
+        yield
+
 
     def _do_rollback(self) -> None:
         """Rollback is not supported in ClickHouse."""

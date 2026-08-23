@@ -158,8 +158,9 @@ class ClickHouseTableMixin:
         parts.append(self.format_identifier(idx_def.name))
         cols_str = ", ".join(self.format_identifier(c) for c in idx_def.columns)
         parts.append(f"({cols_str})")
-        if idx_def.type:
-            parts.append(f"USING {idx_def.type}")
+        # ClickHouse requires TYPE clause for inline indexes; default to minmax
+        idx_type = idx_def.type if idx_def.type else "minmax"
+        parts.append(f"TYPE {idx_type}")
         return " ".join(parts)
 
     def format_storage_options(self, storage_options: Dict[str, Any]) -> str:

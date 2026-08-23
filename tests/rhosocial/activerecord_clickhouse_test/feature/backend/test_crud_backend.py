@@ -60,10 +60,11 @@ class TestClickHouseCRUDBackend:
         row = clickhouse_backend.fetch_one("SELECT * FROM test_crud_table WHERE name = %s", ("NonExistent",))
         assert row is None
 
-    def test_transaction_fails(self, clickhouse_backend, test_table):
-        """Test that transactions raise an error (not supported in ClickHouse)."""
-        from rhosocial.activerecord.backend.errors import TransactionError
+    def test_transaction_is_noop(self, clickhouse_backend, test_table):
+        """The transaction() context manager is a no-op (ClickHouse has no ACID).
 
-        with pytest.raises(TransactionError):
-            with clickhouse_backend.transaction():
-                pass
+        It must not raise, because generic operations (e.g. bulk_create) run
+        inside ``with backend.transaction():`` blocks.
+        """
+        with clickhouse_backend.transaction():
+            pass  # no error; statements simply auto-commit as usual

@@ -1,11 +1,14 @@
+-- ClickHouse schema for basic/type_adapter_tests table
 CREATE TABLE IF NOT EXISTS type_adapter_tests (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    optional_name VARCHAR(255),
-    optional_age INT,
-    last_login TEXT,
-    is_premium BOOLEAN,
-    unsupported_union VARCHAR(255),
-    custom_bool VARCHAR(3),
-    optional_custom_bool VARCHAR(3)
-);
+    id Int64,
+    name String,
+    optional_name Nullable(String),
+    optional_age Nullable(Int64),
+    last_login Nullable(String),
+    is_premium Nullable(Bool),
+    unsupported_union String,
+    custom_bool String,
+    optional_custom_bool Nullable(String)
+) ENGINE = MergeTree
+ORDER BY id
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
