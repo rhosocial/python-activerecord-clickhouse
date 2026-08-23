@@ -117,11 +117,14 @@ jobs:
           EOF
           echo "CLICKHOUSE_SCENARIOS_CONFIG_PATH=$(pwd)/clickhouse_scenarios.yaml" >> $GITHUB_ENV
 
+      # Feature bridges and CLI blackbox live under tests/rhosocial;
+      # tests/benchmark is excluded (benchmarks are not part of the
+      # release gate, and several suites assume an async backend).
       - name: Run tests with coverage (only for ClickHouse ${{ matrix.clickhouse-version }} / Python ${{ matrix.python-version }})
         if: matrix.coverage
         run: |
           export PYTHONPATH=src:tests
-          coverage run --source=src -m pytest tests/ --tb=short
+          coverage run --source=src -m pytest tests/rhosocial --tb=short
           coverage xml
           coverage report
 
@@ -129,4 +132,4 @@ jobs:
         if: '!matrix.coverage'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/ --tb=short
+          python -m pytest tests/rhosocial --tb=short
