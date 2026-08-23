@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS orders (
     order_number String NOT NULL,
     total_amount Decimal(10, 2) NOT NULL DEFAULT 0.0,
     status String NOT NULL DEFAULT 'pending',
-    created_at DateTime,
-    updated_at DateTime,
+    created_at DateTime64(6),
+    updated_at DateTime64(6),
     INDEX idx_user_id (user_id) TYPE minmax
 ) ENGINE = MergeTree
 ORDER BY id

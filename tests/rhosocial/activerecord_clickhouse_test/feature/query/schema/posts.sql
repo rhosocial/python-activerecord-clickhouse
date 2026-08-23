@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS posts (
     title String NOT NULL,
     content String,
     status String NOT NULL DEFAULT 'published',
-    created_at DateTime,
-    updated_at DateTime,
+    created_at DateTime64(6),
+    updated_at DateTime64(6),
     INDEX idx_user_id (user_id) TYPE minmax,
     INDEX idx_status (status) TYPE minmax
 ) ENGINE = MergeTree

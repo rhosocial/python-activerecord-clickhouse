@@ -4,8 +4,8 @@ CREATE TABLE IF NOT EXISTS combined_articles (
     title String NOT NULL,
     content String NOT NULL,
     status String NOT NULL DEFAULT 'draft',
-    created_at DateTime,
-    updated_at DateTime,
+    created_at DateTime64(6),
+    updated_at DateTime64(6),
     version Int32 NOT NULL DEFAULT 1,
     deleted_at Nullable(DateTime64(6))
 ) ENGINE = MergeTree

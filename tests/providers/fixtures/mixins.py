@@ -30,6 +30,8 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 
+from rhosocial.activerecord.backend.impl.clickhouse.expression import ClickHouseDateTime64Type
+
 from . import _common
 
 # Standard ClickHouse table options.
@@ -63,12 +65,12 @@ def create_combined_articles_table(dialect, table_name: str = "combined_articles
             ColumnDefinition("status", VarCharType(50),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(ColumnConstraintType.DEFAULT, default_value="draft")]),
-            ColumnDefinition("created_at", DateTimeType(precision=6)),
-            ColumnDefinition("updated_at", DateTimeType(precision=6)),
+            ColumnDefinition("created_at", ClickHouseDateTime64Type(6)),
+            ColumnDefinition("updated_at", ClickHouseDateTime64Type(6)),
             ColumnDefinition("version", IntegerType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=1)]),
-            ColumnDefinition("deleted_at", DateTimeType(precision=6),
+            ColumnDefinition("deleted_at", ClickHouseDateTime64Type(6),
                 constraints=[ColumnConstraint(ColumnConstraintType.NULL)]),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
@@ -115,8 +117,8 @@ def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("content", TextType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("created_at", DateTimeType(precision=6)),
-            ColumnDefinition("updated_at", DateTimeType(precision=6)),
+            ColumnDefinition("created_at", ClickHouseDateTime64Type(6)),
+            ColumnDefinition("updated_at", ClickHouseDateTime64Type(6)),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )

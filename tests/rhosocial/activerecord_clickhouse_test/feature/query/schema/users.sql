@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS users (
     age Nullable(Int32),
     balance Float64 NOT NULL DEFAULT 0.0,
     is_active Bool NOT NULL DEFAULT 1,
-    created_at DateTime,
-    updated_at DateTime
+    created_at DateTime64(6),
+    updated_at DateTime64(6)
 ) ENGINE = MergeTree
 ORDER BY id
 SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;

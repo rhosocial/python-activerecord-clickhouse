@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS extended_order_items (
     price Decimal(10, 2) NOT NULL,
     category String,
     region String,
-    created_at DateTime,
-    updated_at DateTime,
+    created_at DateTime64(6),
+    updated_at DateTime64(6),
     INDEX idx_order_id (order_id) TYPE minmax
 ) ENGINE = MergeTree
 ORDER BY id

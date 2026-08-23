@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS comments (
     post_id Int64 NOT NULL,
     content String,
     is_hidden Bool DEFAULT 0,
-    created_at DateTime,
-    updated_at DateTime,
+    created_at DateTime64(6),
+    updated_at DateTime64(6),
     INDEX idx_user_id (user_id) TYPE minmax,
     INDEX idx_post_id (post_id) TYPE minmax
 ) ENGINE = MergeTree

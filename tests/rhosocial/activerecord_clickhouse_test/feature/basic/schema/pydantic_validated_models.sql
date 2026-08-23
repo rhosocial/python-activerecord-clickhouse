@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS pydantic_validated_models (
     quantity Int64,
     step_count Int64,
     price Decimal(10, 2),
-    start_at DateTime,
-    end_at DateTime,
+    start_at DateTime64(6),
+    end_at DateTime64(6),
     status String,
     normalized_name String,
     created_token String

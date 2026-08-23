@@ -309,17 +309,14 @@ class ClickHouseDatetimeAdapter(SQLTypeAdapter):
     def to_database(self, value: datetime.datetime, target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
         if value is None:
             return None
-        # If the datetime object is timezone-aware, normalize to UTC and make it naive
-        # for the database driver, which expects naive datetimes.
+        # Normalise to naive UTC and emit ClickHouse's canonical text form.
+        # Space-separated with fractional seconds: 'T'-separated isoformat()
+        # is rejected by the strict parser on 25.8/26.3, while the fractional
+        # part is accepted by DateTime64 columns (timestamp fixtures all use
+        # DateTime64(6)) and preserved losslessly in String columns.
         if value.tzinfo is not None:
-            utc_dt = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-            # ClickHouse 5.7.8+ supports ISO 8601 format, older versions need traditional format
-            if self._clickhouse_version >= (5, 7, 8):
-                return utc_dt.isoformat()
-            else:
-                return utc_dt.strftime("%Y-%m-%d %H:%M:%S.%f")
-        # If it's already naive, assume it's in the desired timezone (conventionally UTC)
-        return value
+            value = value.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+        return value.strftime("%Y-%m-%d %H:%M:%S.%f")
 
     def from_database(
         self, value: Any, target_type: Type, options: Optional[Dict[str, Any]] = None, **kwargs

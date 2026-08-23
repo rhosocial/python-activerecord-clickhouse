@@ -28,6 +28,8 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 
+from rhosocial.activerecord.backend.impl.clickhouse.expression import ClickHouseDateTime64Type
+
 from . import _common
 
 # Standard ClickHouse table options.
@@ -63,8 +65,8 @@ def create_event_tests_table(dialect, table_name: str = "event_tests") -> Create
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=1)]),
             ColumnDefinition("content", TextType()),
-            ColumnDefinition("created_at", DateTimeType(precision=6)),
-            ColumnDefinition("updated_at", DateTimeType(precision=6)),
+            ColumnDefinition("created_at", ClickHouseDateTime64Type(6)),
+            ColumnDefinition("updated_at", ClickHouseDateTime64Type(6)),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -89,7 +91,7 @@ def create_event_tracking_models_table(dialect, table_name: str = "event_trackin
             ColumnDefinition("view_count", IntegerType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=0)]),
-            ColumnDefinition("last_viewed_at", DateTimeType(precision=6),
+            ColumnDefinition("last_viewed_at", ClickHouseDateTime64Type(6),
                 constraints=[ColumnConstraint(ColumnConstraintType.NULL)]),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),

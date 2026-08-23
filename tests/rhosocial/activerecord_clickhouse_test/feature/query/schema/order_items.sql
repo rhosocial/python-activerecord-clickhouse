@@ -6,8 +6,8 @@ CREATE TABLE IF NOT EXISTS order_items (
     quantity Int32 NOT NULL DEFAULT 1,
     unit_price Decimal(10, 2) NOT NULL,
     subtotal Decimal(10, 2) NOT NULL DEFAULT 0.0,
-    created_at DateTime,
-    updated_at DateTime,
+    created_at DateTime64(6),
+    updated_at DateTime64(6),
     INDEX idx_order_id (order_id) TYPE minmax
 ) ENGINE = MergeTree
 ORDER BY id
