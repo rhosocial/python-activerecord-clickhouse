@@ -1,6 +1,8 @@
 # requirements.txt
 # Backend-specific dependencies only
-# Core dependency (rhosocial-activerecord) is installed via local editable install
+# Core dependency (rhosocial-activerecord >= 1.0.0.dev30, for primary_key
+# propagation and the AutoIncrementSupport capability) is installed via a
+# local editable install or resolved from PyPI once published.
 
 # ClickHouse driver
-clickhouse-connect>=0.7.0
+clickhouse-connect>=1.7.0

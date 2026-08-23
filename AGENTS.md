@@ -29,12 +29,21 @@ This project is under active development. Key features implemented:
 
 ## Not Supported (fail fast)
 
-- ACID transactions (no BEGIN/COMMIT/ROLLBACK)
+- ACID transactions (no BEGIN/COMMIT/ROLLBACK; `transaction()` degrades to a no-op context manager)
 - FOREIGN KEY / UNIQUE constraints
 - Triggers, sequences
 - UPSERT / ON CONFLICT / INSERT IGNORE / REPLACE INTO
 - FOR UPDATE row locking
+- SQL-standard FULLTEXT indexes / JSON_TABLE (JSON access uses JSONExtractString/JSONExtractRaw/JSON_VALUE)
 - Asynchronous backend (clickhouse-connect is sync-only)
+
+## Backend Behaviour Notes
+
+- Primary keys are generated client-side (snowflake `Int64`) because ClickHouse
+  has no AUTO_INCREMENT; requires core `>=1.0.0.dev30` (primary_key propagation).
+- Mutations run with `mutations_sync=1`; `affected_rows` for UPDATE/DELETE is a
+  pre-count of rows matching the WHERE predicate.
+- Optional model fields must map to `Nullable(T)` columns.
 
 ## Python Version Support
 

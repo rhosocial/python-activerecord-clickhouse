@@ -15,7 +15,6 @@ authors = [
 keywords = ["activerecord", "orm", "database", "clickhouse", "clickhouse-connect"]
 classifiers = [
     "Development Status :: 3 - Alpha",
-    "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
@@ -33,7 +32,7 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "rhosocial-activerecord>=1.0.0.dev0,<2.0.0",
+    "rhosocial-activerecord>=1.0.0.dev30,<2.0.0",
     "clickhouse-connect>=1.7.0"
 ]
 
@@ -44,7 +43,7 @@ test = [
     "coverage>=7.0.0",
     "pytest-asyncio",
     "pytest-cov",
-    "rhosocial-activerecord[test]>=1.0.0.dev0,<2.0.0",
+    "rhosocial-activerecord[test]>=1.0.0.dev30,<2.0.0",
     "rhosocial-activerecord-testsuite",
     "fastapi>=0.110",
     "httpx>=0.27",
