@@ -252,20 +252,20 @@ def clickhouse_pool_with_tables(clickhouse_pool: BackendPool) -> Generator[Backe
         backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         backend.execute("""
             CREATE TABLE concurrent_test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                thread_id INTEGER,
-                name VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+                id Int64,
+                thread_id Nullable(Int32),
+                name String,
+                created_at DateTime DEFAULT now()
+            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """)
         backend.execute("""
             CREATE TABLE concurrent_test_posts (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                thread_id INTEGER,
-                user_id INTEGER,
-                title VARCHAR(255),
-                content TEXT
-            )
+                id Int64,
+                thread_id Nullable(Int32),
+                user_id Int64,
+                title String,
+                content String
+            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """)
 
     yield clickhouse_pool
@@ -283,20 +283,20 @@ async def async_clickhouse_pool_with_tables(async_clickhouse_pool: AsyncBackendP
         await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
         await backend.execute("""
             CREATE TABLE concurrent_test_users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                task_id INTEGER,
-                name VARCHAR(255),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            )
+                id Int64,
+                task_id Nullable(Int32),
+                name String,
+                created_at DateTime DEFAULT now()
+            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """)
         await backend.execute("""
             CREATE TABLE concurrent_test_posts (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                task_id INTEGER,
-                user_id INTEGER,
-                title VARCHAR(255),
-                content TEXT
-            )
+                id Int64,
+                task_id Nullable(Int32),
+                user_id Int64,
+                title String,
+                content String
+            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
         """)
 
     yield async_clickhouse_pool

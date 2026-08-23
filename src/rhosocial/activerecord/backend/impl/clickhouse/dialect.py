@@ -461,8 +461,12 @@ class ClickHouseDialect(
         return True  # Native arr[i] support (1-based)
 
     def supports_explain_analyze(self) -> bool:
-        """Whether EXPLAIN ANALYZE is supported."""
-        return True
+        """Whether EXPLAIN ANALYZE is supported.
+
+        Accepted syntax-wise from ClickHouse 26.7; older maintained lines
+        (25.8 LTS, 26.3 LTS) reject the ANALYZE keyword.
+        """
+        return self.version >= (26, 7, 0)
 
     def supports_explain_format(self, format_type: str) -> bool:
         """Check if specific EXPLAIN format is supported.

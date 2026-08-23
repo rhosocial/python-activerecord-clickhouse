@@ -21,6 +21,10 @@ from rhosocial.activerecord.backend.introspection.status import (
     ConnectionInfo,
     StorageInfo,
     SessionInfo,
+    ProcessInfo,
+    InnoDBInfo,
+    BinaryLogInfo,
+    SlowQueryInfo,
     SyncAbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
 )
