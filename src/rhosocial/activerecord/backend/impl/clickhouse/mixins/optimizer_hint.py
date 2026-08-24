@@ -1,24 +1,25 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/optimizer_hint.py
-from typing import TYPE_CHECKING, Tuple
+from typing import Any, Tuple
 
-if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.optimizer_hint import (
-        ClickHouseOptimizerHintExpression,
-    )
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
 class ClickHouseOptimizerHintMixin:
-    """ClickHouse optimizer hint implementation."""
+    """ClickHouse does not support MySQL-style optimizer hints.
+
+    ClickHouse does not implement ``/*+ SET_VAR(...) */`` optimizer hints.
+    Query tuning is done via ``SETTINGS`` clauses on each statement instead.
+    All methods fail fast.
+    """
 
     def supports_optimizer_hint(self) -> bool:
-        return self.version >= (5, 7, 0)
+        return False
 
     def supports_hypergraph_optimizer(self) -> bool:
-        return self.version >= (9, 7, 0)
+        return False
 
-    def format_optimizer_hint(self, expr: "ClickHouseOptimizerHintExpression") -> "Tuple[str, tuple]":
-        """Format /*+ SET_VAR(...) */ hint clause."""
-        parts = []
-        for hint in expr.hints:
-            parts.append(f"SET_VAR({hint.variable}='{hint.value}')")
-        return "/*+ " + " ".join(parts) + " */", ()
+    def format_optimizer_hint(self, expr: Any) -> Tuple[str, tuple]:
+        raise UnsupportedFeatureError(
+            self.name, "optimizer hints",
+            suggestion="ClickHouse does not support /*+ SET_VAR */ hints; use SETTINGS.",
+        )

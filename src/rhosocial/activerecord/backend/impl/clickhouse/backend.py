@@ -195,7 +195,7 @@ class ClickHouseBackend(
             count = len(options.rows)
             generated_ids = generate_id_sequence(count)
             new_columns = [pk] + list(options.columns)
-            new_rows = [[gid] + list(row) for gid, row in zip(generated_ids, options.rows)]
+            new_rows = [[gid] + list(row) for gid, row in zip(generated_ids, options.rows, strict=False)]
             options = BulkInsertOptions(
                 table=options.table,
                 schema_name=options.schema_name,
@@ -340,15 +340,37 @@ class ClickHouseBackend(
                 "password": self.config.password or "",
             }
 
-            # Add SSL parameters if provided
-            if getattr(self.config, "ssl_ca", None):
-                conn_params["ca_cert"] = self.config.ssl_ca
-            if getattr(self.config, "ssl_cert", None):
-                conn_params["client_cert"] = self.config.ssl_cert
-            if getattr(self.config, "ssl_key", None):
-                conn_params["client_cert_key"] = self.config.ssl_key
-            if getattr(self.config, "ssl_verify_cert", None):
-                conn_params["verify"] = self.config.ssl_verify_cert
+            # Enable HTTPS/TLS when SSL is requested. clickhouse-connect
+            # keys: secure (use https), verify (validate server cert incl.
+            # hostname), ca_cert (CA root path when verify=True), client_cert
+            # / client_cert_key (mTLS).
+            ssl_mode = getattr(self.config, "ssl_mode", None)
+            ssl_ca = getattr(self.config, "ssl_ca", None)
+            ssl_cert = getattr(self.config, "ssl_cert", None)
+            ssl_key = getattr(self.config, "ssl_key", None)
+            ssl_verify_cert = getattr(self.config, "ssl_verify_cert", False)
+
+            # HTTPS is used for any explicit SSL mode other than disabled,
+            # or whenever CA/client-cert/verify flags are set.
+            use_tls = (ssl_mode and ssl_mode != "disabled") or bool(
+                ssl_ca or ssl_cert or ssl_verify_cert
+            )
+            if use_tls:
+                conn_params["secure"] = True
+            if ssl_ca:
+                conn_params["ca_cert"] = ssl_ca
+            if ssl_cert:
+                conn_params["client_cert"] = ssl_cert
+            if ssl_key:
+                conn_params["client_cert_key"] = ssl_key
+            # clickhouse-connect's verify is boolean: True validates the server
+            # certificate chain AND hostname; False disables all validation.
+            # (verify-ca — validate CA but not hostname — is not natively
+            # supported by clickhouse-connect; to validate without hostname
+            # mismatch, connect via the certificate's hostname or use a host
+            # alias that resolves to the server.)
+            if ssl_verify_cert:
+                conn_params["verify"] = True
 
             # Add driver settings
             connect_timeout = getattr(self.config, "connect_timeout", None)

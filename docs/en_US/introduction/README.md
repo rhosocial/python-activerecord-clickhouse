@@ -1,32 +1,71 @@
-# Introduction
+# Overview
 
-## ClickHouse Backend Overview
+## Why a ClickHouse backend
 
-`rhosocial-activerecord-clickhouse` is the ClickHouse database backend implementation for the rhosocial-activerecord core library. It provides complete ActiveRecord pattern support, optimized specifically for ClickHouse database features.
+ClickHouse is a columnar OLAP database excelling at real-time analytics and
+high-volume aggregation. Its worldview, however, is fundamentally different
+from row-oriented OLTP databases: no transactions, no foreign keys, no unique
+constraints, and mutations (UPDATE/DELETE) are asynchronous "lightweight"
+operations.
 
-💡 *AI Prompt:* "What is the ActiveRecord pattern? How does it differ from DataMapper pattern?"
+Traditional ORMs integrating ClickHouse usually take one of two approaches:
 
-## Synchronous and Asynchronous
+1. **Pretend it is OLTP**: emulate transactions and constraints, generate SQL
+   ClickHouse cannot run, and ultimately crash at runtime or produce semantically
+   wrong data.
+2. **Act as a query gateway only**: pass SELECTs through and abandon the modeling
+   power of the ActiveRecord pattern.
 
-The ClickHouse backend provides both synchronous and asynchronous APIs that are functionally equivalent. The documentation will use synchronous examples throughout, but the asynchronous API usage is identical—just replace method calls with their async equivalents.
+`rhosocial-activerecord-clickhouse` takes a third path — **honest semantics**:
 
-For example:
+- Capabilities ClickHouse natively supports (columnar types, `ENGINE`, `ORDER BY`
+  sorting key, `PARTITION BY`, TTL, `JSONExtract*`, Array/Map/Tuple, `system.*`
+  introspection) are exposed as first-class citizens and generate native
+  ClickHouse SQL.
+- Capabilities ClickHouse does not support (ACID transactions, foreign key / unique
+  constraints, triggers, UPSERT, FOR UPDATE, FULLTEXT, JSON_TABLE, spatial/vector
+  types, stored routines, MySQL admin commands, etc.) are declared as `False`
+  via `supports_*` capability switches; calling the corresponding `format_*`
+  methods raises `UnsupportedFeatureError` fast — **never silently emulated**.
 
-```python
-# Synchronous usage
-backend = ClickHouseBackend(...)
-backend.connect()
-users = backend.find('User')
+> 💡 *AI prompt: "Why does this backend choose to fail fast instead of emulating transactions? What does that mean for calling code?"*
 
-# Asynchronous usage
-backend = AsyncClickHouseBackend(...)
-await backend.connect()
-users = await backend.find('User')
-```
+## Core design principles
 
-## Quick Links
+1. **Backend implementation**: extends the core ActiveRecord Expression-Dialect-Backend
+   layering with ClickHouse-specific types and dialect.
+2. **Driver**: uses `clickhouse-connect` (HTTP interface) as the database connection layer.
+3. **Namespace package**: integrates into the core library's namespace package
+   architecture as `rhosocial.activerecord.backend.impl.clickhouse`.
+4. **Synchronous only**: `clickhouse-connect` is a pure sync library; this backend
+   **does not provide an async backend**. `AsyncClickHouseBackend` is a placeholder
+   class that fails fast on instantiation so generic import paths keep loading,
+   but any instantiation raises `NotImplementedError`.
+5. **Fail-fast semantics**: unsupported features raise `UnsupportedFeatureError`
+   instead of degrading into silent no-ops or emulated implementations.
 
-- **[Relationship with Core Library](./relationship.md)**: Learn how the ClickHouse backend works with the core library
-- **[Supported Versions](./supported_versions.md)**: View supported ClickHouse, Python, and dependency versions
+## When to use
 
-💡 *AI Prompt:* "What are the important new features in ClickHouse 8.0 compared to 5.7?"
+- Type-safe modeling on top of ClickHouse (deep Pydantic V2 integration).
+- Writing real-time analytics applications that need an ActiveRecord-style query
+  builder emitting native ClickHouse SQL.
+- Reusing the core library's mixins (Timestamp, optimistic locking, soft delete)
+  and relations (has_one/has_many/has_many_through).
+- Ops and data exploration via the CLI and `system.*` introspection.
+
+## When not to use
+
+- Business logic requiring ACID cross-statement transaction guarantees (ClickHouse
+  mutations are per-part atomic, with no cross-statement isolation).
+- Writes relying on unique constraints for deduplication (the table engine
+  `ReplacingMergeTree`/`CollapsingMergeTree` should bear that responsibility).
+- High-concurrency services needing async I/O (the driver is sync; for such needs,
+  use a process-level connection pool with worker threads).
+
+## Next steps
+
+- [Relationship with the core library](relationship.md): understand the layering
+  and where this backend sits.
+- [Supported versions](supported_versions.md): confirm your ClickHouse and Python versions.
+- [Capability boundaries & fail-fast](capability_boundaries.md): know what can and
+  cannot be done before writing code.

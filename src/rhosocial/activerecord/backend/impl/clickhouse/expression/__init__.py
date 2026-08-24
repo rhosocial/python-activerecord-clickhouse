@@ -2,57 +2,32 @@
 """
 ClickHouse-specific expression classes.
 
-This module provides expression classes that are specific to ClickHouse, such as
-LOAD DATA INFILE, JSON_TABLE, JSON functions, spatial functions, vector
-functions, MATCH...AGAINST expressions, row-level locking expressions,
-and JSON Duality View expressions.
+Only ClickHouse-native expressions are exported from this package:
 
-Directory structure:
-- load_data.py      - LOAD DATA INFILE expression
-- json_table.py    - JSON_TABLE expression
-- json.py           - JSON function expressions
-- spatial.py         - Spatial function expressions
-- vector.py          - Vector function expressions (ClickHouse 9.0+)
-- match_against.py - MATCH...AGAINST expression
-- locking.py        - Row-level locking expressions (FOR UPDATE, FOR SHARE)
-- json_duality_view.py - JSON Duality View expressions (ClickHouse 9.7+)
-- types.py          - ClickHouse-specific DataType subclasses for DDL
+- ``json``       — ClickHouse ``JSONExtract*`` / ``JSONObject`` / ``JSONArray``
+                   function expressions (ClickHouse JSON is accessed via
+                   functions, not MySQL arrow operators).
+- ``partition``  — MySQL declarative partitioning expression classes, kept as
+                   fail-fast stubs (ClickHouse uses ``PARTITION BY <expr>``
+                   inside ``CREATE TABLE``, handled by the table-engine layer,
+                   not MySQL ``PARTITION ... VALUES`` syntax).
+- ``rename_table`` — ClickHouse ``RENAME TABLE``.
+- ``types``      — ClickHouse-native ``DataType`` subclasses for DDL.
+
+MySQL-only expressions (``LOAD DATA``, ``JSON_TABLE``, ``MATCH ... AGAINST``,
+``ST_*`` spatial, ``VECTOR``, ``JSON Duality View``, optimizer hints,
+``TABLE``/``VALUES`` constructors, ``ANALYZE``/``CHECK``/``CHECKSUM``/
+``REPAIR TABLE`` maintenance, stored ``PROCEDURE``/``FUNCTION``/``CALL``,
+``LOAD XML``, and the ``FLUSH``/``RESET``/``KILL``/``GRANT`` admin command
+set) are intentionally **not** exported: ClickHouse does not support them and
+the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 """
 
-from .load_data import ClickHouseLoadDataExpression, LoadDataOptions
-from .json_table import ClickHouseJSONTableExpression, JSONTableColumn, NestedPath
 from .json import (
     ClickHouseJSONExtractExpression,
     ClickHouseJSONObjectExpression,
     ClickHouseJSONArrayExpression,
     ClickHouseJSONContainsExpression,
-)
-from .spatial import (
-    ClickHouseSTGeomFromTextExpression,
-    ClickHouseSTDistanceExpression,
-    ClickHouseSTWithinExpression,
-    ClickHouseSTContainsExpression,
-)
-from .vector import (
-    ClickHouseVectorExpression,
-    ClickHouseDistanceEuclideanExpression,
-    ClickHouseDistanceCosineExpression,
-    ClickHouseDistanceDotExpression,
-)
-from .match_against import ClickHouseMatchAgainstExpression, MatchAgainstMode
-from .locking import ClickHouseForUpdateClause, ClickHouseLockStrength
-from .json_duality_view import (
-    CreateJsonDualityViewExpression,
-    DropJsonDualityViewExpression,
-    DualityObjectSpec,
-    DualityColumnMapping,
-    DualityNestedMapping,
-    DualityViewDMLTag,
-)
-from .optimizer_hint import (
-    ClickHouseOptimizerHintExpression,
-    SetVarHint,
-    OptimizerHintType,
 )
 from .partition import (
     ClickHousePartitionStrategy,
@@ -83,64 +58,7 @@ from .partition import (
     ClickHouseSubpartitionDefinition,
     ClickHouseSubpartitionClause,
 )
-from .partition_lifecycle import (
-    ClickHouseAddPartitionHelper,
-    ClickHouseAddSubpartitionHelper,
-    ClickHouseCoalescePartitionHelper,
-    ClickHouseDropOldestPartitionHelper,
-    ClickHouseReorganizePartitionHelper,
-)
 from .rename_table import ClickHouseRenameTableExpression
-from .table_statement import ClickHouseTableExpression, ClickHouseValuesExpression
-from .maintenance import (
-    ClickHouseAnalyzeTableExpression,
-    ClickHouseCheckTableExpression,
-    ClickHouseChecksumTableExpression,
-    ClickHouseOptimizeTableExpression,
-    ClickHouseRepairTableExpression,
-    CheckTableOption,
-    ChecksumTableOption,
-    RepairTableOption,
-    NoWriteToBinlogOption,
-)
-from .routine import (
-    ClickHouseCallExpression,
-    ClickHouseCreateProcedureExpression,
-    ClickHouseDropProcedureExpression,
-    ClickHouseCreateFunctionExpression,
-    ClickHouseDropFunctionExpression,
-)
-from .load_xml import ClickHouseLoadXMLEXpression, LoadXMLPriority, LoadXMLConflictMode
-from .admin import (
-    ClickHouseCacheIndexExpression,
-    ClickHouseLoadIndexIntoCacheExpression,
-    ClickHouseFlushExpression,
-    FlushOption,
-    ClickHouseResetExpression,
-    ResetOption,
-    ClickHouseInstallComponentExpression,
-    ClickHouseUninstallComponentExpression,
-    ClickHouseInstallPluginExpression,
-    ClickHouseUninstallPluginExpression,
-    ClickHouseCloneExpression,
-    ClickHouseRestartExpression,
-    ClickHouseBinlogExpression,
-    ClickHouseHandlerOpenExpression,
-    ClickHouseHandlerReadExpression,
-    ClickHouseHandlerCloseExpression,
-    HandlerReadMode,
-    ClickHouseDoExpression,
-    ClickHouseKillExpression,
-    KillTarget,
-    ClickHouseShutdownExpression,
-    ClickHouseHelpExpression,
-    AccountSpec,
-    GrantPrivilege,
-    ClickHouseCreateUserExpression,
-    ClickHouseDropUserExpression,
-    ClickHouseGrantExpression,
-    ClickHouseRevokeExpression,
-)
 
 # DataType subclasses for DDL
 from .types import (
@@ -160,8 +78,6 @@ from .types import (
     ClickHouseFixedStringType,
     ClickHouseFloat32Type,
     ClickHouseFloat64Type,
-    ClickHouseGeometryCollectionType,
-    ClickHouseGeometryType,
     ClickHouseInt16Type,
     ClickHouseInt32Type,
     ClickHouseInt64Type,
@@ -169,15 +85,9 @@ from .types import (
     ClickHouseIPv4Type,
     ClickHouseIPv6Type,
     ClickHouseJSONType,
-    ClickHouseLineStringType,
     ClickHouseLowCardinalityType,
     ClickHouseMapType,
-    ClickHouseMultiLineStringType,
-    ClickHouseMultiPointType,
-    ClickHouseMultiPolygonType,
     ClickHouseNullableType,
-    ClickHousePointType,
-    ClickHousePolygonType,
     ClickHouseSimpleAggregateFunctionType,
     ClickHouseStringType,
     ClickHouseTupleType,
@@ -186,40 +96,13 @@ from .types import (
     ClickHouseUInt64Type,
     ClickHouseUInt8Type,
     ClickHouseUUIDType,
-    ClickHouseVectorType,
 )
 
 __all__ = [
-    "ClickHouseLoadDataExpression",
-    "LoadDataOptions",
-    "ClickHouseJSONTableExpression",
-    "JSONTableColumn",
-    "NestedPath",
     "ClickHouseJSONExtractExpression",
     "ClickHouseJSONObjectExpression",
     "ClickHouseJSONArrayExpression",
     "ClickHouseJSONContainsExpression",
-    "ClickHouseSTGeomFromTextExpression",
-    "ClickHouseSTDistanceExpression",
-    "ClickHouseSTWithinExpression",
-    "ClickHouseSTContainsExpression",
-    "ClickHouseVectorExpression",
-    "ClickHouseDistanceEuclideanExpression",
-    "ClickHouseDistanceCosineExpression",
-    "ClickHouseDistanceDotExpression",
-    "ClickHouseMatchAgainstExpression",
-    "MatchAgainstMode",
-    "ClickHouseForUpdateClause",
-    "ClickHouseLockStrength",
-    "CreateJsonDualityViewExpression",
-    "DropJsonDualityViewExpression",
-    "DualityObjectSpec",
-    "DualityColumnMapping",
-    "DualityNestedMapping",
-    "DualityViewDMLTag",
-    "ClickHouseOptimizerHintExpression",
-    "SetVarHint",
-    "OptimizerHintType",
     "ClickHousePartitionStrategy",
     "ClickHousePartitionClause",
     "ClickHousePartitionMaxValue",
@@ -243,57 +126,11 @@ __all__ = [
     "ClickHouseOptimizePartitionExpression",
     "ClickHouseRebuildPartitionExpression",
     "ClickHouseRepairPartitionExpression",
+    "ClickHouseGetPartitionsExpression",
     "ClickHouseSubpartitionStrategy",
     "ClickHouseSubpartitionDefinition",
     "ClickHouseSubpartitionClause",
     "ClickHouseRenameTableExpression",
-    "ClickHouseTableExpression",
-    "ClickHouseValuesExpression",
-    "ClickHouseAnalyzeTableExpression",
-    "ClickHouseCheckTableExpression",
-    "ClickHouseChecksumTableExpression",
-    "ClickHouseOptimizeTableExpression",
-    "ClickHouseRepairTableExpression",
-    "CheckTableOption",
-    "ChecksumTableOption",
-    "RepairTableOption",
-    "NoWriteToBinlogOption",
-    "ClickHouseCallExpression",
-    "ClickHouseCreateProcedureExpression",
-    "ClickHouseDropProcedureExpression",
-    "ClickHouseCreateFunctionExpression",
-    "ClickHouseDropFunctionExpression",
-    "ClickHouseLoadXMLEXpression",
-    "LoadXMLPriority",
-    "LoadXMLConflictMode",
-    "ClickHouseCacheIndexExpression",
-    "ClickHouseLoadIndexIntoCacheExpression",
-    "ClickHouseFlushExpression",
-    "FlushOption",
-    "ClickHouseResetExpression",
-    "ResetOption",
-    "ClickHouseInstallComponentExpression",
-    "ClickHouseUninstallComponentExpression",
-    "ClickHouseInstallPluginExpression",
-    "ClickHouseUninstallPluginExpression",
-    "ClickHouseCloneExpression",
-    "ClickHouseRestartExpression",
-    "ClickHouseBinlogExpression",
-    "ClickHouseHandlerOpenExpression",
-    "ClickHouseHandlerReadExpression",
-    "ClickHouseHandlerCloseExpression",
-    "HandlerReadMode",
-    "ClickHouseDoExpression",
-    "ClickHouseKillExpression",
-    "KillTarget",
-    "ClickHouseShutdownExpression",
-    "ClickHouseHelpExpression",
-    "AccountSpec",
-    "GrantPrivilege",
-    "ClickHouseCreateUserExpression",
-    "ClickHouseDropUserExpression",
-    "ClickHouseGrantExpression",
-    "ClickHouseRevokeExpression",
     # DataType subclasses for DDL
     "ClickHouseAggregateFunctionType",
     "ClickHouseArrayType",
@@ -311,8 +148,6 @@ __all__ = [
     "ClickHouseFixedStringType",
     "ClickHouseFloat32Type",
     "ClickHouseFloat64Type",
-    "ClickHouseGeometryCollectionType",
-    "ClickHouseGeometryType",
     "ClickHouseInt16Type",
     "ClickHouseInt32Type",
     "ClickHouseInt64Type",
@@ -320,15 +155,9 @@ __all__ = [
     "ClickHouseIPv4Type",
     "ClickHouseIPv6Type",
     "ClickHouseJSONType",
-    "ClickHouseLineStringType",
     "ClickHouseLowCardinalityType",
     "ClickHouseMapType",
-    "ClickHouseMultiLineStringType",
-    "ClickHouseMultiPointType",
-    "ClickHouseMultiPolygonType",
     "ClickHouseNullableType",
-    "ClickHousePointType",
-    "ClickHousePolygonType",
     "ClickHouseSimpleAggregateFunctionType",
     "ClickHouseStringType",
     "ClickHouseTupleType",
@@ -337,5 +166,4 @@ __all__ = [
     "ClickHouseUInt64Type",
     "ClickHouseUInt8Type",
     "ClickHouseUUIDType",
-    "ClickHouseVectorType",
 ]

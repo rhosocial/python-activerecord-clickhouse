@@ -28,7 +28,7 @@ This directory contains example scripts demonstrating ClickHouse-specific expres
 | Variable | Default | Description |
 |----------|---------|-------------|
 | CLICKHOUSE_HOST | localhost | ClickHouse server host |
-| CLICKHOUSE_PORT | 3306 | ClickHouse server port |
+| CLICKHOUSE_PORT | 8123 | ClickHouse server port |
 | CLICKHOUSE_DATABASE | test | Database name |
 | CLICKHOUSE_USERNAME | root | Username |
 | CLICKHOUSE_PASSWORD | (empty) | Password |

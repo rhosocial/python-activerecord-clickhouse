@@ -127,11 +127,11 @@ def create_parser(subparsers):
         "info",
         help="Display ClickHouse environment information",
         epilog="""Examples:
-  # Show info using default version (8.0.0)
+  # Show info (uses server-reported version)
   %(prog)s
 
   # Show info for a specific version
-  %(prog)s --version 5.7.0
+  %(prog)s --version 26.7
 
   # Show info from actual database connection
   %(prog)s --host localhost --database mydb --user root --password secret
@@ -316,7 +316,7 @@ def check_protocol_support(dialect, protocol_class: type) -> Dict[str, Any]:
 
 
 def parse_version(version_str: str) -> Tuple[int, int, int]:
-    """Parse version string like '8.0.0' to tuple."""
+    """Parse version string like '26.7.1' to tuple."""
     parts = version_str.split(".")
     major = int(parts[0]) if len(parts) > 0 else 0
     minor = int(parts[1]) if len(parts) > 1 else 0
@@ -458,7 +458,8 @@ def _display_info_rich(info: Dict, verbose: int, version_display: str, is_connec
         console.print(f"[bold]ClickHouse Version:[/bold] {version_display} [dim](from actual connection)[/dim]\n")
     else:
         console.print(
-            f"[bold]ClickHouse Version:[/bold] {version_display} [yellow](default value - no database connection)[/yellow]\n"
+            f"[bold]ClickHouse Version:[/bold] {version_display} "
+            f"[yellow](default value - no database connection)[/yellow]\n"
         )
 
     label = "Detailed" if verbose >= 2 else "Family Overview"

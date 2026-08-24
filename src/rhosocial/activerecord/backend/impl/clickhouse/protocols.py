@@ -62,8 +62,13 @@ if TYPE_CHECKING:
     )
     from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
         ClickHouseAddPartitionExpression,
+        ClickHouseAnalyzePartitionExpression,
+        ClickHouseCheckPartitionExpression,
+        ClickHouseCoalescePartitionExpression,
         ClickHouseDropPartitionExpression,
         ClickHouseExchangePartitionExpression,
+        ClickHouseGetPartitionsExpression,
+        ClickHouseOptimizePartitionExpression,
         ClickHousePartitionByHash,
         ClickHousePartitionByKey,
         ClickHousePartitionByList,
@@ -73,7 +78,12 @@ if TYPE_CHECKING:
         ClickHousePartitionDefinition,
         ClickHousePartitionMaxValue,
         ClickHousePartitionValue,
+        ClickHouseRebuildPartitionExpression,
+        ClickHouseRemovePartitioningExpression,
+        ClickHouseRepairPartitionExpression,
         ClickHouseReorganizePartitionExpression,
+        ClickHouseSubpartitionClause,
+        ClickHouseSubpartitionDefinition,
         ClickHouseTruncatePartitionExpression,
     )
     from rhosocial.activerecord.backend.impl.clickhouse.expression.rename_table import (

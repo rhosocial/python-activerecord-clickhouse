@@ -29,7 +29,7 @@ def prod_db():
     """
     return ClickHouseConnectionConfig(
         host=_env_or_default("CLICKHOUSE_HOST", "prod-clickhouse.example.com"),
-        port=_env_int_or_default("CLICKHOUSE_PORT", 3306),
+        port=_env_int_or_default("CLICKHOUSE_PORT", 8123),
         user=_env_or_default("CLICKHOUSE_USER", "app_user"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "production"),
@@ -49,7 +49,7 @@ def prod_db_ssl():
     """
     return ClickHouseConnectionConfig(
         host=_env_or_default("CLICKHOUSE_HOST", "prod-clickhouse.example.com"),
-        port=_env_int_or_default("CLICKHOUSE_PORT", 3306),
+        port=_env_int_or_default("CLICKHOUSE_PORT", 8123),
         user=_env_or_default("CLICKHOUSE_USER", "app_user"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "production"),
@@ -70,7 +70,7 @@ def prod_replica():
     """
     return ClickHouseConnectionConfig(
         host=_env_or_default("CLICKHOUSE_REPLICA_HOST", "prod-clickhouse-replica.example.com"),
-        port=_env_int_or_default("CLICKHOUSE_REPLICA_PORT", 3306),
+        port=_env_int_or_default("CLICKHOUSE_REPLICA_PORT", 8123),
         user=_env_or_default("CLICKHOUSE_REPLICA_USER", "app_user"),
         password=_env_or_default("CLICKHOUSE_REPLICA_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "production"),

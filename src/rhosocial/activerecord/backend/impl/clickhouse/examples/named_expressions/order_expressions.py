@@ -167,7 +167,7 @@ if __name__ == "__main__":
 
     config = ClickHouseConnectionConfig(
         host=os.getenv("CLICKHOUSE_HOST", "127.0.0.1"),
-        port=int(os.getenv("CLICKHOUSE_PORT", "3306")),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
         username=os.getenv("CLICKHOUSE_USER", "root"),
         password=os.getenv("CLICKHOUSE_PASSWORD", ""),
         database=os.getenv("CLICKHOUSE_DATABASE", "test"),

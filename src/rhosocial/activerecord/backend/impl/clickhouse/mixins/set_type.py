@@ -1,41 +1,44 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/set_type.py
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
+
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
 class ClickHouseSetTypeMixin:
-    """ClickHouse SET type implementation."""
+    """ClickHouse does not support the MySQL ``SET`` type.
+
+    ClickHouse has no ``SET`` column type and no ``FIND_IN_SET`` function.
+    Use ``Enum16``/``LowCardinality(String)`` or an ``Array(String)`` column
+    instead. All methods fail fast.
+    """
 
     def supports_set_type(self) -> bool:
-        return True
+        return False
 
-    def format_set_literal(self, values: List[str], column_values: Optional[List[str]] = None) -> Tuple[str, tuple]:
-        """Format SET literal value."""
-        if len(values) > 64:
-            raise ValueError("ClickHouse SET type supports maximum 64 members")
-
-        if column_values is not None:
-            invalid_values = [v for v in values if v not in column_values]
-            if invalid_values:
-                raise ValueError(f"Invalid SET values: {invalid_values}. Allowed values: {column_values}")
-
-        if not values:
-            return "'", ()
-
-        sorted_values = sorted(values)
-        literal = ",".join(sorted_values)
-        return "%s", (literal,)
+    def format_set_literal(
+        self,
+        values: List[str],
+        column_values: Optional[List[str]] = None,
+    ) -> Tuple[str, tuple]:
+        raise UnsupportedFeatureError(
+            self.name, "SET type",
+            suggestion="ClickHouse has no SET type; use Enum16 or Array(String).",
+        )
 
     def format_find_in_set(self, value: str, set_column: str) -> Tuple[str, tuple]:
-        """Format FIND_IN_SET function."""
-        return f"FIND_IN_SET(%s, {self.format_identifier(set_column)}) > 0", (value,)
+        raise UnsupportedFeatureError(
+            self.name, "FIND_IN_SET",
+            suggestion="ClickHouse has no FIND_IN_SET function; use has() or indexOf().",
+        )
 
     def format_set_contains(self, column: str, values: List[str]) -> Tuple[str, tuple]:
-        """Format SET contains check."""
-        conditions = []
-        params: List[str] = []
+        raise UnsupportedFeatureError(
+            self.name, "SET type",
+            suggestion="ClickHouse has no SET type; use Array has() instead.",
+        )
 
-        for value in values:
-            conditions.append(f"FIND_IN_SET(%s, {self.format_identifier(column)}) > 0")
-            params.append(value)
-
-        return " AND ".join(conditions), tuple(params)
+    def format_set_any(self, expr: Any) -> Tuple[str, tuple]:
+        raise UnsupportedFeatureError(
+            self.name, "SET type",
+            suggestion="ClickHouse has no SET type.",
+        )

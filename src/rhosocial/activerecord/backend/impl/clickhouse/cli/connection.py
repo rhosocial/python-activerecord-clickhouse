@@ -17,8 +17,8 @@ def add_connection_args(parser):
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.getenv("CLICKHOUSE_PORT", "3306")),
-        help="Database port (env: CLICKHOUSE_PORT, default: 3306)",
+        default=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        help="Database port (env: CLICKHOUSE_PORT, default: 8123)",
     )
     parser.add_argument(
         "--database",
@@ -69,7 +69,7 @@ def add_version_arg(parser):
         "--version",
         type=str,
         default=None,
-        help='ClickHouse version to simulate (e.g., "8.0.0", "5.7.8"). Default: 8.0.0.',
+        help='ClickHouse version to simulate (e.g., "26.7.1", "25.8"). Defaults to server-reported version.',
     )
 
 
@@ -126,18 +126,30 @@ def resolve_connection_config_from_args(args):
         return resolver.resolve({})
 
     # Fallback to explicit connection parameters.
-    # The core config has no ``ssl_disabled`` field: ClickHouse's HTTP
-    # interface is plain unless explicit certificate options are provided,
-    # so the simplified CLI ``--ssl disabled`` flag simply means defaults.
-    ssl_param = getattr(args, "ssl", None)
+    # ClickHouse HTTP is plain by default; SSL is enabled via --ssl with an
+    # explicit mode (require / verify-ca / verify-full). The backend maps
+    # ssl_mode + ssl_verify_cert onto clickhouse-connect's secure/verify.
+    config_kwargs = {
+        "host": args.host or "localhost",
+        "port": args.port or 8123,
+        "database": args.database,
+        "username": args.user,
+        "password": args.password,
+    }
+    ssl_mode = getattr(args, "ssl", None)
+    if ssl_mode and ssl_mode not in ("disabled", "auto", None):
+        config_kwargs["ssl_mode"] = ssl_mode
+        # require  -> HTTPS, no cert validation
+        # verify-ca -> HTTPS + validate server cert (clickhouse-connect also
+        #              validates hostname; connect via the cert's hostname
+        #              to avoid mismatch)
+        # verify-full -> HTTPS + validate cert + hostname
+        if ssl_mode in ("verify-ca", "verify-full"):
+            config_kwargs["ssl_verify_cert"] = True
+        if ssl_mode == "verify-full":
+            config_kwargs["ssl_verify_identity"] = True
 
-    return ClickHouseConnectionConfig(
-        host=args.host or "localhost",
-        port=args.port or 8123,
-        database=args.database,
-        username=args.user,
-        password=args.password,
-    )
+    return ClickHouseConnectionConfig(**config_kwargs)
 
 
 def create_backend(args):

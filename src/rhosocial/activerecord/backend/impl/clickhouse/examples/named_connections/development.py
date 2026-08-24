@@ -29,7 +29,7 @@ def local_dev():
     """
     return ClickHouseConnectionConfig(
         host=_env_or_default("CLICKHOUSE_HOST", "localhost"),
-        port=_env_int_or_default("CLICKHOUSE_PORT", 3306),
+        port=_env_int_or_default("CLICKHOUSE_PORT", 8123),
         user=_env_or_default("CLICKHOUSE_USER", "root"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "dev"),
@@ -48,7 +48,7 @@ def local_dev_no_auth():
     """
     return ClickHouseConnectionConfig(
         host=_env_or_default("CLICKHOUSE_HOST", "localhost"),
-        port=_env_int_or_default("CLICKHOUSE_PORT", 3306),
+        port=_env_int_or_default("CLICKHOUSE_PORT", 8123),
         user=_env_or_default("CLICKHOUSE_USER", "root"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "dev"),
@@ -67,7 +67,7 @@ def test_db():
     """
     return ClickHouseConnectionConfig(
         host=_env_or_default("CLICKHOUSE_HOST", "localhost"),
-        port=_env_int_or_default("CLICKHOUSE_PORT", 3306),
+        port=_env_int_or_default("CLICKHOUSE_PORT", 8123),
         user=_env_or_default("CLICKHOUSE_USER", "root"),
         password=_env_or_default("CLICKHOUSE_PASSWORD", ""),
         database=_env_or_default("CLICKHOUSE_DATABASE", "test"),

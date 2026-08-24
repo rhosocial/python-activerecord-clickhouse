@@ -34,7 +34,7 @@ from rhosocial.activerecord.backend.expression.predicates import ComparisonPredi
 
 config = ClickHouseConnectionConfig(
     host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", 3306)),
+    port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),

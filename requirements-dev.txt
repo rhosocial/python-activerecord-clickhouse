@@ -7,7 +7,6 @@
 pyyaml
 tomli
 pydantic[email]
-pytz
 
 # Testing
 pytest

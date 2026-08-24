@@ -19,7 +19,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConn
 
 config = ClickHouseConnectionConfig(
     host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "3306")),
+    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
     database=os.getenv("CLICKHOUSE_DATABASE", "test"),
     username=os.getenv("CLICKHOUSE_USER", "root"),
     password=os.getenv("CLICKHOUSE_PASSWORD", ""),
@@ -96,8 +96,14 @@ query = QueryExpression(
     dialect=dialect,
     select=[
         Column(dialect, "id"),
-        FunctionCall(dialect, "JSONExtractString", Column(dialect, "data"), Literal(dialect, "$.name")).as_("name"),
-        FunctionCall(dialect, "JSONExtract", Column(dialect, "data"), Literal(dialect, "$.age"), Literal(dialect, "UInt32")).as_("age"),
+        FunctionCall(
+            dialect, "JSONExtractString", Column(dialect, "data"),
+            Literal(dialect, "$.name"),
+        ).as_("name"),
+        FunctionCall(
+            dialect, "JSONExtract", Column(dialect, "data"),
+            Literal(dialect, "$.age"), Literal(dialect, "UInt32"),
+        ).as_("age"),
     ],
     from_=TableExpression(dialect, "documents"),
 )

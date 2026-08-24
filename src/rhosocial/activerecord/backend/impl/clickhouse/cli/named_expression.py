@@ -24,7 +24,7 @@ def create_parser(subparsers):
     parser.add_argument(
         "--dialect-version",
         default=None,
-        help="ClickHouse dialect version for capability probing (e.g., 8.0.0, 5.7.8).",
+        help="ClickHouse dialect version for capability probing (e.g., 26.7, 25.8).",
     )
     return parser
 

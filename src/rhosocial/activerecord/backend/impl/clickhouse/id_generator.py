@@ -76,11 +76,6 @@ class SnowflakeIDGenerator:
                     timestamp = self._wait_next_millis(timestamp)
             else:
                 self._sequence = 0
-            base = (
-                (timestamp << self._TIMESTAMP_SHIFT)
-                | (self._machine_id << self._MACHINE_SHIFT)
-                | self._sequence
-            )
             self._last_timestamp = timestamp
             ids = []
             for j in range(count):

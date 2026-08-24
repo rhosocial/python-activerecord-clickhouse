@@ -121,7 +121,13 @@ user.delete()
 - No uniqueness enforcement — deduplication is your engine's job
   (`ReplacingMergeTree`, `CollapsingMergeTree`)
 - No async API (the driver is sync-only)
-- No SQL-standard FULLTEXT index or JSON_TABLE (raises instead of guessing)
+- No SQL-standard FULLTEXT index / `MATCH ... AGAINST` / `JSON_TABLE`
+  (raises `UnsupportedFeatureError`; use skip indexes and `JSONExtract*`)
+- No MySQL-specific feature surface: spatial types / `ST_*`, the 9.0 `VECTOR`
+  type, `SET`, stored procedures / `CALL`, `LOAD DATA` / `LOAD XML`, admin
+  commands (`FLUSH` / `RESET` / `KILL` / `GRANT` ...), `TABLE` / `VALUES`
+  constructors, `ANALYZE` / `CHECK` / `REPAIR TABLE` maintenance, `/*+ */`
+  optimizer hints, or JSON Duality Views — all fail fast
 
 ## Testing
 

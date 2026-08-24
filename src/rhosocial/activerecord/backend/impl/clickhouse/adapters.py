@@ -71,7 +71,12 @@ class ClickHouseArrayAdapter(SQLTypeAdapter):
             return str(value)
         raise TypeError(f"Unsupported array element type: {type(value).__name__}")
 
-    def to_database(self, value: Union[list, tuple], target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
+    def to_database(
+        self,
+        value: Union[list, tuple],
+        target_type: Type,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> Any:
         if value is None:
             return None
         return self._render(value)

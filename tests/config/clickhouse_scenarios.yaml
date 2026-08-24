@@ -1,8 +1,0 @@
-scenarios:
-  clickhouse_http:
-    host: localhost
-    port: 18682
-    database: test_db
-    username: root
-    password: password
-    autocommit: true

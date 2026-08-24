@@ -133,6 +133,7 @@ from .collation import validate_clickhouse_collation_name
 from .show.dialect import ClickHouseShowDialectMixin
 
 if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
     from rhosocial.activerecord.backend.expression.statements import (
         CreateTableExpression,
@@ -161,7 +162,7 @@ class ClickHouseDialect(
     CTEMixin,
     FilterClauseMixin,
     WindowFunctionMixin,
-    ClickHouseJSONFunctionMixin,  # ClickHouse JSON functions (before JSONMixin to override format_json_arrow/function_expression)
+    ClickHouseJSONFunctionMixin,  # JSON funcs (before JSONMixin to override)
     JSONMixin,
     ReturningMixin,  # ClickHouse doesn't support RETURNING, but we'll override to indicate this
     AdvancedGroupingMixin,
@@ -174,7 +175,7 @@ class ClickHouseDialect(
     OrderedSetAggregationMixin,
     QualifyClauseMixin,
     TemporalTableMixin,
-    ClickHouseFullTextSearchMixin,  # ClickHouse full-text search (before IndexMixin to override supports_fulltext_index)
+    ClickHouseFullTextSearchMixin,  # full-text fail-fast (before IndexMixin)
     ClickHouseTriggerMixin,  # ClickHouse trigger support (before IndexMixin to override trigger methods)
     ClickHouseDMLOperationMixin,  # ClickHouse DML operations (before UpsertMixin to override format_on_conflict_clause)
     UpsertMixin,
@@ -200,7 +201,7 @@ class ClickHouseDialect(
     ClickHouseIntrospectionMixin,  # Must be before IntrospectionMixin
     ClickHouseShowDialectMixin,  # ClickHouse SHOW commands
     ClickHouseModifyColumnMixin,  # ClickHouse MODIFY/CHANGE COLUMN support
-    ClickHouseJsonDualityViewMixin,  # ClickHouse 9.7+ JSON Duality Views
+    ClickHouseJsonDualityViewMixin,  # JSON Duality Views fail-fast stub
     ClickHouseTypeSupportMixin,  # DataType formatting and parsing
     ClickHouseOptimizerHintMixin,  # ClickHouse optimizer hints (SET_VAR)
     ClickHouseTableStatementMixin,  # ClickHouse TABLE / VALUES statements (8.0.19+)
@@ -260,7 +261,7 @@ class ClickHouseDialect(
     ClickHouseVectorSupport,  # ClickHouse 9.0+ VECTOR type support
     ClickHouseFullTextSearchSupport,  # ClickHouse full-text search
     ClickHouseModifyColumnSupport,  # ClickHouse MODIFY/CHANGE COLUMN support
-    ClickHouseJsonDualityViewSupport,  # ClickHouse 9.7+ JSON Duality Views
+    ClickHouseJsonDualityViewSupport,  # JSON Duality Views fail-fast stub
     ClickHouseOptimizerHintSupport,  # ClickHouse optimizer hints
     ClickHousePartitionSupport,  # ClickHouse table partitioning
     ClickHouseDMLOperationSupport,  # ClickHouse DML ops (INSERT IGNORE, REPLACE INTO, LOAD DATA - unsupported)

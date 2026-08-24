@@ -1,48 +1,67 @@
-# Supported Versions
+# Supported versions
 
-## ClickHouse Version Support
+## ClickHouse versions
 
-| ClickHouse Version | Support Status | Notes |
-|--------------|----------------|-------|
-| 5.6.x | ✅ Supported | Some features may differ, e.g., JSON type not supported |
-| 5.7.x | ✅ Supported | Recommended for legacy systems |
-| 8.0.x | ✅ Recommended | Current stable mainstream version |
-| 8.4.x | ✅ Supported | Latest LTS version |
-| 9.0.x | ✅ Supported | Latest stable version |
-| 9.6.x | ✅ Supported | Latest minor version |
+The release lines verified in the CI matrix are below. In principle, the
+maintained LTS and stable lines are covered:
 
-⚠️ **Note**:
+| ClickHouse version | Status | Notes |
+|--------------------|--------|-------|
+| 25.8.x (LTS) | ✅ CI verified | Maintained LTS |
+| 26.3.x (LTS) | ✅ CI verified | Maintained LTS |
+| 26.7.x | ✅ CI verified | Current stable line |
+| Earlier versions | ⚠️ untested | May work but not guaranteed; capability probes degrade per actual version |
 
-- ClickHouse 5.6 does not support JSON data type, related features cannot be used
-- Some features may have subtle differences between versions, refer to specific feature documentation
+> ⚠️ **Note**: The docs and code **no longer contain** MySQL version numbers like
+> `5.6`/`5.7`/`8.0`/`9.0`/`9.6`. They were migration leftovers and have been
+> cleaned up. ClickHouse uses calendar versioning (`YY.M.patch`), e.g. `26.7`.
 
-## MariaDB Support
+The dialect and type adapters probe the actual server version on connect and
+adjust capability switches accordingly (some functions or settings are only
+available in newer versions).
 
-| MariaDB Version | Support Status | Notes |
-|----------------|----------------|-------|
-| 10.x | ⚠️ Partial Support | Only supports ClickHouse-compatible features, not fully tested |
+## Python versions
 
-⚠️ **Note**: MariaDB only supports features compatible with ClickHouse. Some ClickHouse-specific features may not work properly. ClickHouse is recommended for production environments.
+| Python version | Status |
+|---------------|--------|
+| 3.10 | ✅ CI verified |
+| 3.11 | ✅ CI verified |
+| 3.12 | ✅ CI verified |
+| 3.13 | ✅ CI verified |
+| 3.14 | ✅ CI verified |
 
-## Python Version Requirements
+The Python range `>=3.10,<3.15` is dictated by `clickhouse-connect`'s
+`Requires-Python`. This backend adds no further Python version restriction.
 
-| Python Version | Support Status |
-|---------------|----------------|
-| 3.8 | ✅ Supported |
-| 3.9 | ✅ Supported |
-| 3.10 | ✅ Supported |
-| 3.11 | ✅ Supported |
-| 3.12 | ✅ Supported |
-| 3.13 | ✅ Supported |
-| 3.14 | ✅ Supported |
+## Core library version
 
-## Dependency Requirements
+| Dependency | Constraint |
+|------------|------------|
+| `rhosocial-activerecord` | `>=1.0.0.dev30,<2.0.0` |
+| `clickhouse-connect` | `>=1.7.0` |
 
-| Dependency | Version | Notes |
-|-----------|---------|-------|
-| rhosocial-activerecord | >=1.0.0 | Core library |
-| clickhouse-connector-python | >=8.0.0 | ClickHouse driver (only supported) |
+`dev30` is a hard dependency (see [Relationship with the core library](relationship.md#dependency-version)).
+Until `dev30` is published to PyPI, install the core library from source.
 
-⚠️ **Important**: This backend only supports clickhouse-connector-python driver. Other drivers like clickhouseclient, PyClickHouse are not supported.
+## CI matrix
 
-💡 *AI Prompt:* "How to use ClickHouse 8.0's JSON_TABLE function?"
+CI runs the following matrix on `main` push / PR (`.github/workflows/test.yml`):
+
+```
+Python 3.10 × ClickHouse 25.8
+Python 3.11 × ClickHouse 25.8
+Python 3.12 × ClickHouse 26.3
+Python 3.13 × ClickHouse 26.3
+Python 3.14 × ClickHouse 26.7   ← also collects coverage
+```
+
+The test suite is composed of the shared feature tests (basic/events/interface/
+mixins/query/relation) from
+[python-activerecord-testsuite](https://github.com/rhosocial/python-activerecord-testsuite)
+and this backend's own ClickHouse-specific tests. Unsupported capabilities are
+sensibly skipped via `pytest.skip` rather than failing.
+
+## Next steps
+
+- [Capability boundaries & fail-fast](capability_boundaries.md)
+- [Installation guide](../installation/installation.md)

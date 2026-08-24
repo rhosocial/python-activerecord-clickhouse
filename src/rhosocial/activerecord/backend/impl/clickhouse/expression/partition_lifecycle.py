@@ -14,6 +14,7 @@ from typing import List, Optional, Sequence, TYPE_CHECKING, Union
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
 
 if TYPE_CHECKING:  # pragma: no cover
+    from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
     from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
         ClickHousePartitionDefinition,
     )

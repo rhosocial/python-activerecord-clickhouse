@@ -1,129 +1,78 @@
-# Relationship with Core Library
+# Relationship with the core library
 
-## Architecture Overview
+`rhosocial-activerecord-clickhouse` is a **backend implementation plugin** for the
+core library [python-activerecord](https://github.com/rhosocial/python-activerecord).
+Understanding the layering helps you tell which capabilities come from the core
+and which from this backend.
 
-rhosocial-activerecord uses a modular design where the core library (`rhosocial-activerecord`) provides database-agnostic ActiveRecord implementations, and database backends exist as separate extension packages.
+## Layered architecture
 
-The ClickHouse backend's namespace is located under `rhosocial.activerecord.backend.impl.clickhouse`, at the same level as other backends (such as `sqlite`, `dummy`). This means:
-
-- Backends do not participate in ActiveRecord layer changes
-- Backends strictly follow backend interface protocols
-- Backend updates are decoupled from the core library's ActiveRecord functionality
+The core library defines four layers:
 
 ```
-rhosocial.activerecord
-├── backend.impl.sqlite   # SQLite backend
-├── backend.impl.dummy   # Dummy backend for testing
-└── backend.impl.clickhouse   # ClickHouse backend (this package)
-    ├── ClickHouseBackend
-    ├── AsyncClickHouseBackend
-    └── ...
+Interface (ActiveRecord model / FieldProxy)
+   └── Dialect (SQL dialect, branched by database family)
+        └── Expression (serializable SQL expression objects)
+             └── Backend (executor: connects, executes, returns results)
 ```
 
-## Backend Responsibilities
+This backend implements two of them:
 
-The ClickHouse backend is responsible for the following:
+- **`ClickHouseDialect`** (`dialect.py`): inherits the core library's generic
+  dialect mixins (CTE, window functions, JSON, joins, views, indexes,
+  introspection, ...) and stacks ClickHouse-specific mixins on top (table engines,
+  `FINAL`/`ARRAY JOIN`, the JSON function family, no-op transactions, fail-fast
+  stubs for unsupported features).
+- **`ClickHouseBackend`** (`backend.py`): implements the core library's
+  `DatabaseBackend` interface, executing SQL via `clickhouse-connect`, managing
+  connections, mapping errors, and generating client-side snowflake IDs.
 
-### 1. SQL Dialect Generation
+## What this backend provides
 
-Converts generic query builders into ClickHouse-specific SQL statements:
+| Layer | From core library | From this backend |
+|-------|-------------------|-------------------|
+| ActiveRecord model, `FieldProxy`, mixins, relations | ✅ | — |
+| Generic dialect mixins (CTE/window/JSON/join/view/index/introspection) | ✅ defines protocols | ✅ inherits & overrides per ClickHouse semantics |
+| ClickHouse-specific types (`Int*`/`UInt*`/`Decimal*`/`DateTime64`/`Enum*`/`Array`/`Map`/`Tuple`/`Nullable`/`LowCardinality`/`JSON`) | — | ✅ |
+| ClickHouse DDL (`ENGINE`/`ORDER BY`/`PARTITION BY`/`TTL`/skip indexes) | — | ✅ |
+| `system.*` introspection, `EXPLAIN`/`SHOW` | generic protocols | ✅ ClickHouse implementation |
+| Client-side snowflake ID generation | `AutoIncrementSupport` protocol (core dev30+) | ✅ `SnowflakeIDGenerator` |
+| Transaction management | protocol | ✅ no-op context manager (fail-fast rollback) |
+| Fail-fast stubs for unsupported features | — | ✅ trigger/spatial/vector/set/JSON_TABLE/... |
 
-```python
-# Core library: generic query building
-query = User.query().where(User.c.age >= 18).order_by(User.c.created_at)
+## Dependency version
 
-# ClickHouse backend: converted to ClickHouse SQL
-# SELECT * FROM users WHERE age >= 18 ORDER BY created_at
-```
+This backend depends on the core library `rhosocial-activerecord>=1.0.0.dev30`.
+Two dev30-introduced capabilities are **hard dependencies**:
 
-### 2. Data Type Mapping
+- `BulkInsertOptions.primary_key` field (to propagate client-generated snowflake
+  IDs into bulk inserts).
+- `AutoIncrementSupport` protocol (the dialect inherits it to express "ClickHouse
+  has no server-side AUTO_INCREMENT; the backend generates IDs").
 
-Handles ClickHouse-specific data types, including:
+Until the core library `1.0.0.dev30` is officially published to PyPI, this backend
+cannot be installed independently via `pip install`; install from source together
+with the core library. See [Installation guide](../installation/installation.md).
 
-- TINYINT, SMALLINT, MEDIUMINT, INT, BIGINT
-- FLOAT, DOUBLE, DECIMAL
-- CHAR, VARCHAR, TEXT, TINYTEXT, MEDIUMTEXT, LONGTEXT
-- DATE, TIME, DATETIME, TIMESTAMP, YEAR
-- BINARY, VARBINARY, BLOB
-- JSON (ClickHouse 5.7+)
-- ENUM, SET
+## Comparison with other backends
 
-### 3. Connection Management
+The core library ecosystem includes multiple backends (built-in SQLite, MySQL,
+PostgreSQL, MariaDB, SQL Server, Oracle). This backend is special in that it is
+the only one targeting columnar OLAP:
 
-Provides ClickHouse connection establishment, disconnection, and other low-level operations.
+- **Sync-only**: other backends mostly provide symmetric async implementations;
+  this one does not, due to the driver.
+- **No transactions**: other backends have real isolation; this backend's
+  transactions are no-ops.
+- **No server-side auto-increment**: other backends' `AUTO_INCREMENT`/`SERIAL` are
+  server-generated; this backend generates `Int64` client-side via the snowflake
+  algorithm.
+- **Widest fail-fast surface**: this backend has more fail-fast stubs than any
+  other, because ClickHouse lacks the most OLTP features.
 
-### 4. Transaction Control
+> 💡 *AI prompt: "If a model is used with both SQLite (tests) and ClickHouse (production), how are the capability differences handled at the code level?"*
 
-Implements ClickHouse transaction BEGIN, COMMIT, ROLLBACK logic.
+## Next steps
 
-## Quick Start
-
-### 1. Installation
-
-```bash
-pip install rhosocial-activerecord
-pip install rhosocial-activerecord-clickhouse
-```
-
-### 2. Define Models
-
-```python
-import uuid
-from typing import ClassVar
-from pydantic import Field
-from rhosocial.activerecord.model import ActiveRecord
-from rhosocial.activerecord.base import FieldProxy
-from rhosocial.activerecord.field import UUIDMixin, TimestampMixin
-
-
-class User(UUIDMixin, TimestampMixin, ActiveRecord):
-    username: str = Field(..., max_length=50)
-    email: str
-
-    c: ClassVar[FieldProxy] = FieldProxy()
-
-    @classmethod
-    def table_name(cls) -> str:
-        return 'users'
-```
-
-### 3. Configure Backend
-
-```python
-from rhosocial.activerecord.backend.impl.clickhouse import (
-    ClickHouseBackend,
-    ClickHouseConnectionConfig,
-)
-
-# Configure ClickHouse connection
-config = ClickHouseConnectionConfig(
-    host='localhost',
-    port=3306,
-    database='myapp',
-    username='user',
-    password='password',
-)
-
-# Configure backend for the model
-User.configure(config, ClickHouseBackend)
-```
-
-### 4. CRUD Operations
-
-```python
-# Create
-user = User(username='tom', email='tom@example.com')
-user.save()
-
-# Read
-user = User.query().where(User.c.username == 'tom').first()
-
-# Update
-user.email = 'tom.new@example.com'
-user.save()
-
-# Delete
-user.delete()
-```
-
-💡 *AI Prompt:* "What is the ActiveRecord pattern? What are its advantages and disadvantages?"
+- [Supported versions](supported_versions.md)
+- [Capability boundaries & fail-fast](capability_boundaries.md)

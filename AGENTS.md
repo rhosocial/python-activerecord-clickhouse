@@ -29,12 +29,32 @@ This project is under active development. Key features implemented:
 
 ## Not Supported (fail fast)
 
-- ACID transactions (no BEGIN/COMMIT/ROLLBACK; `transaction()` degrades to a no-op context manager)
+The following MySQL / SQL-standard features are **not** supported by ClickHouse
+and raise `UnsupportedFeatureError` instead of being emulated:
+
+- ACID transactions (no BEGIN/COMMIT/ROLLBACK; `transaction()` degrades to a
+  no-op context manager)
 - FOREIGN KEY / UNIQUE constraints
 - Triggers, sequences
 - UPSERT / ON CONFLICT / INSERT IGNORE / REPLACE INTO
 - FOR UPDATE row locking
-- SQL-standard FULLTEXT indexes / JSON_TABLE (JSON access uses JSONExtractString/JSONExtractRaw/JSON_VALUE)
+- SQL-standard FULLTEXT indexes / `MATCH ... AGAINST`
+- `JSON_TABLE` (JSON access uses `JSONExtractString` / `JSONExtractRaw` /
+  `JSON_VALUE`)
+- MySQL-style spatial types (`GEOMETRY`/`POINT`/...) and the `ST_*` function
+  family
+- MySQL 9.0 `VECTOR` type and `STRING_TO_VECTOR` / `VECTOR_TO_STRING` /
+  `VECTOR_DIM` / `DISTANCE_*` functions (use `Array(Float32)` + `L2Distance`)
+- MySQL `SET` type and `FIND_IN_SET`
+- Stored procedures / stored functions / `CALL`
+- `LOAD DATA INFILE` / `LOAD XML`
+- MySQL admin commands (`FLUSH` / `RESET` / `KILL` / `INSTALL PLUGIN` /
+  `CLONE` / `BINLOG` / `HANDLER` / `GRANT` / `CREATE USER`; use `SYSTEM` commands)
+- MySQL `TABLE` / `VALUES` table-value constructor (8.0.19+)
+- MySQL whole-table maintenance (`ANALYZE` / `CHECK` / `CHECKSUM` / `REPAIR
+  TABLE`; use `OPTIMIZE TABLE ... FINAL` or `SYSTEM` commands)
+- MySQL optimizer hints (`/*+ SET_VAR(...) */`; use `SETTINGS`)
+- JSON Relational Duality Views
 - Asynchronous backend (clickhouse-connect is sync-only)
 
 ## Backend Behaviour Notes

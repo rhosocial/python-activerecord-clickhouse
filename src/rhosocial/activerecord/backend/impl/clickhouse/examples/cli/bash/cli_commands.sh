@@ -26,7 +26,7 @@ export PYTHONSAFEPATH=1
 
 # Default connection parameters (override via environment)
 MYSQL_HOST="${MYSQL_HOST:-localhost}"
-MYSQL_PORT="${MYSQL_PORT:-3306}"
+MYSQL_PORT="${MYSQL_PORT:-8123}"
 MYSQL_DATABASE="${MYSQL_DATABASE:-test}"
 MYSQL_USER="${MYSQL_USER:-root}"
 MYSQL_PASSWORD="${MYSQL_PASSWORD:-}"

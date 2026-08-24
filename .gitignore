@@ -205,9 +205,11 @@ local_config.toml
 local_config.yaml
 local_config.yml
 
-# MySQL scenario config files
+# Scenario config files (contain local connection details; do not track)
 tests/config/mysql_scenarios.yaml
 tests/config/mysql_scenarios.yml
+tests/config/clickhouse_scenarios.yaml
+tests/config/clickhouse_scenarios.yml
 
 # Claude Code temporary files (local only)
 .claude/tmp/

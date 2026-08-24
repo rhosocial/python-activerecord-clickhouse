@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 # src/rhosocial/activerecord/backend/impl/clickhouse/introspection/status_introspector.py
 """
 ClickHouse server status introspector.
@@ -11,6 +9,7 @@ Design principle: Sync and Async are separate and cannot coexist.
 - SyncClickHouseStatusIntrospector: for synchronous backends
 - AsyncClickHouseStatusIntrospector: for asynchronous backends
 """
+from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
@@ -23,6 +22,10 @@ from rhosocial.activerecord.backend.introspection.status import (
     ConnectionInfo,
     StorageInfo,
     SessionInfo,
+    InnoDBInfo,
+    BinaryLogInfo,
+    ProcessInfo,
+    SlowQueryInfo,
     SyncAbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
 )

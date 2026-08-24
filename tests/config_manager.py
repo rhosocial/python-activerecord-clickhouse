@@ -156,17 +156,17 @@ def load_config() -> Dict[str, Any]:
                 "versions": [
                     {
                         "label": "default",
-                        "version": [8, 0, 21],  # Default version assumption
+                        "version": [26, 7, 1],
                         "host": "localhost",
-                        "port": 3306,
+                        "port": 8123,
                         "database": "test_db",
                         "username": "root",
                         "password": "password",
-                        "charset": "utf8mb4",
                         "autocommit": True,
                         "connect_timeout": 10,
-                        # Temporarily disable read_timeout and write_timeout, as they are not supported by the
-                        # version of clickhouse-connector-python used in the current test environment.
+                        # clickhouse-connect (HTTP transport) has no MySQL-style
+                        # ``charset`` option; utf-8 is the transport default.
+                        # read/write timeouts are set via the driver's HTTP options.
                         # 'read_timeout': 30,
                         # 'write_timeout': 30,
                         "ssl_disabled": True,  # SSL is disabled by default
@@ -208,7 +208,7 @@ def get_clickhouse_connection_params() -> Dict[str, Any]:
     # Fallback to basic environment variables or defaults
     return {
         "host": os.getenv("CLICKHOUSE_HOST", "localhost"),
-        "port": int(os.getenv("CLICKHOUSE_PORT", "3306")),
+        "port": int(os.getenv("CLICKHOUSE_PORT", "8123")),
         "user": os.getenv("CLICKHOUSE_USER", "root"),
         "password": os.getenv("CLICKHOUSE_PASSWORD", "password"),
         "database": os.getenv("CLICKHOUSE_DATABASE", "test_db"),

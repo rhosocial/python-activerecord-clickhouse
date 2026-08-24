@@ -1,46 +1,23 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/load_xml.py
-from typing import TYPE_CHECKING, Tuple
+from typing import Any, Tuple
 
-if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
-        ClickHouseLoadXMLEXpression,
-    )
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
 class ClickHouseLoadXMLLMixin:
-    """ClickHouse LOAD XML statement support."""
+    """ClickHouse does not support ``LOAD XML``.
+
+    ``LOAD XML INFILE ... INTO TABLE`` is a MySQL statement. ClickHouse ingests
+    data via ``input()`` table function, external dictionaries, or
+    ``INSERT INTO ... FROM`` with format parsers (e.g. ``Format XML``).
+    All methods fail fast.
+    """
 
     def supports_load_xml(self) -> bool:
-        return True
+        return False
 
-    def format_load_xml_statement(self, expr: "ClickHouseLoadXMLEXpression") -> Tuple[str, tuple]:
-        """Format ``LOAD XML ... INFILE ... INTO TABLE ...``."""
-        expr.validate(strict=self.strict_validation)
-
-        parts = ["LOAD XML"]
-
-        if expr.priority.value:
-            parts.append(expr.priority.value)
-        elif expr.local:
-            parts.append("LOCAL")
-
-        parts.append("INFILE")
-        file_path_escaped = expr.file_path.replace("\\", "\\\\").replace("'", "\\'")
-        parts.append(f"'{file_path_escaped}'")
-
-        if expr.conflict_mode.value:
-            parts.append(expr.conflict_mode.value)
-
-        parts.append("INTO TABLE")
-        parts.append(self.format_identifier(expr.table))
-
-        if expr.character_set:
-            parts.append(f"CHARACTER SET {expr.character_set}")
-
-        if expr.rows_identified_by:
-            parts.append(f"ROWS IDENTIFIED BY '<{expr.rows_identified_by}>'")
-
-        if expr.ignore_count is not None:
-            parts.append(f"IGNORE {expr.ignore_count} {expr.ignore_unit}")
-
-        return " ".join(parts), ()
+    def format_load_xml_statement(self, expr: Any) -> Tuple[str, tuple]:
+        raise UnsupportedFeatureError(
+            self.name, "LOAD XML",
+            suggestion="ClickHouse has no LOAD XML; use a format parser or input() table function.",
+        )

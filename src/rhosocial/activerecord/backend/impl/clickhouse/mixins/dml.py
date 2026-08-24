@@ -30,5 +30,8 @@ class ClickHouseDMLOperationMixin:
     def format_on_conflict_clause(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ON DUPLICATE KEY UPDATE",
-            suggestion="ClickHouse does not support ON DUPLICATE KEY UPDATE; use INSERT with ReplacingMergeTree or other merge mechanisms."
+            suggestion=(
+                "ClickHouse does not support ON DUPLICATE KEY UPDATE; "
+                "use INSERT with ReplacingMergeTree or other merge mechanisms."
+            ),
         )

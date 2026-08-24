@@ -39,13 +39,33 @@ This project is under active development. Key features implemented:
 
 ## Not Supported (fail fast)
 
+The following MySQL / SQL-standard features are **not** supported by ClickHouse
+and raise `UnsupportedFeatureError` instead of being emulated:
+
 - ACID transactions (`transaction()` degrades to a no-op context manager so
   generic operations keep working; rollback guarantees are absent)
 - FOREIGN KEY / UNIQUE constraints
 - Triggers, sequences
 - UPSERT / ON CONFLICT / INSERT IGNORE / REPLACE INTO
 - FOR UPDATE row locking
-- SQL-standard FULLTEXT indexes / JSON_TABLE
+- SQL-standard FULLTEXT indexes / `MATCH ... AGAINST`
+- `JSON_TABLE` (JSON access uses `JSONExtractString` / `JSONExtractRaw` /
+  `JSON_VALUE`)
+- MySQL-style spatial types (`GEOMETRY`/`POINT`/...) and the `ST_*` function
+  family
+- MySQL 9.0 `VECTOR` type and `STRING_TO_VECTOR` / `VECTOR_TO_STRING` /
+  `VECTOR_DIM` / `DISTANCE_*` functions (use `Array(Float32)` + `L2Distance`)
+- MySQL `SET` type and `FIND_IN_SET`
+- Stored procedures / stored functions / `CALL`
+- `LOAD DATA INFILE` / `LOAD XML`
+- MySQL admin commands (`FLUSH` / `RESET` / `KILL` / `INSTALL PLUGIN` /
+  `CLONE` / `BINLOG` / `HANDLER` / `GRANT` / `CREATE USER`; use `SYSTEM`
+  commands)
+- MySQL `TABLE` / `VALUES` table-value constructor (8.0.19+)
+- MySQL whole-table maintenance (`ANALYZE` / `CHECK` / `CHECKSUM` / `REPAIR
+  TABLE`; use `OPTIMIZE TABLE ... FINAL` or `SYSTEM` commands)
+- MySQL optimizer hints (`/*+ SET_VAR(...) */`; use `SETTINGS`)
+- JSON Relational Duality Views
 - Asynchronous backend (clickhouse-connect is sync-only)
 
 ## Python Version Support
@@ -57,7 +77,7 @@ This project is under active development. Key features implemented:
 ```bash
 # Against a local ClickHouse (see tests/config/clickhouse_scenarios.yaml)
 export PYTHONPATH=src:tests
-.venv/bin/python -m pytest tests/rhosocial/activerecord_clickhouse_test -p no:logging -p no:cacheprovider
+.venv3.14-ubuntu26.04/bin/python -m pytest tests/rhosocial/activerecord_clickhouse_test -p no:logging -p no:cacheprovider
 ```
 
 The shared testsuite feature groups (basic/events/interface/mixins/query/relation)
