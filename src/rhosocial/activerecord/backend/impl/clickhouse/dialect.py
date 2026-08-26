@@ -777,6 +777,10 @@ class ClickHouseDialect(
     # endregion
 
     # region Schema Support
+    def supports_schema(self) -> bool:
+        """Whether ClickHouse models named schema namespaces."""
+        return False  # ClickHouse uses databases only, no schema namespace layer
+
     def supports_create_schema(self) -> bool:
         """Whether CREATE SCHEMA is supported."""
         return False  # ClickHouse uses CREATE DATABASE, not CREATE SCHEMA
