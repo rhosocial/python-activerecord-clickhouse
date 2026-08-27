@@ -139,7 +139,6 @@ if TYPE_CHECKING:
         CreateTableExpression,
         CreateViewExpression,
         DropViewExpression,
-        ColumnDefinition,
         TableConstraint,
         IndexDefinition,
         ExplainExpression,
@@ -1086,49 +1085,6 @@ class ClickHouseDialect(
 
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
-
-    def _format_column_definition_clickhouse(
-        self,
-        col_def: "ColumnDefinition",
-        ColumnConstraintType
-    ) -> Tuple[str, List[Any]]:
-        """Format a single column definition with ClickHouse-specific syntax."""
-        parts = [self.format_identifier(col_def.name), col_def.data_type]
-        params: List[Any] = []
-
-        # Build constraint parts
-        constraint_parts = []
-        for constraint in col_def.constraints:
-            if constraint.constraint_type == ColumnConstraintType.PRIMARY_KEY:
-                constraint_parts.append("PRIMARY KEY")
-            elif constraint.constraint_type == ColumnConstraintType.NOT_NULL:
-                constraint_parts.append("NOT NULL")
-            elif constraint.constraint_type == ColumnConstraintType.UNIQUE:
-                raise UnsupportedFeatureError(
-                    self.name, "UNIQUE column constraint",
-                    suggestion="ClickHouse does not support UNIQUE constraints."
-                )
-            elif constraint.constraint_type == ColumnConstraintType.DEFAULT:
-                if constraint.default_value is not None:
-                    constraint_parts.append(f"DEFAULT {constraint.default_value}")
-            elif constraint.constraint_type == ColumnConstraintType.NULL:
-                constraint_parts.append("NULL")
-
-            # ClickHouse does not support AUTO_INCREMENT
-            if constraint.is_auto_increment:
-                raise UnsupportedFeatureError(
-                    self.name, "AUTO_INCREMENT column",
-                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
-                )
-
-        if constraint_parts:
-            parts.append(' '.join(constraint_parts))
-
-        # Add column comment (ClickHouse-specific)
-        if col_def.comment:
-            parts.append(f"COMMENT '{col_def.comment}'")
-
-        return ' '.join(parts), params
 
     def _format_table_constraint_clickhouse(
         self,

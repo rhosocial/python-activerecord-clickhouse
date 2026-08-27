@@ -307,6 +307,22 @@ class ClickHouseBackend(
             return int(next(iter(result.data[0].values())))
         return 0
 
+    @staticmethod
+    def _escape_literal_percent(sql: str) -> str:
+        """Escape literal ``%`` in SQL so it survives clickhouse-connect's ``%`` interpolation.
+
+        clickhouse-connect's DB-API layer interpolates parameters client-side with
+        Python's ``%`` operator when the query uses ``%s`` placeholders. Any literal
+        ``%`` in the SQL text then raises ``ValueError: unsupported format character``
+        (e.g. ``LIKE 'foo%'``). This escapes every ``%`` that is not part of a ``%s``
+        placeholder to ``%%``; the driver's ``%`` operator turns it back into a single
+        ``%`` before the statement reaches the server. Already-escaped ``%%`` is
+        preserved (becomes ``%%%%`` then ``%%`` again after formatting).
+        """
+        parts = sql.split("%s")
+        parts = [part.replace("%", "%%") for part in parts]
+        return "%s".join(parts)
+
     def _execute_query(self, cursor, sql: str, params: Optional[Tuple]):
         """Execute a query with ClickHouse compatibility settings.
 
@@ -320,7 +336,7 @@ class ClickHouseBackend(
         """
         settings = {"mutations_sync": 1, "joined_subquery_requires_alias": 0}
         if params:
-            cursor.execute(sql, params, settings=settings)
+            cursor.execute(self._escape_literal_percent(sql), params, settings=settings)
         else:
             cursor.execute(sql, settings=settings)
         return cursor
@@ -464,9 +480,10 @@ class ClickHouseBackend(
                 self.log(logging.DEBUG, f"With {len(params_list)} parameter sets")
 
             # Execute multiple statements
+            escaped_sql = self._escape_literal_percent(sql)
             affected_rows = 0
             for params in params_list:
-                cursor.execute(sql, params)
+                cursor.execute(escaped_sql, params)
                 affected_rows += cursor.rowcount
 
             duration = (datetime.datetime.now() - start_time).total_seconds()
