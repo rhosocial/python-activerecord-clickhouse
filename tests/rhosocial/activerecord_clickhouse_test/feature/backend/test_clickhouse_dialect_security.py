@@ -527,3 +527,44 @@ def test_format_identifier_naive_vs_proper_malicious(dialect):
 def test_format_identifier_empty_string(dialect):
     """Empty identifier produces empty backticks."""
     assert dialect.format_identifier("") == "``"
+
+
+# ── _escape_literal_percent ────────────────────────────────────────────
+
+
+def test_escape_literal_percent_preserves_placeholders():
+    """_escape_literal_percent escapes literal % but preserves %s markers."""
+    from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+
+    # %s placeholder → unchanged
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM users WHERE name = %s"
+    ) == "SELECT * FROM users WHERE name = %s"
+
+    # Literal % outside %s → %%
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM users WHERE name LIKE 'foo%' AND id = %s"
+    ) == "SELECT * FROM users WHERE name LIKE 'foo%%' AND id = %s"
+
+    # Multiple %s with literal % between
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM t WHERE a = %s AND b LIKE '100%' AND c = %s"
+    ) == "SELECT * FROM t WHERE a = %s AND b LIKE '100%%' AND c = %s"
+
+    # Pre-escaped %% → %%%% (preserved, then % formatting folds back to %%)
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM system.tables WHERE name LIKE '%%view%%'"
+    ) == "SELECT * FROM system.tables WHERE name LIKE '%%%%view%%%%'"
+
+    # No params → no %s → all % are literal and should be escaped
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM t WHERE name LIKE '100%'"
+    ) == "SELECT * FROM t WHERE name LIKE '100%%'"
+
+    # Empty string
+    assert ClickHouseBackend._escape_literal_percent("") == ""
+
+    # No % at all
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT 1"
+    ) == "SELECT 1"
