@@ -164,7 +164,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
             ColumnDefinition("datetime_field", TextType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("json_field", JsonType()),
-            ColumnDefinition("nullable_field", ClickHouseNullableType(ClickHouseStringType())),
+            ColumnDefinition("nullable_field", ClickHouseNullableType(inner_type=ClickHouseStringType())),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -176,7 +176,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
 
 def create_validated_field_users_table(dialect, table_name: str = "validated_field_users") -> CreateTableExpression:
     # ClickHouse ENUM column for status.
-    status_enum = ClickHouseEnum8Type([('active', 1), ('inactive', 2), ('banned', 3), ('pending', 4), ('suspended', 5)])
+    status_enum = ClickHouseEnum8Type(values=[('active', 1), ('inactive', 2), ('banned', 3), ('pending', 4), ('suspended', 5)])
     return CreateTableExpression(
         dialect=dialect,
         table=table_name,
@@ -219,7 +219,7 @@ def create_validated_users_table(dialect, table_name: str = "validated_users") -
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("email", VarCharType(length=255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("age", ClickHouseNullableType(IntegerType())),
+            ColumnDefinition("age", ClickHouseNullableType(inner_type=IntegerType())),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -395,13 +395,13 @@ def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tes
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             # Optional[T] model fields must map to Nullable columns so that None
             # is stored/returned as SQL NULL instead of ClickHouse's empty string.
-            ColumnDefinition("optional_name", ClickHouseNullableType(VarCharType(length=255))),
-            ColumnDefinition("optional_age", ClickHouseNullableType(IntegerType())),
-            ColumnDefinition("last_login", ClickHouseNullableType(TextType())),
-            ColumnDefinition("is_premium", ClickHouseNullableType(BooleanType())),
+            ColumnDefinition("optional_name", ClickHouseNullableType(inner_type=VarCharType(length=255))),
+            ColumnDefinition("optional_age", ClickHouseNullableType(inner_type=IntegerType())),
+            ColumnDefinition("last_login", ClickHouseNullableType(inner_type=TextType())),
+            ColumnDefinition("is_premium", ClickHouseNullableType(inner_type=BooleanType())),
             ColumnDefinition("unsupported_union", VarCharType(length=255)),
             ColumnDefinition("custom_bool", VarCharType(length=3)),
-            ColumnDefinition("optional_custom_bool", ClickHouseNullableType(VarCharType(length=3))),
+            ColumnDefinition("optional_custom_bool", ClickHouseNullableType(inner_type=VarCharType(length=3))),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
