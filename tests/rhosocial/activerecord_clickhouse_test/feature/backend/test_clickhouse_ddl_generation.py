@@ -134,11 +134,11 @@ class TestClickHouseTypeFormatting:
         cases = {
             ClickHouseUInt32Type(): "UInt32",
             ClickHouseStringType(): "String",
-            ClickHouseDateTime64Type(3): "DateTime64(3)",
+            ClickHouseDateTime64Type(precision=3): "DateTime64(3)",
             ClickHouseArrayType(element_type=ClickHouseStringType()): "Array(String)",
             ClickHouseNullableType(inner_type=ClickHouseUInt32Type()): "Nullable(UInt32)",
-            ClickHouseMapType(ClickHouseStringType(), ClickHouseUInt32Type()): "Map(String, UInt32)",
-            ClickHouseDecimalType(18, 4): "Decimal(18, 4)",
+            ClickHouseMapType(key_type=ClickHouseStringType(), value_type=ClickHouseUInt32Type()): "Map(String, UInt32)",
+            ClickHouseDecimalType(precision=18, scale=4): "Decimal(18, 4)",
         }
         for data_type, expected in cases.items():
             sql, _ = data_type.to_sql(dialect)
