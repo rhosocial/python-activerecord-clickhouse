@@ -67,7 +67,7 @@ expr = CreateTableExpression(
             ]),
         ColumnDefinition("ts", ClickHouseDateTimeType()),
         ColumnDefinition("message", ClickHouseStringType()),
-        ColumnDefinition("value", ClickHouseDecimalType(10, 2)),
+        ColumnDefinition("value", ClickHouseDecimalType(precision=10, scale=2)),
     ],
     dialect_options={"engine": "MergeTree()", "order_by": "id"},
 )

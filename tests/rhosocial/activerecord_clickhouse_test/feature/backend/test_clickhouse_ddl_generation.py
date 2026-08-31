@@ -33,7 +33,7 @@ class TestClickHouseDDLGeneration:
             TableExpression(dialect, "users"),
             [
                 ColumnDefinition("id", IntegerType()),
-                ColumnDefinition("name", VarCharType(100)),
+                ColumnDefinition("name", VarCharType(length=100)),
             ],
             storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
         )
@@ -60,8 +60,8 @@ class TestClickHouseDDLGeneration:
             TableExpression(dialect, "t"),
             [
                 ColumnDefinition("id", IntegerType()),
-                ColumnDefinition("name", VarCharType(100)),
-                ColumnDefinition("amount", DecimalType(10, 2)),
+                ColumnDefinition("name", VarCharType(length=100)),
+                ColumnDefinition("amount", DecimalType(precision=10, scale=2)),
                 ColumnDefinition("ts", DateTimeType()),
                 ColumnDefinition("active", BooleanType()),
             ],

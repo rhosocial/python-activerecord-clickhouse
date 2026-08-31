@@ -484,89 +484,89 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         # Integer family
         if self._CLICKHOUSE_INTEGER_TYPES.match(upper):
             if upper.startswith("INT8"):
-                return ClickHouseInt8Type()
+                return ClickHouseInt8Type(dialect=self)
             if upper.startswith("INT16"):
-                return ClickHouseInt16Type()
+                return ClickHouseInt16Type(dialect=self)
             if upper.startswith("INT32"):
-                return ClickHouseInt32Type()
+                return ClickHouseInt32Type(dialect=self)
             if upper.startswith("INT64"):
-                return ClickHouseInt64Type()
+                return ClickHouseInt64Type(dialect=self)
             if upper.startswith("UINT8"):
-                return ClickHouseUInt8Type()
+                return ClickHouseUInt8Type(dialect=self)
             if upper.startswith("UINT16"):
-                return ClickHouseUInt16Type()
+                return ClickHouseUInt16Type(dialect=self)
             if upper.startswith("UINT32"):
-                return ClickHouseUInt32Type()
+                return ClickHouseUInt32Type(dialect=self)
             if upper.startswith("UINT64"):
-                return ClickHouseUInt64Type()
+                return ClickHouseUInt64Type(dialect=self)
 
         # Float family
         if self._CLICKHOUSE_FLOAT_TYPES.match(upper):
             if upper.startswith("FLOAT32"):
-                return ClickHouseFloat32Type()
+                return ClickHouseFloat32Type(dialect=self)
             if upper.startswith("FLOAT64"):
-                return ClickHouseFloat64Type()
+                return ClickHouseFloat64Type(dialect=self)
 
         # Decimal family
         if self._CLICKHOUSE_DECIMAL_TYPES.match(upper):
             nums = re.findall(r"\d+", stripped)
             if upper.startswith("DECIMAL32"):
                 scale = int(nums[0]) if nums else 0
-                return ClickHouseDecimal32Type(scale)
+                return ClickHouseDecimal32Type(dialect=self, scale=scale)
             if upper.startswith("DECIMAL64"):
                 scale = int(nums[0]) if nums else 0
-                return ClickHouseDecimal64Type(scale)
+                return ClickHouseDecimal64Type(dialect=self, scale=scale)
             if upper.startswith("DECIMAL128"):
                 scale = int(nums[0]) if nums else 0
-                return ClickHouseDecimal128Type(scale)
+                return ClickHouseDecimal128Type(dialect=self, scale=scale)
             # Decimal(P, S)
             if len(nums) >= 2:
-                return ClickHouseDecimalType(int(nums[0]), int(nums[1]))
+                return ClickHouseDecimalType(dialect=self, precision=int(nums[0]), scale=int(nums[1]))
             if len(nums) == 1:
-                return ClickHouseDecimalType(int(nums[0]))
-            return ClickHouseDecimalType(10, 0)
+                return ClickHouseDecimalType(dialect=self, precision=int(nums[0]))
+            return ClickHouseDecimalType(dialect=self, precision=10, scale=0)
 
         # String family
         if self._CLICKHOUSE_STRING_TYPES.match(upper):
             if upper.startswith("FIXEDSTRING"):
                 nums = re.findall(r"\d+", stripped)
                 length = int(nums[0]) if nums else 1
-                return ClickHouseFixedStringType(length)
-            return ClickHouseStringType()
+                return ClickHouseFixedStringType(dialect=self, length=length)
+            return ClickHouseStringType(dialect=self)
 
         # Date / Time family
         if self._CLICKHOUSE_DATE_TYPES.match(upper):
             if upper.startswith("DATETIME64"):
                 nums = re.findall(r"\((\d+)\)", stripped)
                 precision = int(nums[0]) if nums else 3
-                return ClickHouseDateTime64Type(precision)
+                return ClickHouseDateTime64Type(dialect=self, precision=precision)
             if upper.startswith("DATETIME"):
-                return ClickHouseDateTimeType()
+                return ClickHouseDateTimeType(dialect=self)
             if upper.startswith("DATE32"):
-                return ClickHouseDate32Type()
+                return ClickHouseDate32Type(dialect=self)
             if upper.startswith("DATE"):
-                return ClickHouseDateType()
+                return ClickHouseDateType(dialect=self)
 
         # Other simple types
         if self._CLICKHOUSE_OTHER_TYPES.match(upper):
             if upper.startswith("BOOL"):
-                return ClickHouseBoolType()
+                return ClickHouseBoolType(dialect=self)
             if upper.startswith("UUID"):
-                return ClickHouseUUIDType()
+                return ClickHouseUUIDType(dialect=self)
             if upper.startswith("IPV4"):
-                return ClickHouseIPv4Type()
+                return ClickHouseIPv4Type(dialect=self)
             if upper.startswith("IPV6"):
-                return ClickHouseIPv6Type()
+                return ClickHouseIPv6Type(dialect=self)
             if upper.startswith("JSON"):
-                return ClickHouseJSONType()
+                return ClickHouseJSONType(dialect=self)
 
         # Enum types
         if self._CLICKHOUSE_ENUM_TYPES.match(upper):
             pairs = re.findall(r"'([^']*)'\s*=\s*(-?\d+)", stripped)
             values = [(name, int(num)) for name, num in pairs]
             if upper.startswith("ENUM8"):
-                return ClickHouseEnum8Type(values)
-            return ClickHouseEnum16Type(values)
+                return ClickHouseEnum8Type(dialect=self, values=values)
+            return ClickHouseEnum16Type(dialect=self, values=values)
 
         # Container types
         if self._CLICKHOUSE_CONTAINER_TYPES.match(upper):
@@ -574,20 +574,20 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             inner = self._extract_inner_types(stripped)
             if upper.startswith("ARRAY") and inner:
                 inner_type = self.parse_type(inner[0])
-                return ClickHouseArrayType(inner_type)
+                return ClickHouseArrayType(dialect=self, element_type=inner_type)
             if upper.startswith("MAP") and len(inner) >= 2:
                 key_type = self.parse_type(inner[0])
                 val_type = self.parse_type(inner[1])
-                return ClickHouseMapType(key_type, val_type)
+                return ClickHouseMapType(dialect=self, key_type=key_type, value_type=val_type)
             if upper.startswith("TUPLE") and inner:
                 types = [self.parse_type(t) for t in inner]
-                return ClickHouseTupleType(types)
+                return ClickHouseTupleType(dialect=self, element_types=types)
             if upper.startswith("NULLABLE") and inner:
                 inner_type = self.parse_type(inner[0])
-                return ClickHouseNullableType(inner_type)
+                return ClickHouseNullableType(dialect=self, inner_type=inner_type)
             if upper.startswith("LOWCARDINALITY") and inner:
                 inner_type = self.parse_type(inner[0])
-                return ClickHouseLowCardinalityType(inner_type)
+                return ClickHouseLowCardinalityType(dialect=self, inner_type=inner_type)
 
         # AggregateFunction
         if self._CLICKHOUSE_AGGREGATE_TYPES.match(upper):
@@ -596,8 +596,9 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
                 func_name = inner[0]
                 arg_types = [self.parse_type(t) for t in inner[1:]]
                 if upper.startswith("SIMPLEAGGREGATEFUNCTION"):
-                    return ClickHouseSimpleAggregateFunctionType(func_name, arg_types)
-                return ClickHouseAggregateFunctionType(func_name, arg_types)
+                    return ClickHouseSimpleAggregateFunctionType(
+                        dialect=self, function_name=func_name, arg_types=arg_types)
+                return ClickHouseAggregateFunctionType(dialect=self, function_name=func_name, arg_types=arg_types)
 
         # Spatial
         if self._CLICKHOUSE_SPATIAL_TYPES.match(upper):
@@ -617,18 +618,18 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             }
             for name, cls in spatial_map.items():
                 if upper.startswith(name):
-                    return cls(srid)
-            return ClickHouseGeometryType(srid)
+                    return cls(dialect=self, srid=srid)
+            return ClickHouseGeometryType(dialect=self, srid=srid)
 
         # Vector
         if self._CLICKHOUSE_VECTOR_TYPES.match(upper):
             nums = re.findall(r"\d+", stripped)
             dim = int(nums[0]) if nums else 0
-            return ClickHouseVectorType(dim)
+            return ClickHouseVectorType(dialect=self, dim=dim)
 
         # Fallback
         from rhosocial.activerecord.backend.expression.types import CustomType
-        return CustomType(stripped)
+        return CustomType(dialect=self, raw=stripped)
 
     @staticmethod
     def _extract_inner_types(raw: str) -> list:

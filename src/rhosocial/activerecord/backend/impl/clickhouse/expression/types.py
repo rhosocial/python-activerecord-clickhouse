@@ -27,35 +27,35 @@ from rhosocial.activerecord.backend.expression.types.array import ArrayType
 # Integer types (signed and unsigned)
 # ---------------------------------------------------------------------------
 
-class ClickHouseInt8Type(DataType, backend="clickhouse"):
+class ClickHouseInt8Type(DataType):
     """ClickHouse ``Int8`` — signed 8-bit integer."""
 
 
-class ClickHouseInt16Type(DataType, backend="clickhouse"):
+class ClickHouseInt16Type(DataType):
     """ClickHouse ``Int16`` — signed 16-bit integer."""
 
 
-class ClickHouseInt32Type(DataType, backend="clickhouse"):
+class ClickHouseInt32Type(DataType):
     """ClickHouse ``Int32`` — signed 32-bit integer."""
 
 
-class ClickHouseInt64Type(DataType, backend="clickhouse"):
+class ClickHouseInt64Type(DataType):
     """ClickHouse ``Int64`` — signed 64-bit integer."""
 
 
-class ClickHouseUInt8Type(DataType, backend="clickhouse"):
+class ClickHouseUInt8Type(DataType):
     """ClickHouse ``UInt8`` — unsigned 8-bit integer (also used for Boolean)."""
 
 
-class ClickHouseUInt16Type(DataType, backend="clickhouse"):
+class ClickHouseUInt16Type(DataType):
     """ClickHouse ``UInt16`` — unsigned 16-bit integer."""
 
 
-class ClickHouseUInt32Type(DataType, backend="clickhouse"):
+class ClickHouseUInt32Type(DataType):
     """ClickHouse ``UInt32`` — unsigned 32-bit integer."""
 
 
-class ClickHouseUInt64Type(DataType, backend="clickhouse"):
+class ClickHouseUInt64Type(DataType):
     """ClickHouse ``UInt64`` — unsigned 64-bit integer."""
 
 
@@ -63,11 +63,11 @@ class ClickHouseUInt64Type(DataType, backend="clickhouse"):
 # Float types
 # ---------------------------------------------------------------------------
 
-class ClickHouseFloat32Type(DataType, backend="clickhouse"):
+class ClickHouseFloat32Type(DataType):
     """ClickHouse ``Float32`` — 32-bit floating point."""
 
 
-class ClickHouseFloat64Type(DataType, backend="clickhouse"):
+class ClickHouseFloat64Type(DataType):
     """ClickHouse ``Float64`` — 64-bit floating point."""
 
 
@@ -75,13 +75,13 @@ class ClickHouseFloat64Type(DataType, backend="clickhouse"):
 # Decimal types
 # ---------------------------------------------------------------------------
 
-class ClickHouseDecimalType(DataType, backend="clickhouse"):
+class ClickHouseDecimalType(DataType):
     """ClickHouse ``Decimal(P, S)`` — fixed-point number."""
 
     precision: int
     scale: int
 
-    def __init__(self, precision: int, scale: int = 0, dialect=None):
+    def __init__(self, dialect=None, *, precision: int, scale: int = 0):
         super().__init__(dialect)
         self.precision = precision
         self.scale = scale
@@ -95,12 +95,12 @@ class ClickHouseDecimalType(DataType, backend="clickhouse"):
         return hash((type(self), self.precision, self.scale))
 
 
-class ClickHouseDecimal32Type(DataType, backend="clickhouse"):
+class ClickHouseDecimal32Type(DataType):
     """ClickHouse ``Decimal32(S)`` — 32-bit decimal with 9 digits."""
 
     scale: int
 
-    def __init__(self, scale: int = 0, dialect=None):
+    def __init__(self, dialect=None, *, scale: int = 0):
         super().__init__(dialect)
         self.scale = scale
 
@@ -113,12 +113,12 @@ class ClickHouseDecimal32Type(DataType, backend="clickhouse"):
         return hash((type(self), self.scale))
 
 
-class ClickHouseDecimal64Type(DataType, backend="clickhouse"):
+class ClickHouseDecimal64Type(DataType):
     """ClickHouse ``Decimal64(S)`` — 64-bit decimal with 18 digits."""
 
     scale: int
 
-    def __init__(self, scale: int = 0, dialect=None):
+    def __init__(self, dialect=None, *, scale: int = 0):
         super().__init__(dialect)
         self.scale = scale
 
@@ -131,12 +131,12 @@ class ClickHouseDecimal64Type(DataType, backend="clickhouse"):
         return hash((type(self), self.scale))
 
 
-class ClickHouseDecimal128Type(DataType, backend="clickhouse"):
+class ClickHouseDecimal128Type(DataType):
     """ClickHouse ``Decimal128(S)`` — 128-bit decimal with 38 digits."""
 
     scale: int
 
-    def __init__(self, scale: int = 0, dialect=None):
+    def __init__(self, dialect=None, *, scale: int = 0):
         super().__init__(dialect)
         self.scale = scale
 
@@ -153,16 +153,16 @@ class ClickHouseDecimal128Type(DataType, backend="clickhouse"):
 # String / Binary types
 # ---------------------------------------------------------------------------
 
-class ClickHouseStringType(DataType, backend="clickhouse"):
+class ClickHouseStringType(DataType):
     """ClickHouse ``String`` — variable-length binary/string."""
 
 
-class ClickHouseFixedStringType(DataType, backend="clickhouse"):
+class ClickHouseFixedStringType(DataType):
     """ClickHouse ``FixedString(N)`` — fixed-length binary/string."""
 
     length: int
 
-    def __init__(self, length: int, dialect=None):
+    def __init__(self, dialect=None, *, length: int):
         super().__init__(dialect)
         if length < 1:
             raise ValueError("FixedString length must be >= 1")
@@ -181,24 +181,24 @@ class ClickHouseFixedStringType(DataType, backend="clickhouse"):
 # Date / Time types
 # ---------------------------------------------------------------------------
 
-class ClickHouseDateType(DataType, backend="clickhouse"):
+class ClickHouseDateType(DataType):
     """ClickHouse ``Date`` — date (2 bytes, 1970-2149)."""
 
 
-class ClickHouseDate32Type(DataType, backend="clickhouse"):
+class ClickHouseDate32Type(DataType):
     """ClickHouse ``Date32`` — extended date (4 bytes, 1900-2299)."""
 
 
-class ClickHouseDateTimeType(DataType, backend="clickhouse"):
+class ClickHouseDateTimeType(DataType):
     """ClickHouse ``DateTime`` — date and time (4 bytes, seconds precision)."""
 
 
-class ClickHouseDateTime64Type(DataType, backend="clickhouse"):
+class ClickHouseDateTime64Type(DataType):
     """ClickHouse ``DateTime64(P)`` — date and time with sub-second precision."""
 
     precision: int
 
-    def __init__(self, precision: int = 3, dialect=None):
+    def __init__(self, dialect=None, *, precision: int = 3):
         super().__init__(dialect)
         if precision < 0 or precision > 9:
             raise ValueError("DateTime64 precision must be between 0 and 9")
@@ -217,7 +217,7 @@ class ClickHouseDateTime64Type(DataType, backend="clickhouse"):
 # Boolean type
 # ---------------------------------------------------------------------------
 
-class ClickHouseBoolType(DataType, backend="clickhouse"):
+class ClickHouseBoolType(DataType):
     """ClickHouse ``Bool`` — Boolean type (actually UInt8)."""
 
 
@@ -225,7 +225,7 @@ class ClickHouseBoolType(DataType, backend="clickhouse"):
 # UUID
 # ---------------------------------------------------------------------------
 
-class ClickHouseUUIDType(DataType, backend="clickhouse"):
+class ClickHouseUUIDType(DataType):
     """ClickHouse ``UUID`` — universally unique identifier."""
 
 
@@ -233,11 +233,11 @@ class ClickHouseUUIDType(DataType, backend="clickhouse"):
 # IP types
 # ---------------------------------------------------------------------------
 
-class ClickHouseIPv4Type(DataType, backend="clickhouse"):
+class ClickHouseIPv4Type(DataType):
     """ClickHouse ``IPv4`` — IPv4 address."""
 
 
-class ClickHouseIPv6Type(DataType, backend="clickhouse"):
+class ClickHouseIPv6Type(DataType):
     """ClickHouse ``IPv6`` — IPv6 address."""
 
 
@@ -245,12 +245,12 @@ class ClickHouseIPv6Type(DataType, backend="clickhouse"):
 # Enum types (ClickHouse native Enum8 / Enum16)
 # ---------------------------------------------------------------------------
 
-class ClickHouseEnum8Type(DataType, backend="clickhouse"):
+class ClickHouseEnum8Type(DataType):
     """ClickHouse ``Enum8`` — 8-bit enum with explicit string-value pairs."""
 
     values: List[TupleType[str, int]]
 
-    def __init__(self, values: List[TupleType[str, int]], dialect=None):
+    def __init__(self, dialect=None, *, values: List[TupleType[str, int]]):
         super().__init__(dialect)
         if not values:
             raise ValueError("Enum8 must have at least one value")
@@ -273,12 +273,12 @@ class ClickHouseEnum8Type(DataType, backend="clickhouse"):
         return hash((type(self), tuple(self.values)))
 
 
-class ClickHouseEnum16Type(DataType, backend="clickhouse"):
+class ClickHouseEnum16Type(DataType):
     """ClickHouse ``Enum16`` — 16-bit enum with explicit string-value pairs."""
 
     values: List[TupleType[str, int]]
 
-    def __init__(self, values: List[TupleType[str, int]], dialect=None):
+    def __init__(self, dialect=None, *, values: List[TupleType[str, int]]):
         super().__init__(dialect)
         if not values:
             raise ValueError("Enum16 must have at least one value")
@@ -305,17 +305,17 @@ class ClickHouseEnum16Type(DataType, backend="clickhouse"):
 # Container types (Array, Map, Tuple)
 # ---------------------------------------------------------------------------
 
-class ClickHouseArrayType(ArrayType, backend="clickhouse"):
+class ClickHouseArrayType(ArrayType):
     """ClickHouse ``Array(T)`` — array of elements."""
 
 
-class ClickHouseMapType(DataType, backend="clickhouse"):
+class ClickHouseMapType(DataType):
     """ClickHouse ``Map(K, V)`` — key-value map."""
 
     key_type: DataType
     value_type: DataType
 
-    def __init__(self, key_type: DataType, value_type: DataType, dialect=None):
+    def __init__(self, dialect=None, *, key_type: DataType, value_type: DataType):
         super().__init__(dialect)
         self.key_type = key_type
         self.value_type = value_type
@@ -330,14 +330,13 @@ class ClickHouseMapType(DataType, backend="clickhouse"):
         return hash((type(self), self.key_type, self.value_type))
 
 
-class ClickHouseTupleType(DataType, backend="clickhouse"):
+class ClickHouseTupleType(DataType):
     """ClickHouse ``Tuple(T1, T2, ...)`` — named or unnamed tuple."""
 
     element_types: List[DataType]
     element_names: Optional[List[str]] = None
 
-    def __init__(self, element_types: List[DataType],
-                 element_names: Optional[List[str]] = None, dialect=None):
+    def __init__(self, dialect=None, *, element_types: List[DataType], element_names: Optional[List[str]] = None):
         super().__init__(dialect)
         if not element_types:
             raise ValueError("Tuple must have at least one element")
@@ -361,12 +360,12 @@ class ClickHouseTupleType(DataType, backend="clickhouse"):
 # Type modifiers (Nullable, LowCardinality)
 # ---------------------------------------------------------------------------
 
-class ClickHouseNullableType(DataType, backend="clickhouse"):
+class ClickHouseNullableType(DataType):
     """ClickHouse ``Nullable(T)`` — allows NULL values for the inner type."""
 
     inner_type: DataType
 
-    def __init__(self, inner_type: DataType, dialect=None):
+    def __init__(self, dialect=None, *, inner_type: DataType):
         super().__init__(dialect)
         self.inner_type = inner_type
 
@@ -379,12 +378,12 @@ class ClickHouseNullableType(DataType, backend="clickhouse"):
         return hash((type(self), self.inner_type))
 
 
-class ClickHouseLowCardinalityType(DataType, backend="clickhouse"):
+class ClickHouseLowCardinalityType(DataType):
     """ClickHouse ``LowCardinality(T)`` — dictionary-encoded type."""
 
     inner_type: DataType
 
-    def __init__(self, inner_type: DataType, dialect=None):
+    def __init__(self, dialect=None, *, inner_type: DataType):
         super().__init__(dialect)
         self.inner_type = inner_type
 
@@ -401,7 +400,7 @@ class ClickHouseLowCardinalityType(DataType, backend="clickhouse"):
 # JSON type
 # ---------------------------------------------------------------------------
 
-class ClickHouseJSONType(DataType, backend="clickhouse"):
+class ClickHouseJSONType(DataType):
     """ClickHouse ``JSON`` — native JSON type (experimental in 26.x)."""
 
 
@@ -409,14 +408,13 @@ class ClickHouseJSONType(DataType, backend="clickhouse"):
 # Aggregation function types
 # ---------------------------------------------------------------------------
 
-class ClickHouseAggregateFunctionType(DataType, backend="clickhouse"):
+class ClickHouseAggregateFunctionType(DataType):
     """ClickHouse ``AggregateFunction(name, T...)``."""
 
     function_name: str
     arg_types: List[DataType]
 
-    def __init__(self, function_name: str, arg_types: List[DataType],
-                 dialect=None):
+    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType]):
         super().__init__(dialect)
         self.function_name = function_name
         self.arg_types = list(arg_types)
@@ -431,14 +429,13 @@ class ClickHouseAggregateFunctionType(DataType, backend="clickhouse"):
         return hash((type(self), self.function_name, tuple(self.arg_types)))
 
 
-class ClickHouseSimpleAggregateFunctionType(DataType, backend="clickhouse"):
+class ClickHouseSimpleAggregateFunctionType(DataType):
     """ClickHouse ``SimpleAggregateFunction(name, T...)``."""
 
     function_name: str
     arg_types: List[DataType]
 
-    def __init__(self, function_name: str, arg_types: List[DataType],
-                 dialect=None):
+    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType]):
         super().__init__(dialect)
         self.function_name = function_name
         self.arg_types = list(arg_types)
@@ -458,13 +455,13 @@ class ClickHouseSimpleAggregateFunctionType(DataType, backend="clickhouse"):
 # clickhouse-connect tuple representation)
 # ---------------------------------------------------------------------------
 
-class ClickHouseGeometryType(DataType, backend="clickhouse"):
+class ClickHouseGeometryType(DataType):
     """ClickHouse ``GEOMETRY`` with optional SRID."""
 
     srid: Optional[int] = None
 
-    def __init__(self, srid: Optional[int] = None):
-        super().__init__()
+    def __init__(self, dialect=None, *, srid: Optional[int] = None):
+        super().__init__(dialect)
         self.srid = srid
 
     def __eq__(self, other: object) -> bool:
@@ -476,31 +473,31 @@ class ClickHouseGeometryType(DataType, backend="clickhouse"):
         return hash((type(self), self.srid))
 
 
-class ClickHousePointType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHousePointType(ClickHouseGeometryType):
     """ClickHouse ``POINT`` with optional SRID."""
 
 
-class ClickHouseLineStringType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHouseLineStringType(ClickHouseGeometryType):
     """ClickHouse ``LINESTRING`` with optional SRID."""
 
 
-class ClickHousePolygonType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHousePolygonType(ClickHouseGeometryType):
     """ClickHouse ``POLYGON`` with optional SRID."""
 
 
-class ClickHouseMultiPointType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHouseMultiPointType(ClickHouseGeometryType):
     """ClickHouse ``MULTIPOINT`` with optional SRID."""
 
 
-class ClickHouseMultiLineStringType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHouseMultiLineStringType(ClickHouseGeometryType):
     """ClickHouse ``MULTILINESTRING`` with optional SRID."""
 
 
-class ClickHouseMultiPolygonType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHouseMultiPolygonType(ClickHouseGeometryType):
     """ClickHouse ``MULTIPOLYGON`` with optional SRID."""
 
 
-class ClickHouseGeometryCollectionType(ClickHouseGeometryType, backend="clickhouse"):
+class ClickHouseGeometryCollectionType(ClickHouseGeometryType):
     """ClickHouse ``GEOMETRYCOLLECTION`` with optional SRID."""
 
 
@@ -508,13 +505,13 @@ class ClickHouseGeometryCollectionType(ClickHouseGeometryType, backend="clickhou
 # VECTOR type (ClickHouse 9.0+)
 # ---------------------------------------------------------------------------
 
-class ClickHouseVectorType(DataType, backend="clickhouse"):
+class ClickHouseVectorType(DataType):
     """ClickHouse ``VECTOR(n)`` — vector type (ClickHouse 9.0+)."""
 
     dim: int
 
-    def __init__(self, dim: int):
-        super().__init__()
+    def __init__(self, dialect=None, *, dim: int):
+        super().__init__(dialect)
         self.dim = dim
 
     def __eq__(self, other: object) -> bool:

@@ -75,7 +75,7 @@ expr = CreateTableExpression(
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
         ColumnDefinition("user_id", ClickHouseUInt32Type()),
-        ColumnDefinition("amount", ClickHouseDecimalType(10, 2)),
+        ColumnDefinition("amount", ClickHouseDecimalType(precision=10, scale=2)),
     ]
 )
 sql, params = expr.to_sql()

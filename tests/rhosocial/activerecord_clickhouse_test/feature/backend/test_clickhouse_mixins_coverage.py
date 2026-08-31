@@ -38,7 +38,7 @@ class TestModifyColumnMixin:
         from types import SimpleNamespace
 
         action = SimpleNamespace(
-            column=ColumnDefinition("name", VarCharType(50)),
+            column=ColumnDefinition("name", VarCharType(length=50)),
             after_column="id",
             first=False,
         )
@@ -69,7 +69,7 @@ class TestModifyColumnMixin:
         from types import SimpleNamespace
 
         action = SimpleNamespace(
-            column=ColumnDefinition("name", VarCharType(50)),
+            column=ColumnDefinition("name", VarCharType(length=50)),
             old_name="old_name",
             after_column="id",
             first=False,

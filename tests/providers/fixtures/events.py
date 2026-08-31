@@ -56,9 +56,9 @@ def create_event_tests_table(dialect, table_name: str = "event_tests") -> Create
         columns=[
             ColumnDefinition("id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition("name", VarCharType(255),
+            ColumnDefinition("name", VarCharType(length=255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition("status", VarCharType(50),
+            ColumnDefinition("status", VarCharType(length=50),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(ColumnConstraintType.DEFAULT, default_value="draft")]),
             ColumnDefinition("revision", IntegerType(),
@@ -84,7 +84,7 @@ def create_event_tracking_models_table(dialect, table_name: str = "event_trackin
         columns=[
             ColumnDefinition("id", BigIntType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition("title", VarCharType(255),
+            ColumnDefinition("title", VarCharType(length=255),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition("content", TextType(),
                 constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),

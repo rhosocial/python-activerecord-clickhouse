@@ -63,7 +63,7 @@ class TestClickHouseCreateTableLike:
         dialect = ClickHouseDialect()
         columns = [
             ColumnDefinition("id", IntegerType(), constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition("name", VarCharType(255)),
+            ColumnDefinition("name", VarCharType(length=255)),
         ]
         create_expr = CreateTableExpression(
             dialect=dialect, table="users_copy", columns=columns, dialect_options={"like_table": "users"}
@@ -95,7 +95,7 @@ class TestClickHouseCreateTableLike:
         dialect = ClickHouseDialect()
         columns = [
             ColumnDefinition("id", IntegerType(), constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition("name", VarCharType(255), constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
+            ColumnDefinition("name", VarCharType(length=255), constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
         ]
         create_expr = CreateTableExpression(dialect=dialect, table="users", columns=columns)
         sql, params = create_expr.to_sql()
