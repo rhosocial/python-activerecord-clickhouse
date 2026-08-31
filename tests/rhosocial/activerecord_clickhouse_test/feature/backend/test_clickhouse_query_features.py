@@ -109,7 +109,9 @@ class TestClickHouseQueryFeatures:
             "SELECT id FROM test_ch_query WHERE id < 5 "
             "EXCEPT SELECT id FROM test_ch_query WHERE id < 2 ORDER BY id"
         )
-        assert [row["id"] for row in r.data] == [2, 3, 4]
+        # Row order across a compound EXCEPT is not guaranteed by ClickHouse;
+        # compare as multisets.
+        assert sorted(row["id"] for row in r.data) == [2, 3, 4]
 
     def test_array_functions(self, clickhouse_backend, sample_table):
         r = clickhouse_backend.execute("SELECT arrayMap(x -> x * 2, [1, 2, 3]) AS a")
