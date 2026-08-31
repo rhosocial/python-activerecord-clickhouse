@@ -135,7 +135,7 @@ class TestClickHouseTypeFormatting:
             ClickHouseUInt32Type(): "UInt32",
             ClickHouseStringType(): "String",
             ClickHouseDateTime64Type(3): "DateTime64(3)",
-            ClickHouseArrayType(ClickHouseStringType()): "Array(String)",
+            ClickHouseArrayType(element_type=ClickHouseStringType()): "Array(String)",
             ClickHouseNullableType(ClickHouseUInt32Type()): "Nullable(UInt32)",
             ClickHouseMapType(ClickHouseStringType(), ClickHouseUInt32Type()): "Map(String, UInt32)",
             ClickHouseDecimalType(18, 4): "Decimal(18, 4)",
