@@ -1086,7 +1086,7 @@ class ClickHouseDialect(
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
 
-    def _format_table_constraint_clickhouse(
+    def format_table_constraint_clickhouse(
         self,
         t_const: "TableConstraint",
         TableConstraintType
@@ -1116,7 +1116,7 @@ class ClickHouseDialect(
 
         return ' '.join(parts), params
 
-    def _format_inline_index_clickhouse(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index_clickhouse(self, idx_def: "IndexDefinition") -> str:
         """Format an inline index definition (ClickHouse-specific)."""
         parts = []
 
@@ -1138,7 +1138,7 @@ class ClickHouseDialect(
 
         return ' '.join(parts)
 
-    def _format_storage_options_clickhouse(self, storage_options: Dict[str, Any]) -> str:
+    def format_storage_options_clickhouse(self, storage_options: Dict[str, Any]) -> str:
         """
         Format storage options for ClickHouse.
 

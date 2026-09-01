@@ -4,7 +4,7 @@ from typing import Any, Tuple
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
-def _format_table_name(dialect, table):
+def format_table_name(dialect, table):
     """Format a possibly schema-qualified table name."""
     if isinstance(table, tuple):
         schema, name = table
@@ -12,7 +12,7 @@ def _format_table_name(dialect, table):
     return dialect.format_identifier(table)
 
 
-_fmt_table = _format_table_name
+_fmt_table = format_table_name
 
 
 class ClickHouseMaintenanceMixin:

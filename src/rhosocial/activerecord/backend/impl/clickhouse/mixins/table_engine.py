@@ -89,13 +89,13 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
             if key == "ENGINE":
                 parts.append(f"ENGINE = {value}")
             elif key == "ORDER BY":
-                parts.append(f"ORDER BY {self._format_clause_list(value)}")
+                parts.append(f"ORDER BY {self.format_clause_list(value)}")
             elif key == "PARTITION BY":
-                parts.append(f"PARTITION BY {self._format_clause_list(value)}")
+                parts.append(f"PARTITION BY {self.format_clause_list(value)}")
             elif key == "PRIMARY KEY":
-                parts.append(f"PRIMARY KEY {self._format_clause_list(value)}")
+                parts.append(f"PRIMARY KEY {self.format_clause_list(value)}")
             elif key == "SAMPLE BY":
-                parts.append(f"SAMPLE BY {self._format_clause_list(value)}")
+                parts.append(f"SAMPLE BY {self.format_clause_list(value)}")
             elif key == "TTL":
                 parts.append(f"TTL {value}")
             elif key == "SETTINGS":
@@ -105,7 +105,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
         return " ".join(parts)
 
     @staticmethod
-    def _format_clause_list(value: Any) -> str:
+    def format_clause_list(value: Any) -> str:
         """Format a column/expression list, accepting str, list, or tuple."""
         if isinstance(value, (list, tuple)):
             return "(" + ", ".join(str(v) for v in value) + ")"

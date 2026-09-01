@@ -1,27 +1,13 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/routine.py
 from typing import Any, Tuple
 
+from rhosocial.activerecord.backend.dialect.mixins.routine import RoutineSupportMixin
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
-def _format_param(dialect, param) -> str:
-    """Format a stored-routine parameter definition.
-
-    A param may be a plain string (``IN name TYPE``), a tuple
-    ``(mode, name, type)``, or ``(name, type)``.
-    """
-    if isinstance(param, tuple):
-        if len(param) == 3:
-            mode, name, type_sql = param
-            return f"{mode} {dialect.format_identifier(name)} {type_sql}"
-        if len(param) == 2:
-            name, type_sql = param
-            return f"{dialect.format_identifier(name)} {type_sql}"
-        raise ValueError(f"Invalid parameter definition: {param!r}")
-    return str(param)
 
 
-class ClickHouseRoutineMixin:
+class ClickHouseRoutineMixin(RoutineSupportMixin):
     """ClickHouse does not support SQL stored procedures or stored functions.
 
     ClickHouse has no ``CREATE PROCEDURE`` / ``CREATE FUNCTION`` (stored)
