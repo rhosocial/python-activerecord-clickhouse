@@ -219,7 +219,7 @@ class ShowIndexResult:
     Each row represents one column in an index.
 
     Attributes:
-        table: Table name.
+        table_name: Table name.
         non_unique: 1 if index allows duplicates, 0 if unique.
         key_name: Index name.
         seq_in_index: Column sequence number in index.
@@ -236,7 +236,7 @@ class ShowIndexResult:
         expression: Expression for functional index (ClickHouse 8.0+).
     """
 
-    table: str
+    table_name: str
     non_unique: int
     key_name: str
     seq_in_index: int
@@ -292,9 +292,9 @@ class ShowTriggerResult:
     Contains trigger information.
 
     Attributes:
-        trigger: Trigger name.
+        trigger_name: Trigger name.
         event: Trigger event (INSERT, UPDATE, DELETE).
-        table: Table name.
+        table_name: Table name.
         statement: Trigger body.
         timing: Trigger timing (BEFORE, AFTER).
         created: Creation time.
@@ -305,9 +305,9 @@ class ShowTriggerResult:
         database_collation: Database collation.
     """
 
-    trigger: str
+    trigger_name: str
     event: str
-    table: str
+    table_name: str
     statement: str
     timing: str
     created: Optional[str] = None
@@ -510,13 +510,13 @@ class ShowOpenTableResult:
 
     Attributes:
         database: Database name.
-        table: Table name.
+        table_name: Table name.
         in_use: Number of table locks in use.
         name_locked: Whether table name is locked.
     """
 
     database: str
-    table: str
+    table_name: str
     in_use: int
     name_locked: int
 

@@ -67,7 +67,7 @@ class ClickHouseVectorMixin:
             suggestion="Use ClickHouse dotProduct on Array(Float32).",
         )
 
-    def format_create_vector_index(self, index_name: str, table_name: str, column: str) -> Tuple[str, tuple]:
+    def format_create_vector_index(self, index: str, table: str, column: str) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR indexes",
             suggestion="ClickHouse has no VECTOR indexes; use skip indexes (e.g. vector_similarity).",

@@ -10,7 +10,7 @@ Expression classes inherit from BaseExpression and implement to_sql(),
 following the expression-dialect pattern used throughout the codebase.
 
 Key design:
-- Expressions collect parameters (table_name, schema, options)
+- Expressions collect parameters (table, schema, options)
 - Expressions hold a dialect reference
 - to_sql() delegates to dialect.format_show_* methods
 - Dialect handles actual SQL generation
@@ -72,13 +72,13 @@ class ShowExpression(BaseExpression):
 class ShowCreateTableExpression(ShowExpression):
     """Expression for SHOW CREATE TABLE command."""
 
-    def __init__(self, dialect: "ClickHouseDialect", table_name: str):
+    def __init__(self, dialect: "ClickHouseDialect", table: str):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
 
     def get_params(self) -> Dict[str, Any]:
         params = super().get_params()
-        params["table_name"] = self._table_name
+        params["table"] = self._table
         return params
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -107,9 +107,9 @@ class ShowColumnsExpression(ShowExpression):
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table_name: str):
+    def __init__(self, dialect: "ClickHouseDialect", table: str):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
         self._full: bool = False
         self._like_pattern: Optional[str] = None
 
@@ -125,7 +125,7 @@ class ShowColumnsExpression(ShowExpression):
 
     def get_params(self) -> Dict[str, Any]:
         params = super().get_params()
-        params["table_name"] = self._table_name
+        params["table"] = self._table
         params["full"] = self._full
         if self._like_pattern:
             params["like_pattern"] = self._like_pattern
@@ -141,13 +141,13 @@ class ShowIndexExpression(ShowExpression):
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table_name: str):
+    def __init__(self, dialect: "ClickHouseDialect", table: str):
         super().__init__(dialect)
-        self._table_name = table_name
+        self._table = table
 
     def get_params(self) -> Dict[str, Any]:
         params = super().get_params()
-        params["table_name"] = self._table_name
+        params["table"] = self._table
         return params
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -238,17 +238,17 @@ class ShowTriggersExpression(ShowExpression):
 
     def __init__(self, dialect: "ClickHouseDialect"):
         super().__init__(dialect)
-        self._table_name: Optional[str] = None
+        self._table: Optional[str] = None
 
-    def for_table(self, table_name: str) -> "ShowTriggersExpression":
+    def for_table(self, table: str) -> "ShowTriggersExpression":
         """Filter triggers for a specific table."""
-        self._table_name = table_name
+        self._table = table
         return self
 
     def get_params(self) -> Dict[str, Any]:
         params = super().get_params()
-        if self._table_name:
-            params["table_name"] = self._table_name
+        if self._table:
+            params["table"] = self._table
         return params
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -261,13 +261,13 @@ class ShowCreateTriggerExpression(ShowExpression):
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", trigger_name: str):
+    def __init__(self, dialect: "ClickHouseDialect", trigger: str):
         super().__init__(dialect)
-        self._trigger_name = trigger_name
+        self._trigger = trigger
 
     def get_params(self) -> Dict[str, Any]:
         params = super().get_params()
-        params["trigger_name"] = self._trigger_name
+        params["trigger"] = self._trigger
         return params
 
     def to_sql(self) -> SQLQueryAndParams:

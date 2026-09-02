@@ -199,7 +199,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             provider.display_results(data, title=f"Foreign Keys of {args.name}")
 
         elif args.type == "triggers":
-            triggers = introspector.list_triggers(table_name=args.name, schema=args.schema)
+            triggers = introspector.list_triggers(table=args.name, schema=args.schema)
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
 
@@ -281,7 +281,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             provider.display_results(data, title=f"Foreign Keys of {args.name}")
 
         elif args.type == "triggers":
-            triggers = await introspector.list_triggers_async(table_name=args.name, schema=args.schema)
+            triggers = await introspector.list_triggers_async(table=args.name, schema=args.schema)
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
 

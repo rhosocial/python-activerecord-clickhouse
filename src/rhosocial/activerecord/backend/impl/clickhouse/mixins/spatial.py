@@ -85,7 +85,7 @@ class ClickHouseSpatialMixin:
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_create_spatial_index(self, index_name: str, table_name: str, column: str) -> Tuple[str, tuple]:
+    def format_create_spatial_index(self, index: str, table: str, column: str) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "SPATIAL indexes",
             suggestion="ClickHouse has no SPATIAL indexes; use skip indexes (INDEX ... USING).",

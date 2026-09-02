@@ -61,13 +61,13 @@ class ClickHouseShowDialectMixin:
     def format_show_create_table(self, expr: "ShowCreateTableExpression") -> Tuple[str, tuple]:
         """Format SHOW CREATE TABLE statement."""
         params = expr.get_params()
-        table_name = params["table_name"]
+        table = params["table"]
         schema = params.get("schema")
 
         if schema:
-            sql = f"SHOW CREATE TABLE {self.format_identifier(schema)}.{self.format_identifier(table_name)}"
+            sql = f"SHOW CREATE TABLE {self.format_identifier(schema)}.{self.format_identifier(table)}"
         else:
-            sql = f"SHOW CREATE TABLE {self.format_identifier(table_name)}"
+            sql = f"SHOW CREATE TABLE {self.format_identifier(table)}"
         return sql, ()
 
     def format_show_create_view(self, expr: "ShowCreateViewExpression") -> Tuple[str, tuple]:

@@ -26,7 +26,7 @@ class ClickHouseFullTextSearchMixin:
         return False
 
     def format_fulltext_index_options(
-        self, index_name: str, columns: List[str], index_type: Optional[str] = None, parser_name: Optional[str] = None
+        self, index: str, columns: List[str], index_type: Optional[str] = None, parser_name: Optional[str] = None
     ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "FULLTEXT index",

@@ -34,7 +34,7 @@ def create_parser(subparsers):
   %(prog)s myapp.migrations.v001.CreateUsersTable --database mydb --direction up --async
 
   # Pass parameters to the migration
-  %(prog)s myapp.migrations.v001.CreateUsersTable --param table_name=custom_table
+  %(prog)s myapp.migrations.v001.CreateUsersTable --param table=custom_table
 
   # List available migrations
   %(prog)s myapp.migrations --list

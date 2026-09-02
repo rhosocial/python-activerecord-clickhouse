@@ -623,14 +623,14 @@ class ClickHouseGetPartitionsExpression(BaseExpression):
     ``UnsupportedFeatureError``.
 
     Raises:
-        ValueError: if table_name is empty.
+        ValueError: if table is empty.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table_name: str):
+    def __init__(self, dialect: "ClickHouseDialect", table: str):
         super().__init__(dialect)
-        if not table_name or not table_name.strip():
-            raise ValueError("table_name must not be empty")
-        self.table_name = table_name
+        if not table or not table.strip():
+            raise ValueError("table must not be empty")
+        self.table = table
 
     def to_sql(self) -> SQLQueryAndParams:
         """Raise UnsupportedFeatureError: use ``system.parts`` for introspection."""

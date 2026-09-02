@@ -49,13 +49,13 @@ from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
 # Drop table first for clean setup
-drop = DropTableExpression(dialect=dialect, table_name="employees", if_exists=True)
+drop = DropTableExpression(dialect=dialect, table="employees", if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name="employees",
+    table="employees",
     columns=[
         ColumnDefinition(
             "id",
@@ -209,7 +209,7 @@ print(f"Multiple CTEs result: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table_name="employees", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table="employees", if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

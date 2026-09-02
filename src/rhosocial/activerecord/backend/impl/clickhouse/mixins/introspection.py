@@ -136,7 +136,7 @@ class ClickHouseIntrospectionMixin:
     def format_column_info_query(self, expr: "ColumnInfoExpression") -> Tuple[str, tuple]:
         """Format column information query against ClickHouse system.columns."""
         params = expr.get_params()
-        table_name = params.get("table_name", "")
+        table = params.get("table", "")
         schema = params.get("schema", "")
         sql = (
             "SELECT name AS COLUMN_NAME, position AS ORDINAL_POSITION, "
@@ -152,12 +152,12 @@ class ClickHouseIntrospectionMixin:
             "WHERE database = %s AND table = %s "
             "ORDER BY position"
         )
-        return (sql, (schema, table_name))
+        return (sql, (schema, table))
 
     def format_index_info_query(self, expr: "IndexInfoExpression") -> Tuple[str, tuple]:
         """Format index information query against ClickHouse system.data_skipping_indices."""
         params = expr.get_params()
-        table_name = params.get("table_name", "")
+        table = params.get("table", "")
         schema = params.get("schema", "")
         sql = (
             "SELECT name AS INDEX_NAME, 0 AS NON_UNIQUE, 1 AS SEQ_IN_INDEX, "
@@ -166,7 +166,7 @@ class ClickHouseIntrospectionMixin:
             "WHERE database = %s AND table = %s "
             "ORDER BY name"
         )
-        return (sql, (schema, table_name))
+        return (sql, (schema, table))
 
     def format_foreign_key_query(self, expr: "ForeignKeyExpression") -> Tuple[str, tuple]:
         """ClickHouse has no foreign keys; raise UnsupportedFeatureError."""

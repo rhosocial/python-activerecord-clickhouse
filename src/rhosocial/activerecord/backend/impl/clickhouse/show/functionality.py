@@ -56,7 +56,7 @@ class ClickHouseShowFunctionality:
 
     # ========== Parsing Helper Methods ==========
 
-    def _parse_create_table_result(self, result, table_name: str):
+    def _parse_create_table_result(self, result, table: str):
         """Parse SHOW CREATE TABLE result."""
         from .types import ShowCreateTableResult
 
@@ -65,7 +65,7 @@ class ClickHouseShowFunctionality:
 
         row = result.data[0]
         return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table_name)),
+            table_name=row.get("Table", row.get("TABLE", table)),
             create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
         )
 
@@ -113,7 +113,7 @@ class ClickHouseShowFunctionality:
         for row in result.data:
             indexes.append(
                 ShowIndexResult(
-                    table=row.get("Table", row.get("TABLE_NAME")),
+                    table_name=row.get("Table", row.get("TABLE_NAME")),
                     non_unique=row.get("Non_unique", row.get("NON_UNIQUE")),
                     key_name=row.get("Key_name", row.get("INDEX_NAME")),
                     seq_in_index=row.get("Seq_in_index", row.get("SEQ_IN_INDEX")),
@@ -190,9 +190,9 @@ class ClickHouseShowFunctionality:
         for row in result.data:
             triggers.append(
                 ShowTriggerResult(
-                    trigger=row.get("Trigger", row.get("TRIGGER_NAME")),
+                    trigger_name=row.get("Trigger", row.get("TRIGGER_NAME")),
                     event=row.get("Event", row.get("EVENT_MANIPULATION")),
-                    table=row.get("Table", row.get("EVENT_OBJECT_TABLE")),
+                    table_name=row.get("Table", row.get("EVENT_OBJECT_TABLE")),
                     statement=row.get("Statement", row.get("ACTION_STATEMENT")),
                     timing=row.get("Timing", row.get("ACTION_TIMING")),
                     created=row.get("Created"),
@@ -205,7 +205,7 @@ class ClickHouseShowFunctionality:
             )
         return triggers
 
-    def _parse_create_trigger_result(self, result, trigger_name: str):
+    def _parse_create_trigger_result(self, result, trigger: str):
         """Parse SHOW CREATE TRIGGER result."""
         from .types import ShowCreateTriggerResult
 
@@ -214,7 +214,7 @@ class ClickHouseShowFunctionality:
 
         row = result.data[0]
         return ShowCreateTriggerResult(
-            trigger_name=row.get("Trigger", row.get("TRIGGER", trigger_name)),
+            trigger_name=row.get("Trigger", row.get("TRIGGER", trigger)),
             create_statement=row.get("SQL Original Statement", row.get("CREATE TRIGGER", "")),
             character_set_client=row.get("character_set_client"),
             collation_connection=row.get("collation_connection"),
@@ -363,23 +363,23 @@ class ClickHouseShowFunctionality:
 
     # ========== SHOW CREATE TABLE ==========
 
-    def create_table(self, table_name: str, schema: Optional[str] = None):
+    def create_table(self, table: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table.
 
         Args:
-            table_name: Name of the table.
+            table: Name of the table.
             schema: Database/schema name (optional).
 
         Returns:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = ShowCreateTableExpression(self.dialect, table_name)
+        expr = ShowCreateTableExpression(self.dialect, table)
         if schema:
             expr.schema(schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
-        return self._parse_create_table_result(result, table_name)
+        return self._parse_create_table_result(result, table)
 
     # ========== SHOW CREATE VIEW ==========
 
@@ -404,7 +404,7 @@ class ClickHouseShowFunctionality:
 
     def columns(
         self,
-        table_name: str,
+        table: str,
         schema: Optional[str] = None,
         full: bool = False,
         like: Optional[str] = None,
@@ -422,7 +422,7 @@ class ClickHouseShowFunctionality:
 
     # ========== SHOW INDEX ==========
 
-    def indexes(self, table_name: str, schema: Optional[str] = None):
+    def indexes(self, table: str, schema: Optional[str] = None):
         """Get index information for a table.
 
         Note:
@@ -499,7 +499,7 @@ class ClickHouseShowFunctionality:
 
     # ========== SHOW TRIGGERS ==========
 
-    def triggers(self, schema: Optional[str] = None, table_name: Optional[str] = None):
+    def triggers(self, schema: Optional[str] = None, table: Optional[str] = None):
         """List triggers.
 
         Note:
@@ -511,7 +511,7 @@ class ClickHouseShowFunctionality:
             suggestion="ClickHouse does not support triggers.",
         )
 
-    def create_trigger(self, trigger_name: str, schema: Optional[str] = None):
+    def create_trigger(self, trigger: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement.
 
         Note:

@@ -48,14 +48,14 @@ from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-drop_table = DropTableExpression(dialect=dialect, table_name="documents", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table="documents", if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 # Create table with JSON column
 create_table = CreateTableExpression(
     dialect=dialect,
-    table_name="documents",
+    table="documents",
     columns=[
         ColumnDefinition(
             "id",

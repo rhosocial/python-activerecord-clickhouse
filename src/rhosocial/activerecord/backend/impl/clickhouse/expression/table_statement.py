@@ -56,7 +56,7 @@ class ClickHouseTableExpression(ClickHouseBaseTableStatement):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        table_name: str,
+        table: str,
         *,
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
@@ -70,13 +70,13 @@ class ClickHouseTableExpression(ClickHouseBaseTableStatement):
             offset=offset,
             dialect_options=dialect_options,
         )
-        self.table_name: str = table_name
+        self.table: str = table
 
     def validate(self, strict: bool = True) -> None:
         if not strict:
             return
-        if not isinstance(self.table_name, str):
-            raise TypeError("table_name must be a string")
+        if not isinstance(self.table, str):
+            raise TypeError("table must be a string")
         self._validate_common()
 
     def to_sql(self) -> Tuple[str, tuple]:
