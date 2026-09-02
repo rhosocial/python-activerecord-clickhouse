@@ -33,12 +33,12 @@ EMPLOYEE_DEPARTMENT_SCHEMA = """
         id Int64,
         name String NOT NULL,
         description String
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS employees (
         id Int64,
         username String NOT NULL,
         department_id Int64 NOT NULL
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     TRUNCATE TABLE employees;
     TRUNCATE TABLE departments;
 """
@@ -47,22 +47,22 @@ AUTHOR_BOOK_SCHEMA = """
     CREATE TABLE IF NOT EXISTS authors (
         id Int64,
         name String NOT NULL
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS books (
         id Int64,
         title String NOT NULL,
         author_id Int64 NOT NULL
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS chapters (
         id Int64,
         title String NOT NULL,
         book_id Int64 NOT NULL
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS profiles (
         id Int64,
         bio String NOT NULL,
         author_id Int64 NOT NULL
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     TRUNCATE TABLE chapters;
     TRUNCATE TABLE books;
     TRUNCATE TABLE profiles;
@@ -75,7 +75,7 @@ USER_POST_COMMENT_SCHEMA = """
         name String NOT NULL,
         email String,
         settings String
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS posts (
         id Int64,
         title String NOT NULL,
@@ -83,13 +83,13 @@ USER_POST_COMMENT_SCHEMA = """
         user_id Int64 NOT NULL,
         view_count Int32 NOT NULL DEFAULT 0,
         metadata String
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS comments (
         id Int64,
         body String NOT NULL,
         post_id Int64 NOT NULL,
         meta String
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     TRUNCATE TABLE comments;
     TRUNCATE TABLE posts;
     TRUNCATE TABLE users;
@@ -99,17 +99,17 @@ RELATION_BOUNDARY_SCHEMA = """
     CREATE TABLE IF NOT EXISTS relation_boundary_owners (
         id Int64,
         name String NOT NULL
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS relation_boundary_profiles (
         id Int64,
         bio String NOT NULL,
         owner_id Nullable(Int64)
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     CREATE TABLE IF NOT EXISTS relation_boundary_posts (
         id Int64,
         title String NOT NULL,
         owner_id Nullable(Int64)
-    ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
+    ) ENGINE = MergeTree ORDER BY id;
     TRUNCATE TABLE relation_boundary_posts;
     TRUNCATE TABLE relation_boundary_profiles;
     TRUNCATE TABLE relation_boundary_owners;
@@ -196,6 +196,14 @@ class RelationSyncProvider(RelationProviderBase, IRelationSyncProvider):
             backend.connect()
             backend.introspect_and_adapt()
             self._active_backends.append(backend)
+            # Drop first: basic-fixture tests may have created a same-named
+            # users table without the settings column (IF NOT EXISTS would
+            # silently keep it, breaking derived-field INSERTs).
+            for table in ("users", "posts", "comments"):
+                try:
+                    backend.execute(f"DROP TABLE IF EXISTS {table}")
+                except Exception:
+                    pass
             self._execute_script(backend, USER_POST_COMMENT_SCHEMA)
             self._configure_with_shared_backend(Post, config, backend_class, backend)
             self._configure_with_shared_backend(Comment, config, backend_class, backend)

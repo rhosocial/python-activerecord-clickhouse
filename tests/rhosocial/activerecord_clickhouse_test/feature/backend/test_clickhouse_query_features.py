@@ -102,7 +102,8 @@ class TestClickHouseQueryFeatures:
             "SELECT id FROM test_ch_query WHERE id < 4 "
             "INTERSECT SELECT id FROM test_ch_query WHERE id > 1 ORDER BY id"
         )
-        assert [row["id"] for row in r.data] == [2, 3]
+        # Row order across a compound INTERSECT is not guaranteed by ClickHouse
+        assert sorted(row["id"] for row in r.data) == [2, 3]
 
     def test_except(self, clickhouse_backend, sample_table):
         r = clickhouse_backend.execute(

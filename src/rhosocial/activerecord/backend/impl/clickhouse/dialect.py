@@ -954,12 +954,12 @@ class ClickHouseDialect(
             column_parts.append(const_sql)
             all_params.extend(const_params)
 
-        # Build inline indexes (ClickHouse-specific)
         for idx_def in expr.indexes:
             idx_sql = self.format_inline_index(idx_def)
-            column_parts.append(idx_sql)
+            if idx_sql:
+                column_parts.append(idx_sql)
 
-        # Combine all parts
+        # Combine columns (comma-separated)
         parts.append(f"({', '.join(column_parts)})")
 
         # Add storage options (ClickHouse-specific format)
@@ -1086,16 +1086,21 @@ class ClickHouseDialect(
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
 
-    def format_table_constraint_clickhouse(
+    def format_table_constraint(
         self,
         t_const: "TableConstraint",
-        TableConstraintType
+        constraint_type=None
     ) -> Tuple[str, List[Any]]:
         """Format a table-level constraint.
 
         ClickHouse supports only PRIMARY KEY among table-level constraints;
         UNIQUE and FOREIGN KEY constraints are not supported.
         """
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            TableConstraintType,
+        )
+        if constraint_type is None:
+            constraint_type = TableConstraintType
         parts = []
         params: List[Any] = []
 
@@ -1116,7 +1121,7 @@ class ClickHouseDialect(
 
         return ' '.join(parts), params
 
-    def format_inline_index_clickhouse(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
         """Format an inline index definition (ClickHouse-specific)."""
         parts = []
 
@@ -1128,9 +1133,11 @@ class ClickHouseDialect(
 
         parts.append("INDEX")
         parts.append(self.format_identifier(idx_def.name))
-
         cols_str = ', '.join(self.format_identifier(c) for c in idx_def.columns)
-        parts.append(f"({cols_str})")
+        parts.append(cols_str)
+        # TYPE minmax GRANULARITY 1 is required for ClickHouse data skipping
+        # indices; older versions reject INDEX without a TYPE clause
+        parts.append("TYPE minmax GRANULARITY 1")
 
         # ClickHouse USING syntax for index type
         if idx_def.type:
@@ -1138,7 +1145,7 @@ class ClickHouseDialect(
 
         return ' '.join(parts)
 
-    def format_storage_options_clickhouse(self, storage_options: Dict[str, Any]) -> str:
+    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         """
         Format storage options for ClickHouse.
 
@@ -1151,9 +1158,9 @@ class ClickHouseDialect(
         parts = []
         for key, value in storage_options.items():
             if isinstance(value, str):
-                parts.append(f"{key}={value}")
+                parts.append(f"{key} = {value}")
             else:
-                parts.append(f"{key}={value}")
+                parts.append(f"{key} = {value}")
         return ' '.join(parts)
     # endregion
 
