@@ -144,6 +144,9 @@ if TYPE_CHECKING:
         ExplainExpression,
         InsertExpression,
     )
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+        ModifyColumn,
+    )
     from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
         CreateTriggerExpression,
         DropTriggerExpression,
@@ -1085,6 +1088,61 @@ class ClickHouseDialect(
 
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
+
+    # endregion
+
+    # region CreateTableExpression.diff() hooks (CreateTableExpressionDiffMixin)
+    #
+    # ClickHouse-specific policy for the expression-level CREATE TABLE diff:
+    #
+    # - Column type changes are supported in place via ``MODIFY COLUMN``
+    #   (``supports_alter_column_type()`` is True), so the diff emits a
+    #   ``ModifyColumn`` action instead of forcing a rebuild.
+    # - ``ALTER COLUMN SET/DROP DEFAULT`` and ``SET/DROP NOT NULL`` do not
+    #   exist in ClickHouse: DEFAULT is part of the column definition and
+    #   nullability is part of the type (``Nullable(T)``). Both require
+    #   ``MODIFY COLUMN``, which the generic diff cannot express per
+    #   property, so property changes rebuild.
+    # - ClickHouse has no traditional secondary indexes — only data skipping
+    #   indexes, which require ``TYPE ... GRANULARITY ...`` clauses the
+    #   generic ``ADD INDEX`` action cannot express. Index changes rebuild;
+    #   the recreated table renders skip indexes inline via
+    #   :meth:`format_inline_index`.
+    # - ``ALTER TABLE ADD/DROP CONSTRAINT`` is unsupported, so any named
+    #   table-constraint change also rebuilds instead of emitting actions
+    #   that would raise on render.
+
+    def _supports_alter_column_type(self) -> bool:
+        """ClickHouse supports in-place type changes via MODIFY COLUMN."""
+        return True
+
+    def alter_column_type_action(self, old_col, new_col) -> "ModifyColumn":
+        """Render a column type change as MODIFY COLUMN <new definition>."""
+        from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+
+        return ModifyColumn(self, column=new_col)
+
+    def _supports_alter_column_properties(self) -> bool:
+        """No ``ALTER COLUMN SET/DROP DEFAULT`` / ``SET/DROP NOT NULL`` in ClickHouse."""
+        return False
+
+    def _supports_alter_table_index_actions(self) -> bool:
+        """No traditional indexes; skipping indexes cannot use ADD/DROP INDEX actions."""
+        return False
+
+    def _diff_table_constraints(self, old, new):
+        """Constraint changes rebuild: ClickHouse has no ADD/DROP CONSTRAINT."""
+        drops, adds, rebuild = super()._diff_table_constraints(old, new)
+        if rebuild is not None:
+            return drops, adds, rebuild
+        if drops or adds:
+            return [], [], self._build_rebuild_plan(
+                old, new,
+                reason="table constraint change not supported in-place by ClickHouse",
+            )
+        return drops, adds, None
+
+    # endregion
 
     def format_table_constraint(
         self,

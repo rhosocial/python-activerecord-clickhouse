@@ -7,6 +7,6 @@ Before running tests, ensure PYTHONPATH is set:
 export PYTHONPATH=src  # Linux/macOS
 ```
 
-Then run: pytest tests/rhosocial/activerecord_test/feature/$ARGUMENTS/ -v
+Then run: pytest tests/rhosocial/activerecord_clickhouse_test/feature/$ARGUMENTS/ -v
 
 Show test results and any failures.

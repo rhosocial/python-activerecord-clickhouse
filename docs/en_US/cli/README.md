@@ -137,7 +137,7 @@ Specific arguments: `--describe`, `--dry-run`, `--list`, `--force`, `--explain`.
 
 ## Testing
 
-CLI black-box tests are in `tests/rhosocial/activerecord_test/feature/backend/cli/test_cli_blackbox.py` and are covered by CI.
+CLI black-box tests are in `tests/rhosocial/activerecord_clickhouse_test/feature/backend/cli/test_cli_blackbox.py` and are covered by CI.
 
 ## Next steps
 

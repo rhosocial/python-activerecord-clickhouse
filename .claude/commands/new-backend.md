@@ -36,7 +36,7 @@ Required files:
 - Handle special types (datetime, decimal, json, etc.)
 
 ## Testing
-Create tests in: tests/rhosocial/activerecord_test/feature/backend/{backend_name}/
+Create tests in: tests/rhosocial/activerecord_clickhouse_test/feature/backend/{backend_name}/
 
 Ask the user:
 1. Backend name (e.g., clickhouse, postgresql)?

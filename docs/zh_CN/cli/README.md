@@ -137,7 +137,7 @@ $ python -m rhosocial.activerecord.backend.impl.clickhouse named-migration \
 
 ## 测试
 
-CLI 黑盒测试在 `tests/rhosocial/activerecord_test/feature/backend/cli/test_cli_blackbox.py`，CI 已覆盖。
+CLI 黑盒测试在 `tests/rhosocial/activerecord_clickhouse_test/feature/backend/cli/test_cli_blackbox.py`，CI 已覆盖。
 
 ## 下一步
 
