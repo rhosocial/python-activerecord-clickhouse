@@ -21,15 +21,12 @@ from rhosocial.activerecord.backend.expression.types import (
     DoubleType,
     FloatType,
     IntegerType,
-    JsonBType,
     JsonType,
     RealType,
     SmallIntType,
     TextType,
     TimeType,
-    TimeTzType,
     TimestampType,
-    TimestampTzType,
     TinyIntType,
     VarCharType,
 )
@@ -376,16 +373,8 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
     def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    @DDLTypeMixin.handles(TimestampTzType)
-    def format_data_type_timestamptz(self, data_type: TimestampTzType) -> Tuple[str, tuple]:
-        return "DateTime", ()
-
     @DDLTypeMixin.handles(TimeType)
     def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
-        return "DateTime", ()
-
-    @DDLTypeMixin.handles(TimeTzType)
-    def format_data_type_timetz(self, data_type: TimeTzType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
     @DDLTypeMixin.handles(FloatType)
@@ -412,10 +401,6 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
 
     @DDLTypeMixin.handles(JsonType)
     def format_data_type_json_core(self, data_type: JsonType) -> Tuple[str, tuple]:
-        return "String", ()
-
-    @DDLTypeMixin.handles(JsonBType)
-    def format_data_type_jsonb(self, data_type: JsonBType) -> Tuple[str, tuple]:
         return "String", ()
 
     @DDLTypeMixin.handles(BlobType)
