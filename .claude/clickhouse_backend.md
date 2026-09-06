@@ -23,6 +23,6 @@
 3. 自增 ID 直接复用 `UUIDMixin`，或引入 `SnowflakeIDMixin`（ClickHouse 有 `generateSnowflakeID()`）。
 4. `with_transaction()` 跨表原子提交在生产环境基本不可用，应明确边界（实验特性、非 Cloud、非复制 MergeTree、Keeper 就绪时才开放，或直接抛 `NotSupportedError`）。
 5. Async backend 可规划 `AsyncClickHouseBackend`，生态已有 `clickhouse-connect` / `asynch` 异步驱动。
-6. `SoftDeleteMixin` 比直接依赖 DELETE 更适合 ClickHouse 默认模式（`deleted_at` 字段 + TTL 自动清理）。
+6. `DefaultSoftDeleteMixin` 比直接依赖 DELETE 更适合 ClickHouse 默认模式（`deleted_at` 字段 + TTL 自动清理）。
 
 结论：ClickHouse 能支持基础 CRUD（插入、查询、条件更新/删除、JOIN 预加载），但唯一性约束、外键引用完整性、跨表事务这三项在 ClickHouse 上要么不存在，要么只是实验特性。做这个 backend 的关键不是把 ClickHouse 硬套进现有 RDBMS 语义，而是在 Dialect 层清楚地"降级"或"重新映射"那些原生不支持的关系型保证，并在文档里明确告诉使用者：这是"能查能写"的 ActiveRecord 接口，而非"数据库替你保证一致性"的传统 RDBMS 接口。
