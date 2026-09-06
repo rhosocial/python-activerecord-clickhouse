@@ -36,6 +36,9 @@ dependencies = [
     "clickhouse-connect>=1.7.0"
 ]
 
+[project.scripts]
+rhosocial-activerecord-clickhouse = "rhosocial.activerecord.backend.impl.clickhouse.__main__:main"
+
 [project.optional-dependencies]
 # Development dependencies
 test = [
