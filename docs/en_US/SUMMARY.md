@@ -31,6 +31,7 @@
 
 ## DDL
 
+* [DDL feature specs](ddl/ddl_spec.md)
 * [Table engines & sorting key](ddl/table_engine.md)
 * [Skip indexes](ddl/skip_indexes.md)
 

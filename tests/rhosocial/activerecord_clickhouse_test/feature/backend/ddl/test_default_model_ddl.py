@@ -9,6 +9,7 @@ explicitly and a variant subclass is used for the column-type assertions.
 
 import pytest
 
+from rhosocial.activerecord.base import UseSqlType
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.examples.ddl_default_types import DefaultUser
@@ -19,7 +20,11 @@ class ClickHouseDefaultUser(DefaultUser):
 
 
 def test_default_user_has_no_explicit_sql_types():
-    assert DefaultUser.__table_field_sql_types__ == {}
+    assert not any(
+        isinstance(m, UseSqlType)
+        for f in DefaultUser.model_fields.values()
+        for m in f.metadata
+    )
 
 
 def test_clickhouse_rejects_auto_increment_pk():
