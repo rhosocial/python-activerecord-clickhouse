@@ -96,8 +96,9 @@ class ClickHouseTableMaintenanceExpression(BaseExpression):
             elif not isinstance(table, str):
                 raise TypeError(f"table must be str or (schema, table) tuple, got {type(table)}")
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_table_maintenance_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_table_maintenance_statement"
 
 
 class ClickHouseAnalyzeTableExpression(ClickHouseTableMaintenanceExpression):
@@ -127,9 +128,6 @@ class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceExpression):
         )
         self.options: List[CheckTableOption] = list(options or [])
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_table_maintenance_statement(self)
-
 
 class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
     """Represent ``CHECKSUM TABLE`` with optional mode."""
@@ -151,9 +149,6 @@ class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
             dialect_options=dialect_options,
         )
         self.option: Optional[ChecksumTableOption] = option
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_table_maintenance_statement(self)
 
 
 class ClickHouseOptimizeTableExpression(ClickHouseTableMaintenanceExpression):
@@ -183,6 +178,3 @@ class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceExpression):
             dialect_options=dialect_options,
         )
         self.options: List[RepairTableOption] = list(options or [])
-
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_table_maintenance_statement(self)

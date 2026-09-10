@@ -7,7 +7,7 @@ This module provides ClickHouseMatchAgainstExpression for ClickHouse's full-text
 
 from typing import TYPE_CHECKING, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -55,6 +55,8 @@ class ClickHouseMatchAgainstExpression(
         columns: List[str],
         search_string: str,
         mode: Optional[str] = None,
+        *,
+        alias: Optional[str] = None,
     ):
         """Initialize MATCH...AGAINST expression.
 
@@ -63,26 +65,18 @@ class ClickHouseMatchAgainstExpression(
             columns: Column names to search
             search_string: Search term
             mode: Search mode
+            alias: Optional alias
         """
         super().__init__(dialect)
         self.columns = columns
         self.search_string = search_string
         self.mode = mode
-        self.alias = None  # Initialize alias attribute
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        """Generate MATCH...AGAINST SQL using dialect's format method."""
-        sql, params = self.dialect.format_match_against(
-            self.columns,
-            self.search_string,
-            self.mode,
-        )
-
-        # Apply alias if any
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_match_against"
 
 
 __all__ = [

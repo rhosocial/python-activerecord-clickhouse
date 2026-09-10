@@ -70,14 +70,14 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord
-          ref: feature/active-record-ddl
+          ref: feature/parameter-inline
           path: _activerecord
 
       - name: Check out testsuite (feature branch)
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord-testsuite
-          ref: release/v1.0.0.dev17
+          ref: feature/activerecord-derived-ddl
           path: _testsuite
 
       - name: Install activerecord and testsuite (editable)

@@ -1,13 +1,10 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/routine.py
 from typing import Any, Tuple
 
-from rhosocial.activerecord.backend.dialect.mixins.routine import RoutineSupportMixin
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
-
-
-class ClickHouseRoutineMixin(RoutineSupportMixin):
+class ClickHouseRoutineMixin:
     """ClickHouse does not support SQL stored procedures or stored functions.
 
     ClickHouse has no ``CREATE PROCEDURE`` / ``CREATE FUNCTION`` (stored)

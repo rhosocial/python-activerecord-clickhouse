@@ -65,8 +65,9 @@ class ClickHouseRoutineExpression(BaseExpression):
 class ClickHouseCreateProcedureExpression(ClickHouseRoutineExpression):
     """Represent ``CREATE PROCEDURE``."""
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_procedure_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_create_procedure_statement"
 
 
 class ClickHouseDropProcedureExpression(ClickHouseRoutineExpression):
@@ -83,8 +84,9 @@ class ClickHouseDropProcedureExpression(ClickHouseRoutineExpression):
         super().__init__(dialect, name, dialect_options=dialect_options)
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_procedure_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_drop_procedure_statement"
 
 
 class ClickHouseCreateFunctionExpression(ClickHouseRoutineExpression):
@@ -111,8 +113,9 @@ class ClickHouseCreateFunctionExpression(ClickHouseRoutineExpression):
         self.returns: str = returns
         self.deterministic: bool = deterministic
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_function_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_create_function_statement"
 
 
 class ClickHouseDropFunctionExpression(ClickHouseRoutineExpression):
@@ -129,8 +132,9 @@ class ClickHouseDropFunctionExpression(ClickHouseRoutineExpression):
         super().__init__(dialect, name, dialect_options=dialect_options)
         self.if_exists: bool = if_exists
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_function_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_drop_function_statement"
 
 
 class ClickHouseCallExpression(BaseExpression):
@@ -163,5 +167,6 @@ class ClickHouseCallExpression(BaseExpression):
         elif not isinstance(self.name, str):
             raise TypeError(f"name must be str or (schema, name) tuple, got {type(self.name)}")
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_call_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_call_statement"

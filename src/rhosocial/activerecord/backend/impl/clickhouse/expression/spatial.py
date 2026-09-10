@@ -9,9 +9,9 @@ This module provides expression classes for ClickHouse spatial functions:
 - ClickHouseSTContainsExpression
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -34,16 +34,17 @@ class ClickHouseSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
         self,
         dialect: "SQLDialectBase",
         wkt: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.wkt = wkt
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_geom_from_text(self.wkt)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_geom_from_text"
 
 
 class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -60,17 +61,18 @@ class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueEx
         dialect: "SQLDialectBase",
         geom1: str,
         geom2: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.geom1 = geom1
         self.geom2 = geom2
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_distance(self.geom1, self.geom2)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_distance"
 
 
 class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -87,17 +89,18 @@ class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpr
         dialect: "SQLDialectBase",
         geom1: str,
         geom2: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.geom1 = geom1
         self.geom2 = geom2
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_within(self.geom1, self.geom2)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_within"
 
 
 class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -114,17 +117,18 @@ class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueEx
         dialect: "SQLDialectBase",
         geom1: str,
         geom2: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.geom1 = geom1
         self.geom2 = geom2
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_st_contains(self.geom1, self.geom2)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_st_contains"
 
 
 __all__ = [

@@ -41,7 +41,7 @@ class FlushOption(Enum):
     ERROR_LOGS = "ERROR LOGS"
     GENERAL_LOGS = "GENERAL LOGS"
     HOSTS = "HOSTS"
-    OPTIMIZER_COSTS = "OPTIMIZER_COSTS"
+    OPTIMIZER_COSTS = "OPTIMIZER COSTS"
     RELAY_LOGS = "RELAY LOGS"
     SLOW_LOGS = "SLOW LOGS"
     STATUS = "STATUS"
@@ -100,8 +100,9 @@ class ClickHouseFlushExpression(BaseExpression):
         if not self.options:
             raise ValueError("FLUSH requires at least one option")
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_flush_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_flush_statement"
 
 
 class ClickHouseResetExpression(BaseExpression):
@@ -118,8 +119,9 @@ class ClickHouseResetExpression(BaseExpression):
         self.option: ResetOption = option
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_reset_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_reset_statement"
 
 
 class ClickHouseCacheIndexExpression(BaseExpression):
@@ -139,8 +141,9 @@ class ClickHouseCacheIndexExpression(BaseExpression):
         self.key_cache: str = key_cache
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_cache_index_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_cache_index_statement"
 
 
 class ClickHouseLoadIndexIntoCacheExpression(BaseExpression):
@@ -157,8 +160,9 @@ class ClickHouseLoadIndexIntoCacheExpression(BaseExpression):
         self.cache_entries: List[Dict[str, Any]] = list(cache_entries)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_load_index_into_cache_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_load_index_into_cache_statement"
 
 
 class ClickHouseInstallComponentExpression(BaseExpression):
@@ -175,8 +179,9 @@ class ClickHouseInstallComponentExpression(BaseExpression):
         self.names: List[str] = list(names)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_install_component_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_install_component_statement"
 
 
 class ClickHouseUninstallComponentExpression(BaseExpression):
@@ -193,8 +198,9 @@ class ClickHouseUninstallComponentExpression(BaseExpression):
         self.names: List[str] = list(names)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_uninstall_component_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_uninstall_component_statement"
 
 
 class ClickHouseInstallPluginExpression(BaseExpression):
@@ -213,8 +219,9 @@ class ClickHouseInstallPluginExpression(BaseExpression):
         self.soname: str = soname
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_install_plugin_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_install_plugin_statement"
 
 
 class ClickHouseUninstallPluginExpression(BaseExpression):
@@ -231,8 +238,9 @@ class ClickHouseUninstallPluginExpression(BaseExpression):
         self.plugin_name: str = plugin_name
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_uninstall_plugin_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_uninstall_plugin_statement"
 
 
 class ClickHouseCloneExpression(BaseExpression):
@@ -266,8 +274,9 @@ class ClickHouseCloneExpression(BaseExpression):
         self.to_data_directory = to_data_directory
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_clone_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_clone_statement"
 
 
 class ClickHouseRestartExpression(BaseExpression):
@@ -282,8 +291,9 @@ class ClickHouseRestartExpression(BaseExpression):
         super().__init__(dialect)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_restart_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_restart_statement"
 
 
 class ClickHouseBinlogExpression(BaseExpression):
@@ -300,8 +310,9 @@ class ClickHouseBinlogExpression(BaseExpression):
         self.encoded: str = encoded
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_binlog_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_binlog_statement"
 
 
 class ClickHouseHandlerOpenExpression(BaseExpression):
@@ -320,8 +331,9 @@ class ClickHouseHandlerOpenExpression(BaseExpression):
         self.alias = alias
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_handler_open_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_handler_open_statement"
 
 
 class ClickHouseHandlerReadExpression(BaseExpression):
@@ -348,8 +360,9 @@ class ClickHouseHandlerReadExpression(BaseExpression):
         self.limit = limit
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_handler_read_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_handler_read_statement"
 
 
 class ClickHouseHandlerCloseExpression(BaseExpression):
@@ -366,8 +379,9 @@ class ClickHouseHandlerCloseExpression(BaseExpression):
         self.table = table
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_handler_close_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_handler_close_statement"
 
 
 class ClickHouseDoExpression(BaseExpression):
@@ -384,8 +398,9 @@ class ClickHouseDoExpression(BaseExpression):
         self.expressions: List[Any] = list(expressions)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_do_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_do_statement"
 
 
 class ClickHouseKillExpression(BaseExpression):
@@ -404,8 +419,9 @@ class ClickHouseKillExpression(BaseExpression):
         self.target: KillTarget = target
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_kill_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_kill_statement"
 
 
 class ClickHouseShutdownExpression(BaseExpression):
@@ -420,8 +436,9 @@ class ClickHouseShutdownExpression(BaseExpression):
         super().__init__(dialect)
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_shutdown_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_shutdown_statement"
 
 
 class ClickHouseHelpExpression(BaseExpression):
@@ -438,8 +455,9 @@ class ClickHouseHelpExpression(BaseExpression):
         self.topic: str = topic
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_help_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_help_statement"
 
 
 class AccountSpec:
@@ -471,8 +489,9 @@ class ClickHouseCreateUserExpression(BaseExpression):
         self.identified_by: Optional[str] = identified_by
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_create_user_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_create_user_statement"
 
 
 class ClickHouseDropUserExpression(BaseExpression):
@@ -491,8 +510,9 @@ class ClickHouseDropUserExpression(BaseExpression):
         self.if_exists: bool = if_exists
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_drop_user_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_drop_user_statement"
 
 
 class GrantPrivilege:
@@ -531,8 +551,9 @@ class ClickHouseGrantExpression(BaseExpression):
         self.with_grant_option: bool = with_grant_option
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_grant_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_grant_statement"
 
 
 class ClickHouseRevokeExpression(BaseExpression):
@@ -553,5 +574,6 @@ class ClickHouseRevokeExpression(BaseExpression):
         self.on_object: Optional[str] = on_object
         self.dialect_options: Dict[str, Any] = dialect_options or {}
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_revoke_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_revoke_statement"

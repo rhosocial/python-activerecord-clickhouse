@@ -334,29 +334,29 @@ class ClickHouseDialect(
         source_sql, source_params = expr.source.to_sql()
         field = expr.field.value.upper()
         sql = f"date_trunc(%s, {source_sql})"
-        return self._apply_value_expression_modifiers(sql, source_params + (field,), expr)
+        return self.apply_alias(sql, source_params + (field,), expr)
 
     def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         sql = f"INTERVAL %s {expr.unit.value.upper()}"
-        return self._apply_value_expression_modifiers(sql, (expr.value,), expr)
+        return self.apply_alias(sql, (expr.value,), expr)
 
     def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"date_add({expr.interval.unit.value.upper()}, {interval_sql}, {source_sql})"
-        return self._apply_value_expression_modifiers(sql, source_params + interval_params, expr)
+        return self.apply_alias(sql, source_params + interval_params, expr)
 
     def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"date_sub({expr.interval.unit.value.upper()}, {interval_sql}, {source_sql})"
-        return self._apply_value_expression_modifiers(sql, source_params + interval_params, expr)
+        return self.apply_alias(sql, source_params + interval_params, expr)
 
     def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         start_sql, start_params = expr.start.to_sql()
         end_sql, end_params = expr.end.to_sql()
         sql = f"dateDiff(%s, {start_sql}, {end_sql})"
-        return self._apply_value_expression_modifiers(sql, start_params + end_params + (expr.unit.value.upper(),), expr)
+        return self.apply_alias(sql, start_params + end_params + (expr.unit.value.upper(),), expr)
 
     def supports_collate_expression(self) -> bool:
         """ClickHouse does not support expression-level COLLATE."""
@@ -669,9 +669,7 @@ class ClickHouseDialect(
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
 
-    def format_column(
-        self, name: str, table: Optional[str] = None, alias: Optional[str] = None, schema_name: Optional[str] = None
-    ) -> Tuple[str, Tuple]:
+    def format_column(self, expr) -> Tuple[str, Tuple]:
         """Format column reference for ClickHouse.
 
         ClickHouse uses database-qualified references (db.table.column) rather
@@ -679,13 +677,13 @@ class ClickHouseDialect(
         here. Database qualification is handled separately through
         cross-database query support.
         """
-        if table:
-            col_sql = f"{self.format_identifier(table)}.{self.format_identifier(name)}"
+        if expr.table:
+            col_sql = f"{self.format_identifier(expr.table)}.{self.format_identifier(expr.name)}"
         else:
-            col_sql = self.format_identifier(name)
+            col_sql = self.format_identifier(expr.name)
 
-        if alias:
-            col_sql = f"{col_sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            col_sql = f"{col_sql} AS {self.format_identifier(expr.alias)}"
 
         return col_sql, ()
 

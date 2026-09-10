@@ -30,33 +30,49 @@ from rhosocial.activerecord.backend.expression.types.array import ArrayType
 class ClickHouseInt8Type(DataType):
     """ClickHouse ``Int8`` — signed 8-bit integer."""
 
+    name = "clickhouse_int8"
+
 
 class ClickHouseInt16Type(DataType):
     """ClickHouse ``Int16`` — signed 16-bit integer."""
+
+    name = "clickhouse_int16"
 
 
 class ClickHouseInt32Type(DataType):
     """ClickHouse ``Int32`` — signed 32-bit integer."""
 
+    name = "clickhouse_int32"
+
 
 class ClickHouseInt64Type(DataType):
     """ClickHouse ``Int64`` — signed 64-bit integer."""
+
+    name = "clickhouse_int64"
 
 
 class ClickHouseUInt8Type(DataType):
     """ClickHouse ``UInt8`` — unsigned 8-bit integer (also used for Boolean)."""
 
+    name = "clickhouse_uint8"
+
 
 class ClickHouseUInt16Type(DataType):
     """ClickHouse ``UInt16`` — unsigned 16-bit integer."""
+
+    name = "clickhouse_uint16"
 
 
 class ClickHouseUInt32Type(DataType):
     """ClickHouse ``UInt32`` — unsigned 32-bit integer."""
 
+    name = "clickhouse_uint32"
+
 
 class ClickHouseUInt64Type(DataType):
     """ClickHouse ``UInt64`` — unsigned 64-bit integer."""
+
+    name = "clickhouse_uint64"
 
 
 # ---------------------------------------------------------------------------
@@ -66,9 +82,13 @@ class ClickHouseUInt64Type(DataType):
 class ClickHouseFloat32Type(DataType):
     """ClickHouse ``Float32`` — 32-bit floating point."""
 
+    name = "clickhouse_float32"
+
 
 class ClickHouseFloat64Type(DataType):
     """ClickHouse ``Float64`` — 64-bit floating point."""
+
+    name = "clickhouse_float64"
 
 
 # ---------------------------------------------------------------------------
@@ -77,6 +97,8 @@ class ClickHouseFloat64Type(DataType):
 
 class ClickHouseDecimalType(DataType):
     """ClickHouse ``Decimal(P, S)`` — fixed-point number."""
+
+    name = "clickhouse_decimal"
 
     precision: int
     scale: int
@@ -98,6 +120,8 @@ class ClickHouseDecimalType(DataType):
 class ClickHouseDecimal32Type(DataType):
     """ClickHouse ``Decimal32(S)`` — 32-bit decimal with 9 digits."""
 
+    name = "clickhouse_decimal32"
+
     scale: int
 
     def __init__(self, dialect=None, *, scale: int = 0):
@@ -116,6 +140,8 @@ class ClickHouseDecimal32Type(DataType):
 class ClickHouseDecimal64Type(DataType):
     """ClickHouse ``Decimal64(S)`` — 64-bit decimal with 18 digits."""
 
+    name = "clickhouse_decimal64"
+
     scale: int
 
     def __init__(self, dialect=None, *, scale: int = 0):
@@ -133,6 +159,8 @@ class ClickHouseDecimal64Type(DataType):
 
 class ClickHouseDecimal128Type(DataType):
     """ClickHouse ``Decimal128(S)`` — 128-bit decimal with 38 digits."""
+
+    name = "clickhouse_decimal128"
 
     scale: int
 
@@ -156,9 +184,13 @@ class ClickHouseDecimal128Type(DataType):
 class ClickHouseStringType(DataType):
     """ClickHouse ``String`` — variable-length binary/string."""
 
+    name = "clickhouse_string"
+
 
 class ClickHouseFixedStringType(DataType):
     """ClickHouse ``FixedString(N)`` — fixed-length binary/string."""
+
+    name = "clickhouse_fixed_string"
 
     length: int
 
@@ -184,17 +216,25 @@ class ClickHouseFixedStringType(DataType):
 class ClickHouseDateType(DataType):
     """ClickHouse ``Date`` — date (2 bytes, 1970-2149)."""
 
+    name = "clickhouse_date"
+
 
 class ClickHouseDate32Type(DataType):
     """ClickHouse ``Date32`` — extended date (4 bytes, 1900-2299)."""
+
+    name = "clickhouse_date32"
 
 
 class ClickHouseDateTimeType(DataType):
     """ClickHouse ``DateTime`` — date and time (4 bytes, seconds precision)."""
 
+    name = "clickhouse_datetime"
+
 
 class ClickHouseDateTime64Type(DataType):
     """ClickHouse ``DateTime64(P)`` — date and time with sub-second precision."""
+
+    name = "clickhouse_datetime64"
 
     precision: int
 
@@ -220,6 +260,8 @@ class ClickHouseDateTime64Type(DataType):
 class ClickHouseBoolType(DataType):
     """ClickHouse ``Bool`` — Boolean type (actually UInt8)."""
 
+    name = "clickhouse_bool"
+
 
 # ---------------------------------------------------------------------------
 # UUID
@@ -227,6 +269,8 @@ class ClickHouseBoolType(DataType):
 
 class ClickHouseUUIDType(DataType):
     """ClickHouse ``UUID`` — universally unique identifier."""
+
+    name = "clickhouse_uuid"
 
 
 # ---------------------------------------------------------------------------
@@ -236,9 +280,13 @@ class ClickHouseUUIDType(DataType):
 class ClickHouseIPv4Type(DataType):
     """ClickHouse ``IPv4`` — IPv4 address."""
 
+    name = "clickhouse_ipv4"
+
 
 class ClickHouseIPv6Type(DataType):
     """ClickHouse ``IPv6`` — IPv6 address."""
+
+    name = "clickhouse_ipv6"
 
 
 # ---------------------------------------------------------------------------
@@ -247,6 +295,8 @@ class ClickHouseIPv6Type(DataType):
 
 class ClickHouseEnum8Type(DataType):
     """ClickHouse ``Enum8`` — 8-bit enum with explicit string-value pairs."""
+
+    name = "clickhouse_enum8"
 
     values: List[TupleType[str, int]]
 
@@ -275,6 +325,8 @@ class ClickHouseEnum8Type(DataType):
 
 class ClickHouseEnum16Type(DataType):
     """ClickHouse ``Enum16`` — 16-bit enum with explicit string-value pairs."""
+
+    name = "clickhouse_enum16"
 
     values: List[TupleType[str, int]]
 
@@ -308,9 +360,13 @@ class ClickHouseEnum16Type(DataType):
 class ClickHouseArrayType(ArrayType):
     """ClickHouse ``Array(T)`` — array of elements."""
 
+    name = "clickhouse_array"
+
 
 class ClickHouseMapType(DataType):
     """ClickHouse ``Map(K, V)`` — key-value map."""
+
+    name = "clickhouse_map"
 
     key_type: DataType
     value_type: DataType
@@ -332,6 +388,8 @@ class ClickHouseMapType(DataType):
 
 class ClickHouseTupleType(DataType):
     """ClickHouse ``Tuple(T1, T2, ...)`` — named or unnamed tuple."""
+
+    name = "clickhouse_tuple"
 
     element_types: List[DataType]
     element_names: Optional[List[str]] = None
@@ -363,6 +421,8 @@ class ClickHouseTupleType(DataType):
 class ClickHouseNullableType(DataType):
     """ClickHouse ``Nullable(T)`` — allows NULL values for the inner type."""
 
+    name = "clickhouse_nullable"
+
     inner_type: DataType
 
     def __init__(self, dialect=None, *, inner_type: DataType):
@@ -380,6 +440,8 @@ class ClickHouseNullableType(DataType):
 
 class ClickHouseLowCardinalityType(DataType):
     """ClickHouse ``LowCardinality(T)`` — dictionary-encoded type."""
+
+    name = "clickhouse_low_cardinality"
 
     inner_type: DataType
 
@@ -403,6 +465,8 @@ class ClickHouseLowCardinalityType(DataType):
 class ClickHouseJSONType(DataType):
     """ClickHouse ``JSON`` — native JSON type (experimental in 26.x)."""
 
+    name = "clickhouse_json"
+
 
 # ---------------------------------------------------------------------------
 # Aggregation function types
@@ -410,6 +474,8 @@ class ClickHouseJSONType(DataType):
 
 class ClickHouseAggregateFunctionType(DataType):
     """ClickHouse ``AggregateFunction(name, T...)``."""
+
+    name = "clickhouse_aggregate_function"
 
     function_name: str
     arg_types: List[DataType]
@@ -431,6 +497,8 @@ class ClickHouseAggregateFunctionType(DataType):
 
 class ClickHouseSimpleAggregateFunctionType(DataType):
     """ClickHouse ``SimpleAggregateFunction(name, T...)``."""
+
+    name = "clickhouse_simple_aggregate_function"
 
     function_name: str
     arg_types: List[DataType]
@@ -458,6 +526,8 @@ class ClickHouseSimpleAggregateFunctionType(DataType):
 class ClickHouseGeometryType(DataType):
     """ClickHouse ``GEOMETRY`` with optional SRID."""
 
+    name = "clickhouse_geometry"
+
     srid: Optional[int] = None
 
     def __init__(self, dialect=None, *, srid: Optional[int] = None):
@@ -476,29 +546,43 @@ class ClickHouseGeometryType(DataType):
 class ClickHousePointType(ClickHouseGeometryType):
     """ClickHouse ``POINT`` with optional SRID."""
 
+    name = "clickhouse_point"
+
 
 class ClickHouseLineStringType(ClickHouseGeometryType):
     """ClickHouse ``LINESTRING`` with optional SRID."""
+
+    name = "clickhouse_linestring"
 
 
 class ClickHousePolygonType(ClickHouseGeometryType):
     """ClickHouse ``POLYGON`` with optional SRID."""
 
+    name = "clickhouse_polygon"
+
 
 class ClickHouseMultiPointType(ClickHouseGeometryType):
     """ClickHouse ``MULTIPOINT`` with optional SRID."""
+
+    name = "clickhouse_multipoint"
 
 
 class ClickHouseMultiLineStringType(ClickHouseGeometryType):
     """ClickHouse ``MULTILINESTRING`` with optional SRID."""
 
+    name = "clickhouse_multilinestring"
+
 
 class ClickHouseMultiPolygonType(ClickHouseGeometryType):
     """ClickHouse ``MULTIPOLYGON`` with optional SRID."""
 
+    name = "clickhouse_multipolygon"
+
 
 class ClickHouseGeometryCollectionType(ClickHouseGeometryType):
     """ClickHouse ``GEOMETRYCOLLECTION`` with optional SRID."""
+
+    name = "clickhouse_geometrycollection"
 
 
 # ---------------------------------------------------------------------------
@@ -507,6 +591,8 @@ class ClickHouseGeometryCollectionType(ClickHouseGeometryType):
 
 class ClickHouseVectorType(DataType):
     """ClickHouse ``VECTOR(n)`` — vector type (ClickHouse 9.0+)."""
+
+    name = "clickhouse_vector"
 
     dim: int
 

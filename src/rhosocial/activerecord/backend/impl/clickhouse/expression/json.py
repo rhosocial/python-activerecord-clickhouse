@@ -9,9 +9,9 @@ This module provides expression classes for ClickHouse JSON functions:
 - ClickHouseJSONContainsExpression
 """
 
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLQueryAndParams, SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -35,17 +35,18 @@ class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueE
         dialect: "SQLDialectBase",
         json_column: str,
         path: str,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.path = path
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_json_extract(self.json_column, self.path)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_extract"
 
 
 class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
@@ -63,9 +64,13 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
         self,
         dialect: "SQLDialectBase",
         data: Any = None,
+        *,
+        alias: Optional[str] = None,
         **kwargs: Any,
     ):
         super().__init__(dialect)
+        self.data = data  # keep raw for get_params() introspection
+        self.kwargs: Dict[str, Any] = dict(kwargs)
         if data is not None and kwargs:
             pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
         elif data is not None:
@@ -75,7 +80,7 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
         else:
             pairs = []
         self.pairs = pairs
-        self.alias = None
+        self.alias = alias
 
     def _convert_to_pairs(self, data: Any) -> List[tuple]:
         """Convert dict or iterable to list of key-value tuples."""
@@ -83,11 +88,10 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
             return [(k, v) for k, v in data.items()]
         return list(data)
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_json_object(self.pairs)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_object"
 
 
 class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
@@ -106,8 +110,11 @@ class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
         dialect: "SQLDialectBase",
         values: Any = None,
         *args: Any,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
+        self._raw_values = values  # keep raw for get_params() introspection
+        self.args = list(args)  # keep raw for get_params() introspection
         if values is not None and args:
             self.values = [values] + list(args)
         elif values is not None:
@@ -116,13 +123,21 @@ class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
             self.values = list(args)
         else:
             self.values = []
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_json_array(self.values)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    def get_params(self) -> Dict[str, Any]:
+        """Return the raw constructor arguments.
+
+        The ``values`` parameter is normalized into ``self.values`` during
+        construction; returning the raw form keeps the round-trip
+        (serialize -> deserialize) from double-applying the positional args.
+        """
+        return {"values": self._raw_values, "args": self.args, "alias": self.alias}
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_array"
 
 
 class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
@@ -140,18 +155,19 @@ class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue
         json_column: str,
         value: str,
         path: Optional[str] = None,
+        *,
+        alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.value = value
         self.path = path
-        self.alias = None
+        self.alias = alias
 
-    def to_sql(self) -> "SQLQueryAndParams":
-        sql, params = self.dialect.format_json_contains(self.json_column, self.value, self.path)
-        if self.alias:
-            sql = f"{sql} AS {self.dialect.format_identifier(self.alias)}"
-        return sql, params
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_contains"
 
 
 __all__ = [

@@ -79,8 +79,9 @@ class ClickHouseTableExpression(ClickHouseBaseTableStatement):
             raise TypeError("table must be a string")
         self._validate_common()
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_table_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_table_statement"
 
 
 class ClickHouseValuesExpression(ClickHouseBaseTableStatement):
@@ -112,5 +113,6 @@ class ClickHouseValuesExpression(ClickHouseBaseTableStatement):
             raise ValueError("VALUES requires at least one ROW(...)")
         self._validate_common()
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_values_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_values_statement"

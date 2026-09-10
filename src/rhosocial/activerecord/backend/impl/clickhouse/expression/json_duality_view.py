@@ -94,8 +94,9 @@ class CreateJsonDualityViewExpression(BaseExpression):
         self.root_spec = root_spec
         self.replace = replace
 
-    def to_sql(self):
-        return self.dialect.format_create_json_duality_view_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_create_json_duality_view_statement"
 
 
 class DropJsonDualityViewExpression(BaseExpression):
@@ -114,5 +115,6 @@ class DropJsonDualityViewExpression(BaseExpression):
         self.view_name = view_name
         self.if_exists = if_exists
 
-    def to_sql(self):
-        return self.dialect.format_drop_json_duality_view_statement(self)
+    @property
+    def format_method(self) -> str:
+        return "format_drop_json_duality_view_statement"

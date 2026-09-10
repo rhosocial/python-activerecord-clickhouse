@@ -101,10 +101,7 @@ class ClickHouseLoadDataExpression(BaseExpression):
         if self.options.replace and self.options.ignore:
             raise ValueError("Cannot use both REPLACE and IGNORE in LOAD DATA")
 
-    def to_sql(self):
-        """Generate SQL by delegating to dialect's format method.
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        return self.dialect.format_load_data_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_load_data_statement"

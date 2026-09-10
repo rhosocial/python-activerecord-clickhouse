@@ -97,5 +97,7 @@ class ClickHouseLoadXMLEXpression(BaseExpression):
         if self.ignore_unit not in ("LINES", "ROWS"):
             raise ValueError("ignore_unit must be 'LINES' or 'ROWS'")
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        return self.dialect.format_load_xml_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_load_xml_statement"

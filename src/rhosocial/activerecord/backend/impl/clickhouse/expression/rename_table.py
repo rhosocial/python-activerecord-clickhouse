@@ -54,6 +54,7 @@ class ClickHouseRenameTableExpression(BaseExpression):
             if not isinstance(old_name, str) or not isinstance(new_name, str):
                 raise TypeError("Rename table names must be strings")
 
-    def to_sql(self) -> Tuple[str, tuple]:
-        """Generate SQL by delegating to the dialect."""
-        return self.dialect.format_rename_table_statement(self)
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_rename_table_statement"

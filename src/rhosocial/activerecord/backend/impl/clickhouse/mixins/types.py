@@ -83,151 +83,109 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
     Implements ``DDLTypeSupport`` so the dialect can render ``DataType``
     expressions to SQL strings and parse raw SQL type strings back into
     ``DataType`` instances.
+
+    Formatting dispatches by the type instance's ``name`` through the
+    naming-convention ``format_data_type_<name>`` methods (see
+    ``DDLTypeMixin``). ClickHouse-specific types carry ``clickhouse_``-prefixed
+    names; core types render their real ClickHouse SQL.
     """
 
     # ------------------------------------------------------------------
     # DDLTypeSupport — formatting
     # ------------------------------------------------------------------
 
-    # --- Integer types ---
+    # --- ClickHouse-specific type formatters (dispatch key = type name) ---
 
-    @DDLTypeMixin.handles(ClickHouseInt8Type)
-    def format_data_type_int8(self, data_type: ClickHouseInt8Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int8(self, data_type: ClickHouseInt8Type) -> Tuple[str, tuple]:
         return "Int8", ()
 
-    @DDLTypeMixin.handles(ClickHouseInt16Type)
-    def format_data_type_int16(self, data_type: ClickHouseInt16Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int16(self, data_type: ClickHouseInt16Type) -> Tuple[str, tuple]:
         return "Int16", ()
 
-    @DDLTypeMixin.handles(ClickHouseInt32Type)
-    def format_data_type_int32(self, data_type: ClickHouseInt32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int32(self, data_type: ClickHouseInt32Type) -> Tuple[str, tuple]:
         return "Int32", ()
 
-    @DDLTypeMixin.handles(ClickHouseInt64Type)
-    def format_data_type_int64(self, data_type: ClickHouseInt64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int64(self, data_type: ClickHouseInt64Type) -> Tuple[str, tuple]:
         return "Int64", ()
 
-    @DDLTypeMixin.handles(ClickHouseUInt8Type)
-    def format_data_type_uint8(self, data_type: ClickHouseUInt8Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint8(self, data_type: ClickHouseUInt8Type) -> Tuple[str, tuple]:
         return "UInt8", ()
 
-    @DDLTypeMixin.handles(ClickHouseUInt16Type)
-    def format_data_type_uint16(self, data_type: ClickHouseUInt16Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint16(self, data_type: ClickHouseUInt16Type) -> Tuple[str, tuple]:
         return "UInt16", ()
 
-    @DDLTypeMixin.handles(ClickHouseUInt32Type)
-    def format_data_type_uint32(self, data_type: ClickHouseUInt32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint32(self, data_type: ClickHouseUInt32Type) -> Tuple[str, tuple]:
         return "UInt32", ()
 
-    @DDLTypeMixin.handles(ClickHouseUInt64Type)
-    def format_data_type_uint64(self, data_type: ClickHouseUInt64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint64(self, data_type: ClickHouseUInt64Type) -> Tuple[str, tuple]:
         return "UInt64", ()
 
-    # --- Float types ---
-
-    @DDLTypeMixin.handles(ClickHouseFloat32Type)
-    def format_data_type_float32(self, data_type: ClickHouseFloat32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_float32(self, data_type: ClickHouseFloat32Type) -> Tuple[str, tuple]:
         return "Float32", ()
 
-    @DDLTypeMixin.handles(ClickHouseFloat64Type)
-    def format_data_type_float64(self, data_type: ClickHouseFloat64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_float64(self, data_type: ClickHouseFloat64Type) -> Tuple[str, tuple]:
         return "Float64", ()
 
-    # --- Decimal types ---
-
-    @DDLTypeMixin.handles(ClickHouseDecimalType)
-    def format_data_type_decimal(self, data_type: ClickHouseDecimalType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal(self, data_type: ClickHouseDecimalType) -> Tuple[str, tuple]:
         return f"Decimal({data_type.precision}, {data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseDecimal32Type)
-    def format_data_type_decimal32(self, data_type: ClickHouseDecimal32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal32(self, data_type: ClickHouseDecimal32Type) -> Tuple[str, tuple]:
         return f"Decimal32({data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseDecimal64Type)
-    def format_data_type_decimal64(self, data_type: ClickHouseDecimal64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal64(self, data_type: ClickHouseDecimal64Type) -> Tuple[str, tuple]:
         return f"Decimal64({data_type.scale})", ()
 
-    @DDLTypeMixin.handles(ClickHouseDecimal128Type)
-    def format_data_type_decimal128(self, data_type: ClickHouseDecimal128Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal128(self, data_type: ClickHouseDecimal128Type) -> Tuple[str, tuple]:
         return f"Decimal128({data_type.scale})", ()
 
-    # --- String types ---
-
-    @DDLTypeMixin.handles(ClickHouseStringType)
-    def format_data_type_string(self, data_type: ClickHouseStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_string(self, data_type: ClickHouseStringType) -> Tuple[str, tuple]:
         return "String", ()
 
-    @DDLTypeMixin.handles(ClickHouseFixedStringType)
-    def format_data_type_fixed_string(self, data_type: ClickHouseFixedStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_fixed_string(self, data_type: ClickHouseFixedStringType) -> Tuple[str, tuple]:
         return f"FixedString({data_type.length})", ()
 
-    # --- Date / Time types ---
-
-    @DDLTypeMixin.handles(ClickHouseDateType)
-    def format_data_type_date(self, data_type: ClickHouseDateType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_date(self, data_type: ClickHouseDateType) -> Tuple[str, tuple]:
         return "Date", ()
 
-    @DDLTypeMixin.handles(ClickHouseDate32Type)
-    def format_data_type_date32(self, data_type: ClickHouseDate32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_date32(self, data_type: ClickHouseDate32Type) -> Tuple[str, tuple]:
         return "Date32", ()
 
-    @DDLTypeMixin.handles(ClickHouseDateTimeType)
-    def format_data_type_datetime(self, data_type: ClickHouseDateTimeType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_datetime(self, data_type: ClickHouseDateTimeType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    @DDLTypeMixin.handles(ClickHouseDateTime64Type)
-    def format_data_type_datetime64(self, data_type: ClickHouseDateTime64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_datetime64(self, data_type: ClickHouseDateTime64Type) -> Tuple[str, tuple]:
         return f"DateTime64({data_type.precision})", ()
 
-    # --- Bool ---
-
-    @DDLTypeMixin.handles(ClickHouseBoolType)
-    def format_data_type_bool(self, data_type: ClickHouseBoolType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_bool(self, data_type: ClickHouseBoolType) -> Tuple[str, tuple]:
         return "Bool", ()
 
-    # --- UUID ---
-
-    @DDLTypeMixin.handles(ClickHouseUUIDType)
-    def format_data_type_uuid(self, data_type: ClickHouseUUIDType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uuid(self, data_type: ClickHouseUUIDType) -> Tuple[str, tuple]:
         return "UUID", ()
 
-    # --- IP types ---
-
-    @DDLTypeMixin.handles(ClickHouseIPv4Type)
-    def format_data_type_ipv4(self, data_type: ClickHouseIPv4Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_ipv4(self, data_type: ClickHouseIPv4Type) -> Tuple[str, tuple]:
         return "IPv4", ()
 
-    @DDLTypeMixin.handles(ClickHouseIPv6Type)
-    def format_data_type_ipv6(self, data_type: ClickHouseIPv6Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_ipv6(self, data_type: ClickHouseIPv6Type) -> Tuple[str, tuple]:
         return "IPv6", ()
 
-    # --- Enum types ---
-
-    @DDLTypeMixin.handles(ClickHouseEnum8Type)
-    def format_data_type_enum8(self, data_type: ClickHouseEnum8Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_enum8(self, data_type: ClickHouseEnum8Type) -> Tuple[str, tuple]:
         values_str = ", ".join(f"'{name}' = {num}" for name, num in data_type.values)
         return f"Enum8({values_str})", ()
 
-    @DDLTypeMixin.handles(ClickHouseEnum16Type)
-    def format_data_type_enum16(self, data_type: ClickHouseEnum16Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_enum16(self, data_type: ClickHouseEnum16Type) -> Tuple[str, tuple]:
         values_str = ", ".join(f"'{name}' = {num}" for name, num in data_type.values)
         return f"Enum16({values_str})", ()
 
-    # --- Container types ---
-
-    @DDLTypeMixin.handles(ClickHouseArrayType)
-    def format_data_type_array(self, data_type: ClickHouseArrayType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_array(self, data_type: ClickHouseArrayType) -> Tuple[str, tuple]:
         inner_sql, inner_params = self.format_data_type(data_type.element_type)
         return f"Array({inner_sql})", inner_params
 
-    @DDLTypeMixin.handles(ClickHouseMapType)
-    def format_data_type_map(self, data_type: ClickHouseMapType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_map(self, data_type: ClickHouseMapType) -> Tuple[str, tuple]:
         key_sql, key_params = self.format_data_type(data_type.key_type)
         val_sql, val_params = self.format_data_type(data_type.value_type)
         return f"Map({key_sql}, {val_sql})", key_params + val_params
 
-    @DDLTypeMixin.handles(ClickHouseTupleType)
-    def format_data_type_tuple(self, data_type: ClickHouseTupleType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_tuple(self, data_type: ClickHouseTupleType) -> Tuple[str, tuple]:
         parts = []
         params = []
         for i, elem_type in enumerate(data_type.element_types):
@@ -239,158 +197,118 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             params.extend(elem_params)
         return f"Tuple({', '.join(parts)})", tuple(params)
 
-    # --- Type modifiers ---
-
-    @DDLTypeMixin.handles(ClickHouseNullableType)
-    def format_data_type_nullable(self, data_type: ClickHouseNullableType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_nullable(self, data_type: ClickHouseNullableType) -> Tuple[str, tuple]:
         inner_sql, inner_params = self.format_data_type(data_type.inner_type)
         return f"Nullable({inner_sql})", inner_params
 
-    @DDLTypeMixin.handles(ClickHouseLowCardinalityType)
-    def format_data_type_low_cardinality(self, data_type: ClickHouseLowCardinalityType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_low_cardinality(self, data_type: ClickHouseLowCardinalityType) -> Tuple[str, tuple]:
         inner_sql, inner_params = self.format_data_type(data_type.inner_type)
         return f"LowCardinality({inner_sql})", inner_params
 
-    # --- JSON ---
-
-    @DDLTypeMixin.handles(ClickHouseJSONType)
-    def format_data_type_json(self, data_type: ClickHouseJSONType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_json(self, data_type: ClickHouseJSONType) -> Tuple[str, tuple]:
         return "JSON", ()
 
-    # --- AggregateFunction ---
-
-    @DDLTypeMixin.handles(ClickHouseAggregateFunctionType)
-    def format_data_type_aggregate_function(self, data_type: ClickHouseAggregateFunctionType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_aggregate_function(self, data_type: ClickHouseAggregateFunctionType) -> Tuple[str, tuple]:
         args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
         return f"AggregateFunction({data_type.function_name}, {args})", ()
 
-    @DDLTypeMixin.handles(ClickHouseSimpleAggregateFunctionType)
-    def format_data_type_simple_aggregate_function(
+    def format_data_type_clickhouse_simple_aggregate_function(
         self, data_type: ClickHouseSimpleAggregateFunctionType
     ) -> Tuple[str, tuple]:
         args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
         return f"SimpleAggregateFunction({data_type.function_name}, {args})", ()
 
-    # --- Spatial types ---
-
-    @DDLTypeMixin.handles(ClickHouseGeometryType)
-    def format_data_type_geometry(self, data_type: ClickHouseGeometryType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_geometry(self, data_type: ClickHouseGeometryType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"GEOMETRY SRID {data_type.srid}", ()
         return "GEOMETRY", ()
 
-    @DDLTypeMixin.handles(ClickHousePointType)
-    def format_data_type_point(self, data_type: ClickHousePointType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_point(self, data_type: ClickHousePointType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"POINT SRID {data_type.srid}", ()
         return "POINT", ()
 
-    @DDLTypeMixin.handles(ClickHouseLineStringType)
-    def format_data_type_line_string(self, data_type: ClickHouseLineStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_linestring(self, data_type: ClickHouseLineStringType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"LINESTRING SRID {data_type.srid}", ()
         return "LINESTRING", ()
 
-    @DDLTypeMixin.handles(ClickHousePolygonType)
-    def format_data_type_polygon(self, data_type: ClickHousePolygonType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_polygon(self, data_type: ClickHousePolygonType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"POLYGON SRID {data_type.srid}", ()
         return "POLYGON", ()
 
-    @DDLTypeMixin.handles(ClickHouseMultiPointType)
-    def format_data_type_multi_point(self, data_type: ClickHouseMultiPointType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_multipoint(self, data_type: ClickHouseMultiPointType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"MULTIPOINT SRID {data_type.srid}", ()
         return "MULTIPOINT", ()
 
-    @DDLTypeMixin.handles(ClickHouseMultiLineStringType)
-    def format_data_type_multi_line_string(self, data_type: ClickHouseMultiLineStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_multilinestring(self, data_type: ClickHouseMultiLineStringType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"MULTILINESTRING SRID {data_type.srid}", ()
         return "MULTILINESTRING", ()
 
-    @DDLTypeMixin.handles(ClickHouseMultiPolygonType)
-    def format_data_type_multi_polygon(self, data_type: ClickHouseMultiPolygonType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_multipolygon(self, data_type: ClickHouseMultiPolygonType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"MULTIPOLYGON SRID {data_type.srid}", ()
         return "MULTIPOLYGON", ()
 
-    @DDLTypeMixin.handles(ClickHouseGeometryCollectionType)
-    def format_data_type_geometry_collection(self, data_type: ClickHouseGeometryCollectionType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_geometrycollection(self, data_type: ClickHouseGeometryCollectionType) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"GEOMETRYCOLLECTION SRID {data_type.srid}", ()
         return "GEOMETRYCOLLECTION", ()
 
-    # --- Vector ---
-
-    @DDLTypeMixin.handles(ClickHouseVectorType)
-    def format_data_type_vector(self, data_type: ClickHouseVectorType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_vector(self, data_type: ClickHouseVectorType) -> Tuple[str, tuple]:
         return f"VECTOR({data_type.dim})", ()
 
-    # --- Core type overrides (map to ClickHouse equivalents) ---
+    # --- Core types (pure names) rendered to real ClickHouse SQL ---
 
-    @DDLTypeMixin.handles(IntegerType)
     def format_data_type_integer(self, data_type: IntegerType) -> Tuple[str, tuple]:
         return "Int32", ()
 
-    @DDLTypeMixin.handles(BigIntType)
     def format_data_type_bigint(self, data_type: BigIntType) -> Tuple[str, tuple]:
         return "Int64", ()
 
-    @DDLTypeMixin.handles(SmallIntType)
     def format_data_type_smallint(self, data_type: SmallIntType) -> Tuple[str, tuple]:
         return "Int16", ()
 
-    @DDLTypeMixin.handles(TinyIntType)
     def format_data_type_tinyint(self, data_type: TinyIntType) -> Tuple[str, tuple]:
         return "Int8", ()
 
-    @DDLTypeMixin.handles(VarCharType)
     def format_data_type_varchar(self, data_type: VarCharType) -> Tuple[str, tuple]:
         return "String", ()
 
-    @DDLTypeMixin.handles(CharType)
     def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
         return "String", ()
 
-    @DDLTypeMixin.handles(TextType)
     def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
         return "String", ()
 
-    @DDLTypeMixin.handles(BooleanType)
     def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
         return "Bool", ()
 
-    @DDLTypeMixin.handles(DateType)
-    def format_data_type_date_core(self, data_type: DateType) -> Tuple[str, tuple]:
+    def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
         return "Date", ()
 
-    @DDLTypeMixin.handles(DateTimeType)
-    def format_data_type_datetime_core(self, data_type: DateTimeType) -> Tuple[str, tuple]:
+    def format_data_type_datetime(self, data_type: DateTimeType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    @DDLTypeMixin.handles(TimestampType)
     def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    @DDLTypeMixin.handles(TimeType)
     def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    @DDLTypeMixin.handles(FloatType)
     def format_data_type_float(self, data_type: FloatType) -> Tuple[str, tuple]:
         return "Float32", ()
 
-    @DDLTypeMixin.handles(DoubleType)
     def format_data_type_double(self, data_type: DoubleType) -> Tuple[str, tuple]:
         return "Float64", ()
 
-    @DDLTypeMixin.handles(RealType)
     def format_data_type_real(self, data_type: RealType) -> Tuple[str, tuple]:
         return "Float32", ()
 
-    @DDLTypeMixin.handles(DecimalType)
-    def format_data_type_decimal_core(self, data_type: DecimalType) -> Tuple[str, tuple]:
+    def format_data_type_decimal(self, data_type: DecimalType) -> Tuple[str, tuple]:
         p = data_type.precision
         s = data_type.scale
         if p is not None and s is not None:
@@ -399,16 +317,13 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             return f"Decimal({p})", ()
         return "Decimal(10, 0)", ()
 
-    @DDLTypeMixin.handles(JsonType)
-    def format_data_type_json_core(self, data_type: JsonType) -> Tuple[str, tuple]:
+    def format_data_type_json(self, data_type: JsonType) -> Tuple[str, tuple]:
         return "String", ()
 
-    @DDLTypeMixin.handles(BlobType)
     def format_data_type_blob(self, data_type: BlobType) -> Tuple[str, tuple]:
         return "String", ()
 
-    @DDLTypeMixin.handles(ArrayType)
-    def format_data_type_array_core(self, data_type: ArrayType) -> Tuple[str, tuple]:
+    def format_data_type_array(self, data_type: ArrayType) -> Tuple[str, tuple]:
         inner_sql, inner_params = self.format_data_type(data_type.element_type)
         return f"Array({inner_sql})", inner_params
 
