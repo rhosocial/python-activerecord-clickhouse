@@ -7,6 +7,12 @@ This module provides expression classes for ClickHouse JSON functions:
 - ClickHouseJSONObjectExpression
 - ClickHouseJSONArrayExpression
 - ClickHouseJSONContainsExpression
+- ClickHouseJSONUnquoteExpression
+- ClickHouseJSONSetExpression
+- ClickHouseJSONRemoveExpression
+- ClickHouseJSONTypeExpression
+- ClickHouseJSONValidExpression
+- ClickHouseJSONSearchExpression
 """
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
@@ -170,9 +176,187 @@ class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue
         return "format_json_contains"
 
 
+class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValueExpression):
+    """ClickHouse JSON_UNQUOTE expression.
+
+    Unquotes a JSON value.
+
+    Example:
+        >>> expr = ClickHouseJSONUnquoteExpression(dialect, 'data')
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_val: str,
+        *,
+        alias: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.json_val = json_val
+        self.alias = alias
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_unquote"
+
+
+class ClickHouseJSONSetExpression(AliasableMixin, SQLValueExpression):
+    """ClickHouse JSON_SET expression.
+
+    Sets a value in a JSON document.
+
+    Example:
+        >>> expr = ClickHouseJSONSetExpression(dialect, 'data', '$.name', 'John')
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_column: str,
+        path: str,
+        value: Any,
+        *,
+        path_value_pairs: Optional[List[tuple]] = None,
+        alias: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.json_column = json_column
+        self.path = path
+        self.value = value
+        self.path_value_pairs = path_value_pairs or []
+        self.alias = alias
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_set"
+
+
+class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValueExpression):
+    """ClickHouse JSON_REMOVE expression.
+
+    Removes a value from a JSON document.
+
+    Example:
+        >>> expr = ClickHouseJSONRemoveExpression(dialect, 'data', '$.temp')
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_column: str,
+        path: str,
+        *,
+        paths: Optional[List[str]] = None,
+        alias: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.json_column = json_column
+        self.path = path
+        self.paths = paths or []
+        self.alias = alias
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_remove"
+
+
+class ClickHouseJSONTypeExpression(AliasableMixin, SQLValueExpression):
+    """ClickHouse JSON_TYPE expression.
+
+    Returns the type of a JSON value.
+
+    Example:
+        >>> expr = ClickHouseJSONTypeExpression(dialect, 'data')
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_val: str,
+        *,
+        alias: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.json_val = json_val
+        self.alias = alias
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_type"
+
+
+class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+    """ClickHouse JSON_VALID expression.
+
+    Checks if a value is valid JSON.
+
+    Example:
+        >>> expr = ClickHouseJSONValidExpression(dialect, 'data')
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_val: str,
+        *,
+        alias: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.json_val = json_val
+        self.alias = alias
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_valid"
+
+
+class ClickHouseJSONSearchExpression(AliasableMixin, SQLValueExpression):
+    """ClickHouse JSON_SEARCH expression.
+
+    Searches for a string in a JSON document.
+
+    Example:
+        >>> expr = ClickHouseJSONSearchExpression(dialect, 'data', 'John')
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        json_column: str,
+        search_str: str,
+        *,
+        path: Optional[str] = None,
+        all: bool = False,
+        alias: Optional[str] = None,
+    ):
+        super().__init__(dialect)
+        self.json_column = json_column
+        self.search_str = search_str
+        self.path = path
+        self.all = all
+        self.alias = alias
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_json_search"
+
+
 __all__ = [
     "ClickHouseJSONExtractExpression",
     "ClickHouseJSONObjectExpression",
     "ClickHouseJSONArrayExpression",
     "ClickHouseJSONContainsExpression",
+    "ClickHouseJSONUnquoteExpression",
+    "ClickHouseJSONSetExpression",
+    "ClickHouseJSONRemoveExpression",
+    "ClickHouseJSONTypeExpression",
+    "ClickHouseJSONValidExpression",
+    "ClickHouseJSONSearchExpression",
 ]

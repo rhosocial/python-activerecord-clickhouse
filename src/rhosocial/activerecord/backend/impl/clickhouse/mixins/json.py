@@ -89,26 +89,27 @@ class ClickHouseJSONFunctionMixin:
             return self.version >= self._JSON_FUNCTION_VERSIONS[function_name]
         return self.version >= (26, 0, 0)
 
-    def format_json_extract(self, json_doc: str, path: str, paths: Optional[List[str]] = None) -> Tuple[str, tuple]:
+    def format_json_extract(self, expr) -> Tuple[str, tuple]:
         """Format JSONExtract function."""
-        all_paths = [path]
-        if paths:
-            all_paths.extend(paths)
+        all_paths = [expr.path]
+        if hasattr(expr, "paths") and expr.paths:
+            all_paths.extend(expr.paths)
         path_placeholders = ", ".join(["%s" for _ in all_paths])
-        return f"JSONExtract({json_doc}, {path_placeholders})", tuple(all_paths)
+        return f"JSONExtract({expr.json_column}, {path_placeholders})", tuple(all_paths)
 
-    def format_json_unquote(self, json_val: str) -> Tuple[str, tuple]:
-        return f"JSONExtractString({json_val})", ()
+    def format_json_unquote(self, expr) -> Tuple[str, tuple]:
+        return f"JSONExtractString({expr.json_val})", ()
 
-    def format_json_object(self, key_value_pairs: List[Tuple[str, Any]]) -> Tuple[str, tuple]:
+    def format_json_object(self, expr) -> Tuple[str, tuple]:
         """Format map function (ClickHouse equivalent of JSON_OBJECT)."""
-        if not key_value_pairs:
+        pairs = getattr(expr, "pairs", [])
+        if not pairs:
             return "map()", ()
 
         parts = []
         params: List[Any] = []
 
-        for key, value in key_value_pairs:
+        for key, value in pairs:
             parts.append("%s")
             parts.append("%s")
             params.append(key)
@@ -116,35 +117,35 @@ class ClickHouseJSONFunctionMixin:
 
         return f"map({', '.join(parts)})", tuple(params)
 
-    def format_json_array(self, values: List[Any]) -> Tuple[str, tuple]:
-        """Format ClickHouse array literal (equivalent of JSON_ARRAY)."""
+    def format_json_array(self, expr) -> Tuple[str, tuple]:
+        """Format ClickHouse array literal (equivalent to JSON_ARRAY)."""
+        values = getattr(expr, "values", [])
         if not values:
             return "[]", ()
         placeholders = ", ".join(["%s" for _ in values])
         return f"[{placeholders}]", tuple(values)
 
-    def format_json_contains(self, target: str, candidate: str, path: Optional[str] = None) -> Tuple[str, tuple]:
+    def format_json_contains(self, expr) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS approximation for ClickHouse.
 
         ClickHouse has no direct JSON_CONTAINS equivalent. This uses
         isNotNull(JSONExtract(...)) to check if a path exists, which is a
         reasonable approximation for path-based existence checks.
         """
+        path = getattr(expr, "path", None)
         if path:
-            return f"isNotNull(JSONExtract({target}, %s, %s))", (candidate, path)
-        return f"isNotNull(JSONExtract({target}, %s))", (candidate,)
+            return f"isNotNull(JSONExtract({expr.json_column}, %s, %s))", (expr.value, path)
+        return f"isNotNull(JSONExtract({expr.json_column}, %s))", (expr.value,)
 
-    def format_json_set(
-        self, json_doc: str, path: str, value: Any, path_value_pairs: Optional[List[Tuple[str, Any]]] = None
-    ) -> Tuple[str, tuple]:
+    def format_json_set(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SET approximation for ClickHouse.
 
         ClickHouse has no direct JSON_SET equivalent. This uses mapUpdate
         on a Map-typed JSON extraction as an approximation.
         """
-        all_pairs = [(path, value)]
-        if path_value_pairs:
-            all_pairs.extend(path_value_pairs)
+        all_pairs = [(expr.path, expr.value)]
+        if hasattr(expr, "path_value_pairs") and expr.path_value_pairs:
+            all_pairs.extend(expr.path_value_pairs)
 
         parts = []
         params: List[Any] = []
@@ -156,39 +157,38 @@ class ClickHouseJSONFunctionMixin:
             params.append(v)
 
         map_expr = f"map({', '.join(parts)})"
-        sql = f"assumeNotNull(mapUpdate(JSONExtract({json_doc}, 'Map(String, String)'), {map_expr}))"
+        sql = f"assumeNotNull(mapUpdate(JSONExtract({expr.json_column}, 'Map(String, String)'), {map_expr}))"
         return sql, tuple(params)
 
-    def format_json_remove(self, json_doc: str, path: str, paths: Optional[List[str]] = None) -> Tuple[str, tuple]:
+    def format_json_remove(self, expr) -> Tuple[str, tuple]:
         """Format JSON_REMOVE approximation for ClickHouse.
 
         ClickHouse has no direct JSON_REMOVE equivalent. This uses mapRemove
         on a Map-typed JSON extraction as an approximation.
         """
-        all_paths = [path]
-        if paths:
-            all_paths.extend(paths)
+        all_paths = [expr.path]
+        if hasattr(expr, "paths") and expr.paths:
+            all_paths.extend(expr.paths)
         path_placeholders = ", ".join(["%s" for _ in all_paths])
-        return f"mapRemove(JSONExtract({json_doc}, 'Map(String, String)'), {path_placeholders})", tuple(all_paths)
+        return f"mapRemove(JSONExtract({expr.json_column}, 'Map(String, String)'), {path_placeholders})", tuple(all_paths)
 
-    def format_json_type(self, json_val: str) -> Tuple[str, tuple]:
-        return f"JSONType({json_val})", ()
+    def format_json_type(self, expr) -> Tuple[str, tuple]:
+        return f"JSONType({expr.json_val})", ()
 
-    def format_json_valid(self, json_val: str) -> Tuple[str, tuple]:
-        return f"JSON_VALID({json_val})", ()
+    def format_json_valid(self, expr) -> Tuple[str, tuple]:
+        return f"JSON_VALID({expr.json_val})", ()
 
-    def format_json_search(
-        self, json_doc: str, search_str: str, path: Optional[str] = None, all: bool = False
-    ) -> Tuple[str, tuple]:
+    def format_json_search(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SEARCH approximation for ClickHouse.
 
         ClickHouse has no direct JSON_SEARCH equivalent. This uses
         JSONExtractString + LIKE as a basic text search approximation.
         """
-        one_or_all = "'all'" if all else "'one'"
+        one_or_all = "'all'" if getattr(expr, "all", False) else "'one'"
+        path = getattr(expr, "path", None)
         if path:
-            return f"JSONExtractString({json_doc}, %s) LIKE %s AND {one_or_all} = 'one'", (path, search_str)
-        return f"JSONExtractString({json_doc}) LIKE %s AND {one_or_all} = 'one'", (search_str,)
+            return f"JSONExtractString({expr.json_column}, %s) LIKE %s AND {one_or_all} = 'one'", (path, expr.search_str)
+        return f"JSONExtractString({expr.json_column}) LIKE %s AND {one_or_all} = 'one'", (expr.search_str,)
 
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
         """JSON_TABLE is not supported by ClickHouse."""

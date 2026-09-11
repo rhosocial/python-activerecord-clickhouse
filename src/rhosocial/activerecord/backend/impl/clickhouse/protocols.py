@@ -591,40 +591,16 @@ class ClickHouseSetTypeSupport(Protocol):
         """Whether SET type is supported."""
         ...
 
-    def format_set_literal(self, values: List[str], column_values: Optional[List[str]] = None) -> Tuple[str, tuple]:
-        """Format SET type literal.
-
-        Args:
-            values: Allowed values for the SET type
-            column_values: Values being inserted/compared
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_set_literal(self, expr) -> Tuple[str, tuple]:
+        """Format SET type literal."""
         ...
 
-    def format_find_in_set(self, value: str, set_column: str) -> Tuple[str, tuple]:
-        """Format FIND_IN_SET function call.
-
-        Args:
-            value: Value to search for
-            set_column: SET column or expression to search in
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_find_in_set(self, expr) -> Tuple[str, tuple]:
+        """Format FIND_IN_SET function call."""
         ...
 
-    def format_set_contains(self, column: str, values: List[str]) -> Tuple[str, tuple]:
-        """Format SET contains check expression.
-
-        Args:
-            column: SET column name
-            values: Values to check for containment
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_set_contains(self, expr) -> Tuple[str, tuple]:
+        """Format SET contains check expression."""
         ...
 
 
@@ -670,130 +646,44 @@ class ClickHouseJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_extract(self, json_doc: str, path: str, paths: Optional[List[str]] = None) -> Tuple[str, tuple]:
-        """Format JSON_EXTRACT function call.
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-            paths: Additional path expressions (ClickHouse 5.7.9+ multi-path)
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_extract(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_EXTRACT function call."""
         ...
 
-    def format_json_unquote(self, json_val: str) -> Tuple[str, tuple]:
-        """Format JSON_UNQUOTE function call.
-
-        Args:
-            json_val: JSON value to unquote
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_unquote(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_UNQUOTE function call."""
         ...
 
-    def format_json_object(self, key_value_pairs: List[Tuple[str, Any]]) -> Tuple[str, tuple]:
-        """Format JSON_OBJECT function call.
-
-        Args:
-            key_value_pairs: List of (key, value) tuples
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_object(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_OBJECT function call."""
         ...
 
-    def format_json_array(self, values: List[Any]) -> Tuple[str, tuple]:
-        """Format JSON_ARRAY function call.
-
-        Args:
-            values: Values to include in the JSON array
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_array(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_ARRAY function call."""
         ...
 
-    def format_json_contains(self, target: str, candidate: str, path: Optional[str] = None) -> Tuple[str, tuple]:
-        """Format JSON_CONTAINS function call.
-
-        Args:
-            target: JSON document or column to search in
-            candidate: JSON value to search for
-            path: Optional path within the target document
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_contains(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_CONTAINS function call."""
         ...
 
-    def format_json_set(
-        self, json_doc: str, path: str, value: Any, path_value_pairs: Optional[List[Tuple[str, Any]]] = None
-    ) -> Tuple[str, tuple]:
-        """Format JSON_SET function call.
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path expression
-            value: Value to set at the path
-            path_value_pairs: Additional (path, value) pairs
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_set(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_SET function call."""
         ...
 
-    def format_json_remove(self, json_doc: str, path: str, paths: Optional[List[str]] = None) -> Tuple[str, tuple]:
-        """Format JSON_REMOVE function call.
-
-        Args:
-            json_doc: JSON document or column
-            path: JSON path to remove
-            paths: Additional paths to remove
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_remove(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_REMOVE function call."""
         ...
 
-    def format_json_type(self, json_val: str) -> Tuple[str, tuple]:
-        """Format JSON_TYPE function call.
-
-        Args:
-            json_val: JSON value to type-check
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_type(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_TYPE function call."""
         ...
 
-    def format_json_valid(self, json_val: str) -> Tuple[str, tuple]:
-        """Format JSON_VALID function call.
-
-        Args:
-            json_val: Value to check for valid JSON
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_valid(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_VALID function call."""
         ...
 
-    def format_json_search(
-        self, json_doc: str, search_str: str, path: Optional[str] = None, all: bool = False
-    ) -> Tuple[str, tuple]:
-        """Format JSON_SEARCH function call.
-
-        Args:
-            json_doc: JSON document or column to search in
-            search_str: Search string (supports % and _ wildcards)
-            path: Optional path to search within
-            all: If True, return all matches; if False, return first match
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_json_search(self, expr) -> Tuple[str, tuple]:
+        """Format JSON_SEARCH function call."""
         ...
 
 
@@ -855,111 +745,40 @@ class ClickHouseSpatialSupport(Protocol):
         """Whether GEOMETRYCOLLECTION is supported."""
         ...
 
-    def format_spatial_literal(self, wkt: str, srid: Optional[int] = None) -> Tuple[str, tuple]:
-        """Format spatial literal from WKT.
-
-        Args:
-            wkt: Well-Known Text representation
-            srid: Optional Spatial Reference System Identifier
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_spatial_literal(self, expr) -> Tuple[str, tuple]:
+        """Format spatial literal from WKT."""
         ...
 
-    def format_st_geom_from_text(self, wkt: str, srid: Optional[int] = None) -> Tuple[str, tuple]:
-        """Format ST_GeomFromText function call.
-
-        Args:
-            wkt: Well-Known Text representation
-            srid: Optional Spatial Reference System Identifier
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_geom_from_text(self, expr) -> Tuple[str, tuple]:
+        """Format ST_GeomFromText function call."""
         ...
 
-    def format_st_geom_from_wkb(self, wkb: bytes, srid: Optional[int] = None) -> Tuple[str, tuple]:
-        """Format ST_GeomFromWKB function call.
-
-        Args:
-            wkb: Well-Known Binary representation
-            srid: Optional Spatial Reference System Identifier
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_geom_from_wkb(self, expr) -> Tuple[str, tuple]:
+        """Format ST_GeomFromWKB function call."""
         ...
 
-    def format_st_as_text(self, geom: str) -> Tuple[str, tuple]:
-        """Format ST_AsText function call.
-
-        Args:
-            geom: Geometry column or expression
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_as_text(self, expr) -> Tuple[str, tuple]:
+        """Format ST_AsText function call."""
         ...
 
-    def format_st_as_geojson(self, geom: str) -> Tuple[str, tuple]:
-        """Format ST_AsGeoJSON function call.
-
-        Args:
-            geom: Geometry column or expression
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_as_geojson(self, expr) -> Tuple[str, tuple]:
+        """Format ST_AsGeoJSON function call."""
         ...
 
-    def format_st_distance(self, geom1: str, geom2: str) -> Tuple[str, tuple]:
-        """Format ST_Distance function call.
-
-        Args:
-            geom1: First geometry
-            geom2: Second geometry
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_distance(self, expr) -> Tuple[str, tuple]:
+        """Format ST_Distance function call."""
         ...
 
-    def format_st_within(self, geom1: str, geom2: str) -> Tuple[str, tuple]:
-        """Format ST_Within function call.
-
-        Args:
-            geom1: Geometry to test
-            geom2: Geometry to test against
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_within(self, expr) -> Tuple[str, tuple]:
+        """Format ST_Within function call."""
         ...
 
-    def format_st_contains(self, geom1: str, geom2: str) -> Tuple[str, tuple]:
-        """Format ST_Contains function call.
-
-        Args:
-            geom1: Geometry to test
-            geom2: Geometry to test against
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_st_contains(self, expr) -> Tuple[str, tuple]:
+        """Format ST_Contains function call."""
         ...
 
-    def format_create_spatial_index(self, index: str, table: str, column: str) -> Tuple[str, tuple]:
-        """Format CREATE SPATIAL INDEX statement.
-
-        Args:
-            index: Index name
-            table: Table name
-            column: Column name
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_create_spatial_index(self, expr) -> Tuple[str, tuple]:
+        """Format CREATE SPATIAL INDEX statement."""
         ...
 
 
@@ -996,97 +815,36 @@ class ClickHouseVectorSupport(Protocol):
         """
         ...
 
-    def format_vector_literal(self, values: List[float]) -> Tuple[str, tuple]:
-        """Format vector literal from a list of float values.
-
-        Args:
-            values: List of float values representing the vector
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_vector_literal(self, expr) -> Tuple[str, tuple]:
+        """Format vector literal from a list of float values."""
         ...
 
-    def format_string_to_vector(self, vector_str: str) -> Tuple[str, tuple]:
-        """Format STRING_TO_VECTOR function call.
-
-        Args:
-            vector_str: String representation of a vector
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_string_to_vector(self, expr) -> Tuple[str, tuple]:
+        """Format STRING_TO_VECTOR function call."""
         ...
 
-    def format_vector_to_string(self, vector_col: str) -> Tuple[str, tuple]:
-        """Format VECTOR_TO_STRING function call.
-
-        Args:
-            vector_col: Vector column or expression
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_vector_to_string(self, expr) -> Tuple[str, tuple]:
+        """Format VECTOR_TO_STRING function call."""
         ...
 
-    def format_vector_dim(self, vector_col: str) -> Tuple[str, tuple]:
-        """Format VECTOR_DIM function call to get vector dimension.
-
-        Args:
-            vector_col: Vector column or expression
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_vector_dim(self, expr) -> Tuple[str, tuple]:
+        """Format VECTOR_DIM function call to get vector dimension."""
         ...
 
-    def format_distance_euclidean(self, vector1: str, vector2: str) -> Tuple[str, tuple]:
-        """Format EUCLIDEAN_DISTANCE function call.
-
-        Args:
-            vector1: First vector
-            vector2: Second vector
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_distance_euclidean(self, expr) -> Tuple[str, tuple]:
+        """Format EUCLIDEAN_DISTANCE function call."""
         ...
 
-    def format_distance_cosine(self, vector1: str, vector2: str) -> Tuple[str, tuple]:
-        """Format COSINE_DISTANCE function call.
-
-        Args:
-            vector1: First vector
-            vector2: Second vector
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_distance_cosine(self, expr) -> Tuple[str, tuple]:
+        """Format COSINE_DISTANCE function call."""
         ...
 
-    def format_distance_dot(self, vector1: str, vector2: str) -> Tuple[str, tuple]:
-        """Format DOT_PRODUCT function call.
-
-        Args:
-            vector1: First vector
-            vector2: Second vector
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_distance_dot(self, expr) -> Tuple[str, tuple]:
+        """Format DOT_PRODUCT function call."""
         ...
 
-    def format_create_vector_index(self, index: str, table: str, column: str) -> Tuple[str, tuple]:
-        """Format CREATE VECTOR INDEX statement.
-
-        Args:
-            index: Index name
-            table: Table name
-            column: Column name
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_create_vector_index(self, expr) -> Tuple[str, tuple]:
+        """Format CREATE VECTOR INDEX statement."""
         ...
 
 
@@ -1137,35 +895,12 @@ class ClickHouseFullTextSearchSupport(IndexSupport, Protocol):
         """Whether query expansion mode is supported (ClickHouse 5.6.7+)."""
         ...
 
-    def format_match_against(
-        self, columns: List[str], search_string: str, mode: Optional[str] = None
-    ) -> Tuple[str, tuple]:
-        """Format MATCH ... AGAINST expression.
-
-        Args:
-            columns: Column names to search
-            search_string: Search string
-            mode: Search mode (None, 'NATURAL_LANGUAGE', 'BOOLEAN', 'QUERY_EXPANSION')
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_match_against(self, expr) -> Tuple[str, tuple]:
+        """Format MATCH ... AGAINST expression."""
         ...
 
-    def format_fulltext_index_options(
-        self, index: str, columns: List[str], index_type: Optional[str] = None, parser_name: Optional[str] = None
-    ) -> Tuple[str, tuple]:
-        """Format FULLTEXT index options.
-
-        Args:
-            index: Index name (usually 'FULLTEXT')
-            columns: Indexed columns
-            index_type: Index type (BTREE, HASH - ignored for FULLTEXT)
-            parser_name: Parser name for full-text search
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
+    def format_fulltext_index_options(self, expr) -> Tuple[str, tuple]:
+        """Format FULLTEXT index options."""
         ...
 
 

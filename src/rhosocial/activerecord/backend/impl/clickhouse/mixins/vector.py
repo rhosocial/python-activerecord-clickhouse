@@ -25,49 +25,49 @@ class ClickHouseVectorMixin:
     def get_max_vector_dimension(self) -> int:
         return self.MAX_VECTOR_DIMENSION
 
-    def format_vector_literal(self, values: List[float]) -> Tuple[str, tuple]:
+    def format_vector_literal(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR type",
             suggestion="ClickHouse has no VECTOR type; use Array(Float32) + L2Distance.",
         )
 
-    def format_string_to_vector(self, vector_str: str) -> Tuple[str, tuple]:
+    def format_string_to_vector(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "STRING_TO_VECTOR",
             suggestion="ClickHouse has no VECTOR type; use Array(Float32).",
         )
 
-    def format_vector_to_string(self, vector_col: str) -> Tuple[str, tuple]:
+    def format_vector_to_string(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR_TO_STRING",
             suggestion="ClickHouse has no VECTOR type; use Array(Float32).",
         )
 
-    def format_vector_dim(self, vector_col: str) -> Tuple[str, tuple]:
+    def format_vector_dim(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR_DIM",
             suggestion="ClickHouse has no VECTOR type; use length(Array).",
         )
 
-    def format_distance_euclidean(self, vector1: str, vector2: str) -> Tuple[str, tuple]:
+    def format_distance_euclidean(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR distance functions",
             suggestion="Use ClickHouse L2Distance on Array(Float32).",
         )
 
-    def format_distance_cosine(self, vector1: str, vector2: str) -> Tuple[str, tuple]:
+    def format_distance_cosine(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR distance functions",
             suggestion="Use ClickHouse cosineDistance on Array(Float32).",
         )
 
-    def format_distance_dot(self, vector1: str, vector2: str) -> Tuple[str, tuple]:
+    def format_distance_dot(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR distance functions",
             suggestion="Use ClickHouse dotProduct on Array(Float32).",
         )
 
-    def format_create_vector_index(self, index: str, table: str, column: str) -> Tuple[str, tuple]:
+    def format_create_vector_index(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "VECTOR indexes",
             suggestion="ClickHouse has no VECTOR indexes; use skip indexes (e.g. vector_similarity).",

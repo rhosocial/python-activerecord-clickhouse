@@ -28,6 +28,12 @@ from .json import (
     ClickHouseJSONObjectExpression,
     ClickHouseJSONArrayExpression,
     ClickHouseJSONContainsExpression,
+    ClickHouseJSONUnquoteExpression,
+    ClickHouseJSONSetExpression,
+    ClickHouseJSONRemoveExpression,
+    ClickHouseJSONTypeExpression,
+    ClickHouseJSONValidExpression,
+    ClickHouseJSONSearchExpression,
 )
 from .partition import (
     ClickHousePartitionStrategy,
@@ -59,6 +65,27 @@ from .partition import (
     ClickHouseSubpartitionClause,
 )
 from .rename_table import ClickHouseRenameTableExpression
+from .spatial import (
+    ClickHouseCreateSpatialIndexExpression,
+    ClickHouseSTAsGeoJSONExpression,
+    ClickHouseSTAsTextExpression,
+    ClickHouseSTContainsExpression,
+    ClickHouseSTDistanceExpression,
+    ClickHouseSTGeomFromTextExpression,
+    ClickHouseSTGeomFromWKBExpression,
+    ClickHouseSTWithinExpression,
+    ClickHouseSpatialLiteralExpression,
+)
+from .vector import (
+    ClickHouseCreateVectorIndexExpression,
+    ClickHouseDistanceCosineExpression,
+    ClickHouseDistanceDotExpression,
+    ClickHouseDistanceEuclideanExpression,
+    ClickHouseStringToVectorExpression,
+    ClickHouseVectorDimExpression,
+    ClickHouseVectorLiteralExpression,
+    ClickHouseVectorToStringExpression,
+)
 
 # DataType subclasses for DDL
 from .types import (
@@ -99,10 +126,37 @@ from .types import (
 )
 
 __all__ = [
+    # JSON expressions
     "ClickHouseJSONExtractExpression",
     "ClickHouseJSONObjectExpression",
     "ClickHouseJSONArrayExpression",
     "ClickHouseJSONContainsExpression",
+    "ClickHouseJSONUnquoteExpression",
+    "ClickHouseJSONSetExpression",
+    "ClickHouseJSONRemoveExpression",
+    "ClickHouseJSONTypeExpression",
+    "ClickHouseJSONValidExpression",
+    "ClickHouseJSONSearchExpression",
+    # Spatial expressions
+    "ClickHouseCreateSpatialIndexExpression",
+    "ClickHouseSTAsGeoJSONExpression",
+    "ClickHouseSTAsTextExpression",
+    "ClickHouseSTContainsExpression",
+    "ClickHouseSTDistanceExpression",
+    "ClickHouseSTGeomFromTextExpression",
+    "ClickHouseSTGeomFromWKBExpression",
+    "ClickHouseSTWithinExpression",
+    "ClickHouseSpatialLiteralExpression",
+    # Vector expressions
+    "ClickHouseCreateVectorIndexExpression",
+    "ClickHouseDistanceCosineExpression",
+    "ClickHouseDistanceDotExpression",
+    "ClickHouseDistanceEuclideanExpression",
+    "ClickHouseStringToVectorExpression",
+    "ClickHouseVectorDimExpression",
+    "ClickHouseVectorLiteralExpression",
+    "ClickHouseVectorToStringExpression",
+    # Partition
     "ClickHousePartitionStrategy",
     "ClickHousePartitionClause",
     "ClickHousePartitionMaxValue",
@@ -130,6 +184,7 @@ __all__ = [
     "ClickHouseSubpartitionStrategy",
     "ClickHouseSubpartitionDefinition",
     "ClickHouseSubpartitionClause",
+    # Rename table
     "ClickHouseRenameTableExpression",
     # DataType subclasses for DDL
     "ClickHouseAggregateFunctionType",

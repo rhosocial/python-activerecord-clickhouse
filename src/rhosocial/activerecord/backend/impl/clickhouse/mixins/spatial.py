@@ -37,55 +37,55 @@ class ClickHouseSpatialMixin:
     def supports_geometry_collection_type(self) -> bool:
         return False
 
-    def format_spatial_literal(self, wkt: str, srid: Optional[int] = None) -> Tuple[str, tuple]:
+    def format_spatial_literal(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "spatial types",
             suggestion="ClickHouse has no spatial types; store WKT as String.",
         )
 
-    def format_st_geom_from_text(self, wkt: str, srid: Optional[int] = None) -> Tuple[str, tuple]:
+    def format_st_geom_from_text(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_GeomFromText",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_geom_from_wkb(self, wkb: bytes, srid: Optional[int] = None) -> Tuple[str, tuple]:
+    def format_st_geom_from_wkb(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_GeomFromWKB",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_as_text(self, geom: str) -> Tuple[str, tuple]:
+    def format_st_as_text(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_AsText",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_as_geojson(self, geom: str) -> Tuple[str, tuple]:
+    def format_st_as_geojson(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_AsGeoJSON",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_distance(self, geom1: str, geom2: str) -> Tuple[str, tuple]:
+    def format_st_distance(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_Distance",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_within(self, geom1: str, geom2: str) -> Tuple[str, tuple]:
+    def format_st_within(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_Within",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_contains(self, geom1: str, geom2: str) -> Tuple[str, tuple]:
+    def format_st_contains(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "ST_Contains",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_create_spatial_index(self, index: str, table: str, column: str) -> Tuple[str, tuple]:
+    def format_create_spatial_index(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "SPATIAL indexes",
             suggestion="ClickHouse has no SPATIAL indexes; use skip indexes (INDEX ... USING).",
