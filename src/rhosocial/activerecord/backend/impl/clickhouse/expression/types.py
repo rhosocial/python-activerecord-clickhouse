@@ -17,7 +17,7 @@ DDL definition expressions (``ColumnDefinition.data_type``).
 
 from __future__ import annotations
 
-from typing import List, Optional, Tuple as TupleType
+from typing import Any, Dict, List, Optional, Tuple as TupleType
 
 from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.expression.types.array import ArrayType
@@ -103,18 +103,22 @@ class ClickHouseDecimalType(DataType):
     precision: int
     scale: int
 
-    def __init__(self, dialect=None, *, precision: int, scale: int = 0):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, precision: int, scale: int = 0,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if not (1 <= precision <= 38):
+            raise ValueError(
+                f"Decimal precision must be between 1 and 38, got {precision}"
+            )
+        if not (0 <= scale <= 38):
+            raise ValueError(
+                f"Decimal scale must be between 0 and 38, got {scale}"
+            )
         self.precision = precision
         self.scale = scale
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.precision == other.precision and self.scale == other.scale
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.precision, self.scale))
+    def _type_params(self) -> tuple:
+        return (self.precision, self.scale)
 
 
 class ClickHouseDecimal32Type(DataType):
@@ -124,17 +128,17 @@ class ClickHouseDecimal32Type(DataType):
 
     scale: int
 
-    def __init__(self, dialect=None, *, scale: int = 0):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, scale: int = 0,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if not (0 <= scale <= 38):
+            raise ValueError(
+                f"Decimal32 scale must be between 0 and 38, got {scale}"
+            )
         self.scale = scale
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.scale == other.scale
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.scale))
+    def _type_params(self) -> tuple:
+        return (self.scale,)
 
 
 class ClickHouseDecimal64Type(DataType):
@@ -144,17 +148,17 @@ class ClickHouseDecimal64Type(DataType):
 
     scale: int
 
-    def __init__(self, dialect=None, *, scale: int = 0):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, scale: int = 0,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if not (0 <= scale <= 38):
+            raise ValueError(
+                f"Decimal64 scale must be between 0 and 38, got {scale}"
+            )
         self.scale = scale
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.scale == other.scale
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.scale))
+    def _type_params(self) -> tuple:
+        return (self.scale,)
 
 
 class ClickHouseDecimal128Type(DataType):
@@ -164,17 +168,17 @@ class ClickHouseDecimal128Type(DataType):
 
     scale: int
 
-    def __init__(self, dialect=None, *, scale: int = 0):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, scale: int = 0,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
+        if not (0 <= scale <= 38):
+            raise ValueError(
+                f"Decimal128 scale must be between 0 and 38, got {scale}"
+            )
         self.scale = scale
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.scale == other.scale
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.scale))
+    def _type_params(self) -> tuple:
+        return (self.scale,)
 
 
 # ---------------------------------------------------------------------------
@@ -194,19 +198,15 @@ class ClickHouseFixedStringType(DataType):
 
     length: int
 
-    def __init__(self, dialect=None, *, length: int):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, length: int,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         if length < 1:
             raise ValueError("FixedString length must be >= 1")
         self.length = length
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.length == other.length
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.length))
+    def _type_params(self) -> tuple:
+        return (self.length,)
 
 
 # ---------------------------------------------------------------------------
@@ -238,19 +238,15 @@ class ClickHouseDateTime64Type(DataType):
 
     precision: int
 
-    def __init__(self, dialect=None, *, precision: int = 3):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, precision: int = 3,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         if precision < 0 or precision > 9:
             raise ValueError("DateTime64 precision must be between 0 and 9")
         self.precision = precision
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.precision == other.precision
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.precision))
+    def _type_params(self) -> tuple:
+        return (self.precision,)
 
 
 # ---------------------------------------------------------------------------
@@ -300,8 +296,9 @@ class ClickHouseEnum8Type(DataType):
 
     values: List[TupleType[str, int]]
 
-    def __init__(self, dialect=None, *, values: List[TupleType[str, int]]):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, values: List[TupleType[str, int]],
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         if not values:
             raise ValueError("Enum8 must have at least one value")
         seen = set()
@@ -314,13 +311,8 @@ class ClickHouseEnum8Type(DataType):
             seen.add(pair)
         self.values = list(values)
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.values == other.values
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.values)))
+    def _type_params(self) -> tuple:
+        return (tuple(self.values),)
 
 
 class ClickHouseEnum16Type(DataType):
@@ -330,8 +322,9 @@ class ClickHouseEnum16Type(DataType):
 
     values: List[TupleType[str, int]]
 
-    def __init__(self, dialect=None, *, values: List[TupleType[str, int]]):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, values: List[TupleType[str, int]],
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         if not values:
             raise ValueError("Enum16 must have at least one value")
         seen = set()
@@ -344,13 +337,8 @@ class ClickHouseEnum16Type(DataType):
             seen.add(pair)
         self.values = list(values)
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.values == other.values
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.values)))
+    def _type_params(self) -> tuple:
+        return (tuple(self.values),)
 
 
 # ---------------------------------------------------------------------------
@@ -371,19 +359,14 @@ class ClickHouseMapType(DataType):
     key_type: DataType
     value_type: DataType
 
-    def __init__(self, dialect=None, *, key_type: DataType, value_type: DataType):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, key_type: DataType, value_type: DataType,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.key_type = key_type
         self.value_type = value_type
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.key_type == other.key_type and
-                self.value_type == other.value_type)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.key_type, self.value_type))
+    def _type_params(self) -> tuple:
+        return (self.key_type, self.value_type)
 
 
 class ClickHouseTupleType(DataType):
@@ -394,8 +377,10 @@ class ClickHouseTupleType(DataType):
     element_types: List[DataType]
     element_names: Optional[List[str]] = None
 
-    def __init__(self, dialect=None, *, element_types: List[DataType], element_names: Optional[List[str]] = None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, element_types: List[DataType],
+                 element_names: Optional[List[str]] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         if not element_types:
             raise ValueError("Tuple must have at least one element")
         if element_names and len(element_names) != len(element_types):
@@ -403,15 +388,11 @@ class ClickHouseTupleType(DataType):
         self.element_types = list(element_types)
         self.element_names = list(element_names) if element_names else None
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.element_types == other.element_types and
-                self.element_names == other.element_names)
-
-    def __hash__(self) -> int:
-        return hash((type(self), tuple(self.element_types),
-                     tuple(self.element_names) if self.element_names else None))
+    def _type_params(self) -> tuple:
+        return (
+            tuple(self.element_types),
+            tuple(self.element_names) if self.element_names else None,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -425,17 +406,13 @@ class ClickHouseNullableType(DataType):
 
     inner_type: DataType
 
-    def __init__(self, dialect=None, *, inner_type: DataType):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, inner_type: DataType,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.inner_type = inner_type
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.inner_type == other.inner_type
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.inner_type))
+    def _type_params(self) -> tuple:
+        return (self.inner_type,)
 
 
 class ClickHouseLowCardinalityType(DataType):
@@ -445,17 +422,13 @@ class ClickHouseLowCardinalityType(DataType):
 
     inner_type: DataType
 
-    def __init__(self, dialect=None, *, inner_type: DataType):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, inner_type: DataType,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.inner_type = inner_type
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.inner_type == other.inner_type
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.inner_type))
+    def _type_params(self) -> tuple:
+        return (self.inner_type,)
 
 
 # ---------------------------------------------------------------------------
@@ -480,19 +453,14 @@ class ClickHouseAggregateFunctionType(DataType):
     function_name: str
     arg_types: List[DataType]
 
-    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType]):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType],
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.function_name = function_name
         self.arg_types = list(arg_types)
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.function_name == other.function_name and
-                self.arg_types == other.arg_types)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.function_name, tuple(self.arg_types)))
+    def _type_params(self) -> tuple:
+        return (self.function_name, tuple(self.arg_types))
 
 
 class ClickHouseSimpleAggregateFunctionType(DataType):
@@ -503,19 +471,14 @@ class ClickHouseSimpleAggregateFunctionType(DataType):
     function_name: str
     arg_types: List[DataType]
 
-    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType]):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType],
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.function_name = function_name
         self.arg_types = list(arg_types)
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return (self.function_name == other.function_name and
-                self.arg_types == other.arg_types)
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.function_name, tuple(self.arg_types)))
+    def _type_params(self) -> tuple:
+        return (self.function_name, tuple(self.arg_types))
 
 
 # ---------------------------------------------------------------------------
@@ -530,17 +493,13 @@ class ClickHouseGeometryType(DataType):
 
     srid: Optional[int] = None
 
-    def __init__(self, dialect=None, *, srid: Optional[int] = None):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, srid: Optional[int] = None,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.srid = srid
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.srid == other.srid
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.srid))
+    def _type_params(self) -> tuple:
+        return (self.srid,)
 
 
 class ClickHousePointType(ClickHouseGeometryType):
@@ -596,14 +555,10 @@ class ClickHouseVectorType(DataType):
 
     dim: int
 
-    def __init__(self, dialect=None, *, dim: int):
-        super().__init__(dialect)
+    def __init__(self, dialect=None, *, dim: int,
+                 dialect_options: Optional[Dict[str, Any]] = None):
+        super().__init__(dialect, dialect_options=dialect_options)
         self.dim = dim
 
-    def __eq__(self, other: object) -> bool:
-        if type(self) is not type(other):
-            return False
-        return self.dim == other.dim
-
-    def __hash__(self) -> int:
-        return hash((type(self), self.dim))
+    def _type_params(self) -> tuple:
+        return (self.dim,)

@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import re
-from typing import Tuple
+from typing import Dict, Tuple
 
 from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
 from rhosocial.activerecord.backend.dialect.protocols import DDLTypeSupport
@@ -260,6 +260,216 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
 
     def format_data_type_clickhouse_vector(self, data_type: ClickHouseVectorType) -> Tuple[str, tuple]:
         return f"VECTOR({data_type.dim})", ()
+
+    # ------------------------------------------------------------------
+    # DDLTypeSupport — supports_data_type_* (1:1 with format_data_type_*)
+    # ------------------------------------------------------------------
+
+    def supports_data_type_clickhouse_int8(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_int16(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_int32(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_int64(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_uint8(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_uint16(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_uint32(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_uint64(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_float32(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_float64(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_decimal(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_decimal32(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_decimal64(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_decimal128(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_string(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_fixed_string(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_date(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_date32(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_datetime(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_datetime64(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_bool(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_uuid(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_ipv4(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_ipv6(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_enum8(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_enum16(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_array(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_map(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_tuple(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_nullable(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_low_cardinality(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_json(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_aggregate_function(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_simple_aggregate_function(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_geometry(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_point(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_linestring(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_polygon(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_multipoint(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_multilinestring(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_multipolygon(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_geometrycollection(self) -> bool:
+        return True
+
+    def supports_data_type_clickhouse_vector(self) -> bool:
+        return True
+
+    # Core types that ClickHouse renders natively
+
+    def supports_data_type_integer(self) -> bool:
+        return True
+
+    def supports_data_type_bigint(self) -> bool:
+        return True
+
+    def supports_data_type_smallint(self) -> bool:
+        return True
+
+    def supports_data_type_tinyint(self) -> bool:
+        return True
+
+    def supports_data_type_varchar(self) -> bool:
+        return True
+
+    def supports_data_type_char(self) -> bool:
+        return True
+
+    def supports_data_type_text(self) -> bool:
+        return True
+
+    def supports_data_type_boolean(self) -> bool:
+        return True
+
+    def supports_data_type_date(self) -> bool:
+        return True
+
+    def supports_data_type_datetime(self) -> bool:
+        return True
+
+    def supports_data_type_timestamp(self) -> bool:
+        return True
+
+    def supports_data_type_time(self) -> bool:
+        return True
+
+    def supports_data_type_float(self) -> bool:
+        return True
+
+    def supports_data_type_double(self) -> bool:
+        return True
+
+    def supports_data_type_real(self) -> bool:
+        return True
+
+    def supports_data_type_decimal(self) -> bool:
+        return True
+
+    def supports_data_type_json(self) -> bool:
+        return True
+
+    def supports_data_type_blob(self) -> bool:
+        return True
+
+    def supports_data_type_array(self) -> bool:
+        return True
+
+    # ------------------------------------------------------------------
+    # DDLTypeSupport — suggested_data_types()
+    # ------------------------------------------------------------------
+
+    def suggested_data_types(self) -> Dict[str, type]:
+        from rhosocial.activerecord.backend.expression.types import (
+            BinaryType,
+            EnumType,
+            JsonBType,
+            VarBinaryType,
+        )
+        return {
+            "binary": ClickHouseStringType,
+            "varbinary": ClickHouseStringType,
+            "enum": ClickHouseStringType,
+            "jsonb": ClickHouseStringType,
+        }
 
     # --- Core types (pure names) rendered to real ClickHouse SQL ---
 

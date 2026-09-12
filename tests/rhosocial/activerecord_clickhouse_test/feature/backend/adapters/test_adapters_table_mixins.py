@@ -202,9 +202,10 @@ class TestTableMixin:
         from rhosocial.activerecord.backend.expression.types import IntegerType
 
         col_def = ColumnDefinition(
+            dialect,
             "id",
-            IntegerType(),
-            constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)],
+            IntegerType(dialect),
+            constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)],
         )
         with pytest.raises(UnsupportedFeatureError):
             dialect.format_column_definition(col_def)

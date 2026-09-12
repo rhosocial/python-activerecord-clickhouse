@@ -62,8 +62,13 @@ class TestClickHouseCreateTableLike:
         """Test that LIKE syntax ignores columns parameter."""
         dialect = ClickHouseDialect()
         columns = [
-            ColumnDefinition("id", IntegerType(), constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition("name", VarCharType(length=255)),
+            ColumnDefinition(
+                dialect,
+                "id",
+                IntegerType(dialect),
+                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)],
+            ),
+            ColumnDefinition(dialect, "name", VarCharType(length=255, dialect=dialect)),
         ]
         create_expr = CreateTableExpression(
             dialect=dialect, table="users_copy", columns=columns, dialect_options={"like_table": "users"}
@@ -94,8 +99,18 @@ class TestClickHouseCreateTableLike:
         """Test that base implementation is used when LIKE is not specified."""
         dialect = ClickHouseDialect()
         columns = [
-            ColumnDefinition("id", IntegerType(), constraints=[ColumnConstraint(ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition("name", VarCharType(length=255), constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)]),
+            ColumnDefinition(
+                dialect,
+                "id",
+                IntegerType(dialect),
+                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)],
+            ),
+            ColumnDefinition(
+                dialect,
+                "name",
+                VarCharType(length=255, dialect=dialect),
+                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+            ),
         ]
         create_expr = CreateTableExpression(dialect=dialect, table="users", columns=columns)
         sql, params = create_expr.to_sql()

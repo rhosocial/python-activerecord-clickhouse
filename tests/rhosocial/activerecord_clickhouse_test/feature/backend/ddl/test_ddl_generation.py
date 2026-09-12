@@ -32,8 +32,8 @@ class TestClickHouseDDLGeneration:
             dialect,
             TableExpression(dialect, "users"),
             [
-                ColumnDefinition("id", IntegerType()),
-                ColumnDefinition("name", VarCharType(length=100)),
+                ColumnDefinition(dialect, "id", IntegerType(dialect)),
+                ColumnDefinition(dialect, "name", VarCharType(length=100, dialect=dialect)),
             ],
             storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
         )
@@ -46,7 +46,7 @@ class TestClickHouseDDLGeneration:
         expr = CreateTableExpression(
             dialect,
             TableExpression(dialect, "events"),
-            [ColumnDefinition("id", IntegerType())],
+            [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             if_not_exists=True,
             storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
         )
@@ -59,11 +59,11 @@ class TestClickHouseDDLGeneration:
             dialect,
             TableExpression(dialect, "t"),
             [
-                ColumnDefinition("id", IntegerType()),
-                ColumnDefinition("name", VarCharType(length=100)),
-                ColumnDefinition("amount", DecimalType(precision=10, scale=2)),
-                ColumnDefinition("ts", DateTimeType()),
-                ColumnDefinition("active", BooleanType()),
+                ColumnDefinition(dialect, "id", IntegerType(dialect)),
+                ColumnDefinition(dialect, "name", VarCharType(length=100, dialect=dialect)),
+                ColumnDefinition(dialect, "amount", DecimalType(precision=10, scale=2, dialect=dialect)),
+                ColumnDefinition(dialect, "ts", DateTimeType(dialect)),
+                ColumnDefinition(dialect, "active", BooleanType(dialect)),
             ],
             storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
         )
@@ -79,7 +79,10 @@ class TestClickHouseDDLGeneration:
         expr = CreateTableExpression(
             dialect,
             TableExpression(dialect, "metrics"),
-            [ColumnDefinition("id", IntegerType()), ColumnDefinition("ts", DateTimeType())],
+            [
+                ColumnDefinition(dialect, "id", IntegerType(dialect)),
+                ColumnDefinition(dialect, "ts", DateTimeType(dialect)),
+            ],
             storage_options={
                 "ENGINE": "MergeTree()",
                 "ORDER BY": "id",
@@ -132,16 +135,18 @@ class TestClickHouseTypeFormatting:
         )
 
         cases = {
-            ClickHouseUInt32Type(): "UInt32",
-            ClickHouseStringType(): "String",
-            ClickHouseDateTime64Type(precision=3): "DateTime64(3)",
-            ClickHouseArrayType(element_type=ClickHouseStringType()): "Array(String)",
-            ClickHouseNullableType(inner_type=ClickHouseUInt32Type()): "Nullable(UInt32)",
-            ClickHouseMapType(key_type=ClickHouseStringType(), value_type=ClickHouseUInt32Type()): "Map(String, UInt32)",
-            ClickHouseDecimalType(precision=18, scale=4): "Decimal(18, 4)",
+            ClickHouseUInt32Type(dialect): "UInt32",
+            ClickHouseStringType(dialect): "String",
+            ClickHouseDateTime64Type(dialect, precision=3): "DateTime64(3)",
+            ClickHouseArrayType(element_type=ClickHouseStringType(dialect), dialect=dialect): "Array(String)",
+            ClickHouseNullableType(dialect, inner_type=ClickHouseUInt32Type(dialect)): "Nullable(UInt32)",
+            ClickHouseMapType(
+                dialect, key_type=ClickHouseStringType(dialect), value_type=ClickHouseUInt32Type(dialect)
+            ): "Map(String, UInt32)",
+            ClickHouseDecimalType(dialect, precision=18, scale=4): "Decimal(18, 4)",
         }
         for data_type, expected in cases.items():
-            sql, _ = data_type.to_sql(dialect)
+            sql, _ = data_type.to_sql()
             assert sql == expected, f"{type(data_type).__name__}: got {sql}, expected {expected}"
 
     def test_parse_type_roundtrip(self, dialect):
@@ -159,7 +164,7 @@ class TestClickHouseTypeFormatting:
         ]
         for type_str in type_strs:
             parsed = dialect.parse_type(type_str)
-            sql, _ = parsed.to_sql(dialect)
+            sql, _ = parsed.to_sql()
             # Compare with whitespace normalized (Decimal(10, 2) == Decimal(10,2))
             assert type_str.lower().replace(" ", "") == sql.lower().replace(" ", ""), (
                 f"{type_str} -> {sql}"
@@ -167,6 +172,6 @@ class TestClickHouseTypeFormatting:
 
     def test_parse_enum_type(self, dialect):
         parsed = dialect.parse_type("Enum8('a' = 1, 'b' = 2)")
-        sql, _ = parsed.to_sql(dialect)
+        sql, _ = parsed.to_sql()
         assert sql.startswith("Enum8(")
         assert "'a'" in sql and "'b'" in sql

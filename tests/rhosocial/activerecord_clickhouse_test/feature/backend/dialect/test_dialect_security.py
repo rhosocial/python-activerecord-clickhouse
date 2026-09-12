@@ -31,13 +31,15 @@ def dialect():
 def test_clickhouse_format_column_definition_default_string_escaping(dialect):
     """Test DEFAULT constraint string is escaped in ClickHouse."""
     constraint = ColumnConstraint(
-        constraint_type=ColumnConstraintType.DEFAULT,
+        dialect,
+        ColumnConstraintType.DEFAULT,
         default_value="test's value",
     )
 
     col_def = ColumnDefinition(
-        name="test_col",
-        data_type=VarCharType(length=255),
+        dialect,
+        "test_col",
+        VarCharType(length=255, dialect=dialect),
         constraints=[constraint],
     )
 
@@ -48,8 +50,9 @@ def test_clickhouse_format_column_definition_default_string_escaping(dialect):
 def test_clickhouse_format_column_definition_comment_string_escaping(dialect):
     """Test COMMENT string is escaped in ClickHouse column definition."""
     col_def = ColumnDefinition(
-        name="test_col",
-        data_type=VarCharType(length=255),
+        dialect,
+        "test_col",
+        VarCharType(length=255, dialect=dialect),
         comment="Comment with 'single quote'",
     )
 
@@ -74,8 +77,9 @@ def test_clickhouse_validate_data_type(dialect):
 def test_clickhouse_format_column_definition_data_type_validation(dialect):
     """Test column definition validates data_type (VarChar maps to String)."""
     col_def = ColumnDefinition(
-        name="test_col",
-        data_type=VarCharType(length=255),
+        dialect,
+        "test_col",
+        VarCharType(length=255, dialect=dialect),
     )
 
     sql, params = dialect.format_column_definition(col_def)
@@ -86,7 +90,8 @@ def test_clickhouse_format_column_definition_data_type_rejects_injection(dialect
     """Test that malicious data_type is rejected at construction time."""
     with pytest.raises(TypeError, match="data_type must be a DataType instance"):
         ColumnDefinition(
-            name="test_col",
+            dialect,
+            "test_col",
             data_type="VARCHAR(255); DROP TABLE users--",
         )
 

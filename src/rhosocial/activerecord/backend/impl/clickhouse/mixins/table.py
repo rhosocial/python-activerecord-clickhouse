@@ -93,7 +93,7 @@ class ClickHouseTableMixin:
         """Format a single column definition with ClickHouse-specific syntax."""
         if ColumnConstraintType is None:
             from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
-        type_sql, type_params = col_def.data_type.to_sql(self)
+        type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
 
