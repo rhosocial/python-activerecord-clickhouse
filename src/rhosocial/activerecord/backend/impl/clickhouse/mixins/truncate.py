@@ -42,5 +42,5 @@ class ClickHouseTruncateMixin:
                 "TRUNCATE ... CASCADE",
                 suggestion="ClickHouse does not support CASCADE on TRUNCATE.",
             )
-        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table)}"
+        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
         return sql, ()

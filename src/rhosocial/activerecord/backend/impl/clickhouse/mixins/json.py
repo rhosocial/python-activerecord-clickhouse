@@ -3,6 +3,8 @@ from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import bases
+from rhosocial.activerecord.backend.expression.core import CastExpression
+from rhosocial.activerecord.backend.expression.operators import RawSQLExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression
@@ -77,7 +79,9 @@ class ClickHouseJSONFunctionMixin:
 
         if expr.cast_types:
             for target_type in expr.cast_types:
-                sql, params = self.format_cast_expression(sql, target_type, params, None)
+                raw = RawSQLExpression(self, sql, params)
+                cast_expr = CastExpression(self, raw, target_type)
+                sql, params = self.format_cast_expression(cast_expr)
 
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"

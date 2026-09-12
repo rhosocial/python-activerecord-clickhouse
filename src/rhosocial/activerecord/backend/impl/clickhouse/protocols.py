@@ -895,11 +895,15 @@ class ClickHouseFullTextSearchSupport(IndexSupport, Protocol):
         """Whether query expansion mode is supported (ClickHouse 5.6.7+)."""
         ...
 
-    def format_match_against(self, expr) -> Tuple[str, tuple]:
+    def format_match_against(
+        self, columns: list, search_string: str, mode: str = None
+    ) -> Tuple[str, tuple]:
         """Format MATCH ... AGAINST expression."""
         ...
 
-    def format_fulltext_index_options(self, expr) -> Tuple[str, tuple]:
+    def format_fulltext_index_options(
+        self, index: str, columns: list, index_type: str = None, parser_name: str = None
+    ) -> Tuple[str, tuple]:
         """Format FULLTEXT index options."""
         ...
 

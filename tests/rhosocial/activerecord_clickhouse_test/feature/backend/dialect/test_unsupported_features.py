@@ -68,7 +68,7 @@ class TestSpatialStub:
 
     def test_format_create_spatial_index_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_spatial_index("idx", "t", "geom")
+            dialect.format_create_spatial_index(None)
 
 
 class TestVectorStub:
@@ -82,7 +82,7 @@ class TestVectorStub:
 
     def test_format_create_vector_index_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_vector_index("idx", "t", "emb")
+            dialect.format_create_vector_index(None)
 
 
 class TestOptimizerHintStub:

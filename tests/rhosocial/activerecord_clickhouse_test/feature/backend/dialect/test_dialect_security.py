@@ -143,14 +143,20 @@ def test_clickhouse_json_table_unsupported_validates_expression(dialect):
 
 def test_clickhouse_format_cast_expression_valid(dialect):
     """Test that CAST expression validates target_type."""
-    sql, params = dialect.format_cast_expression("column", "INTEGER", (), None)
+    from rhosocial.activerecord.backend.expression.core import CastExpression, Literal
+    inner = Literal(dialect, "column")
+    expr = CastExpression(dialect, inner, "INTEGER")
+    sql, params = dialect.format_cast_expression(expr)
     assert "INTEGER" in sql
 
 
 def test_clickhouse_format_cast_expression_rejects_injection(dialect):
     """Test that malicious target_type is rejected."""
+    from rhosocial.activerecord.backend.expression.core import CastExpression, Literal
+    inner = Literal(dialect, "column")
+    expr = CastExpression(dialect, inner, "INTEGER; DROP TABLE users--")
     with pytest.raises(ValueError, match="Invalid target type"):
-        dialect.format_cast_expression("column", "INTEGER; DROP TABLE users--", (), None)
+        dialect.format_cast_expression(expr)
 
 
 class TestClickHouseEscapeSqlStringBackslash:
