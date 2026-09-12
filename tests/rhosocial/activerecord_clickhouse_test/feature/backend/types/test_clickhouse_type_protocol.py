@@ -512,7 +512,7 @@ class TestFormatDispatch:
     def test_format_core_integer_maps_to_int32(self):
         from rhosocial.activerecord.backend.expression.types import IntegerType
         dialect = ClickHouseDialect()
-        sql, _ = dialect.format_data_type(IntegerType())
+        sql, _ = dialect.format_data_type(IntegerType(dialect))
         assert sql == "Int32"
 
     def test_format_core_varchar_maps_to_string(self):
@@ -525,4 +525,4 @@ class TestFormatDispatch:
         dialect = ClickHouseDialect()
         from rhosocial.activerecord.backend.expression.types import UUIDType
         with pytest.raises(TypeError, match="does not support"):
-            dialect.format_data_type(UUIDType())
+            dialect.format_data_type(UUIDType(dialect))
