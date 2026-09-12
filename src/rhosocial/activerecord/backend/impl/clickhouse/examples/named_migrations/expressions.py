@@ -27,16 +27,17 @@ def create_users_table(dialect):
         table="users",
         columns=[
             ColumnDefinition(
+                dialect,
                 "id",
-                ClickHouseUInt32Type(),
+                ClickHouseUInt32Type(dialect),
                 constraints=[
                     ColumnConstraint(
                         ColumnConstraintType.PRIMARY_KEY,
                     ),
                 ],
             ),
-            ColumnDefinition("name", ClickHouseStringType()),
-            ColumnDefinition("email", ClickHouseStringType()),
+            ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
+            ColumnDefinition(dialect, "email", ClickHouseStringType(dialect)),
         ],
     )
 
@@ -53,16 +54,17 @@ def create_posts_table(dialect):
         table="posts",
         columns=[
             ColumnDefinition(
+                dialect,
                 "id",
-                ClickHouseUInt32Type(),
+                ClickHouseUInt32Type(dialect),
                 constraints=[
                     ColumnConstraint(
                         ColumnConstraintType.PRIMARY_KEY,
                     ),
                 ],
             ),
-            ColumnDefinition("title", ClickHouseStringType()),
-            ColumnDefinition("user_id", ClickHouseUInt32Type()),
+            ColumnDefinition(dialect, "title", ClickHouseStringType(dialect)),
+            ColumnDefinition(dialect, "user_id", ClickHouseUInt32Type(dialect)),
         ],
     )
 
@@ -83,15 +85,16 @@ def create_custom_table(dialect, table: str = "custom_table"):
         table=table,
         columns=[
             ColumnDefinition(
+                dialect,
                 "id",
-                ClickHouseUInt32Type(),
+                ClickHouseUInt32Type(dialect),
                 constraints=[
                     ColumnConstraint(
                         ColumnConstraintType.PRIMARY_KEY,
                     ),
                 ],
             ),
-            ColumnDefinition("value", ClickHouseStringType()),
+            ColumnDefinition(dialect, "value", ClickHouseStringType(dialect)),
         ],
     )
 

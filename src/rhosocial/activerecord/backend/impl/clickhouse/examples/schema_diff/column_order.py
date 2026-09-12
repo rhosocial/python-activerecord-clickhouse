@@ -44,13 +44,13 @@ sql, params = expr.to_sql()
 backend.execute(sql, params)
 expr = CreateTableExpression(
     dialect=dialect, table="users", columns=[
-        ColumnDefinition("id", ClickHouseUInt32Type(),
+        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("name", ClickHouseStringType()),
-        ColumnDefinition("email", ClickHouseStringType()),
+        ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
+        ColumnDefinition(dialect, "email", ClickHouseStringType(dialect)),
     ]
 )
 sql, params = expr.to_sql()
@@ -73,7 +73,7 @@ builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column between `name` and `email` — shifts email to position 4
-add_col = AddColumn(dialect, ColumnDefinition("age", ClickHouseUInt32Type()),
+add_col = AddColumn(dialect, ColumnDefinition(dialect, "age", ClickHouseUInt32Type(dialect)),
                     dialect_options={"after": "name"})
 alter_expr = AlterTableExpression(dialect, "users", [add_col])
 sql, params = alter_expr.to_sql()

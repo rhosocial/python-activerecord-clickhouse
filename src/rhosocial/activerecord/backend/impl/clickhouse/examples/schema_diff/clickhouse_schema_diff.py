@@ -60,14 +60,14 @@ expr = CreateTableExpression(
     dialect=dialect,
     table="events",
     columns=[
-        ColumnDefinition("id", ClickHouseUInt32Type(),
+        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("ts", ClickHouseDateTimeType()),
-        ColumnDefinition("message", ClickHouseStringType()),
-        ColumnDefinition("value", ClickHouseDecimalType(precision=10, scale=2)),
+        ColumnDefinition(dialect, "ts", ClickHouseDateTimeType(dialect)),
+        ColumnDefinition(dialect, "message", ClickHouseStringType(dialect)),
+        ColumnDefinition(dialect, "value", ClickHouseDecimalType(dialect, precision=10, scale=2)),
     ],
     dialect_options={"engine": "MergeTree()", "order_by": "id"},
 )
@@ -111,8 +111,9 @@ snapshot_before = builder.build()
 add_status = AddColumn(
     dialect,
     ColumnDefinition(
+        dialect,
         "status",
-        ClickHouseStringType(),
+        ClickHouseStringType(dialect),
         constraints=[
             ColumnConstraint(constraint_type=ColumnConstraintType.DEFAULT, default_value=Literal(dialect, "new")),
         ],
@@ -126,7 +127,7 @@ backend.execute(sql, params)
 # Modify an existing column's data type: Decimal(10, 2) -> Float64
 modify_value = ModifyColumn(
     dialect,
-    ColumnDefinition("value", ClickHouseFloat64Type()),
+    ColumnDefinition(dialect, "value", ClickHouseFloat64Type(dialect)),
 )
 alter_expr = AlterTableExpression(dialect, "events", [modify_value])
 sql, params = alter_expr.to_sql()

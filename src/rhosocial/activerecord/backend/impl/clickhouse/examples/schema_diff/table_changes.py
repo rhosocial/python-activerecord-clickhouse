@@ -57,25 +57,25 @@ snapshot_before = builder.build()
 # Create one table, drop another (if it existed)
 expr = CreateTableExpression(
     dialect=dialect, table="users", columns=[
-        ColumnDefinition("id", ClickHouseUInt32Type(),
+        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("name", ClickHouseStringType()),
+        ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
     ]
 )
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 expr = CreateTableExpression(
     dialect=dialect, table="orders", columns=[
-        ColumnDefinition("id", ClickHouseUInt32Type(),
+        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
                 ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
             ]),
-        ColumnDefinition("user_id", ClickHouseUInt32Type()),
-        ColumnDefinition("amount", ClickHouseDecimalType(precision=10, scale=2)),
+        ColumnDefinition(dialect, "user_id", ClickHouseUInt32Type(dialect)),
+        ColumnDefinition(dialect, "amount", ClickHouseDecimalType(dialect, precision=10, scale=2)),
     ]
 )
 sql, params = expr.to_sql()

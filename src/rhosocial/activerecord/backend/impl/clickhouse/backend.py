@@ -46,6 +46,7 @@ from rhosocial.activerecord.backend.options import (
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from .config import ClickHouseConnectionConfig
 from .dialect import ClickHouseDialect
 from .transaction import ClickHouseTransactionManager
@@ -294,7 +295,7 @@ class ClickHouseBackend(
         """
         if where is None:
             return 0
-        table_sql, _ = self.dialect.format_table(table, schema_name=schema_name)
+        table_sql, _ = self.dialect.format_table(TableExpression(self.dialect, table, schema_name=schema_name))
         if hasattr(where, "to_sql"):
             where_sql, where_params = where.to_sql()
             if where_sql.lstrip().upper().startswith("WHERE"):
