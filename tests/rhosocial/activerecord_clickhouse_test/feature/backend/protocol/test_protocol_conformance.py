@@ -93,6 +93,18 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.IntrospectionSupport,
     dialect_protocols.TransactionControlSupport,
     dialect_protocols.SQLFunctionSupport,
+    # Generic protocols ClickHouse also satisfies (previously omitted from this list).
+    dialect_protocols.AlterTableModifierSupport,
+    dialect_protocols.DDLTypeSupport,
+    dialect_protocols.SetOperationSupport,
+    dialect_protocols.TriggerSupport,
+    dialect_protocols.TruncateSupport,
+    # AutoIncrementSupport is satisfied structurally (the mixin method exists),
+    # but ClickHouseDialect overrides supports_auto_increment() to return False:
+    # ClickHouse has no server-side AUTO_INCREMENT and primary keys are generated
+    # client-side (snowflake Int64). Kept here because the runtime_checkable
+    # Protocol only checks method presence.
+    dialect_protocols.AutoIncrementSupport,
     # ClickHouse-specific protocols
     clickhouse_protocols.ClickHouseDMLOperationSupport,
     clickhouse_protocols.ClickHouseTriggerSupport,
@@ -134,6 +146,77 @@ class TestClickHouseDialectProtocolConformance:
         )
 
 
+# Generic protocols ClickHouseDialect intentionally does NOT implement.
+#
+# Listing them makes the omission a deliberate, tested contract: if ClickHouse
+# ever satisfies one by accident, the negative test fails and forces a conscious
+# decision (move to CLICKHOUSE_PROTOCOLS or revert).
+CLICKHOUSE_NOT_IMPLEMENTED = [
+    # --- Intentional non-support ---
+    # ClickHouse has no SQL/XML support.
+    dialect_protocols.SQLXMLSupport,
+    dialect_protocols.SQLXMLParsingSupport,
+    dialect_protocols.SQLXMLSerializationSupport,
+    dialect_protocols.SQLXMLConstructionSupport,
+    dialect_protocols.SQLXMLAggregationSupport,
+    dialect_protocols.SQLXMLQueryingSupport,
+    # ClickHouse has no SQL/PGQ property-graph tables.
+    dialect_protocols.GraphTableSupport,
+    # ClickHouse match/`like()` is case-sensitive; there is no ILIKE operator.
+    dialect_protocols.ILIKESupport,
+    # ClickHouse exposes routine DDL through its own ClickHouseRoutineSupport
+    # protocol rather than the generic SQL/PSM FunctionSupport.
+    dialect_protocols.FunctionSupport,
+    # --- Known gaps (feature exists, generic protocol not yet declared) ---
+    # TODO: ClickHouse supports MATERIALIZED / ALIAS generated columns;
+    # implement GeneratedColumnMixin overrides and move to CLICKHOUSE_PROTOCOLS.
+    dialect_protocols.GeneratedColumnSupport,
+]
+
+
+def get_all_generic_protocols() -> dict:
+    """Discover every generic dialect protocol defined in protocols.py."""
+    from typing import Protocol
+
+    discovered = {}
+    for name, obj in inspect.getmembers(dialect_protocols, inspect.isclass):
+        if Protocol in getattr(obj, "__mro__", []) and name.endswith("Support"):
+            discovered[name] = obj
+    return discovered
+
+
+class TestClickHouseDialectNegativeProtocolConformance:
+    """Assert ClickHouseDialect does not implement intentionally-unsupported protocols."""
+
+    @pytest.fixture
+    def dialect(self):
+        return clickhouse_dialect.ClickHouseDialect()
+
+    @pytest.mark.parametrize("protocol", CLICKHOUSE_NOT_IMPLEMENTED)
+    def test_does_not_implement_protocol(self, dialect, protocol):
+        """ClickHouseDialect must NOT implement any protocol in CLICKHOUSE_NOT_IMPLEMENTED."""
+        assert not isinstance(dialect, protocol), (
+            f"ClickHouseDialect unexpectedly implements {protocol.__name__}. "
+            f"If intentional, move it from CLICKHOUSE_NOT_IMPLEMENTED to CLICKHOUSE_PROTOCOLS "
+            f"(and implement the behaviour fully)."
+        )
+
+    def test_positive_and_negative_lists_partition_all_protocols(self):
+        """Every generic protocol must be classified for ClickHouse."""
+        all_protos = set(get_all_generic_protocols())
+        positive = {p.__name__ for p in CLICKHOUSE_PROTOCOLS if p.__module__ == dialect_protocols.__name__}
+        negative = {p.__name__ for p in CLICKHOUSE_NOT_IMPLEMENTED}
+
+        overlap = positive & negative
+        assert not overlap, f"Protocols in BOTH lists: {sorted(overlap)}"
+
+        unclassified = all_protos - positive - negative
+        assert not unclassified, (
+            f"Generic protocols not classified for ClickHouse: {sorted(unclassified)}. "
+            f"Add each to CLICKHOUSE_PROTOCOLS or CLICKHOUSE_NOT_IMPLEMENTED."
+        )
+
+
 class TestProtocolNonOverlap:
     """Assert protocols do not have overlapping method names."""
 
@@ -168,6 +251,9 @@ class TestProtocolNonOverlap:
             ("ClickHouseRenameTableSupport", "TableSupport"),
             ("ClickHouseTableSupport", "ClickHouseRenameTableSupport"),
             ("ClickHouseRenameTableSupport", "ClickHouseTableSupport"),
+            # ClickHouse trigger protocol restates the generic trigger capability.
+            ("TriggerSupport", "ClickHouseTriggerSupport"),
+            ("ClickHouseTriggerSupport", "TriggerSupport"),
         }
 
         violations = []
