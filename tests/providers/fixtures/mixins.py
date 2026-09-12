@@ -138,7 +138,7 @@ def create_versioned_products_table(dialect, table_name: str = "versioned_produc
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
             ColumnDefinition(dialect, "name", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition(dialect, "price", DecimalType(precision=10, scale=2),
+            ColumnDefinition(dialect, "price", DecimalType(dialect, precision=10, scale=2),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0.0)]),
             ColumnDefinition(dialect, "version", IntegerType(dialect),
