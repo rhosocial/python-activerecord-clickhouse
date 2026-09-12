@@ -58,11 +58,11 @@ def create_combined_articles_table(dialect, table_name: str = "combined_articles
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition(dialect, "title", VarCharType(length=255),
+            ColumnDefinition(dialect, "title", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "content", TextType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition(dialect, "status", VarCharType(length=50),
+            ColumnDefinition(dialect, "status", VarCharType(dialect, length=50),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value="draft")]),
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(precision=6)),
@@ -89,7 +89,7 @@ def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableExpress
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition(dialect, "title", VarCharType(length=255),
+            ColumnDefinition(dialect, "title", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "is_completed", BooleanType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
@@ -113,7 +113,7 @@ def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition(dialect, "title", VarCharType(length=255),
+            ColumnDefinition(dialect, "title", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "content", TextType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
@@ -136,7 +136,7 @@ def create_versioned_products_table(dialect, table_name: str = "versioned_produc
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
-            ColumnDefinition(dialect, "name", VarCharType(length=255),
+            ColumnDefinition(dialect, "name", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "price", DecimalType(precision=10, scale=2),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
