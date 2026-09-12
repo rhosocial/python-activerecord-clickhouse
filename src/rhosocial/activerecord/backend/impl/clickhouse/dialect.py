@@ -615,17 +615,7 @@ class ClickHouseDialect(
         """Set operations do not support FOR UPDATE."""
         return False
 
-    def format_set_operation_expression(
-        self,
-        left: "bases.BaseExpression",
-        right: "bases.BaseExpression",
-        operation: str,
-        alias,
-        all_: bool,
-        order_by_clause=None,
-        limit_offset_clause=None,
-        for_update_clause=None,
-    ) -> Tuple[str, Tuple]:
+    def format_set_operation_expression(self, expr: "bases.BaseExpression") -> Tuple[str, Tuple]:
         """Format set operations with an explicit ALL/DISTINCT modifier.
 
         ClickHouse rejects a bare ``UNION`` when ``union_default_mode`` is
@@ -633,6 +623,14 @@ class ClickHouseDialect(
         query``. A bare SQL-standard ``UNION`` means ``UNION DISTINCT``, so
         we always emit the explicit modifier.
         """
+        left, right = expr.left, expr.right
+        operation = expr.operation
+        all_ = expr.all_
+        alias = expr.alias
+        order_by_clause = expr.order_by_clause
+        limit_offset_clause = expr.limit_offset_clause
+        # FOR UPDATE is unsupported in ClickHouse; ignored silently.
+
         left_sql, left_params = left.to_sql()
         right_sql, right_params = right.to_sql()
         modifier = "ALL" if all_ else "DISTINCT"
@@ -650,7 +648,6 @@ class ClickHouseDialect(
             limit_offset_sql, limit_offset_params = limit_offset_clause.to_sql()
             sql_parts.append(limit_offset_sql)
             all_params.extend(limit_offset_params)
-        # FOR UPDATE is unsupported in ClickHouse; ignore silently.
         return " ".join(sql_parts), tuple(all_params)
 
     # endregion
