@@ -100,7 +100,7 @@ class ClickHouseIntrospectionMixin:
         sql = (
             "SELECT engine AS DEFAULT_CHARACTER_SET_NAME, '' AS DEFAULT_COLLATION_NAME "
             "FROM system.databases "
-            "WHERE name = %s"
+            f"WHERE name = {self.get_parameter_placeholder(0)}"
         )
         return (sql, (schema,))
 
@@ -111,8 +111,9 @@ class ClickHouseIntrospectionMixin:
         include_views = params.get("include_views", True)
         include_system = params.get("include_system", False)
         table_type = params.get("table_type")
+        p = self.get_parameter_placeholder
 
-        conditions = ["database = %s"]
+        conditions = [f"database = {p(0)}"]
         sql_params: list = [schema]
 
         if not include_system:
@@ -120,7 +121,7 @@ class ClickHouseIntrospectionMixin:
         if not include_views:
             conditions.append("engine NOT LIKE '%%View'")
         if table_type:
-            conditions.append("engine = %s")
+            conditions.append(f"engine = {p(len(sql_params))}")
             sql_params.append(table_type)
 
         where = " AND ".join(conditions)
@@ -136,8 +137,9 @@ class ClickHouseIntrospectionMixin:
     def format_column_info_query(self, expr: "ColumnInfoExpression") -> Tuple[str, tuple]:
         """Format column information query against ClickHouse system.columns."""
         params = expr.get_params()
-        table = params.get("table", "")
+        table = params.get("table_name", "")
         schema = params.get("schema", "")
+        p = self.get_parameter_placeholder
         sql = (
             "SELECT name AS COLUMN_NAME, position AS ORDINAL_POSITION, "
             "default_expression AS COLUMN_DEFAULT, "
@@ -149,7 +151,7 @@ class ClickHouseIntrospectionMixin:
             "comment AS COLUMN_COMMENT, '' AS CHARACTER_SET_NAME, "
             "'' AS COLLATION_NAME "
             "FROM system.columns "
-            "WHERE database = %s AND table = %s "
+            f"WHERE database = {p(0)} AND table = {p(1)} "
             "ORDER BY position"
         )
         return (sql, (schema, table))
@@ -157,13 +159,14 @@ class ClickHouseIntrospectionMixin:
     def format_index_info_query(self, expr: "IndexInfoExpression") -> Tuple[str, tuple]:
         """Format index information query against ClickHouse system.data_skipping_indices."""
         params = expr.get_params()
-        table = params.get("table", "")
+        table = params.get("table_name", "")
         schema = params.get("schema", "")
+        p = self.get_parameter_placeholder
         sql = (
             "SELECT name AS INDEX_NAME, 0 AS NON_UNIQUE, 1 AS SEQ_IN_INDEX, "
             "'' AS COLUMN_NAME, type AS INDEX_TYPE, NULL AS SUB_PART, 'YES' AS NULLABLE "
             "FROM system.data_skipping_indices "
-            "WHERE database = %s AND table = %s "
+            f"WHERE database = {p(0)} AND table = {p(1)} "
             "ORDER BY name"
         )
         return (sql, (schema, table))
@@ -182,8 +185,9 @@ class ClickHouseIntrospectionMixin:
         params = expr.get_params()
         schema = params.get("schema", "")
         include_system = params.get("include_system", False)
+        p = self.get_parameter_placeholder
 
-        conditions = ["database = %s", "engine LIKE '%%View'"]
+        conditions = [f"database = {p(0)}", "engine LIKE '%%View'"]
         sql_params: list = [schema]
 
         if not include_system:
@@ -202,11 +206,12 @@ class ClickHouseIntrospectionMixin:
         params = expr.get_params()
         view_name = params.get("view_name", "")
         schema = params.get("schema", "")
+        p = self.get_parameter_placeholder
         sql = (
             "SELECT name AS TABLE_NAME, create_table_query AS VIEW_DEFINITION, "
             "'NONE' AS CHECK_OPTION, 'NO' AS IS_UPDATABLE "
             "FROM system.tables "
-            "WHERE database = %s AND name = %s AND engine LIKE '%%View'"
+            f"WHERE database = {p(0)} AND name = {p(1)} AND engine LIKE '%%View'"
         )
         return (sql, (schema, view_name))
 
