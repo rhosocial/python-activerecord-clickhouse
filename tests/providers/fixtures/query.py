@@ -79,7 +79,7 @@ def create_users_table(dialect, table_name: str = "users") -> CreateTableExpress
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             # Optional[T] model fields must map to Nullable columns so that None
             # is stored/returned as SQL NULL instead of ClickHouse's zero value.
-            ColumnDefinition(dialect, "age", ClickHouseNullableType(inner_type=IntegerType(dialect))),
+            ColumnDefinition(dialect, "age", ClickHouseNullableType(dialect, inner_type=IntegerType(dialect))),
             ColumnDefinition(dialect, "balance", DoubleType(),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
                              ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0.0)]),
@@ -251,7 +251,7 @@ def create_json_users_table(dialect, table_name: str = "json_users") -> CreateTa
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition(dialect, "age", ClickHouseNullableType(inner_type=IntegerType(dialect))),
+            ColumnDefinition(dialect, "age", ClickHouseNullableType(dialect, inner_type=IntegerType(dialect))),
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(precision=6)),
             ColumnDefinition(dialect, "settings", JsonType()),

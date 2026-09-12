@@ -164,7 +164,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
             ColumnDefinition(dialect, "datetime_field", TextType(dialect),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "json_field", JsonType()),
-            ColumnDefinition(dialect, "nullable_field", ClickHouseNullableType(inner_type=ClickHouseStringType())),
+            ColumnDefinition(dialect, "nullable_field", ClickHouseNullableType(dialect, inner_type=ClickHouseStringType(dialect))),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -176,7 +176,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
 
 def create_validated_field_users_table(dialect, table_name: str = "validated_field_users") -> CreateTableExpression:
     # ClickHouse ENUM column for status.
-    status_enum = ClickHouseEnum8Type(values=[('active', 1), ('inactive', 2), ('banned', 3), ('pending', 4), ('suspended', 5)])
+    status_enum = ClickHouseEnum8Type(dialect, values=[('active', 1), ('inactive', 2), ('banned', 3), ('pending', 4), ('suspended', 5)])
     return CreateTableExpression(
         dialect=dialect,
         table=table_name,
@@ -219,7 +219,7 @@ def create_validated_users_table(dialect, table_name: str = "validated_users") -
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
-            ColumnDefinition(dialect, "age", ClickHouseNullableType(inner_type=IntegerType(dialect))),
+            ColumnDefinition(dialect, "age", ClickHouseNullableType(dialect, inner_type=IntegerType(dialect))),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
@@ -395,13 +395,13 @@ def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tes
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
             # Optional[T] model fields must map to Nullable columns so that None
             # is stored/returned as SQL NULL instead of ClickHouse's empty string.
-            ColumnDefinition(dialect, "optional_name", ClickHouseNullableType(inner_type=VarCharType(dialect, length=255))),
-            ColumnDefinition(dialect, "optional_age", ClickHouseNullableType(inner_type=IntegerType(dialect))),
-            ColumnDefinition(dialect, "last_login", ClickHouseNullableType(inner_type=TextType(dialect))),
-            ColumnDefinition(dialect, "is_premium", ClickHouseNullableType(inner_type=BooleanType(dialect))),
+            ColumnDefinition(dialect, "optional_name", ClickHouseNullableType(dialect, inner_type=VarCharType(dialect, length=255))),
+            ColumnDefinition(dialect, "optional_age", ClickHouseNullableType(dialect, inner_type=IntegerType(dialect))),
+            ColumnDefinition(dialect, "last_login", ClickHouseNullableType(dialect, inner_type=TextType(dialect))),
+            ColumnDefinition(dialect, "is_premium", ClickHouseNullableType(dialect, inner_type=BooleanType(dialect))),
             ColumnDefinition(dialect, "unsupported_union", VarCharType(dialect, length=255)),
             ColumnDefinition(dialect, "custom_bool", VarCharType(dialect, length=3)),
-            ColumnDefinition(dialect, "optional_custom_bool", ClickHouseNullableType(inner_type=VarCharType(dialect, length=3))),
+            ColumnDefinition(dialect, "optional_custom_bool", ClickHouseNullableType(dialect, inner_type=VarCharType(dialect, length=3))),
         ],
         storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
     )
