@@ -44,7 +44,7 @@ class ClickHouseTableMixin:
             parts.append("TEMPORARY")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(expr.table.to_sql()[0])
+        parts.append(self.format_identifier(expr.table_name))
 
         column_parts = []
         for col_def in expr.columns:
@@ -83,7 +83,7 @@ class ClickHouseTableMixin:
             parts.append("TEMPORARY")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(expr.table.to_sql()[0])
+        parts.append(self.format_identifier(expr.table_name))
 
         if isinstance(like_table, tuple):
             schema, table = like_table
