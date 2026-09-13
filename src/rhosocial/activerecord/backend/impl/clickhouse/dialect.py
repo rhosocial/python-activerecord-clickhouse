@@ -130,6 +130,7 @@ from .mixins import (
     ClickHouseQueryClauseMixin,
 )
 from .collation import validate_clickhouse_collation_name
+from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
 
 if TYPE_CHECKING:
@@ -313,6 +314,7 @@ class ClickHouseDialect(
                 features can be used.
         """
         super().__init__()
+        self._reserved_words = CLICKHOUSE_RESERVED_WORDS
         if version is not None:
             self.version = version
 
@@ -655,16 +657,28 @@ class ClickHouseDialect(
 
     # endregion
 
-    def format_identifier(self, identifier: str) -> str:
+    def format_identifier(self, identifier: str, need_quote: bool = True) -> str:
         """
         Format identifier using ClickHouse's backtick quoting mechanism.
 
         Args:
             identifier: Raw identifier string
+            need_quote: Whether the identifier needs quoting
 
         Returns:
             Quoted identifier with escaped internal backticks
         """
+        if not need_quote:
+            if self.is_reserved_word(identifier):
+                import warnings
+                from rhosocial.activerecord.backend.warnings import IdentifierQuotingWarning
+                warnings.warn(
+                    f"Identifier '{identifier}' is a reserved word in {self.name} "
+                    f"and may cause SQL errors without quoting.",
+                    IdentifierQuotingWarning,
+                    stacklevel=2,
+                )
+            return identifier
         # Escape any internal backticks by doubling them
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
@@ -897,7 +911,7 @@ class ClickHouseDialect(
         """ClickHouse supports RENAME TABLE."""
         return True
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         """ClickHouse supports CREATE TABLE ... AS SELECT / LIKE."""
         return True
 

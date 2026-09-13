@@ -143,7 +143,7 @@ class TestTableMixin:
 
     def test_supports_flags(self):
         m = ClickHouseTableMixin()
-        assert m.supports_table_like_syntax() is True
+        assert m.supports_create_table_like() is True
         assert m.supports_inline_index() is True
         assert m.supports_storage_engine_option() is True
         assert m.supports_charset_option() is True

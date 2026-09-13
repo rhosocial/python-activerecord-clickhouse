@@ -282,7 +282,7 @@ class ClickHouseTableSupport(TableSupport, Protocol):
     - Various storage engines: ClickHouse 5.5+
     """
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         """Whether CREATE TABLE ... LIKE is supported.
 
         ClickHouse supports copying table structure with LIKE syntax.

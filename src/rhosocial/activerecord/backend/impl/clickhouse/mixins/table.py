@@ -14,7 +14,7 @@ class ClickHouseTableMixin:
         """Validate data type string, allowing single quotes for ClickHouse ENUM types."""
         return bool(re.fullmatch(r"[A-Za-z0-9\s\(\),\']+", data_type))
 
-    def supports_table_like_syntax(self) -> bool:
+    def supports_create_table_like(self) -> bool:
         return True
 
     def supports_inline_index(self) -> bool:
