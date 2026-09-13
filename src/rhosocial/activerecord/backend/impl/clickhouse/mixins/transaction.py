@@ -46,3 +46,37 @@ class ClickHouseTransactionMixin:
         if not level_str:
             raise IsolationLevelError(f"Unsupported isolation level: {level}")
         return f"SET TRANSACTION ISOLATION LEVEL {level_str}", ()
+
+    def supports_transaction_mode(self) -> bool:
+        """ClickHouse does not support transactions."""
+        return False
+
+    def supports_isolation_level_in_begin(self) -> bool:
+        return False
+
+    def supports_read_only_transaction(self) -> bool:
+        return False
+
+    def supports_deferrable_transaction(self) -> bool:
+        return False
+
+    def supports_savepoint(self) -> bool:
+        return False
+
+    def format_set_transaction(self, expr) -> Tuple[str, tuple]:
+        """ClickHouse does not support transactions."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        raise UnsupportedFeatureError(
+            self.name, "transactions",
+            "ClickHouse does not support SET TRANSACTION."
+        )
+
+    def format_begin_transaction(self, expr) -> Tuple[str, tuple]:
+        """ClickHouse does not support transactions."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        raise UnsupportedFeatureError(
+            self.name, "transactions",
+            "ClickHouse does not support START TRANSACTION."
+        )

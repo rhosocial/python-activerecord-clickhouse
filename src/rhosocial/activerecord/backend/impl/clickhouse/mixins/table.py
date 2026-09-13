@@ -176,3 +176,43 @@ class ClickHouseTableMixin:
             parts.append(f"{key} = {value}")
         return " ".join(parts)
 
+    def supports_if_not_exists_table(self) -> bool:
+        """Whether CREATE TABLE IF NOT EXISTS is supported."""
+        return True
+
+    def supports_if_exists_table(self) -> bool:
+        """Whether DROP TABLE IF EXISTS is supported."""
+        return True
+
+    def supports_temporary_table(self) -> bool:
+        """Whether CREATE TEMPORARY TABLE is supported."""
+        return True
+
+    def supports_rename_table(self) -> bool:
+        """Whether RENAME TABLE is supported."""
+        return True
+
+    def supports_rename_column(self) -> bool:
+        """Whether RENAME COLUMN is supported."""
+        return True
+
+    def supports_ilike(self) -> bool:
+        """ClickHouse supports ILIKE operator."""
+        return True
+
+    def supports_index_type(self) -> bool:
+        """ClickHouse skip indexes support USING keyword for index type."""
+        return True
+
+    def supports_add_column_if_not_exists(self) -> bool:
+        """ClickHouse supports ADD COLUMN IF NOT EXISTS."""
+        return True
+
+    def supports_drop_column_if_exists(self) -> bool:
+        """ClickHouse supports DROP COLUMN IF EXISTS."""
+        return True
+
+    def supports_drop_constraint_if_exists(self) -> bool:
+        """Whether DROP CONSTRAINT IF EXISTS is supported."""
+        return False
+

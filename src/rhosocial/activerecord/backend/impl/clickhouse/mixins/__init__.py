@@ -29,6 +29,27 @@ from .table_engine import (
     ClickHouseQueryClauseMixin,
     ClickHouseTableEngineSupport,
 )
+# New feature-specific mixins
+from .datetime import ClickHouseDateTimeMixin
+from .collation import ClickHouseCollationMixin
+from .cte import ClickHouseCTEMixin
+from .auto_increment import ClickHouseAutoIncrementMixin
+from .window import ClickHouseWindowMixin
+from .grouping import ClickHouseGroupingMixin
+from .array import ClickHouseArrayMixin
+from .explain import ClickHouseExplainMixin
+from .temporal import ClickHouseTemporalMixin
+from .upsert import ClickHouseUpsertMixin
+from .join import ClickHouseJoinMixin
+from .set_operation import ClickHouseSetOperationMixin
+from .dql import ClickHouseDQLMixin
+from .view import ClickHouseViewMixin
+from .schema import ClickHouseSchemaMixin
+from .index import ClickHouseIndexMixin
+from .sequence import ClickHouseSequenceMixin
+from .constraint import ClickHouseConstraintMixin
+from .ddl_column import ClickHouseDDLColumnMixin
+from .function import ClickHouseFunctionMixin
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
@@ -60,4 +81,25 @@ __all__ = [
     "ClickHouseTableEngineMixin",
     "ClickHouseQueryClauseMixin",
     "ClickHouseTableEngineSupport",
+    # New feature-specific mixins
+    "ClickHouseDateTimeMixin",
+    "ClickHouseCollationMixin",
+    "ClickHouseCTEMixin",
+    "ClickHouseAutoIncrementMixin",
+    "ClickHouseWindowMixin",
+    "ClickHouseGroupingMixin",
+    "ClickHouseArrayMixin",
+    "ClickHouseExplainMixin",
+    "ClickHouseTemporalMixin",
+    "ClickHouseUpsertMixin",
+    "ClickHouseJoinMixin",
+    "ClickHouseSetOperationMixin",
+    "ClickHouseDQLMixin",
+    "ClickHouseViewMixin",
+    "ClickHouseSchemaMixin",
+    "ClickHouseIndexMixin",
+    "ClickHouseSequenceMixin",
+    "ClickHouseConstraintMixin",
+    "ClickHouseDDLColumnMixin",
+    "ClickHouseFunctionMixin",
 ]
