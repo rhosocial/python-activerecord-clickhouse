@@ -68,6 +68,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     AutoIncrementMixin,
     TableMixin,
     ConstraintMixin,
+    TriggerMixin,
     TruncateMixin,
     IntrospectionMixin,
     PartitionMixin,
@@ -182,6 +183,7 @@ class ClickHouseDialect(
     TemporalTableMixin,
     ClickHouseFullTextSearchMixin,  # full-text fail-fast (before IndexMixin)
     ClickHouseTriggerMixin,  # ClickHouse trigger support (before IndexMixin to override trigger methods)
+    TriggerMixin,  # supplies supports_create_trigger/supports_drop_trigger defaults
     ClickHouseDMLOperationMixin,  # ClickHouse DML operations (before UpsertMixin to override format_on_conflict_clause)
     UpsertMixin,
     LateralJoinMixin,  # ClickHouse 8.0.14+ supports LATERAL
