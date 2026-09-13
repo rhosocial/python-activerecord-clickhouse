@@ -200,19 +200,3 @@ class ClickHouseTableMixin:
         """ClickHouse supports ILIKE operator."""
         return True
 
-    def supports_index_type(self) -> bool:
-        """ClickHouse skip indexes support USING keyword for index type."""
-        return True
-
-    def supports_add_column_if_not_exists(self) -> bool:
-        """ClickHouse supports ADD COLUMN IF NOT EXISTS."""
-        return True
-
-    def supports_drop_column_if_exists(self) -> bool:
-        """ClickHouse supports DROP COLUMN IF EXISTS."""
-        return True
-
-    def supports_drop_constraint_if_exists(self) -> bool:
-        """Whether DROP CONSTRAINT IF EXISTS is supported."""
-        return False
-

@@ -38,3 +38,7 @@ class ClickHouseIndexMixin:
         ClickHouse skip indexes can be based on expressions.
         """
         return True
+
+    def supports_index_type(self) -> bool:
+        """ClickHouse skip indexes support USING keyword for index type."""
+        return True

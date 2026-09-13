@@ -13,6 +13,18 @@ if TYPE_CHECKING:
 class ClickHouseDDLColumnMixin:
     """ClickHouse DDL column action formatting."""
 
+    def supports_add_column_if_not_exists(self) -> bool:
+        """ClickHouse supports ADD COLUMN IF NOT EXISTS."""
+        return True
+
+    def supports_drop_column_if_exists(self) -> bool:
+        """ClickHouse supports DROP COLUMN IF EXISTS."""
+        return True
+
+    def supports_drop_constraint_if_exists(self) -> bool:
+        """Whether DROP CONSTRAINT IF EXISTS is supported."""
+        return False
+
     def format_add_column_action(self, action) -> Tuple[str, tuple]:
         column_sql, column_params = self.format_column_definition(action.column)
         parts = []
