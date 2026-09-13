@@ -3,7 +3,12 @@ from typing import Any, Dict, List, TYPE_CHECKING, Tuple
 import re
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import CreateTableExpression
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        ColumnDefinition,
+        CreateTableExpression,
+        IndexDefinition,
+        TableConstraint,
+    )
 
 
 class ClickHouseTableMixin:
@@ -89,7 +94,7 @@ class ClickHouseTableMixin:
         parts.append(f"LIKE {like_table_str}")
         return " ".join(parts), ()
 
-    def format_column_definition(self, col_def) -> Tuple[str, tuple]:
+    def format_column_definition(self, col_def: "ColumnDefinition") -> Tuple[str, tuple]:
         """Format a single column definition with ClickHouse-specific syntax."""
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
@@ -114,7 +119,7 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(params)
 
-    def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
+    def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
         """Format a table-level constraint."""
         from rhosocial.activerecord.backend.expression.statements import TableConstraintType
         parts = []
@@ -142,7 +147,7 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def) -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
         """Format an inline INDEX definition within CREATE TABLE (ClickHouse-specific)."""
         parts = []
         if idx_def.unique:
