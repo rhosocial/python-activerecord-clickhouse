@@ -155,6 +155,9 @@ if TYPE_CHECKING:
         SetTransactionExpression,
         BeginTransactionExpression,
     )
+    from rhosocial.activerecord.backend.expression.statements.fulltext_match import (
+        FulltextMatchExpression,
+    )
 
 
 class ClickHouseDialect(
@@ -1351,14 +1354,12 @@ class ClickHouseDialect(
         return False
 
     def format_fulltext_match(
-        self, columns: List[str], search_term: str, mode: Optional[str] = None
+        self, expr: "FulltextMatchExpression"
     ) -> Tuple[str, Tuple]:
         """Format MATCH ... AGAINST expression for ClickHouse full-text search.
 
         Args:
-            columns: Columns to search
-            search_term: Search term or query
-            mode: Search mode ('BOOLEAN', 'QUERY EXPANSION', 'WITH QUERY EXPANSION')
+            expr: FulltextMatchExpression node carrying columns, search_term, and mode.
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -1366,6 +1367,10 @@ class ClickHouseDialect(
         if not self.supports_fulltext_index():
             from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(self.name, "FULLTEXT search")
+
+        columns = expr.columns
+        search_term = expr.search_term
+        mode = expr.mode
 
         cols_str = ", ".join(self.format_identifier(c) for c in columns)
         ph = self.get_parameter_placeholder()

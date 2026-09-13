@@ -167,9 +167,13 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     # ClickHouse exposes routine DDL through its own ClickHouseRoutineSupport
     # protocol rather than the generic SQL/PSM FunctionSupport.
     dialect_protocols.FunctionSupport,
-    # --- Known gaps (feature exists, generic protocol not yet declared) ---
-    # TODO: ClickHouse supports MATERIALIZED / ALIAS generated columns;
-    # implement GeneratedColumnMixin overrides and move to CLICKHOUSE_PROTOCOLS.
+    # ClickHouse's MATERIALIZED / ALIAS columns are intentionally NOT treated as
+    # SQL-standard generated columns. They are ClickHouse-specific column syntax
+    # (not ``GENERATED ALWAYS AS (...) STORED|VIRTUAL``), and the ClickHouse DDL
+    # mixin's ``format_column_definition()`` never renders ``col_def.generated_expression``
+    # (it iterates constraints only), so declaring this protocol would advertise a
+    # capability the backend cannot emit. ``supports_generated_column()`` returns
+    # False to preserve the existing fail-fast contract.
     dialect_protocols.GeneratedColumnSupport,
 ]
 
