@@ -1,10 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py
-from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import bases
-from rhosocial.activerecord.backend.expression.core import CastExpression
-from rhosocial.activerecord.backend.expression.operators import RawSQLExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression

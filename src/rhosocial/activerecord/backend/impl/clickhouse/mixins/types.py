@@ -458,12 +458,6 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
     # ------------------------------------------------------------------
 
     def suggested_data_types(self) -> Dict[str, type]:
-        from rhosocial.activerecord.backend.expression.types import (
-            BinaryType,
-            EnumType,
-            JsonBType,
-            VarBinaryType,
-        )
         return {
             "binary": ClickHouseStringType,
             "varbinary": ClickHouseStringType,

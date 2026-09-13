@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/vector.py
-from typing import List, Tuple
+from typing import Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/set_type.py
-from typing import Any, List, Optional, Tuple
+from typing import Any, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

@@ -320,11 +320,11 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Format CREATE TABLE ... LIKE statement."""
         ...
 
-    def format_column_definition(self, col_def: Any) -> Tuple[str, List]:
+    def format_column_definition(self, col_def: Any) -> Tuple[str, tuple]:
         """Format a column definition with ClickHouse-specific syntax (AUTO_INCREMENT, etc.)."""
         ...
 
-    def format_table_constraint(self, t_const: Any) -> Tuple[str, List]:
+    def format_table_constraint(self, t_const: Any) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
         ...
 

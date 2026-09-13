@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/spatial.py
-from typing import Optional, Tuple
+from typing import Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

@@ -72,7 +72,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     IntrospectionMixin,
     PartitionMixin,
     # New Mixins
-    IdentifierMixin,
     PredicateMixin,
     ExpressionMixin,
     DateTimeMixin,
@@ -219,7 +218,6 @@ class ClickHouseDialect(
     ClickHouseQueryClauseMixin,  # ClickHouse FINAL / ARRAY JOIN
     IntrospectionMixin,
     # New Mixins
-    IdentifierMixin,
     PredicateMixin,
     ExpressionMixin,
     DateTimeMixin,
@@ -692,12 +690,12 @@ class ClickHouseDialect(
         cross-database query support.
         """
         if expr.table:
-            col_sql = f"{self.format_identifier(expr.table)}.{self.format_identifier(expr.name)}"
+            col_sql = f"{self.format_identifier(expr.table, expr.table_need_quote)}.{self.format_identifier(expr.name, expr.name_need_quote)}"
         else:
-            col_sql = self.format_identifier(expr.name)
+            col_sql = self.format_identifier(expr.name, expr.name_need_quote)
 
         if expr.alias:
-            col_sql = f"{col_sql} AS {self.format_identifier(expr.alias)}"
+            col_sql = f"{col_sql} AS {self.format_identifier(expr.alias, expr.alias_need_quote)}"
 
         return col_sql, ()
 
@@ -1158,9 +1156,8 @@ class ClickHouseDialect(
 
     def format_table_constraint(
         self,
-        t_const: "TableConstraint",
-        constraint_type=None
-    ) -> Tuple[str, List[Any]]:
+        t_const: "TableConstraint"
+    ) -> Tuple[str, tuple]:
         """Format a table-level constraint.
 
         ClickHouse supports only PRIMARY KEY among table-level constraints;
@@ -1169,8 +1166,6 @@ class ClickHouseDialect(
         from rhosocial.activerecord.backend.expression.statements.ddl_table import (
             TableConstraintType,
         )
-        if constraint_type is None:
-            constraint_type = TableConstraintType
         parts = []
         params: List[Any] = []
 
@@ -1189,7 +1184,7 @@ class ClickHouseDialect(
                 suggestion="ClickHouse does not support FOREIGN KEY constraints."
             )
 
-        return ' '.join(parts), params
+        return ' '.join(parts), tuple(params)
 
     def format_inline_index(self, idx_def: "IndexDefinition") -> str:
         """Format an inline index definition (ClickHouse-specific)."""

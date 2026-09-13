@@ -89,10 +89,8 @@ class ClickHouseTableMixin:
         parts.append(f"LIKE {like_table_str}")
         return " ".join(parts), ()
 
-    def format_column_definition(self, col_def, ColumnConstraintType=None) -> Tuple[str, List[Any]]:
+    def format_column_definition(self, col_def) -> Tuple[str, tuple]:
         """Format a single column definition with ClickHouse-specific syntax."""
-        if ColumnConstraintType is None:
-            from rhosocial.activerecord.backend.expression.statements import ColumnConstraintType
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
@@ -114,12 +112,11 @@ class ClickHouseTableMixin:
             escaped_comment = self._escape_sql_string(col_def.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
 
-        return " ".join(parts), params
+        return " ".join(parts), tuple(params)
 
-    def format_table_constraint(self, t_const, TableConstraintType=None) -> Tuple[str, List[Any]]:
+    def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
-        if TableConstraintType is None:
-            from rhosocial.activerecord.backend.expression.statements import TableConstraintType
+        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
         parts = []
         params: List[Any] = []
 
@@ -143,7 +140,7 @@ class ClickHouseTableMixin:
                 suggestion="ClickHouse does not support FOREIGN KEY constraints."
             )
 
-        return " ".join(parts), params
+        return " ".join(parts), tuple(params)
 
     def format_inline_index(self, idx_def) -> str:
         """Format an inline INDEX definition within CREATE TABLE (ClickHouse-specific)."""
