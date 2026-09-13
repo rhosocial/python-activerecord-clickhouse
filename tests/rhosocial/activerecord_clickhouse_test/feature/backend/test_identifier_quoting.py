@@ -251,7 +251,14 @@ class TestClickHouseIdentifierQuoting:
     def _make_expr(self, table=None, name="col", alias=None):
         """Build a lightweight expression-like object for format_column."""
         from types import SimpleNamespace
-        return SimpleNamespace(table=table, name=name, alias=alias)
+        return SimpleNamespace(
+            table=table,
+            name=name,
+            alias=alias,
+            table_need_quote=True,
+            name_need_quote=True,
+            alias_need_quote=True,
+        )
 
     def test_format_column_column_only(self):
         d = ClickHouseDialect()
