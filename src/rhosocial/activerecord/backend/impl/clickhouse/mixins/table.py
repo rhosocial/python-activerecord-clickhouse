@@ -64,7 +64,7 @@ class ClickHouseTableMixin:
         parts.append(f"({', '.join(column_parts)})")
 
         if expr.storage_options:
-            storage_sql = self.format_storage_options(expr.storage_options)
+            storage_sql = self.format_table_engine_clauses(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 
