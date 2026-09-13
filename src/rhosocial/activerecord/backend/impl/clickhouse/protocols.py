@@ -347,24 +347,8 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Format ClickHouse table storage options (ENGINE, CHARSET, etc.)."""
         ...
 
-    def supports_add_column_if_not_exists(self) -> bool:
-        """Whether ADD COLUMN IF NOT EXISTS is supported."""
-        ...
-
-    def supports_drop_column_if_exists(self) -> bool:
-        """Whether DROP COLUMN IF EXISTS is supported."""
-        ...
-
-    def supports_drop_constraint_if_exists(self) -> bool:
-        """Whether DROP CONSTRAINT IF EXISTS is supported."""
-        ...
-
     def supports_ilike(self) -> bool:
         """Whether ILIKE is supported."""
-        ...
-
-    def supports_index_type(self) -> bool:
-        """Whether index type specification is supported."""
         ...
 
 
