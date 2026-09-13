@@ -94,16 +94,28 @@ class ClickHouseJSONFunctionMixin:
             all_paths.extend(expr.paths)
         ph = self.get_parameter_placeholder()
         placeholders = ", ".join([ph for _ in all_paths])
-        return f"JSONExtract({expr.json_column}, {placeholders})", tuple(all_paths)
+        sql = f"JSONExtract({expr.json_column}, {placeholders})"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, tuple(all_paths)
 
     def format_json_unquote(self, expr) -> Tuple[str, tuple]:
-        return f"JSONExtractString({expr.json_val})", ()
+        sql = f"JSONExtractString({expr.json_val})"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, ()
 
     def format_json_object(self, expr) -> Tuple[str, tuple]:
         """Format map function (ClickHouse equivalent of JSON_OBJECT)."""
         pairs = getattr(expr, "pairs", [])
         if not pairs:
-            return "map()", ()
+            sql = "map()"
+            alias = getattr(expr, "alias", None)
+            if alias:
+                sql = f"{sql} AS {self.format_identifier(alias)}"
+            return sql, ()
 
         ph = self.get_parameter_placeholder()
         parts = []
@@ -115,7 +127,11 @@ class ClickHouseJSONFunctionMixin:
             params.append(key)
             params.append(value)
 
-        return f"map({', '.join(parts)})", tuple(params)
+        sql = f"map({', '.join(parts)})"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, tuple(params)
 
     def format_json_array(self, expr) -> Tuple[str, tuple]:
         """Format ClickHouse array literal (equivalent to JSON_ARRAY)."""
@@ -124,7 +140,11 @@ class ClickHouseJSONFunctionMixin:
             return "[]", ()
         ph = self.get_parameter_placeholder()
         placeholders = ", ".join([ph for _ in values])
-        return f"[{placeholders}]", tuple(values)
+        sql = f"[{placeholders}]"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, tuple(values)
 
     def format_json_contains(self, expr) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS approximation for ClickHouse.
@@ -136,8 +156,15 @@ class ClickHouseJSONFunctionMixin:
         ph = self.get_parameter_placeholder()
         path = getattr(expr, "path", None)
         if path:
-            return f"isNotNull(JSONExtract({expr.json_column}, {ph}, {ph}))", (expr.value, path)
-        return f"isNotNull(JSONExtract({expr.json_column}, {ph}))", (expr.value,)
+            sql = f"isNotNull(JSONExtract({expr.json_column}, {ph}, {ph}))"
+            params = (expr.value, path)
+        else:
+            sql = f"isNotNull(JSONExtract({expr.json_column}, {ph}))"
+            params = (expr.value,)
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, params
 
     def format_json_set(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SET approximation for ClickHouse.
@@ -161,6 +188,9 @@ class ClickHouseJSONFunctionMixin:
 
         map_expr = f"map({', '.join(parts)})"
         sql = f"assumeNotNull(mapUpdate(JSONExtract({expr.json_column}, 'Map(String, String)'), {map_expr}))"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
         return sql, tuple(params)
 
     def format_json_remove(self, expr) -> Tuple[str, tuple]:
@@ -174,13 +204,25 @@ class ClickHouseJSONFunctionMixin:
             all_paths.extend(expr.paths)
         ph = self.get_parameter_placeholder()
         placeholders = ", ".join([ph for _ in all_paths])
-        return f"mapRemove(JSONExtract({expr.json_column}, 'Map(String, String)'), {placeholders})", tuple(all_paths)
+        sql = f"mapRemove(JSONExtract({expr.json_column}, 'Map(String, String)'), {placeholders})"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, tuple(all_paths)
 
     def format_json_type(self, expr) -> Tuple[str, tuple]:
-        return f"JSONType({expr.json_val})", ()
+        sql = f"JSONType({expr.json_val})"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, ()
 
     def format_json_valid(self, expr) -> Tuple[str, tuple]:
-        return f"JSON_VALID({expr.json_val})", ()
+        sql = f"JSON_VALID({expr.json_val})"
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, ()
 
     def format_json_search(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SEARCH approximation for ClickHouse.
@@ -192,8 +234,15 @@ class ClickHouseJSONFunctionMixin:
         ph = self.get_parameter_placeholder()
         path = getattr(expr, "path", None)
         if path:
-            return f"JSONExtractString({expr.json_column}, {ph}) LIKE {ph} AND {one_or_all} = 'one'", (path, expr.search_str)
-        return f"JSONExtractString({expr.json_column}) LIKE {ph} AND {one_or_all} = 'one'", (expr.search_str,)
+            sql = f"JSONExtractString({expr.json_column}, {ph}) LIKE {ph} AND {one_or_all} = 'one'"
+            params = (path, expr.search_str)
+        else:
+            sql = f"JSONExtractString({expr.json_column}) LIKE {ph} AND {one_or_all} = 'one'"
+            params = (expr.search_str,)
+        alias = getattr(expr, "alias", None)
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        return sql, params
 
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
         """JSON_TABLE is not supported by ClickHouse."""
