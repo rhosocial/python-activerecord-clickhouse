@@ -16,7 +16,7 @@ so they are provided as backend-local support mixins:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 
 class ClickHouseTableEngineSupport:
@@ -66,7 +66,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
     ``dialect_options`` or ``storage_options`` mapping.
     """
 
-    def format_table_engine_clauses(self, storage_options: Optional[Dict[str, Any]]) -> str:
+    def format_table_engine_clauses(self, storage_options: Optional[Dict[str, Any]]) -> Tuple[str, tuple]:
         """Format ClickHouse storage clauses from a storage-options mapping.
 
         Accepted keys (case-insensitive):
@@ -82,7 +82,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
         Values are inserted verbatim (not quoted).
         """
         if not storage_options:
-            return ""
+            return "", ()
         parts: List[str] = []
         for raw_key, value in storage_options.items():
             key = str(raw_key).upper().replace("_", " ")
@@ -102,7 +102,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
                 parts.append(f"SETTINGS {value}")
             else:
                 parts.append(f"{key} = {value}")
-        return " ".join(parts)
+        return " ".join(parts), ()
 
     @staticmethod
     def format_clause_list(value: Any) -> str:
@@ -119,11 +119,11 @@ class ClickHouseQueryClauseMixin(ClickHouseTableEngineSupport):
     SELECT queries.
     """
 
-    def format_final_modifier(self) -> str:
+    def format_final_modifier(self) -> Tuple[str, tuple]:
         """Return the FINAL modifier."""
-        return "FINAL"
+        return "FINAL", ()
 
-    def format_array_join_clause(self, array_exprs: List[str], is_left: bool = False) -> str:
+    def format_array_join_clause(self, array_exprs: List[str], is_left: bool = False) -> Tuple[str, tuple]:
         """Format an ARRAY JOIN clause.
 
         Args:
@@ -131,6 +131,6 @@ class ClickHouseQueryClauseMixin(ClickHouseTableEngineSupport):
             is_left: If True, use ``LEFT ARRAY JOIN``.
         """
         if not array_exprs:
-            return ""
+            return "", ()
         join_kw = "LEFT ARRAY JOIN" if is_left else "ARRAY JOIN"
-        return f"{join_kw} {', '.join(array_exprs)}"
+        return f"{join_kw} {', '.join(array_exprs)}", ()

@@ -149,16 +149,17 @@ class TestTableMixin:
         assert m.supports_charset_option() is True
 
     def test_format_storage_options(self, dialect):
+        from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
         # dialect exposes format_storage_options via MRO (ClickHouseTableMixin)
-        result = dialect.format_storage_options({"ENGINE": "MergeTree()", "ORDER BY": "id"})
+        result, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()", "ORDER BY": "id"}))
         assert "ENGINE = MergeTree()" in result
-        assert "ORDER BY = id" in result
+        assert "ORDER BY id" in result
         assert "'MergeTree()'" not in result
 
     def test_format_inline_index(self, dialect):
         from types import SimpleNamespace
         idx = SimpleNamespace(unique=False, name="idx1", columns=["a", "b"], type="minmax")
-        result = dialect.format_inline_index(idx)
+        result, params = dialect.format_inline_index(idx)
         assert "INDEX" in result
         assert "idx1" in result
         assert "a" in result and "b" in result

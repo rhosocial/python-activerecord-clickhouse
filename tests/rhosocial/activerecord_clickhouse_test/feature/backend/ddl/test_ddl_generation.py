@@ -96,7 +96,7 @@ class TestClickHouseDDLGeneration:
 
 class TestClickHouseTableEngineClauses:
     def test_table_engine_clauses_formatting(self, dialect):
-        result = dialect.format_table_engine_clauses({
+        result, params = dialect.format_table_engine_clauses({
             "ENGINE": "MergeTree()",
             "ORDER BY": ["id", "ts"],
             "PARTITION BY": "toYYYYMM(ts)",

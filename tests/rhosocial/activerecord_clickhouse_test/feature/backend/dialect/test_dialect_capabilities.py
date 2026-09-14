@@ -129,18 +129,19 @@ class TestClickHouseSQLGeneration:
 
     def test_storage_options_clickhouse_syntax(self, dialect):
         """ENGINE/ORDER BY values must NOT be quoted."""
-        result = dialect.format_storage_options({
+        from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
+        result, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {
             "ENGINE": "MergeTree()",
             "ORDER BY": "id",
             "PARTITION BY": "toYYYYMM(created_at)",
-        })
+        }))
         assert "ENGINE = MergeTree()" in result
         assert "ORDER BY = id" in result or "ORDER BY id" in result
         assert "'MergeTree()'" not in result  # no quotes
 
     def test_table_engine_clauses(self, dialect):
         """ClickHouse table-engine-specific clause formatting."""
-        result = dialect.format_table_engine_clauses({
+        result, params = dialect.format_table_engine_clauses({
             "ENGINE": "MergeTree()",
             "ORDER BY": ["id", "created_at"],
             "PARTITION BY": "toYYYYMM(created_at)",

@@ -2,7 +2,6 @@
 from typing import Any, List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression import bases
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression
@@ -33,7 +32,7 @@ class ClickHouseJSONFunctionMixin:
         """ClickHouse does not support the MySQL-style ``->`` / ``->>`` operators."""
         return False
 
-    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, Tuple]:
+    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, tuple]:
         """Format a JSON path expression using native ClickHouse functions.
 
         ``->``  (JSON value) maps to ``JSONExtractRaw(col, ...parts...)``
@@ -42,7 +41,7 @@ class ClickHouseJSONFunctionMixin:
         Simple dotted paths (``$.a.b``) are split into key arguments; complex
         paths (arrays, wildcards, filters) fall back to ``JSON_VALUE``.
         """
-        if isinstance(expr.column, bases.BaseExpression):
+        if hasattr(expr.column, "to_sql"):
             col_sql, col_params = expr.column.to_sql()
         else:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()

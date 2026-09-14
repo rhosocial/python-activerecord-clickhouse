@@ -339,11 +339,11 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Format a table-level constraint."""
         ...
 
-    def format_inline_index(self, idx_def: Any) -> str:
+    def format_inline_index(self, idx_def: Any) -> Tuple[str, tuple]:
         """Format inline INDEX definition within CREATE TABLE."""
         ...
 
-    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
+    def format_storage_options(self, expr: Any) -> Tuple[str, tuple]:
         """Format ClickHouse table storage options (ENGINE, CHARSET, etc.)."""
         ...
 
