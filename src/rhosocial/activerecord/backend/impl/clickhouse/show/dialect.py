@@ -138,7 +138,7 @@ class ClickHouseShowDialectMixin:
 
         sql_params = ()
         if like_pattern:
-            parts.append("LIKE %s")
+            parts.append(f"LIKE {self.p()}")
             sql_params = (like_pattern,)
 
         return " ".join(parts), sql_params
@@ -149,7 +149,7 @@ class ClickHouseShowDialectMixin:
         like_pattern = params.get("like_pattern")
 
         if like_pattern:
-            return "SHOW DATABASES LIKE %s", (like_pattern,)
+            return f"SHOW DATABASES LIKE {self.p()}", (like_pattern,)
         return "SHOW DATABASES", ()
 
     def format_show_table_status(self, expr: "ShowTableStatusExpression") -> Tuple[str, tuple]:

@@ -35,14 +35,14 @@ class ClickHouseDQLMixin:
         sql_parts = []
 
         if limit is not None:
-            sql_parts.append("LIMIT %s")
+            sql_parts.append(f"LIMIT {self.p()}")
             params.append(limit)
 
         if offset is not None:
             if limit is None:
-                sql_parts.append("LIMIT %s")
+                sql_parts.append(f"LIMIT {self.p()}")
                 params.append(18446744073709551615)  # ClickHouse maximum value for BIGINT UNSIGNED
-            sql_parts.append("OFFSET %s")
+            sql_parts.append(f"OFFSET {self.p()}")
             params.append(offset)
 
         if not sql_parts:

@@ -12,11 +12,11 @@ class ClickHouseDateTimeMixin:
         """Format date_trunc using ClickHouse's date_trunc function."""
         source_sql, source_params = expr.source.to_sql()
         field = expr.field.value.upper()
-        sql = f"date_trunc(%s, {source_sql})"
+        sql = f"date_trunc({self.p()}, {source_sql})"
         return self.apply_alias(sql, source_params + (field,), expr)
 
     def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
-        sql = f"INTERVAL %s {expr.unit.value.upper()}"
+        sql = f"INTERVAL {self.p()} {expr.unit.value.upper()}"
         return self.apply_alias(sql, (expr.value,), expr)
 
     def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:
@@ -34,5 +34,5 @@ class ClickHouseDateTimeMixin:
     def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, Tuple]:
         start_sql, start_params = expr.start.to_sql()
         end_sql, end_params = expr.end.to_sql()
-        sql = f"dateDiff(%s, {start_sql}, {end_sql})"
+        sql = f"dateDiff({self.p()}, {start_sql}, {end_sql})"
         return self.apply_alias(sql, start_params + end_params + (expr.unit.value.upper(),), expr)
