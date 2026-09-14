@@ -14,13 +14,13 @@ from typing import Protocol
 class ClickHouseTableEngineSupport(Protocol):
     """Auto-generated capability protocol (P7)."""
 
-    def format_table_engine_clauses(self, storage_options: Optional[Dict[str, Any]]) -> str:
+    def format_table_engine_clauses(self, storage_options: Optional[Dict[str, Any]]) -> Tuple[str, tuple]:
         ...  # pragma: no cover
 
 class ClickHouseQueryClauseSupport(Protocol):
     """Auto-generated capability protocol (P7)."""
 
-    def format_final_modifier(self) -> str:
+    def format_final_modifier(self) -> Tuple[str, tuple]:
         ...  # pragma: no cover
-    def format_array_join_clause(self, array_exprs: List[str], is_left: bool=False) -> str:
+    def format_array_join_clause(self, array_exprs: List[str], is_left: bool=False) -> Tuple[str, tuple]:
         ...  # pragma: no cover

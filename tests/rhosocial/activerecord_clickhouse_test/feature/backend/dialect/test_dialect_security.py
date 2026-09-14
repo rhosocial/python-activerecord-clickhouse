@@ -462,26 +462,30 @@ class TestClickHouseCreateTableCommentEscaping:
 
 def test_storage_options_normal_key_and_value(dialect):
     """ClickHouse storage option key/value are joined with ' = ' and not quoted."""
-    sql = dialect.format_storage_options({"ENGINE": "MergeTree()"})
+    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
+    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()"}))
     assert "ENGINE = MergeTree()" in sql
 
 
 def test_storage_options_multiple_keys(dialect):
     """Multiple storage options are space separated."""
-    sql = dialect.format_storage_options({"ENGINE": "MergeTree()", "ORDER BY": "id"})
+    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
+    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()", "ORDER BY": "id"}))
     assert "ENGINE = MergeTree()" in sql
-    assert "ORDER BY = id" in sql
+    assert "ORDER BY id" in sql
 
 
 def test_storage_options_int_value(dialect):
     """Integer value is rendered without quotes."""
-    sql = dialect.format_storage_options({"PARTITION_BY": 1000})
-    assert "PARTITION_BY = 1000" in sql
+    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
+    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"PARTITION_BY": 1000}))
+    assert "PARTITION BY 1000" in sql
 
 
 def test_storage_options_string_value_preserved(dialect):
     """ClickHouse storage option values are NOT quoted (engine/expression names)."""
-    sql = dialect.format_storage_options({"ENGINE": "MergeTree()"})
+    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
+    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()"}))
     assert "ENGINE = MergeTree()" == sql
     assert "'" not in sql
 

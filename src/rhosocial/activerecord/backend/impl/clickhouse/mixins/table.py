@@ -1,9 +1,18 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/table.py
-from typing import Any, Dict, List, TYPE_CHECKING, Tuple
+from typing import Any, Dict, List, Tuple, TYPE_CHECKING
 import re
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import CreateTableExpression
+    from rhosocial.activerecord.backend.expression.core import TableExpression
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        CreateTableExpression,
+        StorageOptionsExpression,
+    )
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        ColumnDefinition,
+        IndexDefinition,
+        TableConstraint,
+    )
 
 
 class ClickHouseTableMixin:
@@ -26,7 +35,7 @@ class ClickHouseTableMixin:
     def supports_charset_option(self) -> bool:
         return True
 
-    def format_create_table_statement(self, expr) -> Tuple[str, tuple]:
+    def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for ClickHouse."""
         if "like_table" in expr.dialect_options:
             return self.format_create_table_like(expr)
@@ -53,13 +62,13 @@ class ClickHouseTableMixin:
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self.format_inline_index(idx_def)
+            idx_sql, idx_params = self.format_inline_index(idx_def)
             column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")
 
         if expr.storage_options:
-            storage_sql = self.format_storage_options(expr.storage_options)
+            storage_sql, storage_params = self.format_table_engine_clauses(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 
@@ -71,6 +80,8 @@ class ClickHouseTableMixin:
 
     def format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
         """Format CREATE TABLE ... LIKE statement."""
+        from rhosocial.activerecord.backend.expression.core import TableExpression
+
         like_table = expr.dialect_options["like_table"]
 
         parts = ["CREATE TABLE"]
@@ -80,16 +91,20 @@ class ClickHouseTableMixin:
             parts.append("IF NOT EXISTS")
         parts.append(expr.table.to_sql()[0])
 
-        if isinstance(like_table, tuple):
+        if isinstance(like_table, TableExpression):
+            like_table_str = like_table.to_sql()[0]
+        elif isinstance(like_table, tuple):
             schema, table = like_table
-            like_table_str = f"{self.format_identifier(schema)}.{self.format_identifier(table)}"
+            like_expr = TableExpression(self, table, schema_name=schema)
+            like_table_str = like_expr.to_sql()[0]
         else:
-            like_table_str = self.format_identifier(like_table)
+            like_expr = TableExpression(self, like_table)
+            like_table_str = like_expr.to_sql()[0]
 
         parts.append(f"LIKE {like_table_str}")
         return " ".join(parts), ()
 
-    def format_column_definition(self, col_def) -> Tuple[str, tuple]:
+    def format_column_definition(self, col_def: "ColumnDefinition") -> Tuple[str, tuple]:
         """Format a single column definition with ClickHouse-specific syntax."""
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
@@ -114,7 +129,7 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(params)
 
-    def format_table_constraint(self, t_const) -> Tuple[str, tuple]:
+    def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
         """Format a table-level constraint."""
         from rhosocial.activerecord.backend.expression.statements import TableConstraintType
         parts = []
@@ -142,7 +157,7 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def) -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline INDEX definition within CREATE TABLE (ClickHouse-specific)."""
         parts = []
         if idx_def.unique:
@@ -158,16 +173,15 @@ class ClickHouseTableMixin:
         # ClickHouse requires TYPE clause for inline indexes; default to minmax
         idx_type = idx_def.type if idx_def.type else "minmax"
         parts.append(f"TYPE {idx_type}")
-        return " ".join(parts)
+        return " ".join(parts), ()
 
-    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
+    def format_storage_options(self, expr: "StorageOptionsExpression") -> Tuple[str, tuple]:
         """Format ClickHouse table storage options.
 
-        ClickHouse syntax: ``ENGINE = MergeTree()``, ``ORDER BY id``,
-        ``PARTITION BY toYYYYMM(created_at)`` — values are NOT quoted.
+        Delegates to ``format_table_engine_clauses`` using the expression's
+        options mapping.  Values are rendered verbatim (not quoted) because
+        ClickHouse storage option values are SQL fragments (engine names,
+        column lists, etc.).
         """
-        parts = []
-        for key, value in storage_options.items():
-            parts.append(f"{key} = {value}")
-        return " ".join(parts)
+        return self.format_table_engine_clauses(expr.options)
 

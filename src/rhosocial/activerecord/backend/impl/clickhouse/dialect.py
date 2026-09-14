@@ -135,10 +135,12 @@ from .show.dialect import ClickHouseShowDialectMixin
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression import bases
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
+    from rhosocial.activerecord.backend.expression.core import Column
     from rhosocial.activerecord.backend.expression.statements import (
         CreateTableExpression,
         CreateViewExpression,
         DropViewExpression,
+        StorageOptionsExpression,
         TableConstraint,
         IndexDefinition,
         ExplainExpression,
@@ -332,30 +334,30 @@ class ClickHouseDialect(
 
         return ClickHouseSchemaDiffer()
 
-    def format_date_trunc_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_date_trunc_expression(self, expr: "Any") -> Tuple[str, tuple]:
         """Format date_trunc using ClickHouse's date_trunc function."""
         source_sql, source_params = expr.source.to_sql()
         field = expr.field.value.upper()
         sql = f"date_trunc(%s, {source_sql})"
         return self.apply_alias(sql, source_params + (field,), expr)
 
-    def format_interval_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_interval_expression(self, expr: "Any") -> Tuple[str, tuple]:
         sql = f"INTERVAL %s {expr.unit.value.upper()}"
         return self.apply_alias(sql, (expr.value,), expr)
 
-    def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_datetime_add_expression(self, expr: "Any") -> Tuple[str, tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"date_add({expr.interval.unit.value.upper()}, {interval_sql}, {source_sql})"
         return self.apply_alias(sql, source_params + interval_params, expr)
 
-    def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_datetime_subtract_expression(self, expr: "Any") -> Tuple[str, tuple]:
         source_sql, source_params = expr.source.to_sql()
         interval_sql, interval_params = expr.interval.to_sql()
         sql = f"date_sub({expr.interval.unit.value.upper()}, {interval_sql}, {source_sql})"
         return self.apply_alias(sql, source_params + interval_params, expr)
 
-    def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, Tuple]:
+    def format_datetime_diff_expression(self, expr: "Any") -> Tuple[str, tuple]:
         start_sql, start_params = expr.start.to_sql()
         end_sql, end_params = expr.end.to_sql()
         sql = f"dateDiff(%s, {start_sql}, {end_sql})"
@@ -618,7 +620,7 @@ class ClickHouseDialect(
         """Set operations do not support FOR UPDATE."""
         return False
 
-    def format_set_operation_expression(self, expr: "bases.BaseExpression") -> Tuple[str, Tuple]:
+    def format_set_operation_expression(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
         """Format set operations with an explicit ALL/DISTINCT modifier.
 
         ClickHouse rejects a bare ``UNION`` when ``union_default_mode`` is
@@ -681,7 +683,7 @@ class ClickHouseDialect(
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
 
-    def format_column(self, expr) -> Tuple[str, Tuple]:
+    def format_column(self, expr: "Column") -> Tuple[str, tuple]:
         """Format column reference for ClickHouse.
 
         ClickHouse uses database-qualified references (db.table.column) rather
@@ -968,7 +970,7 @@ class ClickHouseDialect(
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql = self.format_inline_index(idx_def)
+            idx_sql, idx_params = self.format_inline_index(idx_def)
             if idx_sql:
                 column_parts.append(idx_sql)
 
@@ -977,7 +979,7 @@ class ClickHouseDialect(
 
         # Add storage options (ClickHouse-specific format)
         if expr.storage_options:
-            storage_sql = self.format_table_engine_clauses(expr.storage_options)
+            storage_sql, storage_params = self.format_table_engine_clauses(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
 
@@ -1006,7 +1008,7 @@ class ClickHouseDialect(
     def supports_drop_constraint_if_exists(self) -> bool:
         return False
 
-    def format_add_column_action(self, action) -> Tuple[str, tuple]:
+    def format_add_column_action(self, action: Any) -> Tuple[str, tuple]:
         column_sql, column_params = self.format_column_definition(action.column)
         parts = []
         if getattr(action, "if_not_exists", None) is True:
@@ -1019,7 +1021,7 @@ class ClickHouseDialect(
             parts.append(f"AFTER {self.format_identifier(after)}")
         return " ".join(parts), column_params
 
-    def format_drop_column_action(self, action) -> Tuple[str, tuple]:
+    def format_drop_column_action(self, action: Any) -> Tuple[str, tuple]:
         parts = []
         if getattr(action, "if_exists", None) is True:
             parts.append("DROP COLUMN IF EXISTS")
@@ -1028,7 +1030,7 @@ class ClickHouseDialect(
         parts.append(self.format_identifier(action.column_name))
         return " ".join(parts), ()
 
-    def format_drop_table_constraint_action(self, action) -> Tuple[str, tuple]:
+    def format_drop_table_constraint_action(self, action: Any) -> Tuple[str, tuple]:
         if getattr(action, "if_exists", None) is True:
             raise UnsupportedFeatureError(
                 self.name, "DROP CONSTRAINT IF EXISTS",
@@ -1039,7 +1041,7 @@ class ClickHouseDialect(
             suggestion="ClickHouse does not support table constraints."
         )
 
-    def format_alter_column_action(self, action) -> Tuple[str, tuple]:
+    def format_alter_column_action(self, action: Any) -> Tuple[str, tuple]:
         """Format ALTER TABLE ... ALTER COLUMN {SET DEFAULT | DROP DEFAULT}.
 
         ClickHouse 8.0 syntax is ``ALTER TABLE t ALTER [COLUMN] col {SET DEFAULT
@@ -1055,19 +1057,12 @@ class ClickHouseDialect(
 
         if operation == "SET DEFAULT":
             new_value = getattr(action, "new_value", None)
-            if isinstance(new_value, str):
-                escaped = self._escape_sql_string(new_value)
-                return f"ALTER COLUMN {col_name} SET DEFAULT '{escaped}'", ()
-            if isinstance(new_value, bool):
-                return f"ALTER COLUMN {col_name} SET DEFAULT {1 if new_value else 0}", ()
             if new_value is None:
                 raise ValueError("SET DEFAULT requires a default value")
-            if isinstance(new_value, (int, float)):
-                return f"ALTER COLUMN {col_name} SET DEFAULT {new_value}", ()
             if hasattr(new_value, "to_sql"):
                 value_sql, value_params = new_value.to_sql()
                 return f"ALTER COLUMN {col_name} SET DEFAULT {value_sql}", tuple(value_params)
-            return f"ALTER COLUMN {col_name} SET DEFAULT {new_value}", ()
+            return f"ALTER COLUMN {col_name} SET DEFAULT {self.inline_sql_literal(new_value)}", ()
 
         # Fall through to the SQL-standard rendering for other operations.
         return super().format_alter_column_action(action)
@@ -1081,6 +1076,8 @@ class ClickHouseDialect(
         Returns:
             Tuple of (SQL string, parameters tuple)
         """
+        from rhosocial.activerecord.backend.expression.core import TableExpression
+
         like_table = expr.dialect_options.get("like_table")
 
         parts = ["CREATE TABLE"]
@@ -1090,11 +1087,15 @@ class ClickHouseDialect(
             parts.append("IF NOT EXISTS")
         parts.append(expr.table.to_sql()[0])
 
-        if isinstance(like_table, tuple):
+        if isinstance(like_table, TableExpression):
+            like_table_str = like_table.to_sql()[0]
+        elif isinstance(like_table, tuple):
             schema, table = like_table
-            like_table_str = f"{self.format_identifier(schema)}.{self.format_identifier(table)}"
+            like_expr = TableExpression(self, table, schema_name=schema)
+            like_table_str = like_expr.to_sql()[0]
         else:
-            like_table_str = self.format_identifier(like_table)
+            like_expr = TableExpression(self, like_table)
+            like_table_str = like_expr.to_sql()[0]
 
         parts.append(f"LIKE {like_table_str}")
         return ' '.join(parts), ()
@@ -1186,7 +1187,7 @@ class ClickHouseDialect(
 
         return ' '.join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
+    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline index definition (ClickHouse-specific)."""
         parts = []
 
@@ -1208,25 +1209,23 @@ class ClickHouseDialect(
         if idx_def.type:
             parts.append(f"USING {idx_def.type}")
 
-        return ' '.join(parts)
+        return ' '.join(parts), ()
 
-    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
-        """
-        Format storage options for ClickHouse.
+    def format_storage_options(self, expr: "StorageOptionsExpression") -> Tuple[str, tuple]:
+        """Format storage options for ClickHouse.
+
+        Delegates to ``format_table_engine_clauses`` using the expression's
+        options mapping.  Values are rendered verbatim (not quoted) because
+        ClickHouse storage option values are SQL fragments (engine names,
+        column lists, etc.).
 
         Args:
-            storage_options: Dict with keys like 'ENGINE', 'ORDER BY', 'PARTITION BY'
+            expr: StorageOptionsExpression holding the options mapping.
 
         Returns:
-            Formatted storage options string (e.g., "ENGINE = MergeTree() ORDER BY id")
+            Tuple of (SQL string, parameters tuple).
         """
-        parts = []
-        for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key} = {value}")
-            else:
-                parts.append(f"{key} = {value}")
-        return ' '.join(parts)
+        return self.format_table_engine_clauses(expr.options)
     # endregion
 
     # region Trigger Support (ClickHouse does not support triggers)
@@ -1258,7 +1257,7 @@ class ClickHouseDialect(
     def format_create_trigger_statement(
         self,
         expr: "CreateTriggerExpression",
-    ):
+    ) -> Tuple[str, tuple]:
         """Format CREATE TRIGGER statement (ClickHouse syntax).
 
         ClickHouse differences from SQL:1999:
@@ -1333,7 +1332,7 @@ class ClickHouseDialect(
     def format_drop_trigger_statement(
         self,
         expr: "DropTriggerExpression",
-    ):
+    ) -> Tuple[str, tuple]:
         """Format DROP TRIGGER statement (ClickHouse syntax)."""
         if not self.supports_trigger():
             raise UnsupportedFeatureError(self.name, "triggers")
@@ -1364,7 +1363,7 @@ class ClickHouseDialect(
 
     def format_fulltext_match(
         self, expr: "FulltextMatchExpression"
-    ) -> Tuple[str, Tuple]:
+    ) -> Tuple[str, tuple]:
         """Format MATCH ... AGAINST expression for ClickHouse full-text search.
 
         Args:
@@ -1391,7 +1390,7 @@ class ClickHouseDialect(
                 return f"MATCH({cols_str}) AGAINST({ph} WITH QUERY EXPANSION)", (search_term,)
         return f"MATCH({cols_str}) AGAINST({ph} IN NATURAL LANGUAGE MODE)", (search_term,)
 
-    def format_create_fulltext_index_statement(self, expr) -> Tuple[str, tuple]:
+    def format_create_fulltext_index_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format CREATE FULLTEXT INDEX expression for ClickHouse.
 
         Args:
@@ -1417,7 +1416,7 @@ class ClickHouseDialect(
             parts.append(f"WITH PARSER {self.format_identifier(expr.parser)}")
         return " ".join(parts), ()
 
-    def format_drop_fulltext_index_statement(self, expr) -> Tuple[str, tuple]:
+    def format_drop_fulltext_index_statement(self, expr: Any) -> Tuple[str, tuple]:
         """Format DROP FULLTEXT INDEX expression for ClickHouse.
 
         ClickHouse uses DROP INDEX ... ON syntax for dropping FULLTEXT indexes.
@@ -1689,7 +1688,7 @@ class ClickHouseDialect(
         """
         return False
 
-    def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_table_expression(self, expr: Any) -> Tuple[str, tuple]:
         """JSON_TABLE is not supported by ClickHouse."""
         raise UnsupportedFeatureError(
             self.name,
