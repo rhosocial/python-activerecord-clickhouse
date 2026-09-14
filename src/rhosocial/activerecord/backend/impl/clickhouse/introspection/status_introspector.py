@@ -423,7 +423,7 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         try:
             result = self._backend.execute(
                 "SELECT sum(total_bytes) AS total_size FROM system.tables "
-                "WHERE database = %s",
+                f"WHERE database = {self._backend.dialect.p()}",
                 (self._backend.config.database,),
             )
             if result and result.data:
@@ -463,11 +463,13 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         view_counts: Dict[str, int] = {}
 
         try:
+            p = self._backend.dialect.p()
+            placeholders = ", ".join([p] * len(db_names))
             result = self._backend.execute(
                 "SELECT table_schema, table_type, COUNT(*) as count "
                 "FROM information_schema.TABLES "
-                "WHERE table_schema IN (%s) "
-                "GROUP BY table_schema, table_type" % ",".join(["%s"] * len(db_names)),
+                f"WHERE table_schema IN ({placeholders}) "
+                "GROUP BY table_schema, table_type",
                 tuple(db_names),
             )
             if result and result.data:
@@ -735,7 +737,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         try:
             result = await self._backend.execute(
                 "SELECT sum(total_bytes) AS total_size FROM system.tables "
-                "WHERE database = %s",
+                f"WHERE database = {self._backend.dialect.p()}",
                 (self._backend.config.database,),
             )
             if result and result.data:
@@ -775,11 +777,13 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         view_counts: Dict[str, int] = {}
 
         try:
+            p = self._backend.dialect.p()
+            placeholders = ", ".join([p] * len(db_names))
             result = await self._backend.execute(
                 "SELECT table_schema, table_type, COUNT(*) as count "
                 "FROM information_schema.TABLES "
-                "WHERE table_schema IN (%s) "
-                "GROUP BY table_schema, table_type" % ",".join(["%s"] * len(db_names)),
+                f"WHERE table_schema IN ({placeholders}) "
+                "GROUP BY table_schema, table_type",
                 tuple(db_names),
             )
             if result and result.data:
