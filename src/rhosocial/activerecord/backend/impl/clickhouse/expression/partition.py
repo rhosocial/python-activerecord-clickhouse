@@ -614,6 +614,47 @@ class ClickHouseRepairPartitionExpression(BaseExpression):
         )
 
 
+class ClickHousePartitionNameListExpression(BaseExpression):
+    """ClickHouse partition name list expression.
+
+    Represents a list of partition names for use in partition-related operations.
+    This expression follows the format signature compliance pattern where the
+    expression object encapsulates the partition names and the dialect's
+    ``format_partition_name_list`` method renders it.
+
+    ClickHouse does not support MySQL declarative partition name lists;
+    this expression is retained for interface compatibility. The dialect's
+    formatting method raises ``UnsupportedFeatureError``.
+
+    Args:
+        dialect: ClickHouse dialect instance.
+        partitions: List of partition names (strings).
+
+    Raises:
+        TypeError: if partitions is not a sequence of strings.
+        ValueError: if partitions is empty.
+    """
+
+    def __init__(self, dialect: "ClickHouseDialect", partitions: Sequence[str]):
+        super().__init__(dialect)
+        if not partitions:
+            raise ValueError("partitions must not be empty")
+        if not isinstance(partitions, (list, tuple)):
+            partitions = list(partitions)
+        for i, p in enumerate(partitions):
+            if not isinstance(p, str):
+                raise TypeError(
+                    f"partition name at index {i} must be a string, "
+                    f"got {type(p).__name__}"
+                )
+        self.partitions: List[str] = list(partitions)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_partition_name_list"
+
+
 class ClickHouseGetPartitionsExpression(BaseExpression):
     """MySQL ``information_schema.PARTITIONS`` query expression.
 

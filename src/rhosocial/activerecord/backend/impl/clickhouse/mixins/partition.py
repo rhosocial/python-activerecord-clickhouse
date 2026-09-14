@@ -17,6 +17,7 @@ if TYPE_CHECKING:  # pragma: no cover
         ClickHousePartitionByRangeColumns,
         ClickHousePartitionDefinition,
         ClickHousePartitionMaxValue,
+        ClickHousePartitionNameListExpression,
         ClickHousePartitionValue,
         ClickHouseExchangePartitionExpression,
         ClickHouseReorganizePartitionExpression,
@@ -245,7 +246,9 @@ class ClickHousePartitionMixin:
         """MySQL ``ALTER TABLE ... EXCHANGE PARTITION`` is not supported by ClickHouse."""
         self._unsupported("EXCHANGE PARTITION")
 
-    def format_partition_name_list(self, partitions: Sequence[str]) -> str:
+    def format_partition_name_list(
+        self, expr: "ClickHousePartitionNameListExpression"
+    ) -> Tuple[str, tuple]:
         """MySQL partition-name lists are not supported by ClickHouse."""
         self._unsupported("partition name list")
 
