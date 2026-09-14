@@ -910,9 +910,7 @@ class ClickHouseFullTextSearchSupport(IndexSupport, Protocol):
         """Whether query expansion mode is supported (ClickHouse 5.6.7+)."""
         ...
 
-    def format_match_against(
-        self, columns: list, search_string: str, mode: str = None
-    ) -> Tuple[str, tuple]:
+    def format_match_against(self, expr) -> Tuple[str, tuple]:
         """Format MATCH ... AGAINST expression."""
         ...
 

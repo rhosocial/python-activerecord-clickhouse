@@ -33,9 +33,7 @@ class ClickHouseFullTextSearchMixin:
             suggestion="ClickHouse does not support FULLTEXT indexes; use skip indexes (INDEX ... USING)."
         )
 
-    def format_match_against(
-        self, columns: List[str], search_string: str, mode: Optional[str] = None
-    ) -> Tuple[str, tuple]:
+    def format_match_against(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "MATCH ... AGAINST",
             suggestion="ClickHouse does not support MATCH ... AGAINST; use LIKE, hasToken, or tokenbf_v1 skip indexes."

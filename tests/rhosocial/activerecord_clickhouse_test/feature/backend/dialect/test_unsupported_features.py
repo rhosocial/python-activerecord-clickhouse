@@ -185,7 +185,7 @@ class TestFullTextStub:
 
     def test_format_match_against_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_match_against(["c"], "term")
+            dialect.format_match_against(None)
 
 
 class TestJsonTableStub:
