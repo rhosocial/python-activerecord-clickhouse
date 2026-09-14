@@ -13,10 +13,6 @@ from uuid import uuid4
 import pytest
 
 
-def _quote_identifier(name: str) -> str:
-    return f"`{name}`"
-
-
 @pytest.fixture
 def ch_type_table(clickhouse_backend):
     """Create a table exercising native ClickHouse types."""

@@ -114,7 +114,7 @@ def test_clickhouse_json_table_unsupported(dialect):
     )
 
     with pytest.raises(UnsupportedFeatureError):
-        dialect.format_json_table_expression(expr)
+        expr.to_sql()
 
     assert dialect.supports_json_table() is False
 
@@ -138,7 +138,7 @@ def test_clickhouse_json_table_unsupported_validates_expression(dialect):
     )
 
     with pytest.raises(UnsupportedFeatureError):
-        dialect.format_json_table_expression(expr)
+        expr.to_sql()
 
 
 def test_clickhouse_format_cast_expression_valid(dialect):
@@ -200,7 +200,7 @@ class TestClickHouseJSONTableTypeValidation:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
     def test_json_table_invalid_data_type_rejected(self, dialect):
         """Test invalid data type in JSON_TABLE column fails fast as unsupported."""
@@ -220,7 +220,7 @@ class TestClickHouseJSONTableTypeValidation:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
 
 class TestClickHouseJSONTableErrorHandling:
@@ -245,7 +245,7 @@ class TestClickHouseJSONTableErrorHandling:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
     def test_json_table_valid_error_handling_error(self, dialect):
         """Test valid error_handling: ERROR still constructs, then fails fast."""
@@ -266,7 +266,7 @@ class TestClickHouseJSONTableErrorHandling:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
     def test_json_table_valid_error_handling_default(self, dialect):
         """Test valid error_handling: DEFAULT with default_value still constructs, then fails fast."""
@@ -288,7 +288,7 @@ class TestClickHouseJSONTableErrorHandling:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
     def test_json_table_invalid_error_handling_rejected(self, dialect):
         """Test invalid error_handling fails fast as unsupported."""
@@ -309,7 +309,7 @@ class TestClickHouseJSONTableErrorHandling:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
 
 class TestClickHouseJSONTableDefaultValueEscaping:
@@ -335,7 +335,7 @@ class TestClickHouseJSONTableDefaultValueEscaping:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
 
 class TestClickHouseJSONTableJsonDocSecurity:
@@ -359,7 +359,7 @@ class TestClickHouseJSONTableJsonDocSecurity:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
     def test_json_table_json_doc_to_sql_protocol_rejected_by_validate(self, dialect):
         """Test json_doc as ToSQLProtocol still constructs, then fails fast.
@@ -368,19 +368,11 @@ class TestClickHouseJSONTableJsonDocSecurity:
         mode, but JSON_TABLE itself is unsupported so formatting always fails fast.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from rhosocial.activerecord.backend.expression.bases import BaseExpression
-
-        class MockExpression(BaseExpression):
-            def __init__(self):
-                self._sql = "JSON_COLUMN"
-                self._params = ()
-
-            def to_sql(self):
-                return self._sql, self._params
+        from rhosocial.activerecord.backend.expression.core import Literal
 
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,
-            json_doc=MockExpression(),
+            json_doc=Literal(dialect, "JSON_COLUMN"),
             path="$.key",
             columns=[
                 JSONTableColumn(
@@ -392,7 +384,7 @@ class TestClickHouseJSONTableJsonDocSecurity:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
     def test_json_table_json_doc_invalid_type_rejected(self, dialect):
         """Test json_doc with invalid type still constructs, then fails fast."""
@@ -412,7 +404,7 @@ class TestClickHouseJSONTableJsonDocSecurity:
         )
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(expr)
+            expr.to_sql()
 
 
 class TestClickHouseCreateTableCommentEscaping:

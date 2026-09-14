@@ -494,35 +494,35 @@ class TestFloatNoPrecision:
 class TestFormatDispatch:
     def test_format_clickhouse_int8(self):
         dialect = ClickHouseDialect()
-        sql, params = dialect.format_data_type(ClickHouseInt8Type())
+        sql, params = ClickHouseInt8Type(dialect).to_sql()
         assert sql == "Int8"
         assert params == ()
 
     def test_format_clickhouse_decimal(self):
         dialect = ClickHouseDialect()
-        sql, params = dialect.format_data_type(ClickHouseDecimalType(precision=18, scale=4))
+        sql, params = ClickHouseDecimalType(dialect, precision=18, scale=4).to_sql()
         assert sql == "Decimal(18, 4)"
 
     def test_format_clickhouse_enum8(self):
         dialect = ClickHouseDialect()
-        t = ClickHouseEnum8Type(values=[("active", 1), ("inactive", 0)])
-        sql, _ = dialect.format_data_type(t)
+        t = ClickHouseEnum8Type(dialect, values=[("active", 1), ("inactive", 0)])
+        sql, _ = t.to_sql()
         assert sql == "Enum8('active' = 1, 'inactive' = 0)"
 
     def test_format_core_integer_maps_to_int32(self):
         from rhosocial.activerecord.backend.expression.types import IntegerType
         dialect = ClickHouseDialect()
-        sql, _ = dialect.format_data_type(IntegerType(dialect))
+        sql, _ = IntegerType(dialect).to_sql()
         assert sql == "Int32"
 
     def test_format_core_varchar_maps_to_string(self):
         from rhosocial.activerecord.backend.expression.types import VarCharType
         dialect = ClickHouseDialect()
-        sql, _ = dialect.format_data_type(VarCharType())
+        sql, _ = VarCharType(dialect).to_sql()
         assert sql == "String"
 
     def test_format_unsupported_type_raises(self):
         dialect = ClickHouseDialect()
         from rhosocial.activerecord.backend.expression.types import UUIDType
         with pytest.raises(TypeError, match="does not support"):
-            dialect.format_data_type(UUIDType(dialect))
+            UUIDType(dialect).to_sql()

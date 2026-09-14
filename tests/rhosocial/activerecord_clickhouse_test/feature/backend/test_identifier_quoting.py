@@ -12,6 +12,7 @@ format_identifier for table-qualified and aliased column references.
 import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.expression.core import Column
 from rhosocial.activerecord.backend.warnings import IdentifierQuotingWarning
 
 
@@ -248,67 +249,55 @@ class TestClickHouseIdentifierQuoting:
     #  format_column integration                                         #
     # ------------------------------------------------------------------ #
 
-    def _make_expr(self, table=None, name="col", alias=None):
-        """Build a lightweight expression-like object for format_column."""
-        from types import SimpleNamespace
-        return SimpleNamespace(
-            table=table,
-            name=name,
-            alias=alias,
-            table_need_quote=True,
-            name_need_quote=True,
-            alias_need_quote=True,
-        )
-
     def test_format_column_column_only(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table=None, name="id")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "id")
+        sql, params = expr.to_sql()
         assert sql == "`id`"
         assert params == ()
 
     def test_format_column_table_qualified(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table="users", name="email")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "email", table="users")
+        sql, params = expr.to_sql()
         assert sql == "`users`.`email`"
         assert params == ()
 
     def test_format_column_with_alias(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table="users", name="email", alias="e")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "email", table="users", alias="e")
+        sql, params = expr.to_sql()
         assert sql == "`users`.`email` AS `e`"
         assert params == ()
 
     def test_format_column_reserved_table_name(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table="select", name="id")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "id", table="select")
+        sql, params = expr.to_sql()
         assert sql == "`select`.`id`"
         assert params == ()
 
     def test_format_column_reserved_column_name(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table=None, name="order")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "order")
+        sql, params = expr.to_sql()
         assert sql == "`order`"
         assert params == ()
 
     def test_format_column_escapes_backtick_in_table(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table="my`table", name="col")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "col", table="my`table")
+        sql, params = expr.to_sql()
         assert sql == "`my``table`.`col`"
 
     def test_format_column_escapes_backtick_in_column(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table="t", name="my`col")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "my`col", table="t")
+        sql, params = expr.to_sql()
         assert sql == "`t`.`my``col`"
 
     def test_format_column_escapes_backtick_in_alias(self):
         d = ClickHouseDialect()
-        expr = self._make_expr(table="t", name="col", alias="a`lias")
-        sql, params = d.format_column(expr)
+        expr = Column(d, "col", table="t", alias="a`lias")
+        sql, params = expr.to_sql()
         assert sql == "`t`.`col` AS `a``lias`"

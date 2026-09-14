@@ -9,26 +9,70 @@ optimizer hints, JSON Duality Views, FULLTEXT, JSON_TABLE). The dialect
 mixins for these features are fail-fast stubs: ``supports_*`` returns
 ``False`` and ``format_*`` raises :class:`UnsupportedFeatureError`.
 
-These tests verify that contract without a database connection (pure
-dialect method calls).
+These tests verify that contract without a database connection by building
+the relevant expression node and rendering it via ``to_sql()``, so the real
+expression-to-formatter dispatch path is exercised.
 """
 
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.statements import OnConflictClause
+from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
+    CreateTriggerExpression,
+    DropTriggerExpression,
+    TriggerEvent,
+    TriggerTiming,
+)
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
+    ClickHouseFlushExpression,
+    ClickHouseKillExpression,
+    FlushOption,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
+    CreateJsonDualityViewExpression,
+    DualityObjectSpec,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
+    ClickHouseJSONTableExpression,
+    JSONTableColumn,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
+    ClickHouseLoadXMLEXpression,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.maintenance import (
+    ClickHouseAnalyzeTableExpression,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.match_against import (
+    ClickHouseMatchAgainstExpression,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.optimizer_hint import (
+    ClickHouseOptimizerHintExpression,
+    SetVarHint,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.routine import (
+    ClickHouseCallExpression,
+    ClickHouseCreateProcedureExpression,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.spatial import (
+    ClickHouseCreateSpatialIndexExpression,
+    ClickHouseSpatialLiteralExpression,
+    ClickHouseSTGeomFromTextExpression,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.table_statement import (
+    ClickHouseTableExpression,
+    ClickHouseValuesExpression,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression.vector import (
+    ClickHouseCreateVectorIndexExpression,
+    ClickHouseVectorLiteralExpression,
+)
 
 
 @pytest.fixture(scope="module")
 def dialect():
     return ClickHouseDialect(version=(26, 7, 1))
-
-
-def _assert_unsupported(dialect, supports_method, format_method):
-    """A feature is unsupported iff supports_* is False and format_* raises."""
-    assert getattr(dialect, supports_method)() is False
-    with pytest.raises(UnsupportedFeatureError):
-        getattr(dialect, format_method)(None)
 
 
 class TestTriggerStub:
@@ -43,11 +87,13 @@ class TestTriggerStub:
 
     def test_format_create_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_trigger_statement(None)
+            CreateTriggerExpression(
+                dialect, "trg", "tbl", TriggerTiming.BEFORE, [TriggerEvent.INSERT], "fn"
+            ).to_sql()
 
     def test_format_drop_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_drop_trigger_statement(None)
+            DropTriggerExpression(dialect, "trg", "tbl").to_sql()
 
 
 class TestSpatialStub:
@@ -60,15 +106,15 @@ class TestSpatialStub:
 
     def test_format_spatial_literal_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_spatial_literal("POINT(0 0)")
+            ClickHouseSpatialLiteralExpression(dialect, "POINT(0 0)").to_sql()
 
     def test_format_st_geom_from_text_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_st_geom_from_text("POINT(0 0)")
+            ClickHouseSTGeomFromTextExpression(dialect, "POINT(0 0)").to_sql()
 
     def test_format_create_spatial_index_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_spatial_index(None)
+            ClickHouseCreateSpatialIndexExpression(dialect, "idx", "tbl", "col").to_sql()
 
 
 class TestVectorStub:
@@ -78,11 +124,11 @@ class TestVectorStub:
 
     def test_format_vector_literal_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_vector_literal([1.0, 2.0])
+            ClickHouseVectorLiteralExpression(dialect, [1.0, 2.0]).to_sql()
 
     def test_format_create_vector_index_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_vector_index(None)
+            ClickHouseCreateVectorIndexExpression(dialect, "idx", "tbl", "col").to_sql()
 
 
 class TestOptimizerHintStub:
@@ -92,7 +138,9 @@ class TestOptimizerHintStub:
 
     def test_format_optimizer_hint_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_optimizer_hint(None)
+            ClickHouseOptimizerHintExpression(
+                dialect, [SetVarHint("optimizer_switch", "hypergraph_optimizer=on")]
+            ).to_sql()
 
 
 class TestTableStatementStub:
@@ -102,11 +150,11 @@ class TestTableStatementStub:
 
     def test_format_table_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_table_statement(None)
+            ClickHouseTableExpression(dialect, "tbl").to_sql()
 
     def test_format_values_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_values_statement(None)
+            ClickHouseValuesExpression(dialect, [[1]]).to_sql()
 
 
 class TestMaintenanceStub:
@@ -120,7 +168,7 @@ class TestMaintenanceStub:
 
     def test_format_table_maintenance_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_table_maintenance_statement(None)
+            ClickHouseAnalyzeTableExpression(dialect, ["tbl"]).to_sql()
 
 
 class TestRoutineStub:
@@ -131,11 +179,11 @@ class TestRoutineStub:
 
     def test_format_create_procedure_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_procedure_statement(None)
+            ClickHouseCreateProcedureExpression(dialect, "proc").to_sql()
 
     def test_format_call_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_call_statement(None)
+            ClickHouseCallExpression(dialect, "proc").to_sql()
 
 
 class TestLoadXmlStub:
@@ -144,7 +192,7 @@ class TestLoadXmlStub:
 
     def test_format_load_xml_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_load_xml_statement(None)
+            ClickHouseLoadXMLEXpression(dialect, "/tmp/data.xml", "tbl").to_sql()
 
 
 class TestAdminCommandStub:
@@ -161,11 +209,11 @@ class TestAdminCommandStub:
 
     def test_format_flush_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_flush_statement(None)
+            ClickHouseFlushExpression(dialect, [FlushOption.TABLES]).to_sql()
 
     def test_format_kill_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_kill_statement(None)
+            ClickHouseKillExpression(dialect, 1).to_sql()
 
 
 class TestJsonDualityViewStub:
@@ -175,7 +223,7 @@ class TestJsonDualityViewStub:
 
     def test_format_create_json_duality_view_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_create_json_duality_view_statement(None)
+            CreateJsonDualityViewExpression(dialect, "v", DualityObjectSpec()).to_sql()
 
 
 class TestFullTextStub:
@@ -185,7 +233,7 @@ class TestFullTextStub:
 
     def test_format_match_against_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_match_against(None)
+            ClickHouseMatchAgainstExpression(dialect, ["title"], "term").to_sql()
 
 
 class TestJsonTableStub:
@@ -194,7 +242,12 @@ class TestJsonTableStub:
 
     def test_format_json_table_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_json_table_expression(None)
+            ClickHouseJSONTableExpression(
+                dialect,
+                '{"key": "value"}',
+                "$.key",
+                [JSONTableColumn(name="col1", type="VARCHAR(255)", path="$.col1")],
+            ).to_sql()
 
 
 class TestUpsertStub:
@@ -203,4 +256,4 @@ class TestUpsertStub:
 
     def test_format_on_conflict_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_on_conflict_clause(None)
+            OnConflictClause(dialect, None, do_nothing=True).to_sql()
