@@ -10,7 +10,7 @@ When a ClickHouse protocol extends a generic protocol, dialects only need to imp
 the ClickHouse-specific protocol - isinstance checks for the generic protocol will still work.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, Any, Optional, List, Dict, Sequence, TYPE_CHECKING
+from typing import Protocol, runtime_checkable, Tuple, Any, Optional, List, Dict, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import OnConflictClause
@@ -577,7 +577,7 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         """Format ALTER TABLE ... REPAIR PARTITION."""
         ...
 
-    def format_partition_name_list(self, partitions: Sequence[str]) -> str:
+    def format_partition_name_list(self, expr) -> Tuple[str, tuple]:
         """Format a list of partition names: `p0`, `p1`, ..."""
         ...
 
