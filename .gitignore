@@ -213,5 +213,4 @@ tests/config/clickhouse_scenarios.yml
 
 # Claude Code temporary files (local only)
 .claude/tmp/
-.claude/plans/
-.claude/plan/
+.claude/plan*/
