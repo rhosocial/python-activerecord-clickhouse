@@ -4,7 +4,7 @@ from .transaction import ClickHouseTransactionMixin
 from .backend_mixin import ClickHouseBackendMixin
 from .trigger import ClickHouseTriggerMixin
 from .partition import ClickHousePartitionMixin
-from .table import ClickHouseTableMixin
+from .ddl_table import ClickHouseTableMixin
 from .set_type import ClickHouseSetTypeMixin
 from .json import ClickHouseJSONFunctionMixin
 from .spatial import ClickHouseSpatialMixin
@@ -17,14 +17,14 @@ from .concurrency import ClickHouseConcurrencyMixin, AsyncClickHouseConcurrencyM
 from .json_duality_view import ClickHouseJsonDualityViewMixin
 from .optimizer_hint import ClickHouseOptimizerHintMixin
 from .types import ClickHouseTypeSupportMixin
-from .rename_table import ClickHouseRenameTableMixin
+from .ddl_rename_table import ClickHouseRenameTableMixin
 from .truncate import ClickHouseTruncateMixin
-from .table_statement import ClickHouseTableStatementMixin
+from .ddl_table_statement import ClickHouseTableStatementMixin
 from .maintenance import ClickHouseMaintenanceMixin
 from .routine import ClickHouseRoutineMixin
 from .load_xml import ClickHouseLoadXMLLMixin
 from .admin import ClickHouseAdminCommandMixin
-from .table_engine import (
+from .ddl_table_engine import (
     ClickHouseTableEngineMixin,
     ClickHouseQueryClauseMixin,
     ClickHouseTableEngineSupport,
