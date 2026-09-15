@@ -617,6 +617,14 @@ class ClickHouseDialect(
         """Set operations do not support FOR UPDATE."""
         return False
 
+    def supports_fetch_with_ties(self) -> bool:
+        """ClickHouse does not support FETCH ... WITH TIES."""
+        return False
+
+    def supports_nulls_first_last(self) -> bool:
+        """ClickHouse does not support explicit NULLS FIRST/LAST ordering."""
+        return False
+
     def format_set_operation_expression(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
         """Format set operations with an explicit ALL/DISTINCT modifier.
 
@@ -631,7 +639,14 @@ class ClickHouseDialect(
         alias = expr.alias
         order_by_clause = expr.order_by_clause
         limit_offset_clause = expr.limit_offset_clause
-        # FOR UPDATE is unsupported in ClickHouse; ignored silently.
+        for_update_clause = expr.for_update_clause
+
+        if for_update_clause and not self.supports_set_operation_for_update():
+            raise UnsupportedFeatureError(
+                self.name,
+                "FOR UPDATE in set operations",
+                "ClickHouse does not support FOR UPDATE clauses.",
+            )
 
         left_sql, left_params = left.to_sql()
         right_sql, right_params = right.to_sql()

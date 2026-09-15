@@ -958,7 +958,7 @@ class ClickHouseLockingSupport(LockingSupport, Protocol):
         """Format ClickHouse-specific FOR UPDATE clause.
 
         Args:
-            clause: ClickHouseForUpdateClause instance
+            clause: ForUpdateClause instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
