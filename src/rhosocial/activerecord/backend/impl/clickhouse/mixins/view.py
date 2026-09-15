@@ -27,6 +27,14 @@ class ClickHouseViewMixin:
         """Whether DROP VIEW IF EXISTS is supported."""
         return True
 
+    def supports_create_or_replace_view(self) -> bool:
+        """ClickHouse supports CREATE OR REPLACE VIEW."""
+        return True
+
+    def supports_if_not_exists_view(self) -> bool:
+        """ClickHouse supports CREATE VIEW IF NOT EXISTS."""
+        return True
+
     def supports_view_check_option(self) -> bool:
         """Whether WITH CHECK OPTION is supported in views."""
         return True
@@ -42,8 +50,11 @@ class ClickHouseViewMixin:
         if expr.temporary:
             parts.append("TEMPORARY")
 
-        if expr.replace:
+        if expr.replace and self.supports_create_or_replace_view():
             parts.append("OR REPLACE")
+
+        if expr.if_not_exists and self.supports_if_not_exists_view():
+            parts.append("IF NOT EXISTS")
 
         parts.append("VIEW")
         parts.append(self.format_identifier(expr.view_name))
