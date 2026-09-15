@@ -5,6 +5,14 @@ from typing import Any, List, Optional, Tuple
 class ClickHouseDQLMixin:
     """ClickHouse DQL (Data Query Language) formatting."""
 
+    def supports_fetch_with_ties(self) -> bool:
+        """ClickHouse does not support FETCH ... WITH TIES."""
+        return False
+
+    def supports_nulls_first_last(self) -> bool:
+        """ClickHouse does not support explicit NULLS FIRST/LAST ordering."""
+        return False
+
     def format_column(self, expr) -> Tuple[str, Tuple]:
         """Format column reference for ClickHouse.
 

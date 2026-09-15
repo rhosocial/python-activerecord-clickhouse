@@ -46,6 +46,15 @@ class ClickHouseSetOperationMixin:
         alias = expr.alias
         order_by_clause = expr.order_by_clause
         limit_offset_clause = expr.limit_offset_clause
+        for_update_clause = expr.for_update_clause
+
+        if for_update_clause and not self.supports_set_operation_for_update():
+            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+            raise UnsupportedFeatureError(
+                self.name,
+                "FOR UPDATE in set operations",
+                "ClickHouse does not support FOR UPDATE clauses.",
+            )
 
         left_sql, left_params = left.to_sql()
         right_sql, right_params = right.to_sql()
