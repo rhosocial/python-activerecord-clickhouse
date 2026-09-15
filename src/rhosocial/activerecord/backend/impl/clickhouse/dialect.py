@@ -753,6 +753,14 @@ class ClickHouseDialect(
         """Whether DROP VIEW CASCADE is supported."""
         return False  # ClickHouse does not support CASCADE for views
 
+    def supports_create_or_replace_view(self) -> bool:
+        """ClickHouse supports CREATE OR REPLACE VIEW."""
+        return True
+
+    def supports_if_not_exists_view(self) -> bool:
+        """ClickHouse supports CREATE VIEW IF NOT EXISTS."""
+        return True
+
     def format_create_view_statement(self, expr: "CreateViewExpression") -> Tuple[str, tuple]:
         """Format CREATE VIEW statement for ClickHouse."""
         parts = ["CREATE"]
@@ -760,8 +768,11 @@ class ClickHouseDialect(
         if expr.temporary:
             parts.append("TEMPORARY")
 
-        if expr.replace:
+        if expr.replace and self.supports_create_or_replace_view():
             parts.append("OR REPLACE")
+
+        if expr.if_not_exists and self.supports_if_not_exists_view():
+            parts.append("IF NOT EXISTS")
 
         parts.append("VIEW")
         parts.append(self.format_identifier(expr.view_name))
