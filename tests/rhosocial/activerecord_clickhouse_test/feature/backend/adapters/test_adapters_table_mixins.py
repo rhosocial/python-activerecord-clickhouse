@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.adapters import (
     ClickHouseVectorAdapter,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.mixins.table import ClickHouseTableMixin
+from rhosocial.activerecord.backend.impl.clickhouse.mixins.ddl_table import ClickHouseTableMixin
 
 
 @pytest.fixture
