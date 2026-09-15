@@ -39,9 +39,10 @@ class ClickHouseTableMixin:
         """Format CREATE TABLE statement for ClickHouse."""
         all_params: List[Any] = []
 
-        parts = ["CREATE TABLE"]
+        parts = ["CREATE"]
         if expr.temporary:
             parts.append("TEMPORARY")
+        parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
         parts.append(expr.table.to_sql()[0])
