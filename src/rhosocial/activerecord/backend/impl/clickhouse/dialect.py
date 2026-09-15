@@ -169,7 +169,6 @@ class ClickHouseDialect(
     WindowFunctionMixin,
     ClickHouseJSONFunctionMixin,  # JSON funcs (before JSONMixin to override)
     JSONMixin,
-    ReturningMixin,  # ClickHouse doesn't support RETURNING, but we'll override to indicate this
     AdvancedGroupingMixin,
     ArrayMixin,
     ExplainMixin,
