@@ -18,7 +18,7 @@ if TYPE_CHECKING:
         ModifyColumn,
         ChangeColumn,
     )
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import CreateTableExpression
+    from rhosocial.activerecord.backend.expression.statements.ddl_table import CreateTableLikeExpression
     from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
         CreateTriggerExpression,
         DropTriggerExpression,
@@ -327,8 +327,14 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Format CREATE TABLE statement."""
         ...
 
-    def format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
-        """Format CREATE TABLE ... LIKE statement."""
+    def format_create_table_like_statement(
+        self, expr: "CreateTableLikeExpression"
+    ) -> Tuple[str, tuple]:
+        """Format the ClickHouse ``CREATE TABLE ... AS <source>`` structure copy.
+
+        ClickHouse has no ``LIKE`` keyword; the capability advertised by
+        :meth:`supports_create_table_like` is rendered with ``AS <source>``.
+        """
         ...
 
     def format_column_definition(self, col_def: Any) -> Tuple[str, tuple]:

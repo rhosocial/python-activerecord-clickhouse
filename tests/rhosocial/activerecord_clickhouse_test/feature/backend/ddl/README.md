@@ -6,9 +6,10 @@ DDL statement and expression-level tests (no live server needed).
   for the ClickHouse dialect: hook overrides (`MODIFY COLUMN` type changes,
   property/index/constraint changes → rebuild), DiffPlan/RebuildPlan shapes,
   rendered SQL, and regressions for the pre-override behaviors.
-- `test_create_table_like.py` — ClickHouse `CREATE TABLE ... LIKE` syntax:
-  IF NOT EXISTS / TEMPORARY combinations, schema-qualified sources,
-  fallback when `like_table` is absent.
+- `test_create_table_like.py` — ClickHouse structure copy via
+  `CreateTableLikeExpression` rendered as `CREATE TABLE ... AS <source>`
+  (ClickHouse has no `LIKE` keyword): IF NOT EXISTS / TEMPORARY combinations,
+  schema-qualified sources, and the explicit-schema form.
 - `test_ddl_generation.py` — `format_create_table_statement` output: type
   mapping to native ClickHouse types (Int32, String, Decimal, DateTime,
   Bool), ENGINE/ORDER BY/PARTITION BY storage clauses, inline skip-index
