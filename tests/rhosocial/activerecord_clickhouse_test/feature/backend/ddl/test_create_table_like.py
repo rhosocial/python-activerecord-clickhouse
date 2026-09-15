@@ -1,102 +1,100 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/ddl/test_create_table_like.py
 """
-ClickHouse CREATE TABLE ... LIKE syntax tests.
+ClickHouse CREATE TABLE ... AS <source> syntax tests.
 
-This module tests the ClickHouse-specific LIKE syntax for CREATE TABLE statements.
+ClickHouse has no ``LIKE`` keyword; copying a table's structure is expressed
+with ``AS <source>``.  These tests cover the ClickHouse override of the core
+``CreateTableLikeExpression`` formatter.
 """
 
-from rhosocial.activerecord.backend.expression import CreateTableExpression, ColumnDefinition
+from rhosocial.activerecord.backend.expression import (
+    CreateTableExpression,
+    CreateTableLikeExpression,
+    ColumnDefinition,
+)
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import ColumnConstraint, ColumnConstraintType
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 
 class TestClickHouseCreateTableLike:
-    """Tests for ClickHouse CREATE TABLE ... LIKE syntax."""
+    """Tests for ClickHouse CREATE TABLE ... AS <source> syntax."""
 
-    def test_basic_like_syntax(self):
-        """Test basic CREATE TABLE ... LIKE syntax."""
+    def test_basic_as_syntax(self):
+        """Test basic CREATE TABLE ... AS <source> syntax."""
         dialect = ClickHouseDialect()
-        create_expr = CreateTableExpression(
-            dialect=dialect, table="users_copy", columns=[], dialect_options={"like_table": "users"}
+        create_expr = CreateTableLikeExpression(
+            dialect=dialect, table="users_copy", like_table="users"
         )
         sql, params = create_expr.to_sql()
 
-        assert sql == "CREATE TABLE `users_copy` LIKE `users`"
+        assert sql == "CREATE TABLE `users_copy` AS `users`"
         assert params == ()
 
-    def test_like_with_if_not_exists(self):
-        """Test CREATE TABLE ... LIKE with IF NOT EXISTS."""
+    def test_as_with_if_not_exists(self):
+        """Test CREATE TABLE ... AS <source> with IF NOT EXISTS."""
         dialect = ClickHouseDialect()
-        create_expr = CreateTableExpression(
-            dialect=dialect, table="users_copy", columns=[], if_not_exists=True, dialect_options={"like_table": "users"}
+        create_expr = CreateTableLikeExpression(
+            dialect=dialect, table="users_copy", like_table="users", if_not_exists=True
         )
         sql, params = create_expr.to_sql()
 
-        assert sql == "CREATE TABLE IF NOT EXISTS `users_copy` LIKE `users`"
+        assert sql == "CREATE TABLE IF NOT EXISTS `users_copy` AS `users`"
         assert params == ()
 
-    def test_like_with_temporary(self):
-        """Test CREATE TEMPORARY TABLE ... LIKE."""
+    def test_as_with_temporary(self):
+        """Test CREATE TEMPORARY TABLE ... AS <source>."""
         dialect = ClickHouseDialect()
-        create_expr = CreateTableExpression(
-            dialect=dialect, table="temp_users", columns=[], temporary=True, dialect_options={"like_table": "users"}
+        create_expr = CreateTableLikeExpression(
+            dialect=dialect, table="temp_users", like_table="users", temporary=True
         )
         sql, params = create_expr.to_sql()
 
-        assert sql == "CREATE TABLE TEMPORARY `temp_users` LIKE `users`"
+        assert sql == "CREATE TEMPORARY TABLE `temp_users` AS `users`"
         assert params == ()
 
-    def test_like_with_schema_qualified_table(self):
-        """Test CREATE TABLE ... LIKE with schema-qualified source table."""
+    def test_as_with_schema_qualified_table(self):
+        """Test CREATE TABLE ... AS <source> with a schema-qualified source."""
         dialect = ClickHouseDialect()
-        create_expr = CreateTableExpression(
-            dialect=dialect, table="users_copy", columns=[], dialect_options={"like_table": ("production", "users")}
+        create_expr = CreateTableLikeExpression(
+            dialect=dialect, table="users_copy", like_table=("production", "users")
         )
         sql, params = create_expr.to_sql()
 
-        assert sql == "CREATE TABLE `users_copy` LIKE `production`.`users`"
+        assert sql == "CREATE TABLE `users_copy` AS `production`.`users`"
         assert params == ()
 
-    def test_like_ignores_columns(self):
-        """Test that LIKE syntax ignores columns parameter."""
+    def test_source_as_table_expression(self):
+        """Test that a TableExpression source is normalized and rendered."""
         dialect = ClickHouseDialect()
-        columns = [
-            ColumnDefinition(
-                dialect,
-                "id",
-                IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)],
-            ),
-            ColumnDefinition(dialect, "name", VarCharType(length=255, dialect=dialect)),
-        ]
-        create_expr = CreateTableExpression(
-            dialect=dialect, table="users_copy", columns=columns, dialect_options={"like_table": "users"}
+        create_expr = CreateTableLikeExpression(
+            dialect=dialect,
+            table="users_copy",
+            like_table=TableExpression(dialect, "users", schema_name="production"),
         )
         sql, params = create_expr.to_sql()
 
-        # LIKE syntax should take precedence, columns should be ignored
-        assert sql == "CREATE TABLE `users_copy` LIKE `users`"
+        assert sql == "CREATE TABLE `users_copy` AS `production`.`users`"
         assert params == ()
 
-    def test_like_with_temporary_and_if_not_exists(self):
-        """Test CREATE TEMPORARY TABLE ... LIKE with IF NOT EXISTS."""
+    def test_as_with_temporary_and_if_not_exists(self):
+        """Test CREATE TEMPORARY TABLE ... AS <source> with IF NOT EXISTS."""
         dialect = ClickHouseDialect()
-        create_expr = CreateTableExpression(
+        create_expr = CreateTableLikeExpression(
             dialect=dialect,
             table="temp_users_copy",
-            columns=[],
+            like_table=("test_db", "users"),
             temporary=True,
             if_not_exists=True,
-            dialect_options={"like_table": ("test_db", "users")},
         )
         sql, params = create_expr.to_sql()
 
-        assert sql == "CREATE TABLE TEMPORARY IF NOT EXISTS `temp_users_copy` LIKE `test_db`.`users`"
+        assert sql == "CREATE TEMPORARY TABLE IF NOT EXISTS `temp_users_copy` AS `test_db`.`users`"
         assert params == ()
 
-    def test_fallback_to_base_when_no_like(self):
-        """Test that base implementation is used when LIKE is not specified."""
+    def test_explicit_schema_still_renders(self):
+        """The explicit-schema form is unaffected by the AS override."""
         dialect = ClickHouseDialect()
         columns = [
             ColumnDefinition(
@@ -115,7 +113,6 @@ class TestClickHouseCreateTableLike:
         create_expr = CreateTableExpression(dialect=dialect, table="users", columns=columns)
         sql, params = create_expr.to_sql()
 
-        # Should use base implementation
         assert "CREATE TABLE" in sql
         assert "`users`" in sql
         assert "`id`" in sql

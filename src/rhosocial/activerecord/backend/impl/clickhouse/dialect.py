@@ -137,7 +137,6 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.collation import CollateExpression
     from rhosocial.activerecord.backend.expression.core import Column
     from rhosocial.activerecord.backend.expression.statements import (
-        CreateTableExpression,
         CreateViewExpression,
         DropViewExpression,
         StorageOptionsExpression,
@@ -923,80 +922,6 @@ class ClickHouseDialect(
         """ClickHouse skip indexes support USING keyword for index type."""
         return True
 
-    def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
-        """
-        Format CREATE TABLE statement for ClickHouse.
-
-        This method handles ClickHouse-specific syntax including:
-        - LIKE syntax (copying table structure)
-        - Inline index definitions
-        - Storage options (ENGINE, CHARSET, COLLATE)
-        - Table-level comments
-        - AUTO_INCREMENT in column definitions
-
-        Args:
-            expr: CreateTableExpression instance
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        # Check for LIKE syntax in dialect_options (highest priority)
-        if "like_table" in expr.dialect_options:
-            return self.format_create_table_like(expr)
-
-        # Build standard CREATE TABLE statement
-
-        all_params: List[Any] = []
-
-        # Build CREATE TABLE header
-        parts = ["CREATE TABLE"]
-        if expr.temporary:
-            parts.append("TEMPORARY")
-        if expr.if_not_exists:
-            parts.append("IF NOT EXISTS")
-        parts.append(expr.table.to_sql()[0])
-
-        # Build column definitions
-        column_parts = []
-        for col_def in expr.columns:
-            col_sql, col_params = self.format_column_definition(col_def)
-            column_parts.append(col_sql)
-            all_params.extend(col_params)
-
-        # Build table constraints
-        for t_const in expr.table_constraints:
-            const_sql, const_params = self.format_table_constraint(t_const)
-            column_parts.append(const_sql)
-            all_params.extend(const_params)
-
-        for idx_def in expr.indexes:
-            idx_sql, idx_params = self.format_inline_index(idx_def)
-            if idx_sql:
-                column_parts.append(idx_sql)
-
-        # Combine columns (comma-separated)
-        parts.append(f"({', '.join(column_parts)})")
-
-        # Add storage options (ClickHouse-specific format)
-        if expr.storage_options:
-            storage_sql, storage_params = self.format_table_engine_clauses(expr.storage_options)
-            if storage_sql:
-                parts.append(storage_sql)
-
-        # Add table-level comment (from dialect_options)
-        if "comment" in expr.dialect_options:
-            escaped_comment = self._escape_sql_string(expr.dialect_options["comment"])
-            parts.append(f"COMMENT '{escaped_comment}'")
-
-        # Add partition clause generated through PartitionClause expression.
-        if expr.partition is not None:
-            partition_sql, partition_params = expr.partition.to_sql()
-            if partition_sql:
-                parts.append(partition_sql.strip())
-                all_params.extend(partition_params)
-
-        return " ".join(parts), tuple(all_params)
-
     def supports_add_column_if_not_exists(self) -> bool:
         """ClickHouse supports ADD COLUMN IF NOT EXISTS."""
         return True
@@ -1066,39 +991,6 @@ class ClickHouseDialect(
 
         # Fall through to the SQL-standard rendering for other operations.
         return super().format_alter_column_action(action)
-
-    def format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
-        """Format CREATE TABLE ... LIKE statement for ClickHouse.
-
-        Args:
-            expr: CreateTableExpression instance with like_table in dialect_options
-
-        Returns:
-            Tuple of (SQL string, parameters tuple)
-        """
-        from rhosocial.activerecord.backend.expression.core import TableExpression
-
-        like_table = expr.dialect_options.get("like_table")
-
-        parts = ["CREATE TABLE"]
-        if expr.temporary:
-            parts.append("TEMPORARY")
-        if expr.if_not_exists:
-            parts.append("IF NOT EXISTS")
-        parts.append(expr.table.to_sql()[0])
-
-        if isinstance(like_table, TableExpression):
-            like_table_str = like_table.to_sql()[0]
-        elif isinstance(like_table, tuple):
-            schema, table = like_table
-            like_expr = TableExpression(self, table, schema_name=schema)
-            like_table_str = like_expr.to_sql()[0]
-        else:
-            like_expr = TableExpression(self, like_table)
-            like_table_str = like_expr.to_sql()[0]
-
-        parts.append(f"LIKE {like_table_str}")
-        return ' '.join(parts), ()
 
     # endregion
 

@@ -1,11 +1,11 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/table.py
-from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+from typing import Any, List, Tuple, TYPE_CHECKING
 import re
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.core import TableExpression
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
         CreateTableExpression,
+        CreateTableLikeExpression,
         StorageOptionsExpression,
     )
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
@@ -37,10 +37,6 @@ class ClickHouseTableMixin:
 
     def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for ClickHouse."""
-        if "like_table" in expr.dialect_options:
-            return self.format_create_table_like(expr)
-
-
         all_params: List[Any] = []
 
         parts = ["CREATE TABLE"]
@@ -63,45 +59,59 @@ class ClickHouseTableMixin:
 
         for idx_def in expr.indexes:
             idx_sql, idx_params = self.format_inline_index(idx_def)
-            column_parts.append(idx_sql)
+            if idx_sql:
+                column_parts.append(idx_sql)
 
         parts.append(f"({', '.join(column_parts)})")
 
         if expr.storage_options:
-            storage_sql, storage_params = self.format_table_engine_clauses(expr.storage_options)
+            storage_sql, storage_params = self._format_table_storage_options(expr.storage_options)
             if storage_sql:
                 parts.append(storage_sql)
+                all_params.extend(storage_params)
 
         if "comment" in expr.dialect_options:
             escaped_comment = self._escape_sql_string(expr.dialect_options["comment"])
             parts.append(f"COMMENT '{escaped_comment}'")
 
+        if expr.partition is not None:
+            partition_sql, partition_params = expr.partition.to_sql()
+            if partition_sql:
+                parts.append(partition_sql.strip())
+                all_params.extend(partition_params)
+
         return " ".join(parts), tuple(all_params)
 
-    def format_create_table_like(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
-        """Format CREATE TABLE ... LIKE statement."""
-        from rhosocial.activerecord.backend.expression.core import TableExpression
+    def _format_table_storage_options(self, storage_options: Any) -> Tuple[str, tuple]:
+        """Render storage options from either a mapping or a StorageOptionsExpression."""
+        if isinstance(storage_options, dict):
+            return self.format_table_engine_clauses(storage_options)
+        return storage_options.to_sql()
 
-        like_table = expr.dialect_options["like_table"]
+    def format_create_table_like_statement(
+        self, expr: "CreateTableLikeExpression"
+    ) -> Tuple[str, tuple]:
+        """Format ClickHouse ``CREATE TABLE ... AS <source>``.
 
-        parts = ["CREATE TABLE"]
+        ClickHouse has no ``LIKE`` keyword.  Copying a table's structure uses
+        ``CREATE TABLE target AS source`` (or ``CREATE TABLE target CLONE AS
+        source`` to also copy data).  The capability probe
+        :meth:`supports_create_table_like` still reports ``True`` because the
+        underlying capability exists; only the keyword differs.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        if not self.supports_create_table_like():
+            raise UnsupportedFeatureError(self.name, "CREATE TABLE ... AS <source>")
+
+        parts = ["CREATE"]
         if expr.temporary:
             parts.append("TEMPORARY")
+        parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
         parts.append(expr.table.to_sql()[0])
-
-        if isinstance(like_table, TableExpression):
-            like_table_str = like_table.to_sql()[0]
-        elif isinstance(like_table, tuple):
-            schema, table = like_table
-            like_expr = TableExpression(self, table, schema_name=schema)
-            like_table_str = like_expr.to_sql()[0]
-        else:
-            like_expr = TableExpression(self, like_table)
-            like_table_str = like_expr.to_sql()[0]
-
-        parts.append(f"LIKE {like_table_str}")
+        parts.append(f"AS {expr.like_table.to_sql()[0]}")
         return " ".join(parts), ()
 
     def format_column_definition(self, col_def: "ColumnDefinition") -> Tuple[str, tuple]:
