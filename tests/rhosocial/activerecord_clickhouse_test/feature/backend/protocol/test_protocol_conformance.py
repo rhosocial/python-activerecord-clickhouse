@@ -153,6 +153,8 @@ class TestClickHouseDialectProtocolConformance:
 # decision (move to CLICKHOUSE_PROTOCOLS or revert).
 CLICKHOUSE_NOT_IMPLEMENTED = [
     # --- Intentional non-support ---
+    # ClickHouse dialect does not compose the generic DatabaseMixin.
+    dialect_protocols.DatabaseSupport,
     # ClickHouse has no SQL/XML support.
     dialect_protocols.SQLXMLSupport,
     dialect_protocols.SQLXMLParsingSupport,
