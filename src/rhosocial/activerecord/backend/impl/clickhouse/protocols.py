@@ -270,12 +270,11 @@ class ClickHouseTableSupport(TableSupport, Protocol):
     - AUTO_INCREMENT column attribute
     - Inline index definitions in CREATE TABLE
     - Table-level COMMENT
-    - CREATE TABLE ... LIKE syntax
+    - CREATE TABLE ... AS <source> structure copy
     - Row format options
 
     Official Documentation:
-    - CREATE TABLE: https://dev.clickhouse.com/doc/refman/8.0/en/create-table.html
-    - CREATE TABLE ... LIKE: https://dev.clickhouse.com/doc/refman/8.0/en/create-table-like.html
+    - CREATE TABLE: https://clickhouse.com/docs/en/sql-reference/statements/create/table
 
     Version Requirements:
     - Basic features: All versions
@@ -283,10 +282,14 @@ class ClickHouseTableSupport(TableSupport, Protocol):
     """
 
     def supports_create_table_like(self) -> bool:
-        """Whether CREATE TABLE ... LIKE is supported.
+        """Whether copy-by-source-table is supported.
 
-        ClickHouse supports copying table structure with LIKE syntax.
+        ClickHouse expresses structure copy with ``AS <source>`` (not LIKE).
         """
+        ...
+
+    def supports_create_or_replace_table(self) -> bool:
+        """Whether CREATE OR REPLACE TABLE is supported."""
         ...
 
     def supports_inline_index(self) -> bool:

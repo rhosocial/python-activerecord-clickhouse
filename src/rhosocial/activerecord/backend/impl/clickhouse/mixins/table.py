@@ -26,6 +26,9 @@ class ClickHouseTableMixin:
     def supports_create_table_like(self) -> bool:
         return True
 
+    def supports_create_or_replace_table(self) -> bool:
+        return True
+
     def supports_inline_index(self) -> bool:
         return True
 
@@ -39,7 +42,16 @@ class ClickHouseTableMixin:
         """Format CREATE TABLE statement for ClickHouse."""
         all_params: List[Any] = []
 
+        options_part = ""
+        table_options = getattr(expr, "table_options", None)
+        if table_options is not None:
+            options_sql, options_params = table_options.to_sql()
+            if options_sql:
+                options_part = options_sql
+            all_params.extend(options_params)
         parts = ["CREATE"]
+        if options_part:
+            parts.append(options_part)
         if expr.temporary:
             parts.append("TEMPORARY")
         parts.append("TABLE")
