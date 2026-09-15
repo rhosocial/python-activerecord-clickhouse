@@ -119,3 +119,22 @@ class TestClickHouseCreateTableLike:
         assert "`name`" in sql
         assert "PRIMARY KEY" in sql
         assert "NOT NULL" in sql
+
+
+class TestClickHouseCreateTableOptions:
+    """ClickHouse CREATE OR REPLACE TABLE via CreateTableOptions."""
+
+    def test_create_or_replace(self):
+        from rhosocial.activerecord.backend.expression import CreateTableOptions
+
+        dialect = ClickHouseDialect()
+        expr = CreateTableExpression(
+            dialect,
+            table="t",
+            columns=[],
+            table_options=CreateTableOptions(dialect, or_replace=True),
+        )
+        sql, params = expr.to_sql()
+        assert sql.startswith("CREATE OR REPLACE TABLE `t`")
+        assert params == ()
+
