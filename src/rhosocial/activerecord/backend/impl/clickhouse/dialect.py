@@ -48,7 +48,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     FilterClauseMixin,
     WindowFunctionMixin,
     JSONMixin,
-    ReturningMixin,
     AdvancedGroupingMixin,
     ArrayMixin,
     ExplainMixin,
