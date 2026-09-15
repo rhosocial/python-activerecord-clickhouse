@@ -159,7 +159,6 @@ class ClickHouseDialect(
     WindowFunctionMixin,
     ClickHouseJSONFunctionMixin,
     JSONMixin,
-    ReturningMixin,
     ClickHouseGroupingMixin,
     AdvancedGroupingMixin,
     ClickHouseArrayMixin,
