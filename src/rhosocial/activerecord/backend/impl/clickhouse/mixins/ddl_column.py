@@ -25,6 +25,10 @@ class ClickHouseDDLColumnMixin:
         """Whether DROP CONSTRAINT IF EXISTS is supported."""
         return False
 
+    def supports_generated_columns(self) -> bool:
+        """Whether generated columns are supported (alias for protocol)."""
+        return False
+
     def format_add_column_action(self, action) -> Tuple[str, tuple]:
         column_sql, column_params = self.format_column_definition(action.column)
         parts = []
