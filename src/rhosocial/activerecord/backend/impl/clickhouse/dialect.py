@@ -392,7 +392,7 @@ class ClickHouseDialect(
     #   table-constraint change also rebuilds instead of emitting actions
     #   that would raise on render.
 
-    def _supports_alter_column_type(self) -> bool:
+    def supports_alter_column_type(self) -> bool:
         """ClickHouse supports in-place type changes via MODIFY COLUMN."""
         return True
 
@@ -402,11 +402,11 @@ class ClickHouseDialect(
 
         return ModifyColumn(self, column=new_col)
 
-    def _supports_alter_column_properties(self) -> bool:
+    def supports_alter_column_properties(self) -> bool:
         """No ``ALTER COLUMN SET/DROP DEFAULT`` / ``SET/DROP NOT NULL`` in ClickHouse."""
         return False
 
-    def _supports_alter_table_index_actions(self) -> bool:
+    def supports_alter_table_index_actions(self) -> bool:
         """No traditional indexes; skipping indexes cannot use ADD/DROP INDEX actions."""
         return False
 

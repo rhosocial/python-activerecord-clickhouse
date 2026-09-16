@@ -1,5 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/dql.py
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.core import Column
 
 
 class ClickHouseDQLMixin:
@@ -13,7 +16,7 @@ class ClickHouseDQLMixin:
         """ClickHouse does not support explicit NULLS FIRST/LAST ordering."""
         return False
 
-    def format_column(self, expr) -> Tuple[str, Tuple]:
+    def format_column(self, expr: "Column") -> Tuple[str, tuple]:
         """Format column reference for ClickHouse.
 
         ClickHouse uses database-qualified references (db.table.column) rather

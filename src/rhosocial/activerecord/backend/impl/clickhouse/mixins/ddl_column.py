@@ -29,6 +29,12 @@ class ClickHouseDDLColumnMixin:
         """Whether generated columns are supported (alias for protocol)."""
         return False
 
+    def format_add_table_constraint_action(self, action: Any) -> Tuple[str, tuple]:
+        raise UnsupportedFeatureError(
+            self.name, "ADD CONSTRAINT",
+            suggestion="ClickHouse does not support table constraints."
+        )
+
     def format_add_column_action(self, action) -> Tuple[str, tuple]:
         column_sql, column_params = self.format_column_definition(action.column)
         parts = []
