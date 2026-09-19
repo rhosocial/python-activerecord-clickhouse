@@ -204,7 +204,10 @@ class TestClickHouseDDLFeatures:
             ORDER BY id
             TTL created_at + INTERVAL 30 DAY
         """)
-        # Use a recent timestamp so the row is not expired
-        backend.execute("INSERT INTO test_ch_ttl VALUES (%s, %s)", (1, "2026-08-19 00:00:00"))
+        # Use a current timestamp so the row is not expired by the 30-day TTL
+        from datetime import datetime
+
+        created_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        backend.execute("INSERT INTO test_ch_ttl VALUES (%s, %s)", (1, created_at))
         assert backend.fetch_one("SELECT id FROM test_ch_ttl")["id"] == 1
         backend.execute("DROP TABLE test_ch_ttl")
