@@ -156,21 +156,21 @@ class TestTableMixin:
         assert "ORDER BY id" in result
         assert "'MergeTree()'" not in result
 
-    def test_format_inline_index(self, dialect):
+    def test_format_index_definition(self, dialect):
         from types import SimpleNamespace
         idx = SimpleNamespace(unique=False, name="idx1", columns=["a", "b"], type="minmax")
-        result, params = dialect.format_inline_index(idx)
+        result, params = dialect.format_index_definition(idx)
         assert "INDEX" in result
         assert "idx1" in result
         assert "a" in result and "b" in result
         assert "minmax" in result
 
-    def test_format_inline_index_unique_raises(self, dialect):
+    def test_format_index_definition_unique_raises(self, dialect):
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
         from types import SimpleNamespace
         idx = SimpleNamespace(unique=True, name="idx1", columns=["a"], type=None)
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_inline_index(idx)
+            dialect.format_index_definition(idx)
 
     def test_format_table_constraint_primary_key(self, dialect):
         from rhosocial.activerecord.backend.expression.statements import TableConstraintType
