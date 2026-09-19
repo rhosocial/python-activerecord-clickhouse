@@ -23,6 +23,7 @@ set) are intentionally **not** exported: ClickHouse does not support them and
 the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 """
 
+from .index import ClickHouseIndexDefinition
 from .json import (
     ClickHouseJSONExtractExpression,
     ClickHouseJSONObjectExpression,
@@ -127,6 +128,8 @@ from .types import (
 )
 
 __all__ = [
+    # Index expressions
+    "ClickHouseIndexDefinition",
     # JSON expressions
     "ClickHouseJSONExtractExpression",
     "ClickHouseJSONObjectExpression",

@@ -5,7 +5,6 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-        IndexDefinition,
         TableConstraint,
     )
 
@@ -111,27 +110,6 @@ class ClickHouseDDLColumnMixin:
             )
 
         return ' '.join(parts), tuple(params)
-
-    def format_inline_index(self, idx_def: "IndexDefinition") -> str:
-        """Format an inline index definition (ClickHouse-specific)."""
-        parts = []
-
-        if idx_def.unique:
-            raise UnsupportedFeatureError(
-                self.name, "UNIQUE index",
-                suggestion="ClickHouse cannot enforce unique indexes."
-            )
-
-        parts.append("INDEX")
-        parts.append(self.format_identifier(idx_def.name))
-        cols_str = ', '.join(self.format_identifier(c) for c in idx_def.columns)
-        parts.append(cols_str)
-        parts.append("TYPE minmax GRANULARITY 1")
-
-        if idx_def.type:
-            parts.append(f"USING {idx_def.type}")
-
-        return ' '.join(parts)
 
     def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
         """

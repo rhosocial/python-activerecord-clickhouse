@@ -387,7 +387,7 @@ class ClickHouseDialect(
     #   indexes, which require ``TYPE ... GRANULARITY ...`` clauses the
     #   generic ``ADD INDEX`` action cannot express. Index changes rebuild;
     #   the recreated table renders skip indexes inline via
-    #   :meth:`format_inline_index`.
+    #   :meth:`format_index_definition`.
     # - ``ALTER TABLE ADD/DROP CONSTRAINT`` is unsupported, so any named
     #   table-constraint change also rebuilds instead of emitting actions
     #   that would raise on render.

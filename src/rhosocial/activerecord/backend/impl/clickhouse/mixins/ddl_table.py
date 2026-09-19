@@ -69,7 +69,7 @@ class ClickHouseTableMixin:
             all_params.extend(const_params)
 
         for idx_def in expr.indexes:
-            idx_sql, idx_params = self.format_inline_index(idx_def)
+            idx_sql, idx_params = self.format_index_definition(idx_def)
             if idx_sql:
                 column_parts.append(idx_sql)
 
@@ -182,22 +182,29 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(params)
 
-    def format_inline_index(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
-        """Format an inline INDEX definition within CREATE TABLE (ClickHouse-specific)."""
-        parts = []
+    def format_index_definition(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
+        """Format an inline data-skipping INDEX definition (ClickHouse-specific).
+
+        Renders ``INDEX <name> (<columns>) TYPE <type> GRANULARITY <n>``; the
+        granularity is taken from :class:`ClickHouseIndexDefinition` and defaults
+        to 1 for a plain ``IndexDefinition``.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        from ..expression.index import ClickHouseIndexDefinition
+
         if idx_def.unique:
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(
                 self.name, "UNIQUE index",
                 suggestion="ClickHouse cannot enforce unique indexes."
             )
-        parts.append("INDEX")
-        parts.append(self.format_identifier(idx_def.name))
+        parts = ["INDEX", self.format_identifier(idx_def.name)]
         cols_str = ", ".join(self.format_identifier(c) for c in idx_def.columns)
         parts.append(f"({cols_str})")
-        # ClickHouse requires TYPE clause for inline indexes; default to minmax
         idx_type = idx_def.type if idx_def.type else "minmax"
         parts.append(f"TYPE {idx_type}")
+        granularity = idx_def.granularity if isinstance(idx_def, ClickHouseIndexDefinition) else 1
+        parts.append(f"GRANULARITY {granularity}")
         return " ".join(parts), ()
 
     def format_storage_options(self, expr: "StorageOptionsExpression") -> Tuple[str, tuple]:

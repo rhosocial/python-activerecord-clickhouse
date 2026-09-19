@@ -303,13 +303,6 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Whether CREATE OR REPLACE TABLE is supported."""
         ...
 
-    def supports_inline_index(self) -> bool:
-        """Whether inline index definitions are supported.
-
-        ClickHouse allows INDEX/KEY definitions within CREATE TABLE.
-        """
-        ...
-
     def supports_storage_engine_option(self) -> bool:
         """Whether ENGINE option is supported.
 
@@ -348,8 +341,8 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Format a table-level constraint."""
         ...
 
-    def format_inline_index(self, idx_def: Any) -> Tuple[str, tuple]:
-        """Format inline INDEX definition within CREATE TABLE."""
+    def format_index_definition(self, idx_def: Any) -> Tuple[str, tuple]:
+        """Format an inline data-skipping INDEX definition within CREATE TABLE."""
         ...
 
     def format_storage_options(self, expr: Any) -> Tuple[str, tuple]:
