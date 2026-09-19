@@ -12,6 +12,10 @@ class ClickHouseIndexMixin:
         """Whether DROP INDEX is supported."""
         return True
 
+    def supports_drop_index_on_table(self) -> bool:
+        """ClickHouse drops indexes by name (no ON <table> suffix)."""
+        return False
+
     def supports_unique_index(self) -> bool:
         """Whether UNIQUE indexes are supported."""
         return False  # ClickHouse cannot enforce uniqueness on indexes

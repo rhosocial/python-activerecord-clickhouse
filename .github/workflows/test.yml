@@ -70,7 +70,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord
-          ref: feature/parameter-inline
+          ref: feature/activerecord-derived-ddl
           path: _activerecord
 
       - name: Check out testsuite (feature branch)
