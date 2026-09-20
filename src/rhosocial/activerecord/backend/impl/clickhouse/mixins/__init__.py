@@ -44,6 +44,7 @@ from .join import ClickHouseJoinMixin
 from .set_operation import ClickHouseSetOperationMixin
 from .dql import ClickHouseDQLMixin
 from .view import ClickHouseViewMixin
+from .ddl_database import ClickHouseDatabaseMixin
 from .schema import ClickHouseSchemaMixin
 from .index import ClickHouseIndexMixin
 from .sequence import ClickHouseSequenceMixin
@@ -97,6 +98,7 @@ __all__ = [
     "ClickHouseDQLMixin",
     "ClickHouseViewMixin",
     "ClickHouseSchemaMixin",
+    "ClickHouseDatabaseMixin",
     "ClickHouseIndexMixin",
     "ClickHouseSequenceMixin",
     "ClickHouseConstraintMixin",
