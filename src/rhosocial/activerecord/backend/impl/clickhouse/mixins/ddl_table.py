@@ -130,7 +130,16 @@ class ClickHouseTableMixin:
         return " ".join(parts), ()
 
     def format_column_definition(self, col_def: "ColumnDefinition") -> Tuple[str, tuple]:
-        """Format a single column definition with ClickHouse-specific syntax."""
+        """Format a single column definition with ClickHouse-specific syntax.
+
+        Accepts both the generic ``ColumnDefinition`` and the ClickHouse
+        ``ClickHouseColumnDefinition``; the latter's ClickHouse-only attributes
+        (``codec`` / ``materialized`` / ``alias`` / ``ttl``) are rendered here.
+        """
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.column import (
+            ClickHouseColumnDefinition,
+        )
+
         type_sql, type_params = col_def.data_type.to_sql()
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
@@ -147,6 +156,22 @@ class ClickHouseTableMixin:
                     self.name, "AUTO_INCREMENT column",
                     suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
                 )
+
+        if isinstance(col_def, ClickHouseColumnDefinition):
+            if col_def.materialized is not None:
+                mat_sql, mat_params = col_def.materialized.to_sql()
+                parts.append(f"MATERIALIZED {mat_sql}")
+                params.extend(mat_params)
+            if col_def.alias is not None:
+                alias_sql, alias_params = col_def.alias.to_sql()
+                parts.append(f"ALIAS {alias_sql}")
+                params.extend(alias_params)
+            if col_def.codec:
+                parts.append(f"CODEC({', '.join(col_def.codec)})")
+            if col_def.ttl is not None:
+                ttl_sql, ttl_params = col_def.ttl.to_sql()
+                parts.append(f"TTL {ttl_sql}")
+                params.extend(ttl_params)
 
         if col_def.comment:
             escaped_comment = self._escape_sql_string(col_def.comment)
