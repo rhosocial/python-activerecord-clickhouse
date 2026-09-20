@@ -107,9 +107,8 @@ create_expr = CreateTableExpression(
     columns=columns,
     indexes=indexes,
     if_not_exists=True,
-    dialect_options={
-        "engine": "MergeTree()",
-    },
+    # NOTE: ClickHouse table engines are supplied through the table-engine
+    # layer (storage options), not a dialect_options bag.
 )
 
 sql, params = create_expr.to_sql()
@@ -141,7 +140,7 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. Use ColumnDefinition with ClickHouse column types (UInt32, String, etc.)
-# 2. ClickHouse dialect_options supports the 'engine' key (e.g. MergeTree())
+# 2. ClickHouse table engines are supplied through the table-engine layer
 # 3. IndexDefinition creates inline indexes within CREATE TABLE
 # 4. Use current_timestamp(dialect) for SQL niladic functions (no parentheses)
 # 5. Use introspector.get_columns() to verify table structure

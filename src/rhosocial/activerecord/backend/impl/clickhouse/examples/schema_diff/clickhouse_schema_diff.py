@@ -69,7 +69,7 @@ expr = CreateTableExpression(
         ColumnDefinition(dialect, "message", ClickHouseStringType(dialect)),
         ColumnDefinition(dialect, "value", ClickHouseDecimalType(dialect, precision=10, scale=2)),
     ],
-    dialect_options={"engine": "MergeTree()", "order_by": "id"},
+    # NOTE: table engines/ORDER BY are supplied through the table-engine layer.
 )
 sql, params = expr.to_sql()
 backend.execute(sql, params)
