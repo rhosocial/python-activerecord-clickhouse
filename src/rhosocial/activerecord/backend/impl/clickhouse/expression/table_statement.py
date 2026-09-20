@@ -10,7 +10,7 @@ ClickHouse 8.0+ supports two simplified query forms:
 row list be used as a table value constructor.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -25,7 +25,6 @@ class ClickHouseBaseTableStatement(BaseExpression):
         order_by: Optional list of column names for the ORDER BY clause.
         limit: Optional LIMIT row count.
         offset: Optional OFFSET row count.
-        dialect_options: Additional ClickHouse-specific options.
     """
 
     def __init__(
@@ -35,13 +34,11 @@ class ClickHouseBaseTableStatement(BaseExpression):
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.order_by: List[str] = list(order_by or [])
         self.limit: Optional[int] = limit
         self.offset: Optional[int] = offset
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def _validate_common(self) -> None:
         if self.limit is not None and self.limit < 0:
@@ -61,14 +58,12 @@ class ClickHouseTableExpression(ClickHouseBaseTableStatement):
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             dialect,
             order_by=order_by,
             limit=limit,
             offset=offset,
-            dialect_options=dialect_options,
         )
         self.table: str = table
 
@@ -95,14 +90,12 @@ class ClickHouseValuesExpression(ClickHouseBaseTableStatement):
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             dialect,
             order_by=order_by,
             limit=limit,
             offset=offset,
-            dialect_options=dialect_options,
         )
         self.rows: List[List[Any]] = [list(row) for row in rows]
 

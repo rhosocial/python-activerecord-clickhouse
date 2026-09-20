@@ -22,7 +22,7 @@ map cleanly to the SQL standard DDL/DML layer:
 """
 
 from enum import Enum
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -87,12 +87,10 @@ class ClickHouseFlushExpression(BaseExpression):
         options: List[FlushOption],
         *,
         no_write_to_binlog: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.options: List[FlushOption] = list(options)
         self.no_write_to_binlog: bool = no_write_to_binlog
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         if not strict:
@@ -112,12 +110,9 @@ class ClickHouseResetExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         option: ResetOption,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.option: ResetOption = option
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -132,14 +127,11 @@ class ClickHouseCacheIndexExpression(BaseExpression):
         dialect: "SQLDialectBase",
         cache_entries: List[Dict[str, Any]],
         key_cache: str,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         # Each entry: {"table": name, "indexes": [names]} (indexes optional)
         self.cache_entries: List[Dict[str, Any]] = list(cache_entries)
         self.key_cache: str = key_cache
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -153,12 +145,9 @@ class ClickHouseLoadIndexIntoCacheExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         cache_entries: List[Dict[str, Any]],
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.cache_entries: List[Dict[str, Any]] = list(cache_entries)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -172,12 +161,9 @@ class ClickHouseInstallComponentExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         names: List[str],
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.names: List[str] = list(names)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -191,12 +177,9 @@ class ClickHouseUninstallComponentExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         names: List[str],
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.names: List[str] = list(names)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -211,13 +194,10 @@ class ClickHouseInstallPluginExpression(BaseExpression):
         dialect: "SQLDialectBase",
         plugin_name: str,
         soname: str,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.plugin_name: str = plugin_name
         self.soname: str = soname
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -231,12 +211,9 @@ class ClickHouseUninstallPluginExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         plugin_name: str,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.plugin_name: str = plugin_name
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -263,7 +240,6 @@ class ClickHouseCloneExpression(BaseExpression):
         password: Optional[str] = None,
         from_data_directory: Optional[str] = None,
         to_data_directory: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.from_user = from_user
@@ -272,7 +248,6 @@ class ClickHouseCloneExpression(BaseExpression):
         self.password = password
         self.from_data_directory = from_data_directory
         self.to_data_directory = to_data_directory
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -285,11 +260,8 @@ class ClickHouseRestartExpression(BaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -303,12 +275,9 @@ class ClickHouseBinlogExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         encoded: str,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.encoded: str = encoded
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -323,13 +292,10 @@ class ClickHouseHandlerOpenExpression(BaseExpression):
         dialect: "SQLDialectBase",
         table: Any,
         alias: Optional[str] = None,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.table = table
         self.alias = alias
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -349,7 +315,6 @@ class ClickHouseHandlerReadExpression(BaseExpression):
         key_value: Optional[Any] = None,
         where: Optional[Any] = None,
         limit: Optional[int] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.table = table
@@ -358,7 +323,6 @@ class ClickHouseHandlerReadExpression(BaseExpression):
         self.key_value = key_value
         self.where = where
         self.limit = limit
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -372,12 +336,9 @@ class ClickHouseHandlerCloseExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         table: Any,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.table = table
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -391,12 +352,9 @@ class ClickHouseDoExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         expressions: List[Any],
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.expressions: List[Any] = list(expressions)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -411,13 +369,10 @@ class ClickHouseKillExpression(BaseExpression):
         dialect: "SQLDialectBase",
         processlist_id: int,
         target: KillTarget = KillTarget.CONNECTION,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.processlist_id: int = processlist_id
         self.target: KillTarget = target
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -430,11 +385,8 @@ class ClickHouseShutdownExpression(BaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -448,12 +400,9 @@ class ClickHouseHelpExpression(BaseExpression):
         self,
         dialect: "SQLDialectBase",
         topic: str,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.topic: str = topic
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -481,13 +430,11 @@ class ClickHouseCreateUserExpression(BaseExpression):
         *,
         if_not_exists: bool = False,
         identified_by: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_not_exists: bool = if_not_exists
         self.identified_by: Optional[str] = identified_by
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -503,12 +450,10 @@ class ClickHouseDropUserExpression(BaseExpression):
         accounts: List[AccountSpec],
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.accounts: List[AccountSpec] = list(accounts)
         self.if_exists: bool = if_exists
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -542,14 +487,12 @@ class ClickHouseGrantExpression(BaseExpression):
         *,
         on_object: Optional[str] = None,
         with_grant_option: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.privileges: List[GrantPrivilege] = list(privileges)
         self.accounts: List[AccountSpec] = list(accounts)
         self.on_object: Optional[str] = on_object  # default "*.*"
         self.with_grant_option: bool = with_grant_option
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:
@@ -566,13 +509,11 @@ class ClickHouseRevokeExpression(BaseExpression):
         accounts: List[AccountSpec],
         *,
         on_object: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.privileges: List[GrantPrivilege] = list(privileges)
         self.accounts: List[AccountSpec] = list(accounts)
         self.on_object: Optional[str] = on_object
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     @property
     def format_method(self) -> str:

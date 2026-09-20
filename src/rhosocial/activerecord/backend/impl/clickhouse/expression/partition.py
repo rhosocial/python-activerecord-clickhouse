@@ -176,7 +176,6 @@ class ClickHousePartitionDefinition(PartitionDefinition):
     Raises:
         ValueError: if both ``less_than`` and ``in_values`` are provided,
                     or if neither is provided.
-        TypeError: if ``dialect_options`` is not a dict when provided.
     """
 
     subpartition_definitions: Optional[Sequence["ClickHouseSubpartitionDefinition"]] = None

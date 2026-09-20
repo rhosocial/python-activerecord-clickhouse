@@ -12,7 +12,7 @@ ClickHouse supports importing an XML document into a table:
 """
 
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -63,7 +63,6 @@ class ClickHouseLoadXMLEXpression(BaseExpression):
         rows_identified_by: Optional[str] = None,
         ignore_count: Optional[int] = None,
         ignore_unit: str = "LINES",
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.file_path: str = file_path
@@ -75,7 +74,6 @@ class ClickHouseLoadXMLEXpression(BaseExpression):
         self.rows_identified_by: Optional[str] = rows_identified_by
         self.ignore_count: Optional[int] = ignore_count
         self.ignore_unit: str = ignore_unit
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         """Validate expression parameters.

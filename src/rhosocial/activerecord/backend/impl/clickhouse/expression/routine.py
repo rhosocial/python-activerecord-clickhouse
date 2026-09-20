@@ -14,7 +14,7 @@ function and is intentionally NOT represented here because it is an
 installation-time administrative action (see admin expressions instead).
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, List, Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -38,13 +38,11 @@ class ClickHouseRoutineExpression(BaseExpression):
         *,
         params: Optional[List[Any]] = None,
         body: Optional[str] = None,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.name: Any = name
         self.params: List[Any] = list(params or [])
         self.body: Optional[str] = body
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         if not strict:
@@ -79,9 +77,8 @@ class ClickHouseDropProcedureExpression(ClickHouseRoutineExpression):
         name: Any,
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(dialect, name, dialect_options=dialect_options)
+        super().__init__(dialect, name)
         self.if_exists: bool = if_exists
 
     @property
@@ -101,14 +98,12 @@ class ClickHouseCreateFunctionExpression(ClickHouseRoutineExpression):
         params: Optional[List[Any]] = None,
         body: Optional[str] = None,
         deterministic: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(
             dialect,
             name,
             params=params,
             body=body,
-            dialect_options=dialect_options,
         )
         self.returns: str = returns
         self.deterministic: bool = deterministic
@@ -127,9 +122,8 @@ class ClickHouseDropFunctionExpression(ClickHouseRoutineExpression):
         name: Any,
         *,
         if_exists: bool = False,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
-        super().__init__(dialect, name, dialect_options=dialect_options)
+        super().__init__(dialect, name)
         self.if_exists: bool = if_exists
 
     @property
@@ -150,13 +144,10 @@ class ClickHouseCallExpression(BaseExpression):
         dialect: "SQLDialectBase",
         name: Any,
         args: Optional[List[Any]] = None,
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.name: Any = name
         self.args: List[Any] = list(args or [])
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         if not strict:

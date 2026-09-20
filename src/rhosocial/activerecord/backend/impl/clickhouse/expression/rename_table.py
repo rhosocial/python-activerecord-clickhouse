@@ -10,7 +10,7 @@ single table. The statement is atomic: all renames either succeed or fail
 together.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -23,19 +23,15 @@ class ClickHouseRenameTableExpression(BaseExpression):
 
     Attributes:
         renames: Sequence of ``(old_name, new_name)`` table name pairs.
-        dialect_options: Additional ClickHouse-specific options.
     """
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
         renames: List[Tuple[str, str]],
-        *,
-        dialect_options: Optional[Dict[str, Any]] = None,
     ):
         super().__init__(dialect)
         self.renames: List[Tuple[str, str]] = list(renames)
-        self.dialect_options: Dict[str, Any] = dialect_options or {}
 
     def validate(self, strict: bool = True) -> None:
         """Validate the rename pair list.
