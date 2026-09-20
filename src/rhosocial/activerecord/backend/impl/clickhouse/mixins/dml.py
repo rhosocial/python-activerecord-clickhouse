@@ -49,12 +49,12 @@ class ClickHouseDMLOperationMixin:
         if self.strict_validation:
             expr.validate(strict=True)
 
-        if expr.dialect_options.get("replace", False):
+        if getattr(expr, "replace", False):
             raise UnsupportedFeatureError(
                 self.name, "REPLACE INTO",
                 suggestion="ClickHouse does not support REPLACE INTO."
             )
-        if expr.dialect_options.get("ignore", False):
+        if getattr(expr, "ignore", False):
             raise UnsupportedFeatureError(
                 self.name, "INSERT IGNORE",
                 suggestion="ClickHouse does not support INSERT IGNORE."

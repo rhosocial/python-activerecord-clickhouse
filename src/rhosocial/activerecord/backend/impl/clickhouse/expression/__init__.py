@@ -25,6 +25,11 @@ the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 
 from .alter_column import ClickHouseAddColumn
 from .column import ClickHouseColumnDefinition, ClickHouseColumnOptions
+from .database import (
+    ClickHouseCreateDatabaseExpression,
+    ClickHouseDropDatabaseExpression,
+)
+from .dml import ClickHouseInsertExpression
 from .index import ClickHouseIndexDefinition
 from .json import (
     ClickHouseJSONExtractExpression,
@@ -135,6 +140,10 @@ __all__ = [
     "ClickHouseAddColumn",
     "ClickHouseColumnDefinition",
     "ClickHouseColumnOptions",
+    # Database / DML expressions
+    "ClickHouseCreateDatabaseExpression",
+    "ClickHouseDropDatabaseExpression",
+    "ClickHouseInsertExpression",
     # JSON expressions
     "ClickHouseJSONExtractExpression",
     "ClickHouseJSONObjectExpression",

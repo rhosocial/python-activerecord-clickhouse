@@ -54,10 +54,10 @@ class ClickHouseDatabaseMixin:
         if expr.comment:
             escaped_comment = expr.comment.replace("'", "''")
             parts.append(f"COMMENT '{escaped_comment}'")
-        engine = expr.dialect_options.get("engine")
+        engine = getattr(expr, "engine", None)
         if engine:
             parts.append(f"ENGINE = {engine}")
-        on_cluster = expr.dialect_options.get("on_cluster")
+        on_cluster = getattr(expr, "on_cluster", None)
         if on_cluster:
             parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
         return " ".join(parts), ()
@@ -69,7 +69,7 @@ class ClickHouseDatabaseMixin:
         if expr.if_exists:
             parts.append("IF EXISTS")
         parts.append(self.format_identifier(expr.database_name))
-        sync = expr.dialect_options.get("sync", False)
+        sync = getattr(expr, "sync", False)
         if sync:
             parts.append("SYNC")
         return " ".join(parts), ()
