@@ -15,12 +15,16 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 from math import isfinite
-from typing import Any, Dict, List, Optional, Sequence, TYPE_CHECKING, Union
+from typing import Any, List, Optional, Sequence, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
 from rhosocial.activerecord.backend.expression.core import TableExpression
-from rhosocial.activerecord.backend.expression.statements import PartitionClause
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionClause,
+    PartitionDefinition,
+    SubpartitionDefinition,
+)
 
 
 class ClickHousePartitionStrategy(Enum):
@@ -55,19 +59,13 @@ class ClickHouseSubpartitionStrategy(Enum):
 
 
 @dataclass
-class ClickHouseSubpartitionDefinition:
-    """A single named subpartition within a partition definition.
+class ClickHouseSubpartitionDefinition(SubpartitionDefinition):
+    """Dead-code MySQL subpartition definition, derived from the generic base.
 
-    Used when individual subpartitions need explicit names or distinct
-    storage options. When omitted, ClickHouse applies the template from the
-    ``SUBPARTITION BY`` clause automatically.
-
-    Raises:
-        ValueError: if name is empty or whitespace-only.
+    ClickHouse does not support MySQL declarative subpartitioning. Retained
+    for interface compatibility only; ``to_sql()`` paths raise
+    ``UnsupportedFeatureError``.
     """
-
-    name: str
-    dialect_options: Optional[Dict[str, Any]] = None
 
 
 class ClickHouseSubpartitionClause(BaseExpression):
@@ -167,12 +165,13 @@ class ClickHousePartitionValue(BaseExpression):
 
 
 @dataclass
-class ClickHousePartitionDefinition:
-    """A MySQL ``PARTITION ... VALUES ...`` definition.
+class ClickHousePartitionDefinition(PartitionDefinition):
+    """Dead-code MySQL ``PARTITION ... VALUES ...`` definition.
 
-    MySQL declarative partitioning is not supported by ClickHouse. Retained
-    for interface compatibility only; partition boundaries are expressed via
-    the ``PARTITION BY`` expression in ``CREATE TABLE``.
+    ClickHouse does not support MySQL declarative partitioning; boundaries are
+    expressed via the ``PARTITION BY`` expression in ``CREATE TABLE``. Retained
+    for interface compatibility only; the formatter raises
+    ``UnsupportedFeatureError``. Derives from the generic base declaration.
 
     Raises:
         ValueError: if both ``less_than`` and ``in_values`` are provided,
@@ -180,22 +179,12 @@ class ClickHousePartitionDefinition:
         TypeError: if ``dialect_options`` is not a dict when provided.
     """
 
-    name: str
-    less_than: Optional[Sequence[BaseExpression]] = None
-    in_values: Optional[Sequence[Union[BaseExpression, Sequence[BaseExpression]]]] = None
     subpartition_definitions: Optional[Sequence["ClickHouseSubpartitionDefinition"]] = None
-    dialect_options: Optional[dict] = None
 
     def __post_init__(self) -> None:
-        if self.less_than is not None and self.in_values is not None:
-            raise ValueError("less_than and in_values are mutually exclusive")
+        super().__post_init__()
         if self.less_than is None and self.in_values is None:
             raise ValueError("partition definition requires less_than or in_values")
-        if self.dialect_options is not None and not isinstance(self.dialect_options, dict):
-            raise TypeError(
-                "dialect_options must be dict or None, "
-                f"got {type(self.dialect_options).__name__}"
-            )
 
 
 class ClickHousePartitionClause(PartitionClause):
