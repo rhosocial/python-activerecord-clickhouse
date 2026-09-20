@@ -467,8 +467,8 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         """Format a single ``SUBPARTITION name ...`` clause.
 
         Args:
-            definition: ClickHouseSubpartitionDefinition with name and optional
-                        dialect_options.
+            definition: ClickHouseSubpartitionDefinition with name and typed
+                        partition options.
 
         Returns:
             Tuple of (SQL string, parameters tuple).
