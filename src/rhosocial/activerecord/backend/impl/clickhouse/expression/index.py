@@ -26,13 +26,11 @@ class ClickHouseIndexDefinition(IndexDefinition):
         *,
         type: Optional[str] = None,
         granularity: int = 1,
-        dialect_options: Optional[dict] = None,
     ):
         super().__init__(
             dialect,
             name=name,
             columns=columns,
             type=type,
-            dialect_options=dialect_options,
         )
         self.granularity = granularity
