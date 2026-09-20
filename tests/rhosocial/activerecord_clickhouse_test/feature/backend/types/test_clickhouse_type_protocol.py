@@ -103,89 +103,26 @@ class TestNamePrefix:
 
 # ── W1: __init__ forwards dialect_options ──────────────────────────────
 
-class TestDialectOptionsForwarding:
-    def test_simple_types_accept_dialect_options(self):
-        for cls in [ClickHouseInt8Type, ClickHouseStringType, ClickHouseBoolType,
-                    ClickHouseUUIDType, ClickHouseIPv4Type, ClickHouseJSONType]:
-            instance = cls(dialect_options={"custom": True})
-            assert instance.dialect_options == {"custom": True}
+class TestDialectOptionsRemoved:
+    def test_constructor_rejects_dialect_options(self):
+        with pytest.raises(TypeError):
+            ClickHouseDecimalType(precision=10, scale=2, dialect_options={"x": 1})
 
-    def test_decimal_forwards_dialect_options(self):
-        t = ClickHouseDecimalType(precision=10, scale=2, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_decimal32_forwards_dialect_options(self):
-        t = ClickHouseDecimal32Type(scale=4, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_decimal64_forwards_dialect_options(self):
-        t = ClickHouseDecimal64Type(scale=8, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_decimal128_forwards_dialect_options(self):
-        t = ClickHouseDecimal128Type(scale=18, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_fixed_string_forwards_dialect_options(self):
-        t = ClickHouseFixedStringType(length=10, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_datetime64_forwards_dialect_options(self):
-        t = ClickHouseDateTime64Type(precision=6, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_enum8_forwards_dialect_options(self):
-        t = ClickHouseEnum8Type(values=[("a", 1)], dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_enum16_forwards_dialect_options(self):
-        t = ClickHouseEnum16Type(values=[("a", 1)], dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_map_forwards_dialect_options(self):
-        t = ClickHouseMapType(
-            key_type=ClickHouseStringType(),
-            value_type=ClickHouseInt32Type(),
-            dialect_options={"x": 1},
-        )
-        assert t.dialect_options == {"x": 1}
 
-    def test_tuple_forwards_dialect_options(self):
-        t = ClickHouseTupleType(
-            element_types=[ClickHouseStringType(), ClickHouseInt32Type()],
-            dialect_options={"x": 1},
-        )
-        assert t.dialect_options == {"x": 1}
 
-    def test_nullable_forwards_dialect_options(self):
-        t = ClickHouseNullableType(inner_type=ClickHouseInt32Type(), dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_low_cardinality_forwards_dialect_options(self):
-        t = ClickHouseLowCardinalityType(inner_type=ClickHouseStringType(), dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_aggregate_function_forwards_dialect_options(self):
-        t = ClickHouseAggregateFunctionType(
-            function_name="sum", arg_types=[ClickHouseInt32Type()],
-            dialect_options={"x": 1},
-        )
-        assert t.dialect_options == {"x": 1}
 
-    def test_simple_aggregate_function_forwards_dialect_options(self):
-        t = ClickHouseSimpleAggregateFunctionType(
-            function_name="sum", arg_types=[ClickHouseInt32Type()],
-            dialect_options={"x": 1},
-        )
-        assert t.dialect_options == {"x": 1}
 
-    def test_geometry_forwards_dialect_options(self):
-        t = ClickHouseGeometryType(srid=4326, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
-    def test_vector_forwards_dialect_options(self):
-        t = ClickHouseVectorType(dim=128, dialect_options={"x": 1})
-        assert t.dialect_options == {"x": 1}
 
 
 # ── W1: _type_params replaces hand-written __eq__/__hash__ ────────────
@@ -200,13 +137,6 @@ class TestTypeParamsSemantics:
         assert hash(a) == hash(b)
         assert hash(a) != hash(c)
 
-    def test_decimal_dialect_options_affect_equality_not_hash(self):
-        a = ClickHouseDecimalType(precision=10, scale=2, dialect_options={"x": 1})
-        b = ClickHouseDecimalType(precision=10, scale=2, dialect_options={"x": 2})
-        c = ClickHouseDecimalType(precision=10, scale=2)
-        assert a != b  # different options
-        assert a != c  # one has options, other doesn't
-        assert hash(a) == hash(c)  # hash ignores options
 
     def test_fixed_string_equality(self):
         a = ClickHouseFixedStringType(length=10)

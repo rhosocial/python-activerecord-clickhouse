@@ -17,7 +17,7 @@ DDL definition expressions (``ColumnDefinition.data_type``).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple as TupleType
+from typing import List, Optional, Tuple as TupleType
 
 from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.expression.types.array import ArrayType
@@ -103,9 +103,8 @@ class ClickHouseDecimalType(DataType):
     precision: int
     scale: int
 
-    def __init__(self, dialect=None, *, precision: int, scale: int = 0,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, precision: int, scale: int = 0):
+        super().__init__(dialect)
         if not (1 <= precision <= 38):
             raise ValueError(
                 f"Decimal precision must be between 1 and 38, got {precision}"
@@ -128,9 +127,8 @@ class ClickHouseDecimal32Type(DataType):
 
     scale: int
 
-    def __init__(self, dialect=None, *, scale: int = 0,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, scale: int = 0):
+        super().__init__(dialect)
         if not (0 <= scale <= 38):
             raise ValueError(
                 f"Decimal32 scale must be between 0 and 38, got {scale}"
@@ -148,9 +146,8 @@ class ClickHouseDecimal64Type(DataType):
 
     scale: int
 
-    def __init__(self, dialect=None, *, scale: int = 0,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, scale: int = 0):
+        super().__init__(dialect)
         if not (0 <= scale <= 38):
             raise ValueError(
                 f"Decimal64 scale must be between 0 and 38, got {scale}"
@@ -168,9 +165,8 @@ class ClickHouseDecimal128Type(DataType):
 
     scale: int
 
-    def __init__(self, dialect=None, *, scale: int = 0,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, scale: int = 0):
+        super().__init__(dialect)
         if not (0 <= scale <= 38):
             raise ValueError(
                 f"Decimal128 scale must be between 0 and 38, got {scale}"
@@ -198,9 +194,8 @@ class ClickHouseFixedStringType(DataType):
 
     length: int
 
-    def __init__(self, dialect=None, *, length: int,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, length: int):
+        super().__init__(dialect)
         if length < 1:
             raise ValueError("FixedString length must be >= 1")
         self.length = length
@@ -238,9 +233,8 @@ class ClickHouseDateTime64Type(DataType):
 
     precision: int
 
-    def __init__(self, dialect=None, *, precision: int = 3,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, precision: int = 3):
+        super().__init__(dialect)
         if precision < 0 or precision > 9:
             raise ValueError("DateTime64 precision must be between 0 and 9")
         self.precision = precision
@@ -296,9 +290,8 @@ class ClickHouseEnum8Type(DataType):
 
     values: List[TupleType[str, int]]
 
-    def __init__(self, dialect=None, *, values: List[TupleType[str, int]],
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, values: List[TupleType[str, int]]):
+        super().__init__(dialect)
         if not values:
             raise ValueError("Enum8 must have at least one value")
         seen = set()
@@ -322,9 +315,8 @@ class ClickHouseEnum16Type(DataType):
 
     values: List[TupleType[str, int]]
 
-    def __init__(self, dialect=None, *, values: List[TupleType[str, int]],
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, values: List[TupleType[str, int]]):
+        super().__init__(dialect)
         if not values:
             raise ValueError("Enum16 must have at least one value")
         seen = set()
@@ -359,9 +351,8 @@ class ClickHouseMapType(DataType):
     key_type: DataType
     value_type: DataType
 
-    def __init__(self, dialect=None, *, key_type: DataType, value_type: DataType,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, key_type: DataType, value_type: DataType):
+        super().__init__(dialect)
         self.key_type = key_type
         self.value_type = value_type
 
@@ -378,9 +369,8 @@ class ClickHouseTupleType(DataType):
     element_names: Optional[List[str]] = None
 
     def __init__(self, dialect=None, *, element_types: List[DataType],
-                 element_names: Optional[List[str]] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+                 element_names: Optional[List[str]] = None):
+        super().__init__(dialect)
         if not element_types:
             raise ValueError("Tuple must have at least one element")
         if element_names and len(element_names) != len(element_types):
@@ -406,9 +396,8 @@ class ClickHouseNullableType(DataType):
 
     inner_type: DataType
 
-    def __init__(self, dialect=None, *, inner_type: DataType,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, inner_type: DataType):
+        super().__init__(dialect)
         self.inner_type = inner_type
 
     def _type_params(self) -> tuple:
@@ -422,9 +411,8 @@ class ClickHouseLowCardinalityType(DataType):
 
     inner_type: DataType
 
-    def __init__(self, dialect=None, *, inner_type: DataType,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, inner_type: DataType):
+        super().__init__(dialect)
         self.inner_type = inner_type
 
     def _type_params(self) -> tuple:
@@ -453,9 +441,8 @@ class ClickHouseAggregateFunctionType(DataType):
     function_name: str
     arg_types: List[DataType]
 
-    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType],
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType]):
+        super().__init__(dialect)
         self.function_name = function_name
         self.arg_types = list(arg_types)
 
@@ -471,9 +458,8 @@ class ClickHouseSimpleAggregateFunctionType(DataType):
     function_name: str
     arg_types: List[DataType]
 
-    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType],
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, function_name: str, arg_types: List[DataType]):
+        super().__init__(dialect)
         self.function_name = function_name
         self.arg_types = list(arg_types)
 
@@ -493,9 +479,8 @@ class ClickHouseGeometryType(DataType):
 
     srid: Optional[int] = None
 
-    def __init__(self, dialect=None, *, srid: Optional[int] = None,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, srid: Optional[int] = None):
+        super().__init__(dialect)
         self.srid = srid
 
     def _type_params(self) -> tuple:
@@ -555,9 +540,8 @@ class ClickHouseVectorType(DataType):
 
     dim: int
 
-    def __init__(self, dialect=None, *, dim: int,
-                 dialect_options: Optional[Dict[str, Any]] = None):
-        super().__init__(dialect, dialect_options=dialect_options)
+    def __init__(self, dialect=None, *, dim: int):
+        super().__init__(dialect)
         self.dim = dim
 
     def _type_params(self) -> tuple:
