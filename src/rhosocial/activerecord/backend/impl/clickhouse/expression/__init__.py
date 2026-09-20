@@ -23,6 +23,7 @@ set) are intentionally **not** exported: ClickHouse does not support them and
 the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 """
 
+from .alter_column import ClickHouseAddColumn
 from .column import ClickHouseColumnDefinition, ClickHouseColumnOptions
 from .index import ClickHouseIndexDefinition
 from .json import (
@@ -131,6 +132,7 @@ from .types import (
 __all__ = [
     # Index expressions
     "ClickHouseIndexDefinition",
+    "ClickHouseAddColumn",
     "ClickHouseColumnDefinition",
     "ClickHouseColumnOptions",
     # JSON expressions

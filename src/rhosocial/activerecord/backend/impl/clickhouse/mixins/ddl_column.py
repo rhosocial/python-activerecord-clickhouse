@@ -42,7 +42,7 @@ class ClickHouseDDLColumnMixin:
         else:
             parts.append("ADD COLUMN")
         parts.append(column_sql)
-        after = action.dialect_options.get("after")
+        after = getattr(action, "after", None)
         if after:
             parts.append(f"AFTER {self.format_identifier(after)}")
         return " ".join(parts), column_params
