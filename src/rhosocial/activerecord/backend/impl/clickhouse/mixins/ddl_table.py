@@ -85,9 +85,6 @@ class ClickHouseTableMixin:
         if table_options is not None and getattr(table_options, "comment", None):
             comment_sql, _ = self.format_table_comment(table_options.comment)
             parts.append(comment_sql)
-        elif "comment" in expr.dialect_options:
-            comment_sql, _ = self.format_table_comment(expr.dialect_options["comment"])
-            parts.append(comment_sql)
 
         if expr.partition is not None:
             partition_sql, partition_params = expr.partition.to_sql()
