@@ -67,6 +67,12 @@ class ClickHouseViewMixin:
         parts.append(f"AS {query_sql}")
 
         if expr.options and expr.options.check_option:
+            if not self.supports_view_check_option():
+                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+                raise UnsupportedFeatureError(
+                    self.name, "WITH CHECK OPTION",
+                    f"{self.name} does not support WITH CHECK OPTION.",
+                )
             check_option = expr.options.check_option.value
             parts.append(f"WITH {check_option} CHECK OPTION")
 
