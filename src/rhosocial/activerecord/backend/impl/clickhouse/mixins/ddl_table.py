@@ -154,6 +154,11 @@ class ClickHouseTableMixin:
                     suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
                 )
 
+        attr_sql, attr_params = self.format_column_attributes(col_def)
+        if attr_sql:
+            parts.append(attr_sql.strip())
+        params.extend(attr_params)
+
         if isinstance(col_def, ClickHouseColumnDefinition):
             if col_def.materialized is not None:
                 mat_sql, mat_params = col_def.materialized.to_sql()
