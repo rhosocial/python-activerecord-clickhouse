@@ -105,6 +105,7 @@ class TestClickHouseCapabilities:
         assert dialect.supports_lateral_join() is False
         assert dialect.supports_fulltext_index() is False
         assert dialect.supports_collate_expression() is False
+        assert dialect.supports_column_collation() is False
 
 
 class TestClickHouseSQLGeneration:

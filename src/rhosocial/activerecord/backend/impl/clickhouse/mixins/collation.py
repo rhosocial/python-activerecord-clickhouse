@@ -10,6 +10,16 @@ if TYPE_CHECKING:
 class ClickHouseCollationMixin:
     """ClickHouse collation validation."""
 
+    def supports_column_collation(self) -> bool:
+        """ClickHouse has no per-column collations.
+
+        ``COLLATE`` in a column definition is parsed only for MySQL
+        migration compatibility and is otherwise rejected with
+        ``NOT_IMPLEMENTED`` unless ``compatibility_ignore_collation_in_create_table``
+        is set; ``SHOW COLUMNS`` reports the collation as always ``NULL``.
+        """
+        return False
+
     def validate_collation_name(self, expr: "CollateExpression") -> str:
         """Validate ClickHouse collation names and return their SQL representation."""
         if expr.collation_options:
