@@ -47,10 +47,7 @@ class ClickHouseColumnDefinition(ColumnDefinition):
         constraints=None,
         comment: Optional[str] = None,
         generated_expression=None,
-        identity: Optional[str] = None,
-        identity_start: Optional[int] = None,
-        identity_increment: Optional[int] = None,
-        identity_clause=None,
+        attributes=None,
         *,
         codec: Optional[Sequence[str]] = None,
         materialized: Optional[BaseExpression] = None,
@@ -64,10 +61,7 @@ class ClickHouseColumnDefinition(ColumnDefinition):
             constraints=constraints,
             comment=comment,
             generated_expression=generated_expression,
-            identity=identity,
-            identity_start=identity_start,
-            identity_increment=identity_increment,
-            identity_clause=identity_clause,
+            attributes=attributes,
         )
         if materialized is not None and not isinstance(materialized, BaseExpression):
             raise TypeError("materialized must be a BaseExpression")
@@ -87,17 +81,12 @@ class ClickHouseColumnOptions(ColumnOptions):
     def __init__(
         self,
         *,
-        identity_start: Optional[int] = None,
-        identity_increment: Optional[int] = None,
         codec: Optional[Sequence[str]] = None,
         materialized: Optional[BaseExpression] = None,
         alias: Optional[BaseExpression] = None,
         ttl: Optional[BaseExpression] = None,
     ):
-        super().__init__(
-            identity_start=identity_start,
-            identity_increment=identity_increment,
-        )
+        super().__init__()
         if materialized is not None and not isinstance(materialized, BaseExpression):
             raise TypeError("materialized must be a BaseExpression")
         if alias is not None and not isinstance(alias, BaseExpression):
