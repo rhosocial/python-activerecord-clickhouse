@@ -52,6 +52,18 @@ class ClickHouseTableMixin:
 
     def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for ClickHouse."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        if expr.tablespace:
+            raise UnsupportedFeatureError(
+                self.name, "TABLESPACE",
+                "ClickHouse does not support table tablespaces.",
+            )
+        if expr.inherits:
+            raise UnsupportedFeatureError(
+                self.name, "table INHERITS",
+                "ClickHouse does not support table inheritance.",
+            )
         all_params: List[Any] = []
 
         options_part = ""
