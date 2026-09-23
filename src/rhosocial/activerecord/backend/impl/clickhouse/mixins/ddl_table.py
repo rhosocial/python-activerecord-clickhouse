@@ -30,6 +30,20 @@ class ClickHouseTableMixin:
     def supports_inline_index(self) -> bool:
         return True
 
+    def supports_table_comment(self) -> bool:
+        """Whether inline ``COMMENT 'text'`` on ``CREATE TABLE`` is supported.
+
+        ClickHouse renders the table comment as an inline clause (and the
+        column comment inside the column definition), so both capabilities
+        advertise True and the inline path is the rendering path.
+        """
+        return True
+
+    def supports_column_comment(self) -> bool:
+        """Whether inline ``COMMENT 'text'`` in a column definition is
+        supported. ClickHouse renders it natively."""
+        return True
+
     def supports_storage_engine_option(self) -> bool:
         return True
 
