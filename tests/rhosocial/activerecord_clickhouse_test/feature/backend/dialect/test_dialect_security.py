@@ -15,6 +15,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
     ColumnConstraintType,
 )
+from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.types import VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
     ClickHouseJSONTableExpression,
@@ -53,7 +54,7 @@ def test_clickhouse_format_column_definition_comment_string_escaping(dialect):
         dialect,
         "test_col",
         VarCharType(length=255, dialect=dialect),
-        comment="Comment with 'single quote'",
+        comment=ColumnCommentClause(dialect, "Comment with 'single quote'"),
     )
 
     sql, params = dialect.format_column_definition(col_def)
@@ -422,7 +423,7 @@ class TestClickHouseCreateTableCommentEscaping:
             table="test_table",
             columns=[],
             table_options=CreateTableOptions(
-                dialect, comment="Table's comment with 'quotes'"
+                dialect, comment=TableCommentClause(dialect, "Table's comment with 'quotes'")
             ),
         )
 
@@ -443,7 +444,7 @@ class TestClickHouseCreateTableCommentEscaping:
             dialect=dialect,
             table="test_table",
             columns=[],
-            table_options=CreateTableOptions(dialect, comment="Test\\value"),
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "Test\\value")),
         )
 
         sql, params = dialect.format_create_table_statement(expr)

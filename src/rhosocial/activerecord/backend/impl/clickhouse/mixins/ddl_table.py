@@ -96,9 +96,9 @@ class ClickHouseTableMixin:
                 all_params.extend(storage_params)
 
         table_options = getattr(expr, "table_options", None)
-        if table_options is not None and getattr(table_options, "comment", None):
-            comment_sql, _ = self.format_table_comment(table_options.comment)
-            parts.append(comment_sql)
+        if table_options is not None and getattr(table_options, "comment", None) is not None:
+            comment_sql, _ = self.format_table_comment_clause(table_options.comment)
+            parts.append(comment_sql.strip())
 
         if expr.partition is not None:
             partition_sql, partition_params = expr.partition.to_sql()
@@ -189,9 +189,9 @@ class ClickHouseTableMixin:
                 parts.append(f"TTL {ttl_sql}")
                 params.extend(ttl_params)
 
-        if col_def.comment:
-            escaped_comment = self._escape_sql_string(col_def.comment)
-            parts.append(f"COMMENT '{escaped_comment}'")
+        if col_def.comment is not None:
+            comment_sql, _ = self.format_column_comment_clause(col_def.comment)
+            parts.append(comment_sql.strip())
 
         return " ".join(parts), tuple(params)
 
