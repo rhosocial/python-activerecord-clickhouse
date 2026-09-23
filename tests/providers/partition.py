@@ -232,7 +232,6 @@ class PartitionProvider(IPartitionProvider):
 
         class PartitionEvent(ActiveRecord):
             __table_name__ = table_name
-            __primary_key__ = "id"
             __backend__ = backend
             c: ClassVar[FieldProxy] = FieldProxy()
 
@@ -249,7 +248,6 @@ class PartitionProvider(IPartitionProvider):
 
         class AsyncPartitionEvent(AsyncActiveRecord):
             __table_name__ = table_name
-            __primary_key__ = "id"
             __backend__ = backend
             c: ClassVar[FieldProxy] = FieldProxy()
 
