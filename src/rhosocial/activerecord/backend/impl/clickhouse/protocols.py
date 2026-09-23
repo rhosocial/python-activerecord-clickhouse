@@ -335,6 +335,10 @@ class ClickHouseTableSupport(TableSupport, Protocol):
         """Format a column definition with ClickHouse-specific syntax (AUTO_INCREMENT, etc.)."""
         ...
 
+    def supports_column_comment(self) -> bool:
+        """Whether an inline column COMMENT is supported (ClickHouse: yes)."""
+        ...
+
     def format_table_constraint(self, t_const: Any) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
         ...

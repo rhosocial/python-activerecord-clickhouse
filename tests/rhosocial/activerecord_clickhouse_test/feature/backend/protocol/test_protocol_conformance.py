@@ -154,6 +154,9 @@ class TestClickHouseDialectProtocolConformance:
 # decision (move to CLICKHOUSE_PROTOCOLS or revert).
 CLICKHOUSE_NOT_IMPLEMENTED = [
     # --- Intentional non-support ---
+    # ClickHouse has no standalone COMMENT ON statement; inline table/column
+    # comments are rendered by CREATE TABLE instead.
+    dialect_protocols.CommentSupport,
     # ClickHouse dialect does not compose the generic DatabaseMixin.
     dialect_protocols.DatabaseSupport,
     # ClickHouse has no SQL/XML support.
