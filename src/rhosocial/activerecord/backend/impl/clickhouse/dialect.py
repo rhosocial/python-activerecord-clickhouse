@@ -6,7 +6,7 @@ This dialect implements protocols for features that ClickHouse actually supports
 based on the ClickHouse version provided at initialization.
 """
 
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
@@ -36,7 +36,9 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     TruncateSupport,
     TransactionControlSupport,
     SQLFunctionSupport,
-    DDLTypeSupport,
+    DataTypeSupport,
+    UserDefinedTypeSupport,
+    DomainSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     CollationMixin,
@@ -72,6 +74,8 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    UserDefinedTypeMixin,
+    DomainMixin,
     TransactionControlMixin,
     SetOperationMixin,
 )
@@ -146,6 +150,9 @@ from .mixins import (
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
 
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+
 
 class ClickHouseDialect(
     SQLDialectBase,
@@ -205,6 +212,8 @@ class ClickHouseDialect(
     ClickHouseModifyColumnMixin,
     ClickHouseJsonDualityViewMixin,
     ClickHouseTypeSupportMixin,
+    UserDefinedTypeMixin,
+    DomainMixin,
     ClickHouseOptimizerHintMixin,
     ClickHouseTableStatementMixin,
     ClickHouseMaintenanceMixin,
@@ -273,7 +282,9 @@ class ClickHouseDialect(
     ClickHouseLoadXMLSupport,
     ClickHouseAdminCommandSupport,
     SQLFunctionSupport,
-    DDLTypeSupport,
+    DataTypeSupport,
+    UserDefinedTypeSupport,
+    DomainSupport,
 ):
     """
     ClickHouse dialect implementation that adapts to the ClickHouse version.
