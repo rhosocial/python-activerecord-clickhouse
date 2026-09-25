@@ -10,10 +10,10 @@ When a ClickHouse protocol extends a generic protocol, dialects only need to imp
 the ClickHouse-specific protocol - isinstance checks for the generic protocol will still work.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, Any, List, TYPE_CHECKING
+from typing import Protocol, runtime_checkable, Tuple, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements import OnConflictClause
+    from rhosocial.activerecord.backend.expression.statements import InsertExpression, OnConflictClause
     from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
         ModifyColumn,
         ChangeColumn,
@@ -392,6 +392,30 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
 
     def supports_partition_value_maxvalue(self) -> bool:
         """Whether MAXVALUE partition boundary token is supported."""
+        ...
+
+    def supports_add_partition(self) -> bool:
+        """Whether ADD PARTITION is supported."""
+        ...
+
+    def supports_drop_partition(self) -> bool:
+        """Whether DROP PARTITION is supported."""
+        ...
+
+    def supports_truncate_partition(self) -> bool:
+        """Whether TRUNCATE PARTITION is supported."""
+        ...
+
+    def supports_reorganize_partition(self) -> bool:
+        """Whether REORGANIZE PARTITION is supported."""
+        ...
+
+    def supports_attach_partition(self) -> bool:
+        """Whether ATTACH PARTITION is supported."""
+        ...
+
+    def supports_detach_partition(self) -> bool:
+        """Whether DETACH PARTITION is supported."""
         ...
 
     def supports_remove_partitioning(self) -> bool:
