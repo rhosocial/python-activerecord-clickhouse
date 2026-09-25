@@ -20,7 +20,7 @@ from typing import Optional, Sequence, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
-from rhosocial.activerecord.base.ddl.options import ColumnOptions
+from rhosocial.activerecord.base import ColumnOptions
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
