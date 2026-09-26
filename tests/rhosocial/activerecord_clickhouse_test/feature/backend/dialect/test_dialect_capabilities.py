@@ -61,8 +61,18 @@ class TestClickHouseCapabilities:
         assert dialect.supports_cross_join() is True
 
     def test_views_supported(self, dialect):
-        assert dialect.supports_materialized_view() is True
         assert dialect.supports_or_replace_view() is True
+
+    def test_materialized_view_not_exposed_through_generic_api(self, dialect):
+        """ClickHouse MVs exist but the generic DDL expression cannot express them.
+
+        ClickHouse requires ``ENGINE``/``TO``, has no ``WITH [NO] DATA`` clause
+        and drops views with ``DROP VIEW``. Rendering the SQL-standard form would
+        emit statements the server rejects, so the capability must stay False and
+        fail fast rather than lie.
+        """
+        assert dialect.supports_materialized_view() is False
+        assert dialect.supports_refresh_materialized_view() is False
 
     def test_qualify_and_ilike_supported(self, dialect):
         assert dialect.supports_qualify_clause() is True
