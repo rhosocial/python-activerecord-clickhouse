@@ -54,16 +54,10 @@ class TestClickHouseViewCapabilityGating:
         dialect = ClickHouseDialect()
         assert dialect.supports_if_exists_view() is True
 
-    def test_materialized_view_not_exposed_through_generic_api(self):
-        """ClickHouse has materialized views, but not expressible generically.
-
-        The ClickHouse DDL requires ``ENGINE`` (or ``TO``), has no
-        ``WITH [NO] DATA`` clause and drops views with ``DROP VIEW``, so the
-        capability must report ``False`` and the generic expressions must fail
-        fast rather than emit SQL the server rejects.
-        """
+    def test_materialized_view_supported(self):
+        """ClickHouse materialized views (incremental and refreshable)."""
         dialect = ClickHouseDialect()
-        assert dialect.supports_materialized_view() is False
+        assert dialect.supports_materialized_view() is True
 
 
 class TestClickHouseSchemaCapabilityGating:

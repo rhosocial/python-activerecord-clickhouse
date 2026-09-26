@@ -30,6 +30,14 @@ from .database import (
     ClickHouseDropDatabaseExpression,
 )
 from .dml import ClickHouseInsertExpression
+from .materialized_view import (
+    ClickHouseCreateMaterializedViewExpression,
+    ClickHouseDropMaterializedViewExpression,
+    ClickHouseIntervalUnit,
+    ClickHouseModifyMaterializedViewRefreshExpression,
+    ClickHouseRefreshMaterializedViewExpression,
+    ClickHouseRefreshSchedule,
+)
 from .index import ClickHouseIndexDefinition
 from .json import (
     ClickHouseJSONExtractExpression,
@@ -240,4 +248,11 @@ __all__ = [
     "ClickHouseUInt64Type",
     "ClickHouseUInt8Type",
     "ClickHouseUUIDType",
+    # Materialized views
+    "ClickHouseCreateMaterializedViewExpression",
+    "ClickHouseDropMaterializedViewExpression",
+    "ClickHouseRefreshMaterializedViewExpression",
+    "ClickHouseModifyMaterializedViewRefreshExpression",
+    "ClickHouseRefreshSchedule",
+    "ClickHouseIntervalUnit",
 ]

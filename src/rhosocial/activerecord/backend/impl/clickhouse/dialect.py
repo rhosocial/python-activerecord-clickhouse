@@ -138,6 +138,7 @@ from .mixins import (
     ClickHouseJoinMixin,
     ClickHouseSetOperationMixin,
     ClickHouseDQLMixin,
+    ClickHouseMaterializedViewMixin,  # MV DDL overrides ClickHouseViewMixin and ViewMixin
     ClickHouseViewMixin,
     ClickHouseSchemaMixin,
     ClickHouseDatabaseMixin,
@@ -184,6 +185,7 @@ class ClickHouseDialect(
     LateralJoinMixin,
     ClickHouseJoinMixin,
     JoinMixin,
+    ClickHouseMaterializedViewMixin,  # MV DDL must precede ClickHouseViewMixin and ViewMixin
     ClickHouseViewMixin,
     ViewMixin,
     ClickHouseSchemaMixin,

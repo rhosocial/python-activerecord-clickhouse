@@ -19,29 +19,6 @@ class ClickHouseViewMixin:
         """Whether CREATE TEMPORARY VIEW is supported."""
         return True
 
-    def supports_materialized_view(self) -> bool:
-        """Whether materialized views are supported through the generic API.
-
-        ClickHouse *does* have materialized views, but their DDL shares almost
-        nothing with the SQL-standard statement the generic
-        ``CreateMaterializedViewExpression`` renders:
-
-        * without a ``TO`` clause an ``ENGINE`` is mandatory;
-        * there is no ``WITH DATA`` / ``WITH NO DATA`` clause — the equivalents
-          are ``POPULATE`` and ``EMPTY``;
-        * deletion uses ``DROP VIEW``, not ``DROP MATERIALIZED VIEW``;
-        * refreshable views add ``REFRESH EVERY|AFTER``, ``APPEND``,
-          ``DEPENDS ON``, ``SETTINGS``;
-        * semantics are insert-trigger based, not query-result caching.
-
-        Rendering the generic form would emit SQL the server rejects, so the
-        capability reports ``False`` and callers get a fast, explicit
-        ``UnsupportedFeatureError`` instead. ClickHouse materialized views are
-        tracked as a dedicated feature (needs a ClickHouse-specific expression
-        carrying ``TO`` / ``ENGINE`` / ``POPULATE`` / ``REFRESH`` / ``EMPTY``).
-        """
-        return False
-
     def supports_if_exists_view(self) -> bool:
         """Whether DROP VIEW IF EXISTS is supported."""
         return True
