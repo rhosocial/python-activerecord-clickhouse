@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/show/expressions.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/expression/show.py
 """
 ClickHouse SHOW command expression classes.
 
