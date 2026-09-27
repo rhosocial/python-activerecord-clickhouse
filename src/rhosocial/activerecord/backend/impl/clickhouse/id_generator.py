@@ -13,6 +13,7 @@ Format (64-bit):
     - 12 bits: per-millisecond sequence
 """
 
+import os
 import threading
 import time
 from typing import Optional
@@ -34,7 +35,7 @@ class SnowflakeIDGenerator:
 
     def __init__(self, machine_id: Optional[int] = None) -> None:
         if machine_id is None:
-            machine_id = int(hash(threading.current_thread().name)) % (self._MACHINE_MAX + 1)
+            machine_id = (os.getpid() ^ threading.get_ident()) % (self._MACHINE_MAX + 1)
         if not 0 <= machine_id <= self._MACHINE_MAX:
             raise ValueError(f"machine_id out of range [0, {self._MACHINE_MAX}]")
         self._machine_id: int = machine_id

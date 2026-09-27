@@ -61,8 +61,17 @@ class TestClickHouseCapabilities:
         assert dialect.supports_cross_join() is True
 
     def test_views_supported(self, dialect):
-        assert dialect.supports_materialized_view() is True
         assert dialect.supports_or_replace_view() is True
+
+    def test_materialized_view_supported(self, dialect):
+        """ClickHouse materialized views are supported via a dedicated expression.
+
+        The SQL-standard form cannot express them (ENGINE/TO mandatory, no
+        WITH [NO] DATA, DROP VIEW), so the generic expression is rejected and
+        ClickHouseCreateMaterializedViewExpression is the entry point.
+        """
+        assert dialect.supports_materialized_view() is True
+        assert dialect.supports_refresh_materialized_view() is True
 
     def test_qualify_and_ilike_supported(self, dialect):
         assert dialect.supports_qualify_clause() is True
@@ -105,6 +114,7 @@ class TestClickHouseCapabilities:
         assert dialect.supports_lateral_join() is False
         assert dialect.supports_fulltext_index() is False
         assert dialect.supports_collate_expression() is False
+        assert dialect.supports_column_collation() is False
 
 
 class TestClickHouseSQLGeneration:

@@ -66,6 +66,7 @@ def get_own_protocol_methods(proto: type) -> set:
 CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.CollationSupport,
     dialect_protocols.CTESupport,
+    dialect_protocols.ColumnAttributeSupport,
     dialect_protocols.FilterClauseSupport,
     dialect_protocols.WindowFunctionSupport,
     dialect_protocols.JSONSupport,
@@ -95,7 +96,9 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.SQLFunctionSupport,
     # Generic protocols ClickHouse also satisfies (previously omitted from this list).
     dialect_protocols.AlterTableModifierSupport,
-    dialect_protocols.DDLTypeSupport,
+    dialect_protocols.DataTypeSupport,
+    dialect_protocols.UserDefinedTypeSupport,
+    dialect_protocols.DomainSupport,
     dialect_protocols.SetOperationSupport,
     dialect_protocols.TriggerSupport,
     dialect_protocols.TruncateSupport,
@@ -153,6 +156,9 @@ class TestClickHouseDialectProtocolConformance:
 # decision (move to CLICKHOUSE_PROTOCOLS or revert).
 CLICKHOUSE_NOT_IMPLEMENTED = [
     # --- Intentional non-support ---
+    # ClickHouse has no standalone COMMENT ON statement; inline table/column
+    # comments are rendered by CREATE TABLE instead.
+    dialect_protocols.CommentSupport,
     # ClickHouse dialect does not compose the generic DatabaseMixin.
     dialect_protocols.DatabaseSupport,
     # ClickHouse has no SQL/XML support.
@@ -186,8 +192,13 @@ def get_all_generic_protocols() -> dict:
 
     discovered = {}
     for name, obj in inspect.getmembers(dialect_protocols, inspect.isclass):
-        if Protocol in getattr(obj, "__mro__", []) and name.endswith("Support"):
-            discovered[name] = obj
+        if Protocol not in getattr(obj, "__mro__", []) or not name.endswith("Support"):
+            continue
+        if name == "DDLTypeSupport":
+            assert obj is dialect_protocols.DataTypeSupport
+            continue
+        assert name == obj.__name__, f"unexpected protocol alias: {name}"
+        discovered[name] = obj
     return discovered
 
 

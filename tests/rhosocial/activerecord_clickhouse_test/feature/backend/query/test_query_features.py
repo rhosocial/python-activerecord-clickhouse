@@ -152,6 +152,15 @@ class TestClickHouseQueryFeatures:
 
 class TestClickHouseDDLFeatures:
     def test_materialized_view(self, clickhouse_backend, sample_table):
+        """ClickHouse materialized views via raw SQL.
+
+        Deliberately not routed through ``CreateMaterializedViewExpression``:
+        ClickHouse's MV DDL (``ENGINE``/``TO``/``POPULATE``/``REFRESH``/``EMPTY``,
+        insert-trigger semantics, ``DROP VIEW`` for removal) diverges from the
+        SQL-standard statement, so the dialect reports
+        ``supports_materialized_view() is False`` and needs a ClickHouse-specific
+        expression before the typed API can be used.
+        """
         backend = clickhouse_backend
         backend.execute("DROP TABLE IF EXISTS test_ch_mv")
         backend.execute("DROP VIEW IF EXISTS test_ch_mv_agg")

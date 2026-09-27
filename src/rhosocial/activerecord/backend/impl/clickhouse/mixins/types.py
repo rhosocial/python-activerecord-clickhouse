@@ -6,8 +6,8 @@ from __future__ import annotations
 import re
 from typing import Dict, Tuple
 
-from rhosocial.activerecord.backend.dialect.mixins.ddl_type import DDLTypeMixin
-from rhosocial.activerecord.backend.dialect.protocols import DDLTypeSupport
+from rhosocial.activerecord.backend.dialect.mixins.data_type import DataTypeMixin
+from rhosocial.activerecord.backend.dialect.protocols import DataTypeSupport
 from rhosocial.activerecord.backend.expression.types import (
     ArrayType,
     BigIntType,
@@ -77,21 +77,21 @@ from ..expression.types import (
 )
 
 
-class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
+class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     """ClickHouse DataType formatting and parsing.
 
-    Implements ``DDLTypeSupport`` so the dialect can render ``DataType``
+    Implements ``DataTypeSupport`` so the dialect can render ``DataType``
     expressions to SQL strings and parse raw SQL type strings back into
     ``DataType`` instances.
 
     Formatting dispatches by the type instance's ``name`` through the
     naming-convention ``format_data_type_<name>`` methods (see
-    ``DDLTypeMixin``). ClickHouse-specific types carry ``clickhouse_``-prefixed
+    ``DataTypeMixin``). ClickHouse-specific types carry ``clickhouse_``-prefixed
     names; core types render their real ClickHouse SQL.
     """
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — formatting
+    # DataTypeSupport — formatting
     # ------------------------------------------------------------------
 
     # --- ClickHouse-specific type formatters (dispatch key = type name) ---
@@ -208,7 +208,10 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
     def format_data_type_clickhouse_json(self, data_type: ClickHouseJSONType) -> Tuple[str, tuple]:
         return "JSON", ()
 
-    def format_data_type_clickhouse_aggregate_function(self, data_type: ClickHouseAggregateFunctionType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_aggregate_function(
+        self,
+        data_type: ClickHouseAggregateFunctionType,
+    ) -> Tuple[str, tuple]:
         args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
         return f"AggregateFunction({data_type.function_name}, {args})", ()
 
@@ -243,7 +246,10 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             return f"MULTIPOINT SRID {data_type.srid}", ()
         return "MULTIPOINT", ()
 
-    def format_data_type_clickhouse_multilinestring(self, data_type: ClickHouseMultiLineStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_multilinestring(
+        self,
+        data_type: ClickHouseMultiLineStringType,
+    ) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"MULTILINESTRING SRID {data_type.srid}", ()
         return "MULTILINESTRING", ()
@@ -253,7 +259,10 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
             return f"MULTIPOLYGON SRID {data_type.srid}", ()
         return "MULTIPOLYGON", ()
 
-    def format_data_type_clickhouse_geometrycollection(self, data_type: ClickHouseGeometryCollectionType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_geometrycollection(
+        self,
+        data_type: ClickHouseGeometryCollectionType,
+    ) -> Tuple[str, tuple]:
         if data_type.srid is not None:
             return f"GEOMETRYCOLLECTION SRID {data_type.srid}", ()
         return "GEOMETRYCOLLECTION", ()
@@ -262,7 +271,7 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return f"VECTOR({data_type.dim})", ()
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — supports_data_type_* (1:1 with format_data_type_*)
+    # DataTypeSupport — supports_data_type_* (1:1 with format_data_type_*)
     # ------------------------------------------------------------------
 
     def supports_data_type_clickhouse_int8(self) -> bool:
@@ -454,7 +463,7 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return True
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — suggested_data_types()
+    # DataTypeSupport — suggested_data_types()
     # ------------------------------------------------------------------
 
     def suggested_data_types(self) -> Dict[str, type]:
@@ -532,7 +541,7 @@ class ClickHouseTypeSupportMixin(DDLTypeMixin, DDLTypeSupport):
         return f"Array({inner_sql})", inner_params
 
     # ------------------------------------------------------------------
-    # DDLTypeSupport — parsing
+    # DataTypeSupport — parsing
     # ------------------------------------------------------------------
 
     _CLICKHOUSE_INTEGER_TYPES = re.compile(

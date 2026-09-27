@@ -19,10 +19,6 @@ class ClickHouseViewMixin:
         """Whether CREATE TEMPORARY VIEW is supported."""
         return True
 
-    def supports_materialized_view(self) -> bool:
-        """Whether materialized views are supported."""
-        return True
-
     def supports_if_exists_view(self) -> bool:
         """Whether DROP VIEW IF EXISTS is supported."""
         return True

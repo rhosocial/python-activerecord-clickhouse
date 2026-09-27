@@ -4,6 +4,7 @@
 import pytest
 
 from rhosocial.activerecord.backend.expression import ColumnDefinition, FunctionCall
+from rhosocial.activerecord.backend.expression import ColumnCommentClause
 from rhosocial.activerecord.backend.expression.types import IntegerType
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseColumnDefinition,
@@ -47,7 +48,7 @@ def test_ttl(dialect):
 
 
 def test_generic_column_still_renders_on_clickhouse(dialect):
-    generic = ColumnDefinition(dialect, "x", IntegerType(dialect), comment="c")
+    generic = ColumnDefinition(dialect, "x", IntegerType(dialect), comment=ColumnCommentClause(dialect, "c"))
     sql, _ = generic.to_sql()
     assert sql == "`x` Int32 COMMENT 'c'"
 
