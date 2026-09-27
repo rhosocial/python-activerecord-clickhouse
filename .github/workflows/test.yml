@@ -1,14 +1,17 @@
 # .github/workflows/test.yml
 name: Python Test and Coverage with ClickHouse
 
-# Single-branch project: all development happens on main.
 on:
   push:
     branches:
       - main
+      - 'release/v**'
+      - 'maint/**'
   pull_request:
     branches:
       - main
+      - 'release/v**'
+      - 'maint/**'
   workflow_dispatch:
 
 permissions:
@@ -66,14 +69,14 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Check out activerecord and testsuite (feature branches)
+      - name: Check out activerecord and testsuite (release branches)
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord
           ref: release/v1.0.0.dev30
           path: _activerecord
 
-      - name: Check out testsuite (feature branch)
+      - name: Check out testsuite (release branch)
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord-testsuite
@@ -124,6 +127,16 @@ jobs:
           coverage run --source=src -m pytest tests/rhosocial --tb=short
           coverage xml
           coverage report
+
+      - name: Upload coverage to Codecov
+        if: matrix.coverage
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage.xml
+          flags: unittests,python-${{ matrix.python-version }},clickhouse-${{ matrix.clickhouse-version }}
+          name: codecov-clickhouse-${{ matrix.python-version }}-${{ matrix.clickhouse-version }}
+          fail_ci_if_error: false
 
       - name: Run tests
         if: '!matrix.coverage'
