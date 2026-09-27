@@ -27,7 +27,7 @@ from typing import Any, Dict, Optional, TYPE_CHECKING
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
 
 if TYPE_CHECKING:
-    from ...dialect import ClickHouseDialect
+    from ..dialect import ClickHouseDialect
 
 
 class ShowExpression(BaseExpression):
