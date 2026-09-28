@@ -11,12 +11,118 @@ Format (64-bit):
     - 41 bits: milliseconds since a custom epoch
     - 10 bits: machine/worker id
     - 12 bits: per-millisecond sequence
+
+The 10 machine bits have to be unique per process, and hashing the pid into them
+is not enough: two processes that start together can hash to the same slot and
+then emit identical ids. The slot is therefore claimed with an atomic
+O_CREAT|O_EXCL create, so the kernel decides the winner.
 """
 
 import os
+import tempfile
 import threading
 import time
 from typing import Optional
+
+
+_RECLAIM_ATTEMPTS = 3
+_BOOT_ID_PATH = "/proc/sys/kernel/random/boot_id"
+
+
+def _boot_marker() -> str:
+    """Identify the current boot, so slot files cannot outlive it.
+
+    Without this, files left by a previous boot would name pids that the current
+    boot may already have handed out to unrelated processes, and the liveness
+    check would then treat a free slot as busy.
+    """
+    try:
+        with open(_BOOT_ID_PATH) as handle:
+            return handle.read().strip()
+    except OSError:
+        pass
+    try:
+        return str(int(os.stat("/proc/1").st_ctime))
+    except OSError:
+        return "unknown-boot"
+
+
+def _slot_lock_dir() -> str:
+    """Return the directory holding the per-slot claim files, creating it."""
+    directory = os.path.join(
+        tempfile.gettempdir(), f"rhosocial-clickhouse-snowflake-{_boot_marker()}"
+    )
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+def _slot_owner(path: str) -> Optional[int]:
+    """Return the pid that claimed *path*, or None if it is unreadable."""
+    try:
+        with open(path) as handle:
+            return int(handle.read().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _process_is_gone(pid: int) -> bool:
+    """Whether *pid* names no live process.
+
+    Signal 0 checks existence without delivering anything. A process owned by
+    another user raises PermissionError, which still means it is alive.
+    """
+    if pid <= 0:
+        return True
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except PermissionError:
+        return False
+    except OSError:
+        return True
+    return False
+
+
+def _claim_machine_id(capacity: int, start: int) -> Optional[int]:
+    """Claim a machine slot that no other live process holds.
+
+    The claim is an O_CREAT|O_EXCL create, which the kernel makes atomic, so two
+    processes starting together cannot both win the same slot. Deriving the slot
+    from the pid and then testing whether that pid is alive cannot give the same
+    guarantee: the test and the claim are separate steps, and processes starting
+    at the same moment both find the slot free and both take it.
+
+    A slot whose recorded owner is gone is reclaimed, so a crashed process does
+    not leak its slot for good.
+
+    Returns:
+        The claimed slot, or None if every slot is held by a live process.
+    """
+    directory = _slot_lock_dir()
+    for offset in range(capacity):
+        slot = (start + offset) % capacity
+        path = os.path.join(directory, f"slot-{slot}")
+        for _ in range(_RECLAIM_ATTEMPTS):
+            try:
+                fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+            except FileExistsError:
+                owner = _slot_owner(path)
+                if owner is None or not _process_is_gone(owner):
+                    break
+                if _slot_owner(path) != owner:
+                    break
+                try:
+                    os.unlink(path)
+                except OSError:
+                    break
+                continue
+            try:
+                os.write(fd, str(os.getpid()).encode("ascii"))
+            finally:
+                os.close(fd)
+            return slot
+    return None
 
 
 class SnowflakeIDGenerator:
@@ -35,7 +141,13 @@ class SnowflakeIDGenerator:
 
     def __init__(self, machine_id: Optional[int] = None) -> None:
         if machine_id is None:
-            machine_id = (os.getpid() ^ threading.get_ident()) % (self._MACHINE_MAX + 1)
+            capacity = self._MACHINE_MAX + 1
+            machine_id = _claim_machine_id(capacity, os.getpid() % capacity)
+            if machine_id is None:
+                raise RuntimeError(
+                    f"every one of the {capacity} snowflake machine ids is held by a "
+                    "live process; cannot guarantee unique ids"
+                )
         if not 0 <= machine_id <= self._MACHINE_MAX:
             raise ValueError(f"machine_id out of range [0, {self._MACHINE_MAX}]")
         self._machine_id: int = machine_id
