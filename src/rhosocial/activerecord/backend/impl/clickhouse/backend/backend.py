@@ -135,7 +135,7 @@ class ClickHouseBackend(
     def _create_introspector(self) -> Any:
         """Create a SyncClickHouseIntrospector backed by a SyncIntrospectorExecutor."""
         from rhosocial.activerecord.backend.introspection.executor import SyncIntrospectorExecutor
-        from .introspection import SyncClickHouseIntrospector
+        from ..introspection import SyncClickHouseIntrospector
 
         return SyncClickHouseIntrospector(self, SyncIntrospectorExecutor(self))
 
@@ -779,7 +779,7 @@ class ClickHouseBackend(
         ClickHouseBackendMixin) because _ExplainMixinBase appears earlier in the MRO
         and would otherwise take precedence.
         """
-        from .explain import ClickHouseExplainResult, ClickHouseExplainRow
+        from ..explain import ClickHouseExplainResult, ClickHouseExplainRow
 
         rows = [ClickHouseExplainRow(**r) for r in raw_rows]
         return ClickHouseExplainResult(raw_rows=raw_rows, sql=sql, duration=duration, rows=rows)
