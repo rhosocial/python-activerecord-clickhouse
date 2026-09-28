@@ -18,54 +18,6 @@ import threading
 import time
 from typing import Optional
 
-#: Upper bound scanned when probing for the owner of a machine slot.
-_MAX_PID: int = 4_194_304
-
-
-def _process_alive(pid: int) -> bool:
-    """Whether *pid* names a live process.
-
-    Signal 0 performs the permission and existence checks without delivering
-    anything. A process owned by another user raises PermissionError, which
-    still means it exists.
-    """
-    if pid <= 0:
-        return False
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
-        return True
-    except OSError:
-        return False
-    return True
-
-
-def _allocate_machine_id(capacity: int) -> int:
-    """Pick a machine id that no other live process is using.
-
-    Hashing the pid with the thread id and truncating to the machine field looks
-    random but carries no guarantee: two live processes can land on the same
-    slot and then emit identical IDs. Starting from the pid's own slot and
-    skipping any slot whose owner is still alive makes the allocation
-    collision-free while there are fewer live processes than slots.
-    """
-    own = os.getpid()
-    for offset in range(capacity):
-        candidate = (own + offset) % capacity
-        if not _slot_is_taken(candidate, own, capacity):
-            return candidate
-    return own % capacity
-
-
-def _slot_is_taken(candidate: int, own: int, capacity: int) -> bool:
-    """Whether a live process other than *own* occupies *candidate*."""
-    for pid in range(candidate if candidate else capacity, _MAX_PID, capacity):
-        if pid != own and _process_alive(pid):
-            return True
-    return False
-
 
 class SnowflakeIDGenerator:
     """Thread-safe 64-bit snowflake-style ID generator."""
@@ -83,7 +35,7 @@ class SnowflakeIDGenerator:
 
     def __init__(self, machine_id: Optional[int] = None) -> None:
         if machine_id is None:
-            machine_id = _allocate_machine_id(self._MACHINE_MAX)
+            machine_id = (os.getpid() ^ threading.get_ident()) % (self._MACHINE_MAX + 1)
         if not 0 <= machine_id <= self._MACHINE_MAX:
             raise ValueError(f"machine_id out of range [0, {self._MACHINE_MAX}]")
         self._machine_id: int = machine_id
