@@ -122,7 +122,7 @@ class CrudBenchmarkProvider:
         return model_class
 
     async def _setup_async_model(self, model_class: Type[ActiveRecord], scenario: str) -> Type[ActiveRecord]:
-        from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+        from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
             AsyncClickHouseBackend,
         )
 

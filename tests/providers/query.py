@@ -434,7 +434,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
     async def _setup_model_async(
         self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str, shared_backend=None
     ) -> Type[ActiveRecord]:
-        from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+        from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
             AsyncClickHouseBackend,
         )
         from rhosocial.activerecord.backend.options import ExecutionOptions
@@ -513,7 +513,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
 
     async def setup_json_user_fixtures(self, scenario_name: str) -> Tuple[Type[ActiveRecord], ...]:
         import pytest
-        from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+        from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
             AsyncClickHouseBackend,
         )
         from rhosocial.activerecord.testsuite.feature.query.fixtures.async_json_models import AsyncJsonUser
@@ -608,7 +608,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
         from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
-        from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+        from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
             AsyncClickHouseBackend,
         )
         from providers.fixtures.basic import TABLE_EXPRESSIONS as BASIC_EXPRS
@@ -637,7 +637,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         return AsyncCompositeOrderItemBase
 
     async def cleanup_after_test(self, scenario_name: str) -> None:
-        from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+        from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
             AsyncClickHouseBackend,
         )
         for backend_instance in self._active_async_backends:

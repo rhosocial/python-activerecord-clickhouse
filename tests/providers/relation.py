@@ -3,7 +3,7 @@ import asyncio
 from typing import Dict, List, Tuple, Type, Set
 
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
-from rhosocial.activerecord.backend.impl.clickhouse.async_backend import AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
 from rhosocial.activerecord.testsuite.feature.relation.interfaces import IRelationSyncProvider, IRelationAsyncProvider
 from rhosocial.activerecord.testsuite.feature.relation.fixtures.models import (
     Employee,

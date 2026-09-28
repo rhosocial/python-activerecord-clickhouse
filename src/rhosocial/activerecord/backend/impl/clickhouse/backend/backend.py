@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/backend.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/backend/backend.py
 """
 ClickHouse-specific implementation of the StorageBackend.
 
@@ -47,11 +47,11 @@ from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 from rhosocial.activerecord.backend.expression.core import TableExpression
-from .config import ClickHouseConnectionConfig
-from .dialect import ClickHouseDialect
-from .transaction import ClickHouseTransactionManager
-from .mixins import ClickHouseBackendMixin, ClickHouseConcurrencyMixin
-from .id_generator import generate_id, generate_id_sequence
+from ..config import ClickHouseConnectionConfig
+from ..dialect import ClickHouseDialect
+from ..transaction import ClickHouseTransactionManager
+from ..mixins import ClickHouseBackendMixin, ClickHouseConcurrencyMixin
+from ..id_generator import generate_id, generate_id_sequence
 
 
 class ClickHouseBackend(

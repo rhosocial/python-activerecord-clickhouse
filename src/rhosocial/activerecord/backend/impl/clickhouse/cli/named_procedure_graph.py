@@ -64,7 +64,7 @@ def handle(args):
 
         def backend_async_factory():
             nonlocal async_backend
-            from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+            from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
                 AsyncClickHouseBackend,
             )
 

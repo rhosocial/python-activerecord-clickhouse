@@ -15,7 +15,7 @@ import pytest_asyncio
 import yaml
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.async_backend import AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 from rhosocial.activerecord.connection.pool import (
     PoolConfig,
