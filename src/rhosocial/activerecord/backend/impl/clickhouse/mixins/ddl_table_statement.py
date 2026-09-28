@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/mixins/table_statement.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table_statement.py
 from typing import Any, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError

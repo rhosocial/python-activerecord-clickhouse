@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/show_types.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/show/types.py
 """
 ClickHouse SHOW command result types.
 
