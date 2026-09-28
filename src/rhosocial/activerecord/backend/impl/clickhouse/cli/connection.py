@@ -154,7 +154,7 @@ def resolve_connection_config_from_args(args):
 
 def create_backend(args):
     """Create, connect, and introspect a ClickHouse backend from parsed args."""
-    from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+    from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 
     config = resolve_connection_config_from_args(args)
     backend = ClickHouseBackend(connection_config=config)

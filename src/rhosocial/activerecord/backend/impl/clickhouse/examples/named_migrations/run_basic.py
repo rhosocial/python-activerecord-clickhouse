@@ -19,7 +19,7 @@ from pathlib import Path
 import tempfile
 import os
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 from rhosocial.activerecord.backend.migration import (
     MigrationRunner,

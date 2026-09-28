@@ -191,7 +191,7 @@ def handle(args):
     named_conn = getattr(args, "named_connection", None)
     if named_conn or args.database:
         try:
-            from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+            from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 
             config = resolve_connection_config_from_args(args)
             backend = ClickHouseBackend(connection_config=config)

@@ -5,7 +5,8 @@ import yaml
 import os
 from typing import Dict, Any, Tuple, Type
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, ClickHouseConnectionConfig
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
 # --- Scenario Loading Logic ---
 

@@ -9,7 +9,7 @@ query classes context awareness (ActiveQuery, CTEQuery, SetOperationQuery).
 from typing import Type, Tuple, Optional, List
 
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.connection.pool import BackendPool, AsyncBackendPool, PoolConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
@@ -109,7 +109,9 @@ class QueryConnectionProvider(IQueryConnectionProvider):
 
     async def setup_async_pool_and_model(self, scenario_name: str) -> Tuple[AsyncBackendPool, Type[AsyncActiveRecord]]:
         """Setup async connection pool and model for query context tests."""
-        from rhosocial.activerecord.backend.impl.clickhouse import AsyncClickHouseBackend
+        from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+            AsyncClickHouseBackend,
+        )
 
         _, config = get_scenario(scenario_name)
 

@@ -8,7 +8,8 @@ parameter handling, and error mapping.
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, ClickHouseConnectionConfig
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
 
 @pytest.fixture

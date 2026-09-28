@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.async_backend import AsyncClickHouseBackend
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider

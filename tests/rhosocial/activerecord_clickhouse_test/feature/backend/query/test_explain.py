@@ -11,7 +11,7 @@ import pytest
 from rhosocial.activerecord.backend.explain import SyncExplainBackendProtocol
 from rhosocial.activerecord.backend.expression import RawSQLExpression
 from rhosocial.activerecord.backend.expression.statements import ExplainOptions
-from rhosocial.activerecord.backend.impl.clickhouse import (
+from rhosocial.activerecord.backend.impl.clickhouse.explain import (
     ClickHouseExplainResult,
     ClickHouseExplainRow,
 )

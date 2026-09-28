@@ -51,7 +51,7 @@ pip install -e .
 ### 5. 验证安装
 
 ```bash
-python -c "from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend; print('ok')"
+python -c "from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend; print('ok')"
 ```
 
 ## 从 PyPI 安装（待 dev30 发布后）

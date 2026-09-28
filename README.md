@@ -75,7 +75,7 @@ from typing import Optional, ClassVar
 from pydantic import Field
 from rhosocial.activerecord import ActiveRecord, FieldProxy
 from rhosocial.activerecord.api.connection import ConnectionConfig
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 
 class User(ActiveRecord):
     __table_name__ = "users"

@@ -15,7 +15,7 @@ Usage:
         myapp.npg.monthly_report
 """
 
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider
@@ -64,7 +64,9 @@ def handle(args):
 
         def backend_async_factory():
             nonlocal async_backend
-            from rhosocial.activerecord.backend.impl.clickhouse import AsyncClickHouseBackend
+            from rhosocial.activerecord.backend.impl.clickhouse.async_backend import (
+                AsyncClickHouseBackend,
+            )
 
             config = resolve_connection_config_from_args(args)
             async_backend = AsyncClickHouseBackend(connection_config=config)

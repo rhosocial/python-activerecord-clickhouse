@@ -52,7 +52,7 @@ pip install -e .
 ### 5. Verify the installation
 
 ```bash
-python -c "from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend; print('ok')"
+python -c "from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend; print('ok')"
 ```
 
 ## Install from PyPI (once dev30 is published)

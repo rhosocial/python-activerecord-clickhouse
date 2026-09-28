@@ -136,7 +136,8 @@ from rhosocial.activerecord.backend.named_expression import ProcedureRunner, Tra
 if __name__ == "__main__":
     import os
 
-    from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, ClickHouseConnectionConfig
+    from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+    from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
     from rhosocial.activerecord.backend.impl.clickhouse.examples.named_expressions.order_expressions import (
         prepare_orders_demo,
     )

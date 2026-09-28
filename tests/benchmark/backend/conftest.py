@@ -68,7 +68,7 @@ def pytest_configure(config):
 
 @pytest.fixture(scope="function", params=SCENARIO_PARAMS)
 def clickhouse_backend_sync_context(request, benchmark_size):
-    from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+    from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 
     scenario = request.param
     _, config = get_scenario(scenario)
@@ -94,7 +94,7 @@ def clickhouse_backend_sync_context(request, benchmark_size):
 
 @pytest.fixture(scope="function", params=SCENARIO_PARAMS)
 def clickhouse_backend_async_context(request, benchmark_size):
-    from rhosocial.activerecord.backend.impl.clickhouse import AsyncClickHouseBackend
+    from rhosocial.activerecord.backend.impl.clickhouse.async_backend import AsyncClickHouseBackend
 
     scenario = request.param
     _, config = get_scenario(scenario)
