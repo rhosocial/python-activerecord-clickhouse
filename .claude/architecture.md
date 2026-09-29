@@ -31,7 +31,7 @@ python-activerecord-clickhouse/
 │   ├── expression/           # ClickHouse-specific expressions
 │   │   ├── json.py           # JSON functions
 │   │   ├── match_against.py  # FULLTEXT search
-│   │   ├── locking.py        # Locking expressions
+│   │   ├── mixins/locking.py # Locking expressions
 │   │   └── spatial.py        # Spatial functions
 │   ├── functions/            # ClickHouse-specific functions
 │   ├── introspection/        # Schema introspection

@@ -14,7 +14,7 @@
 
 ```toml
 dependencies = [
-    "rhosocial-activerecord>=0.9.0,<2.0.0",
+    "rhosocial-activerecord>=1.0.0.dev0,<2.0.0",
     "clickhouse-connector-python>=9.0.0"
 ]
 ```
@@ -24,8 +24,8 @@ dependencies = [
 ```bash
 # Activate virtual environment and set PYTHONPATH
 cd /mnt/i/GitHubRepositories/rhosocial/python-activerecord-clickhouse
-source .venv/bin/activate
-export PYTHONPATH=src
+source .venv3.14-ubuntu26.04/bin/activate
+export PYTHONPATH=src:tests
 
 # Run tests
 pytest
@@ -50,5 +50,5 @@ markers = [
 
 ## Reference
 
-- [Core testing guide](../python-activerecord/.claude/testing.md)
-- [ClickHouse backend development](../python-activerecord/.claude/backend_development.md)
+- [Core testing guide](../../python-activerecord/.claude/testing.md)
+- [ClickHouse backend development](../../../python-activerecord/.claude/backend_development.md)
