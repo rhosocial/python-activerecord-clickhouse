@@ -7,7 +7,7 @@ JOIN queries - INNER JOIN and LEFT JOIN.
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
 import os
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType

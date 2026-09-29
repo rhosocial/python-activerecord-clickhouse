@@ -7,7 +7,7 @@ from decimal import Decimal
 from typing import Any, ClassVar, Dict, List, Optional, Tuple, Type
 
 from rhosocial.activerecord.base.field_proxy import FieldProxy
-from rhosocial.activerecord.backend.impl.clickhouse import AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
 from rhosocial.activerecord.model import ActiveRecord, AsyncActiveRecord
 from rhosocial.activerecord.testsuite.feature.partition.interfaces import IPartitionProvider
 

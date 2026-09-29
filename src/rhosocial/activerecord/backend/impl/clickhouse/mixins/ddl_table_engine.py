@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/mixins/table_engine.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table_engine.py
 """ClickHouse table engine and query clause support.
 
 These features are ClickHouse-specific and not part of the generic SQL protocol,

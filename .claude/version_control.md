@@ -901,9 +901,9 @@ git push origin --delete release/v1.2.0  # Optional
 
 - Require pull request reviews (minimum 1 approval)
 - **Require status checks to pass**:
-  - `test-with-coverage` (Python 3.14 with coverage ≥90%)
-  - `test-other-versions` (Python 3.8-3.13 compatibility)
-  - `test-free-threaded` (Python 3.13t, 3.14t)
+  - `test` (Python 3.14 with coverage ≥90%)
+  - `test` (Python 3.8-3.13 compatibility)
+  - `test` (Python 3.13t, 3.14t)
 - **Require branches to be up to date before merge**
 - **Require linear history** (no merge commits)
 - Include administrators in restrictions
@@ -2743,35 +2743,15 @@ git push origin maint/1.2.x v1.2.6
 
 ### Capability Declaration System
 
-Backends MUST declare their supported capabilities using the `DatabaseCapabilities` system:
+Capabilities are NOT declared through a `DatabaseCapabilities` object -- no such class or module exists. The dialect implements a Protocol from `rhosocial.activerecord.backend.dialect.protocols` and answers `supports_*` switches:
 
 ```python
 # Backend capability declaration example
-from rhosocial.activerecord.backend.capabilities import (
-    DatabaseCapabilities,
-    CapabilityCategory,
-    CTECapability,
-    WindowFunctionCapability,
-)
+from rhosocial.activerecord.backend.dialect.protocols import CTESupport
 
 class ClickHouseBackend(StorageBackend):
-    def _initialize_capabilities(self):
-        """Declare backend capabilities based on server version."""
-        capabilities = DatabaseCapabilities()
-        version = self.get_server_version()
-        
-        # CTEs supported from ClickHouse 8.0+
-        if version >= (8, 0, 0):
-            capabilities.add_cte([
-                CTECapability.BASIC_CTE,
-                CTECapability.RECURSIVE_CTE,
-            ])
-        
-        # Window functions from ClickHouse 8.0+
-        if version >= (8, 0, 0):
-            capabilities.add_window_function(ALL_WINDOW_FUNCTIONS)
-        
-        return capabilities
+    def supports_basic_cte(self) -> bool:
+        return self.version >= (3, 0, 0)
 ```
 
 ### Capability-Driven Test Execution
@@ -2779,15 +2759,10 @@ class ClickHouseBackend(StorageBackend):
 Tests automatically skip when required capabilities are unavailable:
 
 ```python
-from rhosocial.activerecord.backend.capabilities import (
-    CapabilityCategory,
-    CTECapability,
-)
-from rhosocial.activerecord.testsuite.utils import requires_capability
-
-@requires_capability(CapabilityCategory.CTE, CTECapability.RECURSIVE_CTE)
+# Branch on the switch directly; there is no `requires_capability` decorator.
 def test_recursive_cte(tree_fixtures):
-    """Test requires recursive CTE support."""
+    if not backend.dialect.supports_recursive_cte():
+        pytest.skip("recursive CTE unsupported on this server")
     Node = tree_fixtures[0]
     # Test implementation
 ```
@@ -3021,7 +2996,7 @@ rhosocial-activerecord-{backend}/
 
 **Backend Class**: `{Backend}Backend`
 
-- Examples: `ClickHouseBackend`, `PostgreSQLBackend`
+- Examples: `ClickHouseBackend`, `PostgresBackend`
 
 #### Interface Compliance
 
@@ -3030,7 +3005,7 @@ All backends MUST implement:
 1. **StorageBackend Interface**:
 
    ```python
-   from rhosocial.activerecord.backend import StorageBackend
+   from rhosocial.activerecord.backend.base import StorageBackend
    
    class MyBackend(StorageBackend):
        def connect(self) -> None: ...
@@ -3045,20 +3020,24 @@ All backends MUST implement:
 
 2. **Capability Declaration**:
 
+   There is no `_initialize_capabilities()` and no `DatabaseCapabilities`
+   object. Declare capabilities by implementing the `supports_*` switches on
+   the dialect:
+
    ```python
-   def _initialize_capabilities(self) -> DatabaseCapabilities:
-       """Declare backend capabilities."""
-       capabilities = DatabaseCapabilities()
-       # Add supported capabilities based on version/config
-       return capabilities
+   def supports_basic_cte(self) -> bool:
+       return self.version >= (8, 0, 0)
    ```
 
 3. **Test Provider Implementation**:
 
    ```python
-   from rhosocial.activerecord.testsuite.core import IProvider
+   # There is no `IProvider`. The testsuite defines per-category interfaces:
+   # IBasicProvider, IQueryProvider, IRelationProvider, IEventsProvider,
+   # IMixinsProvider (see tests/providers/registry.py).
+   from rhosocial.activerecord.testsuite.core import IBasicProvider
    
-   class MyBackendProvider(IProvider):
+   class MyBackendProvider(IBasicProvider):
        def setup_fixtures(self, scenario: str) -> Tuple[Type[ActiveRecord], ...]:
            # Setup models and schemas
            pass
@@ -3070,30 +3049,19 @@ All backends MUST implement:
 
 #### Capability Declaration Requirements
 
-Backends MUST accurately declare capabilities:
+Backends MUST answer the `supports_*` switches truthfully, against the real
+`self.version` populated by `introspect_and_adapt()`:
 
 ```python
-def _initialize_capabilities(self):
-    capabilities = DatabaseCapabilities()
-    version = self.get_server_version()
-    
-    # Example: ClickHouse 8.0+ features
-    if version >= (8, 0, 0):
-        capabilities.add_cte([
-            CTECapability.BASIC_CTE,
-            CTECapability.RECURSIVE_CTE,
-        ])
-        capabilities.add_window_function(ALL_WINDOW_FUNCTIONS)
-    
-    # JSON operations
-    if version >= (5, 7, 0):
-        capabilities.add_json([
-            JSONCapability.JSON_EXTRACT,
-            JSONCapability.JSON_SET,
-        ])
-    
-    return capabilities
+def supports_basic_cte(self) -> bool:
+    return self.version >= (8, 0, 0)
+
+def supports_window_functions(self) -> bool:
+    return self.version >= (8, 0, 0)
 ```
+
+Probe below the oldest real release as well, or a capability that is really
+available everywhere gets misreported as gated at that floor.
 
 **Capability Testing**:
 
@@ -3177,7 +3145,7 @@ Forks creating independent implementations have full autonomy but should:
 
    ```python
    # Still use rhosocial.activerecord namespace
-   from rhosocial.activerecord.backend import StorageBackend
+   from rhosocial.activerecord.backend.base import StorageBackend
    ```
 
 2. **Document Compatibility**:

@@ -17,7 +17,7 @@ Usage:
     databases = backend.show().databases()
 """
 
-from .expressions import (
+from ..expression.show import (
     ShowExpression,
     ShowCreateTableExpression,
     ShowCreateViewExpression,

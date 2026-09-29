@@ -24,7 +24,7 @@ from typing import Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from .expressions import (
+    from ..expression.show import (
         ShowCreateTableExpression,
         ShowCreateViewExpression,
         ShowColumnsExpression,

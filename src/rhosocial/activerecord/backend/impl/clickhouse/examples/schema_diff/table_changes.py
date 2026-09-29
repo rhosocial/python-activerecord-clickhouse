@@ -8,7 +8,7 @@ Supported versions: ClickHouse
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
 import os
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
 config = ClickHouseConnectionConfig(

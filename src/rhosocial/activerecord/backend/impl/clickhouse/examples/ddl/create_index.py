@@ -7,7 +7,7 @@ Create an index on an existing table.
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
 import os
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 from rhosocial.activerecord.backend.expression import CreateTableExpression, DropTableExpression
 from rhosocial.activerecord.backend.expression.statements import (

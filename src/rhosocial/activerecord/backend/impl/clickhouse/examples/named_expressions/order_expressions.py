@@ -163,7 +163,8 @@ def prepare_orders_demo(backend) -> None:
 if __name__ == "__main__":
     import os
 
-    from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend, ClickHouseConnectionConfig
+    from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+    from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
     config = ClickHouseConnectionConfig(
         host=os.getenv("CLICKHOUSE_HOST", "127.0.0.1"),

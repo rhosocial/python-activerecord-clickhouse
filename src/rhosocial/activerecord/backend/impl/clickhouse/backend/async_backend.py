@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/async_backend.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/backend/async_backend.py
 """AsyncClickHouseBackend placeholder.
 
 clickhouse-connect (the ClickHouse driver used by this backend) is a

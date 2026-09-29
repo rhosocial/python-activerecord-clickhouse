@@ -23,7 +23,7 @@ from typing import Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-from .expressions import (
+from ..expression.show import (
     ShowCreateTableExpression,
     ShowCreateViewExpression,
     ShowTablesExpression,

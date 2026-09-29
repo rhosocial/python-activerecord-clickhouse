@@ -4,7 +4,7 @@
 import os
 from dataclasses import replace
 from typing import Dict, Any, Tuple, Type
-from rhosocial.activerecord.backend.impl.clickhouse import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 from rhosocial.activerecord.testsuite.core.pool import pooled_database_name
 
