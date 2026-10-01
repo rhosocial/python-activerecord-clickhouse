@@ -73,7 +73,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord
-          ref: feature/expression-value-capability
+          ref: feature/typed-columns
           path: _activerecord
 
       - name: Check out testsuite (release branch)
