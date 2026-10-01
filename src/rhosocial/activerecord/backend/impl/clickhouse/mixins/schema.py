@@ -5,11 +5,20 @@ class ClickHouseSchemaMixin:
     """ClickHouse schema (database) support."""
 
     def supports_schema(self) -> bool:
-        """Whether schema (database) namespace is supported.
+        """Whether a schema qualifier can be rendered and used.
 
-        ClickHouse uses DATABASE, not SCHEMA as an independent namespace.
+        True, and what it names needs saying plainly: ClickHouse has no schema
+        concept in the language. ``CREATE SCHEMA`` and ``SHOW SCHEMAS`` are
+        syntax errors, and no ``currentSchema()`` function exists -- the server
+        suggests ``currentSchemas``/``current_schemas`` instead.
+
+        A ``schema_name`` is therefore accepted and used as a *database*:
+        ``schema_name="app"`` renders as ```app```.```users```. The parameter is
+        honoured even though the word "schema" is not. It was previously False,
+        which contradicted the renderer: the qualifier was emitted either way
+        and the server accepted it.
         """
-        return False
+        return True
 
     def supports_create_schema(self) -> bool:
         """Whether CREATE SCHEMA is supported.
