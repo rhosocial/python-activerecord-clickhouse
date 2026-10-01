@@ -53,7 +53,7 @@ class ClickHouseViewMixin:
             parts.append("IF NOT EXISTS")
 
         parts.append("VIEW")
-        parts.append(self._format_view_name(expr))
+        parts.append(self.format_view_name(expr))
 
         if expr.column_aliases:
             cols = ", ".join(self.format_identifier(c) for c in expr.column_aliases)
@@ -79,5 +79,5 @@ class ClickHouseViewMixin:
         parts = ["DROP VIEW"]
         if expr.if_exists:
             parts.append("IF EXISTS")
-        parts.append(self._format_view_name(expr))
+        parts.append(self.format_view_name(expr))
         return " ".join(parts), ()
