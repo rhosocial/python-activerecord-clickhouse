@@ -24,6 +24,13 @@ class ClickHouseDQLMixin:
         here. Database qualification is handled separately through
         cross-database query support.
         """
+        if expr.schema_name and not expr.table:
+            # A column reference cannot be qualified without a table. The core
+            # dialect raises here; ClickHouse qualifies by *database* rather
+            # than schema, so a schema on a bare column is meaningless rather
+            # than dangerous. Warn instead of raising so one model definition
+            # can still target both PostgreSQL and ClickHouse.
+            _warn_qualification_dropped(self.name, expr, "ClickHouse")
         if expr.table:
             col_sql = f"{self.format_identifier(expr.table, expr.table_need_quote)}.{self.format_identifier(expr.name, expr.name_need_quote)}"
         else:
@@ -60,3 +67,16 @@ class ClickHouseDQLMixin:
             return None, []
 
         return " ".join(sql_parts), params
+
+
+def _warn_qualification_dropped(dialect_name: str, expr, label: str) -> None:
+    """Warn that a supplied ``schema_name`` cannot be rendered on a bare column."""
+    import warnings
+
+    warnings.warn(
+        f"{label}: dropping schema_name={expr.schema_name!r} from column "
+        f"{expr.name!r} because no table was given; a column reference needs "
+        "a table to be qualified",
+        UserWarning,
+        stacklevel=3,
+    )
