@@ -1,5 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/truncate.py
 from typing import TYPE_CHECKING, Tuple
+from ....expression.core import TableExpression
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -42,5 +43,5 @@ class ClickHouseTruncateMixin:
                 "TRUNCATE ... CASCADE",
                 suggestion="ClickHouse does not support CASCADE on TRUNCATE.",
             )
-        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
+        sql = f"TRUNCATE TABLE {TableExpression(self, expr.table_name, schema_name=expr.schema_name).to_sql()[0]}"
         return sql, ()
