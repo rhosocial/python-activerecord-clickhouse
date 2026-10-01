@@ -14,6 +14,7 @@ from rhosocial.activerecord.backend.expression.functions import (
     interval,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types import ClickHouseInt64Type
 
 
 class TestClickHouseDateTimeIntervalExpressions:
@@ -127,7 +128,7 @@ class TestClickHouseDateTimeIntervalExpressions:
                 Column(clickhouse_dialect, "started_at"),
                 Column(clickhouse_dialect, "ended_at"),
             )
-            .cast("SIGNED")
+            .cast(ClickHouseInt64Type(clickhouse_dialect))
             .as_("elapsed_days")
         )
 
