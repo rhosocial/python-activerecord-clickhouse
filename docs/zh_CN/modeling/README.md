@@ -4,3 +4,4 @@
 
 - [字段类型映射](field_types.md)：Python 类型 ↔ ClickHouse 列类型
 - [Nullable 与可选字段](nullable.md)
+- [schema 名称](schema_namespace.md)：这里的 `schema_name` 指的是 *database*

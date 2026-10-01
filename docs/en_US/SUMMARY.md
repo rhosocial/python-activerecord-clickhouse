@@ -23,6 +23,7 @@
 
 * [Field type mapping](modeling/field_types.md)
 * [Nullable & optional fields](modeling/nullable.md)
+* [Schema names](modeling/schema_namespace.md)
 
 ## Querying
 
