@@ -139,6 +139,27 @@ class ClickHouseBackend(
 
         return SyncClickHouseIntrospector(self, SyncIntrospectorExecutor(self))
 
+    def get_current_schema(self) -> Optional[str]:
+        """Get the namespace an unqualified reference resolves against.
+
+        Asks the server via currentDatabase(). ClickHouse has no schema
+        namespace: a qualified db.table names a database, and an unqualified
+        table resolves against the current database.
+        """
+        from ....expression import core
+        from ....expression.statements.dql import QueryExpression
+        from ..expression.schema import current_database
+
+        query = QueryExpression(
+            dialect=self.dialect,
+            select=[current_database(self.dialect)],
+        )
+        sql, params = query.to_sql()
+        row = self.fetch_one(sql, params)
+        if not row:
+            return None
+        return next(iter(row.values()), None)
+
     def introspect_and_adapt(self) -> None:
         """Introspect backend and adapt backend instance to actual server capabilities.
 
