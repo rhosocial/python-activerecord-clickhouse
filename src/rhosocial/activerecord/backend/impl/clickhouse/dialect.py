@@ -202,10 +202,13 @@ class ClickHouseDialect(
     ClickHouseTransactionMixin,
     ClickHouseTableMixin,
     ClickHouseRenameTableMixin,
+    # Before TableMixin: this answers False where the core answers True, and it
+    # sat in the backend block below, so DROP TABLE was rendered with CASCADE
+    # and RESTRICT that ClickHouse does not accept.
+    ClickHouseConstraintMixin,
     TableMixin,
     ClickHouseTruncateMixin,
     TruncateMixin,
-    ClickHouseConstraintMixin,
     ConstraintMixin,
     ClickHouseSpatialMixin,
     ClickHouseVectorMixin,
