@@ -206,7 +206,7 @@ class ClickHouseUpdateMixin:
             # caller built them and let the server handle them.
             return super().format_update_statement(expr)
 
-        from ....expression.statements.dml import UpdateExpression
+        from rhosocial.activerecord.backend.expression.statements.dml import UpdateExpression
 
         # Rebuild only the filter. The assignments, the table and any FROM are
         # passed through untouched so their rendering and parameters are

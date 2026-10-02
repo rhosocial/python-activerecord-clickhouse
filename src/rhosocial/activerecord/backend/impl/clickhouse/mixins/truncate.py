@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/truncate.py
 from typing import TYPE_CHECKING, Tuple
-from ....expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

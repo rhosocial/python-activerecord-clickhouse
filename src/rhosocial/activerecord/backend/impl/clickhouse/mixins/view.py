@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/view.py
 from typing import Tuple, TYPE_CHECKING
-from ....expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.core import TableExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (

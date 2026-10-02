@@ -146,8 +146,8 @@ class ClickHouseBackend(
         namespace: a qualified db.table names a database, and an unqualified
         table resolves against the current database.
         """
-        from ....expression import core
-        from ....expression.statements.dql import QueryExpression
+        from rhosocial.activerecord.backend.expression import core
+        from rhosocial.activerecord.backend.expression.statements.dql import QueryExpression
         from ..expression.schema import current_database
 
         query = QueryExpression(
