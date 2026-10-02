@@ -102,6 +102,7 @@ from .protocols import (
 from .mixins import (
     ClickHouseTransactionMixin,
     ClickHouseDMLOperationMixin,
+    ClickHouseUpdateMixin,
     ClickHouseFullTextSearchMixin,
     ClickHouseTriggerMixin,
     ClickHouseTableMixin,
@@ -180,6 +181,7 @@ class ClickHouseDialect(
     ClickHouseTriggerMixin,
     TriggerMixin,
     ClickHouseDMLOperationMixin,
+    ClickHouseUpdateMixin,
     ClickHouseUpsertMixin,
     UpsertMixin,
     LateralJoinMixin,

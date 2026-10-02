@@ -10,6 +10,7 @@ from .json import ClickHouseJSONFunctionMixin
 from .spatial import ClickHouseSpatialMixin
 from .vector import ClickHouseVectorMixin
 from .dml import ClickHouseDMLOperationMixin
+from .update import ClickHouseUpdateMixin
 from .fulltext import ClickHouseFullTextSearchMixin
 from .locking import ClickHouseLockingMixin
 from .column import ClickHouseModifyColumnMixin
