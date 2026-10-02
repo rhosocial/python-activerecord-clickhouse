@@ -24,6 +24,11 @@ class ClickHouseDQLMixin:
         here. Database qualification is handled separately through
         cross-database query support.
         """
+        from rhosocial.activerecord.backend.dialect.protocols import SchemaSupport
+
+        if isinstance(self, SchemaSupport):
+            self.validate_schema_name(expr)
+
         if expr.schema_name and not expr.table:
             # A column reference cannot be qualified without a table. The core
             # dialect raises here; ClickHouse qualifies by *database* rather
