@@ -79,7 +79,7 @@ class TestClickHouseTableDeclarationGating:
         dialect = ClickHouseDialect(version=(26, 7, 3))
         expression = CreateTableExpression(
             dialect,
-            "plain_table_defaults",
+            TableExpression(dialect, "plain_table_defaults"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
         )
         sql, params = expression.to_sql()
@@ -94,7 +94,7 @@ class TestClickHouseTableDeclarationGating:
         assert dialect.supports_table_inheritance() is False
         expression = CreateTableExpression(
             dialect,
-            "inherited",
+            TableExpression(dialect, "inherited"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=["parent_a", "parent_b"],
         )
@@ -107,7 +107,7 @@ class TestClickHouseTableDeclarationGating:
         assert dialect.supports_table_tablespace() is False
         expression = CreateTableExpression(
             dialect,
-            "tablespaced",
+            TableExpression(dialect, "tablespaced"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             tablespace="ts_data",
         )

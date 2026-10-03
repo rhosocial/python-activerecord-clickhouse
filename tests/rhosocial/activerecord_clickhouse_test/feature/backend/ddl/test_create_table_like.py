@@ -110,7 +110,7 @@ class TestClickHouseCreateTableLike:
                 constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
             ),
         ]
-        create_expr = CreateTableExpression(dialect=dialect, table="users", columns=columns)
+        create_expr = CreateTableExpression(dialect=dialect, table=TableExpression(dialect, "users"), columns=columns)
         sql, params = create_expr.to_sql()
 
         assert "CREATE TABLE" in sql
@@ -130,7 +130,7 @@ class TestClickHouseCreateTableOptions:
         dialect = ClickHouseDialect()
         expr = CreateTableExpression(
             dialect,
-            table="t",
+            table=TableExpression(dialect, "t"),
             columns=[],
             table_options=CreateTableOptions(dialect, or_replace=True),
         )

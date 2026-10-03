@@ -29,24 +29,24 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     ValuesSource,
     DropTableExpression,
 )
-from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
+from rhosocial.activerecord.backend.expression.core import Literal, TableExpression  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
     ColumnConstraintType,
 )
 
-drop_customers = DropTableExpression(dialect=dialect, table="customers", if_exists=True)
+drop_customers = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "customers"), if_exists=True)
 sql, params = drop_customers.to_sql()
 backend.execute(sql, params)
 
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
 create_customers = CreateTableExpression(
     dialect=dialect,
-    table="customers",
+    table=TableExpression(dialect, "customers"),
     columns=[
         ColumnDefinition(
             "id",
@@ -70,7 +70,7 @@ backend.execute(sql, params)
 
 create_orders = CreateTableExpression(
     dialect=dialect,
-    table="orders",
+    table=TableExpression(dialect, "orders"),
     columns=[
         ColumnDefinition(
             "id",

@@ -22,9 +22,10 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
 
 def create_users_table(dialect):
     """CREATE TABLE users (id UInt32 PRIMARY KEY, name String, email String)."""
+    from rhosocial.activerecord.backend.expression.core import TableExpression
     return CreateTableExpression(
         dialect,
-        table="users",
+        table=TableExpression(dialect, "users"),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -44,14 +45,16 @@ def create_users_table(dialect):
 
 def drop_users_table(dialect):
     """DROP TABLE IF EXISTS users."""
-    return DropTableExpression(dialect, table="users", if_exists=True)
+    from rhosocial.activerecord.backend.expression.core import TableExpression
+    return DropTableExpression(dialect, table=TableExpression(dialect, "users"), if_exists=True)
 
 
 def create_posts_table(dialect):
     """CREATE TABLE posts (id UInt32 PRIMARY KEY, title String, user_id UInt32)."""
+    from rhosocial.activerecord.backend.expression.core import TableExpression
     return CreateTableExpression(
         dialect,
-        table="posts",
+        table=TableExpression(dialect, "posts"),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -71,7 +74,8 @@ def create_posts_table(dialect):
 
 def drop_posts_table(dialect):
     """DROP TABLE IF EXISTS posts."""
-    return DropTableExpression(dialect, table="posts", if_exists=True)
+    from rhosocial.activerecord.backend.expression.core import TableExpression
+    return DropTableExpression(dialect, table=TableExpression(dialect, "posts"), if_exists=True)
 
 
 def create_custom_table(dialect, table: str = "custom_table"):

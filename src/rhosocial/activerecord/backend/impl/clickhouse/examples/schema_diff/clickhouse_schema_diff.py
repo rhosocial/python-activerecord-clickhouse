@@ -52,13 +52,13 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  #
     ClickHouseStringType,
 )
 
-expr = DropTableExpression(dialect, "events", if_exists=True)
+expr = DropTableExpression(dialect, TableExpression(dialect, "events"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
 expr = CreateTableExpression(
     dialect=dialect,
-    table="events",
+    table=TableExpression(dialect, "events"),
     columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
@@ -157,7 +157,7 @@ if "events" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "events", if_exists=True)
+expr = DropTableExpression(dialect, TableExpression(dialect, "events"), if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

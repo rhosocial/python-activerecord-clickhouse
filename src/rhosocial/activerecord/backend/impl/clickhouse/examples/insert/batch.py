@@ -12,6 +12,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConn
 from rhosocial.activerecord.backend.expression import (
     CreateTableExpression,
     DropTableExpression,
+    TableExpression,
 )
 from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
 from rhosocial.activerecord.backend.expression.statements import (
@@ -34,13 +35,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table="logs", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "logs"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="logs",
+    table=TableExpression(dialect, "logs"),
     columns=[
         ColumnDefinition(
             "id",

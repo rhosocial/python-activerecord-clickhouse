@@ -549,7 +549,8 @@ def test_collected_clickhouse_type_and_options_render_minimal_column():
     try:
         column = option.column_definition_class()(dialect, "physical_value", data_type)
         option.apply_to(column)
-        expression = CreateTableExpression(dialect, "rendered", [column])
+        from rhosocial.activerecord.backend.expression.core import TableExpression
+        expression = CreateTableExpression(dialect, TableExpression(dialect, "rendered"), [column])
         rendered = expression.to_sql()
     finally:
         data_type.dialect = None

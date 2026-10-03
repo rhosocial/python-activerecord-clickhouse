@@ -9,7 +9,7 @@ Create an index on an existing table.
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
-from rhosocial.activerecord.backend.expression import CreateTableExpression, DropTableExpression
+from rhosocial.activerecord.backend.expression import CreateTableExpression, DropTableExpression, TableExpression
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -28,13 +28,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop = DropTableExpression(dialect=dialect, table="products", if_exists=True)
+drop = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "products"), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="products",
+    table=TableExpression(dialect, "products"),
     columns=[
         ColumnDefinition(
             "id",
@@ -69,7 +69,7 @@ except Exception:
 create_idx = CreateIndexExpression(
     dialect=dialect,
     index="idx_category_price",
-    table="products",
+    table=TableExpression(dialect, "products"),
     columns=["category", "price"],
 )
 

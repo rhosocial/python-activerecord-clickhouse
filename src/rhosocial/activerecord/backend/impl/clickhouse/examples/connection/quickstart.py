@@ -63,7 +63,7 @@ def execute_expression(expression, options=None):
 def create_demo_tables():
     users_table = CreateTableExpression(
         dialect=dialect,
-        table="quickstart_users",
+        table=TableExpression(dialect, "quickstart_users"),
         columns=[
             ColumnDefinition(
                 "id",
@@ -86,7 +86,7 @@ def create_demo_tables():
 
     logs_table = CreateTableExpression(
         dialect=dialect,
-        table="quickstart_logs",
+        table=TableExpression(dialect, "quickstart_logs"),
         columns=[
             ColumnDefinition(
                 "id",
@@ -234,10 +234,10 @@ except Exception as error:
 # ============================================================
 # SECTION: Disconnect
 # ============================================================
-drop_logs = DropTableExpression(dialect=dialect, table="quickstart_logs", if_exists=True)
+drop_logs = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "quickstart_logs"), if_exists=True)
 execute_expression(drop_logs, ddl_options)
 
-drop_users = DropTableExpression(dialect=dialect, table="quickstart_users", if_exists=True)
+drop_users = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "quickstart_users"), if_exists=True)
 execute_expression(drop_users, ddl_options)
 
 backend.disconnect()

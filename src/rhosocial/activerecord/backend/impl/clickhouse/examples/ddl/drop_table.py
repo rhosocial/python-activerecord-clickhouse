@@ -28,6 +28,7 @@ dialect = backend.dialect
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     CreateTableExpression,
     DropTableExpression,
+    TableExpression,
 )
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
@@ -35,17 +36,17 @@ from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnConstraintType,
 )
 
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="users",
+    table=TableExpression(dialect, "users"),
     columns=[
         ColumnDefinition(
             "id",
@@ -66,7 +67,7 @@ backend.execute(sql, params)
 # ============================================================
 drop_expr = DropTableExpression(
     dialect=dialect,
-    table="users",
+    table=TableExpression(dialect, "users"),
 )
 sql, params = drop_expr.to_sql()
 print(f"DROP TABLE SQL: {sql}")
@@ -78,7 +79,7 @@ backend.execute(sql, params)
 # ============================================================
 drop_expr_if_exists = DropTableExpression(
     dialect=dialect,
-    table="users",
+    table=TableExpression(dialect, "users"),
     if_exists=True,
 )
 sql, params = drop_expr_if_exists.to_sql()

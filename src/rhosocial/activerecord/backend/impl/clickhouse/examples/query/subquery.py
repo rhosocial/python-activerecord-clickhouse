@@ -29,24 +29,24 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     ValuesSource,
     DropTableExpression,
 )
-from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
+from rhosocial.activerecord.backend.expression.core import Literal, TableExpression  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
     ColumnConstraintType,
 )
 
-drop_departments = DropTableExpression(dialect=dialect, table="departments", if_exists=True)
+drop_departments = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "departments"), if_exists=True)
 sql, params = drop_departments.to_sql()
 backend.execute(sql, params)
 
-drop_employees = DropTableExpression(dialect=dialect, table="employees", if_exists=True)
+drop_employees = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "employees"), if_exists=True)
 sql, params = drop_employees.to_sql()
 backend.execute(sql, params)
 
 create_departments = CreateTableExpression(
     dialect=dialect,
-    table="departments",
+    table=TableExpression(dialect, "departments"),
     columns=[
         ColumnDefinition(
             "id",
@@ -66,7 +66,7 @@ backend.execute(sql, params)
 
 create_employees = CreateTableExpression(
     dialect=dialect,
-    table="employees",
+    table=TableExpression(dialect, "employees"),
     columns=[
         ColumnDefinition(
             "id",

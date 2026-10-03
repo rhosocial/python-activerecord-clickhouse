@@ -34,23 +34,23 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     ValuesSource,
     DropTableExpression,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+from rhosocial.activerecord.backend.expression.core import Literal, Column, TableExpression  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
 )
 
 # Drop dependent tables first for clean setup (orders may reference users via FK)
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_users = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_users = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "users"), if_exists=True)
 sql, params = drop_users.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="users",
+    table=TableExpression(dialect, "users"),
     columns=[
         ColumnDefinition("id", "UInt32"),
         ColumnDefinition("name", "String"),
@@ -143,11 +143,11 @@ backend.execute(sql, params, options=options)
 # ============================================================
 # SECTION: Teardown
 # ============================================================
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_expr = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_expr = DropTableExpression(dialect=dialect, table=TableExpression(dialect, "users"), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
