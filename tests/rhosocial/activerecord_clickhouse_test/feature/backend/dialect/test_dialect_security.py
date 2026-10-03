@@ -143,21 +143,32 @@ def test_clickhouse_json_table_unsupported_validates_expression(dialect):
 
 
 def test_clickhouse_format_cast_expression_valid(dialect):
-    """Test that CAST expression validates target_type."""
-    from rhosocial.activerecord.backend.expression.core import CastExpression, Literal
-    inner = Literal(dialect, "column")
-    expr = CastExpression(dialect, inner, "INTEGER")
+    """A CAST target is a DataType, and the dialect renders what it says.
+
+    ClickHouse's own type rather than a CustomType: it implements none of the
+    generic format_data_type_* names, so a target it does not model is a target
+    it cannot render. That is the capability difference, not a gap in the test.
+    """
+    from rhosocial.activerecord.backend.expression.core import CastExpression, Column
+    from rhosocial.activerecord.backend.impl.clickhouse.types import ClickHouseInt64Type
+
+    expr = CastExpression(dialect, Column(dialect, "column"), ClickHouseInt64Type(dialect))
     sql, params = dialect.format_cast_expression(expr)
-    assert "INTEGER" in sql
+    assert "Int64" in sql
 
 
 def test_clickhouse_format_cast_expression_rejects_injection(dialect):
-    """Test that malicious target_type is rejected."""
-    from rhosocial.activerecord.backend.expression.core import CastExpression, Literal
-    inner = Literal(dialect, "column")
-    expr = CastExpression(dialect, inner, "INTEGER; DROP TABLE users--")
-    with pytest.raises(ValueError, match="Invalid target type"):
-        dialect.format_cast_expression(expr)
+    """A string in the type position is refused at construction.
+
+    The type position cannot be bound as a parameter, so whatever lands there is
+    rendered into the statement text. That is why a string is not accepted at
+    all rather than being escaped: there is nothing to escape it into, since it
+    is code and not data."""
+    from rhosocial.activerecord.backend.expression.core import CastExpression, Column
+
+    with pytest.raises(TypeError, match="takes a DataType instance"):
+        CastExpression(dialect, Column(dialect, "column"),
+                       "INTEGER; DROP TABLE users--")
 
 
 class TestClickHouseEscapeSqlStringBackslash:
