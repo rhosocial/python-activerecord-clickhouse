@@ -17,6 +17,7 @@ expression-to-formatter dispatch path is exercised.
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import OnConflictClause
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     CreateTriggerExpression,
@@ -88,12 +89,17 @@ class TestTriggerStub:
     def test_format_create_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
             CreateTriggerExpression(
-                dialect, "trg", "tbl", TriggerTiming.BEFORE, [TriggerEvent.INSERT], "fn"
+                dialect,
+                "trg",
+                TableExpression(dialect, "tbl"),
+                TriggerTiming.BEFORE,
+                [TriggerEvent.INSERT],
+                TableExpression(dialect, "fn"),
             ).to_sql()
 
     def test_format_drop_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            DropTriggerExpression(dialect, "trg", "tbl").to_sql()
+            DropTriggerExpression(dialect, "trg", TableExpression(dialect, "tbl")).to_sql()
 
 
 class TestSpatialStub:
