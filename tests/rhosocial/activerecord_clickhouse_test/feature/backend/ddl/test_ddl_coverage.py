@@ -63,7 +63,9 @@ class TestTruncateTable:
     """Test ClickHouse TRUNCATE TABLE statement."""
 
     def test_basic(self, dialect):
-        sql, params = TruncateExpression(dialect, table_name="users").to_sql()
+        sql, params = TruncateExpression(
+            dialect, table=TableExpression(dialect, "users")
+        ).to_sql()
         assert sql == "TRUNCATE TABLE `users`"
         assert params == ()
 
@@ -75,11 +77,15 @@ class TestTruncateTable:
 
     def test_restart_identity_unsupported(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            TruncateExpression(dialect, table_name="users", restart_identity=True).to_sql()
+            TruncateExpression(
+                dialect, table=TableExpression(dialect, "users"), restart_identity=True
+            ).to_sql()
 
     def test_cascade_unsupported(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            TruncateExpression(dialect, table_name="users", cascade=True).to_sql()
+            TruncateExpression(
+                dialect, table=TableExpression(dialect, "users"), cascade=True
+            ).to_sql()
 
 
 class TestAlterColumnDefault:
