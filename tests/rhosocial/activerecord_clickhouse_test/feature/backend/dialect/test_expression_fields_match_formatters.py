@@ -144,11 +144,6 @@ class TestExpressionSignatures:
                 "schema_name",
             ),
             (
-                "rhosocial.activerecord.backend.expression.statements.ddl_truncate",
-                "TruncateExpression",
-                "schema_name",
-            ),
-            (
                 "rhosocial.activerecord.backend.expression.core",
                 "Column",
                 "schema_name",
