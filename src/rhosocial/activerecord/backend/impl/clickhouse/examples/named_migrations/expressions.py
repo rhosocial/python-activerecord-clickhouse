@@ -7,6 +7,7 @@ These are the building blocks used by NamedMigration up()/down() methods.
 
 """
 
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableExpression,
     ColumnDefinition,
@@ -86,7 +87,7 @@ def create_custom_table(dialect, table: str = "custom_table"):
     """
     return CreateTableExpression(
         dialect,
-        table=table,
+        table=TableExpression(dialect, table),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -105,4 +106,4 @@ def create_custom_table(dialect, table: str = "custom_table"):
 
 def drop_custom_table(dialect, table: str = "custom_table"):
     """DROP TABLE IF EXISTS <table>."""
-    return DropTableExpression(dialect, table=table, if_exists=True)
+    return DropTableExpression(dialect, table=TableExpression(dialect, table), if_exists=True)
