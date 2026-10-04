@@ -168,7 +168,7 @@ class ClickHouseDMLOperationSupport(Protocol):
         ON DUPLICATE KEY UPDATE).
 
         Args:
-            expr: OnConflictExpression or equivalent instance
+            expr: OnConflictClause instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

@@ -3,6 +3,7 @@
 
 from typing import TYPE_CHECKING
 
+from rhosocial.activerecord.backend.expression.core import TableExpression
 from rhosocial.activerecord.backend.expression.statements import InsertExpression
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -21,7 +22,7 @@ class ClickHouseInsertExpression(InsertExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        into,
+        into: TableExpression,
         source,
         columns=None,
         *,
@@ -30,6 +31,13 @@ class ClickHouseInsertExpression(InsertExpression):
         replace: bool = False,
         ignore: bool = False,
     ):
+        """
+        Args:
+            into: The table being inserted into, carrying its own namespace.
+                A bare string is rejected rather than wrapped: wrapping it
+                builds an unnamed reference, so a caller who meant to qualify
+                the insert gets unqualified SQL and no error.
+        """
         super().__init__(
             dialect,
             into=into,

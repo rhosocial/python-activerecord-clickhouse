@@ -19,10 +19,12 @@ class ClickHouseDQLMixin:
     def format_column(self, expr: "Column") -> Tuple[str, tuple]:
         """Format column reference for ClickHouse.
 
-        ClickHouse uses database-qualified references (db.table.column) rather
-        than schema-qualified ones, so schema_name is silently ignored
-        here. Database qualification is handled separately through
-        cross-database query support.
+        ClickHouse qualifies a column by *database* rather than by schema, so a
+        ``schema_name`` on a column that carries no table cannot be rendered.
+        It is not ignored in silence: the qualifier is dropped and a
+        ``UserWarning`` names what was dropped, because the core dialect raises
+        in the same place and one model definition may have to target both
+        PostgreSQL and ClickHouse. See ``_warn_qualification_dropped``.
         """
         from rhosocial.activerecord.backend.dialect.protocols import SchemaSupport
 

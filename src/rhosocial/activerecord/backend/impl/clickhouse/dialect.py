@@ -388,26 +388,27 @@ class ClickHouseDialect(
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
 
-    # region CreateTableExpression.diff() hooks (CreateTableExpressionDiffMixin)
+    # region ALTER TABLE capability switches
     #
-    # ClickHouse-specific policy for the expression-level CREATE TABLE diff:
+    # ClickHouse-specific policy for the ALTER TABLE decisions the core
+    # ``TableMixin`` asks the dialect about:
     #
     # - Column type changes are supported in place via ``MODIFY COLUMN``
-    #   (``supports_alter_column_type()`` is True), so the diff emits a
-    #   ``ModifyColumn`` action instead of forcing a rebuild.
+    #   (``supports_alter_column_type()`` is True), so a type change is a
+    #   ``ModifyColumn`` action rather than a rebuild.
     # - ``ALTER COLUMN SET/DROP DEFAULT`` and ``SET/DROP NOT NULL`` do not
     #   exist in ClickHouse: DEFAULT is part of the column definition and
     #   nullability is part of the type (``Nullable(T)``). Both require
-    #   ``MODIFY COLUMN``, which the generic diff cannot express per
-    #   property, so property changes rebuild.
+    #   ``MODIFY COLUMN``, which the property-level path cannot express, so
+    #   property changes rebuild.
     # - ClickHouse has no traditional secondary indexes — only data skipping
     #   indexes, which require ``TYPE ... GRANULARITY ...`` clauses the
-    #   generic ``ADD INDEX`` action cannot express. Index changes rebuild;
-    #   the recreated table renders skip indexes inline via
+    #   ``ADD INDEX`` action cannot express. Index changes rebuild; the
+    #   recreated table renders skip indexes inline via
     #   :meth:`format_index_definition`.
-    # - ``ALTER TABLE ADD/DROP CONSTRAINT`` is unsupported, so any named
-    #   table-constraint change also rebuilds instead of emitting actions
-    #   that would raise on render.
+    # - ``ALTER TABLE ADD/DROP CONSTRAINT`` is unsupported, so a named
+    #   table-constraint change must rebuild rather than emit an action that
+    #   would raise on render.
 
     def supports_alter_column_type(self) -> bool:
         """ClickHouse supports in-place type changes via MODIFY COLUMN."""
