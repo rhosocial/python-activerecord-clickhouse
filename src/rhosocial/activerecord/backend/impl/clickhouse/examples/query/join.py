@@ -91,7 +91,7 @@ backend.execute(sql, params)
 
 insert_customers = InsertExpression(
     dialect=dialect,
-    into="customers",
+    into=TableExpression(dialect, "customers"),
     columns=["name", "email"],
     source=ValuesSource(
         dialect,
@@ -106,7 +106,7 @@ backend.execute(sql, params)
 
 insert_orders = InsertExpression(
     dialect=dialect,
-    into="orders",
+    into=TableExpression(dialect, "orders"),
     columns=["customer_id", "total", "status"],
     source=ValuesSource(
         dialect,

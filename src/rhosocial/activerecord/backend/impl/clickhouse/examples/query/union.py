@@ -68,7 +68,7 @@ backend.execute(sql, params)
 # Insert data into table_a
 insert = InsertExpression(
     dialect=dialect,
-    into="users",
+    into=TableExpression(dialect, "users"),
     columns=["id", "name"],
     source=ValuesSource(
         dialect,

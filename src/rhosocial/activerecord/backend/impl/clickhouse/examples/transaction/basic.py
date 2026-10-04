@@ -84,7 +84,7 @@ backend.execute(sql, params)
 
 insert_expr = InsertExpression(
     dialect=dialect,
-    into="accounts",
+    into=TableExpression(dialect, "accounts"),
     columns=["name", "balance"],
     source=ValuesSource(
         dialect,
@@ -111,7 +111,7 @@ print("Use plain INSERT/SELECT statements instead.")
 # Insert another row
 insert_expr2 = InsertExpression(
     dialect=dialect,
-    into="accounts",
+    into=TableExpression(dialect, "accounts"),
     columns=["name", "balance"],
     source=ValuesSource(
         dialect,

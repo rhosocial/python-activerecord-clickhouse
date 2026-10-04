@@ -74,7 +74,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="documents",
+    into=TableExpression(dialect, "documents"),
     columns=["data"],
     source=ValuesSource(
         dialect,

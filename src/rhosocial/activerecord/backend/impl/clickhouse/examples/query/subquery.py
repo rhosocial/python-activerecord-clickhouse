@@ -87,7 +87,7 @@ backend.execute(sql, params)
 
 insert_departments = InsertExpression(
     dialect=dialect,
-    into="departments",
+    into=TableExpression(dialect, "departments"),
     columns=["name", "budget"],
     source=ValuesSource(
         dialect,
@@ -102,7 +102,7 @@ backend.execute(sql, params)
 
 insert_employees = InsertExpression(
     dialect=dialect,
-    into="employees",
+    into=TableExpression(dialect, "employees"),
     columns=["name", "salary", "department_id"],
     source=ValuesSource(
         dialect,
