@@ -23,7 +23,10 @@
 
 * [字段类型映射](modeling/field_types.md)
 * [Nullable 与可选字段](modeling/nullable.md)
-* [schema 名称](modeling/schema_namespace.md)
+
+## ClickHouse 专有特性
+
+* [schema 名称](clickhouse_specific_features/schema_namespace.md)
 
 ## 查询
 

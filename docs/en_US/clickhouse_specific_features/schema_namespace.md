@@ -1,4 +1,4 @@
-# docs/en_US/modeling/schema_namespace.md
+# docs/en_US/clickhouse_specific_features/schema_namespace.md
 
 # Schema names in the ClickHouse backend
 
@@ -80,26 +80,57 @@ against the session's current database:
 SELECT `orders`.`id` FROM `orders`
 ```
 
-Both renderings above, and every other SQL block on this page, were produced
-with `ClickHouseDialect((26, 7, 0))`. The column side of the same statement is
-covered under [Column references](#column-references-carry-at-most-two-parts).
+Both renderings above, and every other SQL block on this page, were produced with
+`ClickHouseDialect((26, 7, 0))` — `ClickHouseDialect((25, 8, 0))` and
+`ClickHouseDialect((26, 3, 0))` for the version-dependent `UPDATE` below — running
+against the core library on this branch:
 
-## DDL takes a `schema_name` of its own
+```
+PYTHONPATH=/mnt/i/GitHubRepositories/rhosocial/.worktrees/core-schema-name/src \
+  .venv3.14-ubuntu26.04/bin/python
+```
+
+The column side of the same statement is covered under
+[Column references](#column-references-carry-at-most-two-parts).
+
+## DDL takes a `TableExpression` of its own
 
 `__schema_name__` selects the namespace for DML. DDL statements do not read it,
-and each one takes its own `schema_name`. That is the general rule; the three
-statements below are what ClickHouse accepts for the DDL a schema-bound model
-needs.
+and a statement whose target is a table takes a `TableExpression` rather than a
+`schema_name` of its own. That is the general rule; the statements below are what
+ClickHouse accepts for the DDL a schema-bound model needs.
+
+Every table-targeted statement refuses a bare string at construction:
+
+```
+TypeError: table must be a TableExpression, got str
+```
+
+That covers `CreateTableExpression`, `DropTableExpression`,
+`TruncateExpression`, `AlterTableExpression`, `CreateIndexExpression`,
+`DropIndexExpression`, `CreateFulltextIndexExpression`,
+`DropFulltextIndexExpression`, `CreateTriggerExpression` and
+`DropTriggerExpression`. On none of them is `schema_name` what qualifies the
+table — the `TableExpression` is. `CREATE TABLE`, `DROP TABLE`, `TRUNCATE` and
+`ALTER TABLE` have no `schema_name` parameter at all; the index and trigger
+statements keep one for the index or trigger *name*, and this backend does accept
+a qualified index name, so there both the name and the table end up qualified.
+
+Objects that are not tables at all — a view, a sequence, a type, a function, a
+domain — also keep a `schema_name`; the database a statement creates or drops is
+spelled `CREATE DATABASE` / `DROP DATABASE`, which take the name as a plain
+string.
 
 Create the database itself with `CREATE DATABASE`, which is rendered by
-`CreateDatabaseExpression`:
+`CreateDatabaseExpression`. It is not re-exported from the expression package, so
+import it from its module:
 
 ```python
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     CreateDatabaseExpression,
 )
 
-CreateDatabaseExpression(dialect, "app")
+CreateDatabaseExpression(dialect, "app").to_sql()[0]
 # CREATE DATABASE `app`
 ```
 
@@ -114,17 +145,40 @@ from rhosocial.activerecord.backend.expression import (
 CreateTableExpression(
     dialect,
     TableExpression(dialect, "orders", schema_name="app"),
-    columns=[...],
-)
-# CREATE TABLE `app`.`orders` (...) ENGINE = MergeTree() ORDER BY ...
+    columns,
+).to_sql()[0]
+# CREATE TABLE `app`.`orders` (`id` Int32 PRIMARY KEY)
 ```
 
 `TRUNCATE` takes the same keyword on
 `rhosocial.activerecord.backend.expression.statements.ddl_truncate.TruncateExpression`:
 
 ```python
-TruncateExpression(dialect, "orders", schema_name="app")
+TruncateExpression(dialect, TableExpression(dialect, "orders", schema_name="app")).to_sql()[0]
 # TRUNCATE TABLE `app`.`orders`
+```
+
+The model-level factories read `schema_name()` for you, so a model with
+`__schema_name__ = "app"` produces the same qualified names:
+
+```python
+Order.build_create_table_statement(dialect, columns).to_sql()[0]
+Order.build_truncate_statement(dialect).to_sql()[0]
+Order.build_drop_table_statement(dialect, if_exists=True).to_sql()[0]
+# CREATE TABLE `app`.`orders` (...) / TRUNCATE TABLE `app`.`orders`
+# / DROP TABLE IF EXISTS `app`.`orders`
+```
+
+The index factory is the one that needs no workaround here, which is the opposite
+of MySQL and MariaDB. `build_create_index_statement()` defaults the index's
+namespace to the model's, and `None` means "inherit the model's" rather than
+"unqualified"; because ClickHouse accepts a qualified index name
+(`supports_index_schema_qualification()` is `True`), the index ends up qualified
+along with the table:
+
+```python
+Order.build_create_index_statement(dialect, "idx_orders_id", ["id"]).to_sql()[0]
+# CREATE INDEX `app`.`idx_orders_id` ON `app`.`orders` (`id`)
 ```
 
 A model whose `__schema_name__` is `app` and a migration creating an
@@ -140,10 +194,10 @@ most `table.column`, so the database never appears a second time:
 SELECT `orders`.`id` FROM `app`.`orders`
 ```
 
-`format_column` ignores `schema_name` entirely — not because it rejects it, but
-because a three-part `database.table.column` reference is not a form this
-dialect produces. A `Column` built with both a table and a schema renders the
-two-part form:
+`format_column` drops `schema_name` — not because it rejects the value, but
+because a three-part `database.table.column` reference is not a form this dialect
+produces. A `Column` built with both a table and a schema renders the two-part
+form:
 
 ```python
 dialect.format_column(Column(dialect, "id", table="orders", schema_name="app"))
@@ -291,6 +345,16 @@ rewritten against `CREATE DATABASE` and `SHOW DATABASES`.
 **A qualified `WHERE` in an `UPDATE` fails below 26.7.** Covered above; the
 symptom is `Missing columns: '<table>.<column>'`.
 
+**Passing a table name as a string to DDL.** `CREATE TABLE`, `DROP TABLE`,
+`TRUNCATE`, `ALTER TABLE`, the index statements and the trigger statements take a
+`TableExpression`, so a bare string is a `TypeError` at construction rather than a
+silently unqualified name:
+
+```
+TruncateExpression(dialect, "orders")
+# TypeError: table must be a TableExpression, got str
+```
+
 ## Reading the current database
 
 `get_current_schema()` returns the current database. The method name is the
@@ -325,7 +389,14 @@ QueryExpression(dialect, select=[Column(dialect, "id")], from_=[that_table]).to_
 
 The renderer treats an empty string as absent, so accepting one would mean a
 caller who asked for `app.orders` silently gets `orders`. That is the failure
-this check exists to prevent, and it applies on every backend.
+this check exists to prevent, and it applies on every backend. The message names
+the expression that carried the value, so a model's columns produce the `Column`
+wording instead:
+
+```
+ValueError: Column.schema_name must be a non-empty string;
+            use None for an unqualified reference
+```
 
 ## When the database does not exist
 
@@ -338,9 +409,12 @@ existence, and it is not compared against the connection's current database. A
 
 ## See also
 
-- [Mutations (UPDATE/DELETE)](../capabilities/mutations.md) — the rest of the
+- [Mutations (UPDATE/DELETE)](../../capabilities/mutations.md) — the rest of the
   UPDATE/DELETE surface, including the settings lightweight updates require
-- [Unsupported features](../capabilities/unsupported.md) — what this backend
+- [Unsupported features](../../capabilities/unsupported.md) — what this backend
   refuses outright, and how that differs from a value it accepts
+- [Field type mapping](../modeling/field_types.md) and
+  [Nullable & optional fields](../modeling/nullable.md) — the rest of the
+  model-level material
 - Core guide: `docs/modeling/schema_namespace.md` in the core library, for the
   cross-backend support matrix and the rules that hold on every backend

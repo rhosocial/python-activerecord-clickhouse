@@ -1,4 +1,4 @@
-# docs/zh_CN/modeling/schema_namespace.md
+# docs/zh_CN/clickhouse_specific_features/schema_namespace.md
 
 # ClickHouse 后端里的 schema 名称
 
@@ -74,22 +74,48 @@ SELECT `orders`.`id` FROM `orders`
 ```
 
 上面两种渲染结果，以及本页其余所有 SQL，都由 `ClickHouseDialect((26, 7, 0))`
-生成。同一条语句里列引用那一侧，见[列引用最多两段](#列引用最多两段)。
+生成——下面与版本有关的那段 `UPDATE` 另用 `ClickHouseDialect((25, 8, 0))` 与
+`ClickHouseDialect((26, 3, 0))` 生成；都在**本分支**的核心库上运行：
 
-## DDL 自己带 `schema_name`
+```
+PYTHONPATH=/mnt/i/GitHubRepositories/rhosocial/.worktrees/core-schema-name/src \
+  .venv3.14-ubuntu26.04/bin/python
+```
 
-`__schema_name__` 决定的是 DML 用的命名空间，DDL 语句不读它，每条语句各自
-接受自己的 `schema_name`。这是通用规则；下面三条语句是 ClickHouse 对「模型带
-schema 时用得上的 DDL」所接受的形式。
+同一条语句里列引用那一侧，见[列引用最多两段](#列引用最多两段)。
 
-建 database 本身用 `CREATE DATABASE`，由 `CreateDatabaseExpression` 渲染：
+## DDL 自己带一个 `TableExpression`
+
+`__schema_name__` 决定的是 DML 用的命名空间，DDL 语句不读它；凡是目标是一个表的语句，
+收的是 `TableExpression`，而不是语句自己的 `schema_name`。这是通用规则；下面几条语句就是
+ClickHouse 对「模型带 schema 时用得上的 DDL」所接受的形式。
+
+凡是目标是一个表的语句，传裸字符串都在构造期报错：
+
+```
+TypeError: table must be a TableExpression, got str
+```
+
+这覆盖了 `CreateTableExpression`、`DropTableExpression`、`TruncateExpression`、
+`AlterTableExpression`、`CreateIndexExpression`、`DropIndexExpression`、
+`CreateFulltextIndexExpression`、`DropFulltextIndexExpression`、
+`CreateTriggerExpression` 与 `DropTriggerExpression`。它们之中，限定表的都不是
+`schema_name`，而是那个 `TableExpression`。`CREATE TABLE`、`DROP TABLE`、
+`TRUNCATE`、`ALTER TABLE` 干脆没有 `schema_name` 参数；索引类与触发器类语句保留了一个，
+但那里它限定的是索引名或触发器名，而本后端接受带 database 的索引名，于是两者都被限定。
+
+完全不是表的对象——视图、序列、类型、函数、域——同样保留 `schema_name`；至于语句要创建或
+删除的 database，本后端写作 `CREATE DATABASE` / `DROP DATABASE`，名字按普通字符串传。
+
+建 database 本身用 `CREATE DATABASE`，由 `CreateDatabaseExpression` 渲染。它没有从表达式
+包里再导出，因此要按模块路径导入：
 
 ```python
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     CreateDatabaseExpression,
 )
 
-CreateDatabaseExpression(dialect, "app")
+CreateDatabaseExpression(dialect, "app").to_sql()[0]
 # CREATE DATABASE `app`
 ```
 
@@ -103,17 +129,38 @@ from rhosocial.activerecord.backend.expression import (
 CreateTableExpression(
     dialect,
     TableExpression(dialect, "orders", schema_name="app"),
-    columns=[...],
-)
-# CREATE TABLE `app`.`orders` (...) ENGINE = MergeTree() ORDER BY ...
+    columns,
+).to_sql()[0]
+# CREATE TABLE `app`.`orders` (`id` Int32 PRIMARY KEY)
 ```
 
 `TRUNCATE` 用的是同一个关键字，类在
 `rhosocial.activerecord.backend.expression.statements.ddl_truncate.TruncateExpression`：
 
 ```python
-TruncateExpression(dialect, "orders", schema_name="app")
+TruncateExpression(dialect, TableExpression(dialect, "orders", schema_name="app")).to_sql()[0]
 # TRUNCATE TABLE `app`.`orders`
+```
+
+模型层的工厂会替你读 `schema_name()`，所以 `__schema_name__ = "app"` 的模型得到的是同样
+带限定的名字：
+
+```python
+Order.build_create_table_statement(dialect, columns).to_sql()[0]
+Order.build_truncate_statement(dialect).to_sql()[0]
+Order.build_drop_table_statement(dialect, if_exists=True).to_sql()[0]
+# CREATE TABLE `app`.`orders` (...) / TRUNCATE TABLE `app`.`orders`
+# / DROP TABLE IF EXISTS `app`.`orders`
+```
+
+索引工厂在这里不需要任何绕行，与 MySQL、MariaDB 正好相反。`build_create_index_statement()`
+把索引的命名空间默认成模型的，而 `None` 表示「沿用模型的」而不是「不限定」；ClickHouse
+接受带 database 的索引名（`supports_index_schema_qualification()` 为 `True`），于是索引
+与表一起被限定：
+
+```python
+Order.build_create_index_statement(dialect, "idx_orders_id", ["id"]).to_sql()[0]
+# CREATE INDEX `app`.`idx_orders_id` ON `app`.`orders` (`id`)
 ```
 
 `__schema_name__` 是 `app` 的模型，和建出未限定 `orders` 的迁移，并不会自动对上。
@@ -128,7 +175,7 @@ TruncateExpression(dialect, "orders", schema_name="app")
 SELECT `orders`.`id` FROM `app`.`orders`
 ```
 
-`format_column` 完全不理会 `schema_name`——它不是拒绝这个值，而是三段式的
+`format_column` 会把 `schema_name` 丢掉——它不是拒绝这个值，而是三段式的
 `database.table.column` 并不是这个 dialect 会生成的写法。同时带表名和 schema
 的 `Column` 渲染出来就是两段式：
 
@@ -265,6 +312,15 @@ ClickHouse 里的 `currentSchemas(bool)` 是为兼容 PostgreSQL 加的包装，
 **26.7 以下的 `UPDATE` 里带限定的 `WHERE` 会失败。** 上一节讲过这个，症状是
 `Missing columns: '<table>.<column>'`。
 
+**把表名字符串传给 DDL。** `CREATE TABLE`、`DROP TABLE`、`TRUNCATE`、`ALTER TABLE`、
+索引类语句与触发器语句收的都是 `TableExpression`，因此传裸字符串是在**构造期**就抛
+`TypeError`，而不是被悄悄当成不带限定的名字：
+
+```
+TruncateExpression(dialect, "orders")
+# TypeError: table must be a TableExpression, got str
+```
+
 ## 取当前 database
 
 `get_current_schema()` 返回当前 database。方法名是跨后端统一的 API，读到的却是
@@ -294,7 +350,13 @@ QueryExpression(dialect, select=[Column(dialect, "id")], from_=[that_table]).to_
 ```
 
 渲染层把空串当作未限定，所以放它过去就意味着：调用方要的是 `app.orders`，拿到
-的却是 `orders`。这个检查要防的正是这种情况，而且它在所有后端上都成立。
+的却是 `orders`。这个检查要防的正是这种情况，而且它在所有后端上都成立。报错信息
+指的是**带着这个值的那个表达式**，所以模型构造出来的列报的是 `Column` 那条措辞：
+
+```
+ValueError: Column.schema_name must be a non-empty string;
+            use None for an unqualified reference
+```
 
 ## database 不存在时
 
@@ -305,9 +367,11 @@ QueryExpression(dialect, select=[Column(dialect, "id")], from_=[that_table]).to_
 
 ## 相关
 
-- [Mutation（UPDATE/DELETE）](../capabilities/mutations.md) —— UPDATE/DELETE
+- [Mutation（UPDATE/DELETE）](../../capabilities/mutations.md) —— UPDATE/DELETE
   的其余部分，包括轻量更新所要求的设置
-- [不支持的功能](../capabilities/unsupported.md) —— 本后端直接拒绝的东西，
+- [不支持的功能](../../capabilities/unsupported.md) —— 本后端直接拒绝的东西，
   以及它们和「接受但含义不同」这种情形的区别
+- [字段类型映射](../modeling/field_types.md) 与
+  [Nullable 与可选字段](../modeling/nullable.md) —— 模型层其余的内容
 - 核心库的 `docs/modeling/schema_namespace.md` —— 跨后端对照表，以及在各后端
   上都成立的那些规则

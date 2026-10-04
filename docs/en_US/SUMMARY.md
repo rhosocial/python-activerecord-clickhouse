@@ -23,7 +23,10 @@
 
 * [Field type mapping](modeling/field_types.md)
 * [Nullable & optional fields](modeling/nullable.md)
-* [Schema names](modeling/schema_namespace.md)
+
+## ClickHouse Specific Features
+
+* [Schema names](clickhouse_specific_features/schema_namespace.md)
 
 ## Querying
 
