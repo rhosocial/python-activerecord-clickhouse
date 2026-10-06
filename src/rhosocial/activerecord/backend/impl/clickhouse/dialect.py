@@ -46,7 +46,8 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     CreateDomainSupport,
     AlterDomainSupport,
     DropDomainSupport,
-    AutoIncrementSupport,
+    AutoIncrementColumnSupport,
+    IdentityColumnSupport,
     ConstraintSupport,
     IntrospectionSupport,
     TruncateSupport,
@@ -93,6 +94,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     ViewMixin,
     IndexMixin,
     AutoIncrementMixin,
+    IdentityColumnMixin,
     TableMixin,
     ConstraintMixin,
     TriggerMixin,
@@ -274,6 +276,12 @@ class ClickHouseDialect(
     ClickHouseSequenceMixin,
     ClickHouseAutoIncrementMixin,
     AutoIncrementMixin,
+    # IdentityColumnMixin carries the fail-closed identity formatter and the
+    # seven probes; ClickHouse answers the mechanism probe False above, so the
+    # clause is refused by name instead of rendered and rejected by the server.
+    # Added after the namespace pair on purpose: it cannot disturb the MRO
+    # order that keeps ClickHouseNamespaceMixin ahead of NamespaceMixin.
+    IdentityColumnMixin,
     ClickHousePartitionMixin,
     PartitionMixin,
     ClickHouseTransactionMixin,
@@ -342,7 +350,8 @@ class ClickHouseDialect(
     CreateDomainSupport,
     AlterDomainSupport,
     DropDomainSupport,
-    AutoIncrementSupport,
+    AutoIncrementColumnSupport,
+    IdentityColumnSupport,
     ClickHouseTableSupport,
     ConstraintSupport,
     IntrospectionSupport,

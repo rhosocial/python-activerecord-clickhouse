@@ -136,12 +136,17 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.DropViewSupport,
     dialect_protocols.FulltextIndexSupport,
     dialect_protocols.MaterializedViewSupport,
-    # AutoIncrementSupport is satisfied structurally (the mixin method exists),
-    # but ClickHouseDialect overrides supports_auto_increment() to return False:
-    # ClickHouse has no server-side AUTO_INCREMENT and primary keys are generated
-    # client-side (snowflake Int64). Kept here because the runtime_checkable
-    # Protocol only checks method presence.
-    dialect_protocols.AutoIncrementSupport,
+    # AutoIncrementColumnSupport is satisfied structurally (the mixin method
+    # exists), but ClickHouseDialect overrides supports_auto_increment_column()
+    # to return False: ClickHouse has no server-side AUTO_INCREMENT and primary
+    # keys are generated client-side (snowflake Int64). Kept here because the
+    # runtime_checkable Protocol only checks method presence.
+    dialect_protocols.AutoIncrementColumnSupport,
+    # IdentityColumnSupport is satisfied structurally the same way: the
+    # fail-closed IdentityColumnMixin provides the formatter and the seven
+    # probes, and ClickHouse answers supports_identity_column() False -- its
+    # server rejects the clause with Code 62 (syntax error at GENERATED).
+    dialect_protocols.IdentityColumnSupport,
     # ClickHouse-specific protocols
     clickhouse_protocols.ClickHouseDMLOperationSupport,
     clickhouse_protocols.ClickHouseTriggerSupport,

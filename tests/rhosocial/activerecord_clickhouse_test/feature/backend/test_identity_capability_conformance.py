@@ -1,0 +1,171 @@
+# tests/rhosocial/activerecord_clickhouse_test/feature/backend/test_identity_capability_conformance.py
+"""ClickHouse declares neither auto-increment mechanism, and the refusal is real.
+
+ClickHouse 26.7 rejects the SQL-standard ``GENERATED ... AS IDENTITY`` clause
+with ``Code: 62. Syntax error: failed at position 40 (GENERATED)``, and it
+refuses the bare ``AUTO_INCREMENT`` marker as well (``Code: 62``,
+``AUTO_INCREMENT is not supported``). This dialect used to render the standard
+clause anyway: the single ``supports_auto_increment()`` probe answered ``False``
+and no formatter consulted it.
+
+Core split the mechanism into two nodes (``IdentityClause`` and
+``AutoIncrementClause``) and made both formatters consult their probes. This
+file asserts the resulting contract in both places it can be observed:
+
+* **rendering** -- all three identity requests and the auto-increment marker
+  raise ``UnsupportedFeatureError`` and produce no SQL at all, not SQL the
+  server would reject;
+* **execution confirmation** -- the live-server helper classifies those same
+  expressions as ``ExecutionOutcome.NOT_RENDERED``, after a deliberately
+  invalid statement has been shown to be ``REJECTED`` (the sentinel: a
+  classifier that cannot see a rejection would make every verdict vacuous) and
+  ``SELECT 1`` has been shown to be ``ACCEPTED``.
+
+The raw SQL the old formatter rendered is also sent to the server and asserted
+``REJECTED``: that is the defect this round removed, measured rather than
+assumed.
+"""
+
+import pytest
+
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.execution_testing import (
+    ExecutionOutcome,
+    classify_execution,
+    confirm_expression_execution,
+)
+from rhosocial.activerecord.backend.expression.statements import (
+    AutoIncrementClause,
+    IdentityClause,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+
+
+#: The three requests the old formatter rendered with no gate in front of it.
+#: ``bare`` and ``always`` differ only in the generation mode; the third
+#: requests sequence options. All three hit the mechanism gate.
+IDENTITY_CASES = (
+    ("bare", lambda dialect: IdentityClause(dialect)),
+    ("always", lambda dialect: IdentityClause(dialect, "ALWAYS")),
+    ("start-increment", lambda dialect: IdentityClause(dialect, start=100, increment=5)),
+)
+
+IDENTITY_CASE_IDS = [name for name, _ in IDENTITY_CASES]
+
+
+@pytest.fixture(scope="module")
+def dialect():
+    return ClickHouseDialect(version=(26, 7, 3, 19))
+
+
+class TestProbeValues:
+    """The probes answer the measured capability, not an assumed one."""
+
+    def test_identity_probe_is_false(self, dialect):
+        assert dialect.supports_identity_column() is False
+
+    def test_auto_increment_probe_is_false(self, dialect):
+        assert dialect.supports_auto_increment_column() is False
+
+    def test_the_gate_is_cores_formatter_not_a_local_override(self, dialect):
+        """No formatter override: the refusal comes from the fail-closed mixin.
+
+        If this ever resolves to a ClickHouse method, the gates asserted below
+        would be testing the wrong code.
+        """
+        assert (
+            ClickHouseDialect.format_identity_clause.__qualname__
+            == "IdentityColumnMixin.format_identity_clause"
+        )
+        assert (
+            ClickHouseDialect.format_auto_increment_clause.__qualname__
+            == "AutoIncrementMixin.format_auto_increment_clause"
+        )
+
+
+class TestRenderingRefuses:
+    """A refused request produces no SQL, so there is nothing for a server to reject."""
+
+    @pytest.mark.parametrize("name,make", IDENTITY_CASES, ids=IDENTITY_CASE_IDS)
+    def test_identity_case_is_refused_without_sql(self, dialect, name, make):
+        with pytest.raises(UnsupportedFeatureError, match="IDENTITY column"):
+            make(dialect).to_sql()
+
+    def test_auto_increment_marker_is_refused_without_sql(self, dialect):
+        with pytest.raises(UnsupportedFeatureError, match="AUTO_INCREMENT column"):
+            AutoIncrementClause(dialect).to_sql()
+
+    def test_identity_attribute_is_refused_by_name(self, dialect):
+        """The AR-layer attribute path is gated too, not an AttributeError.
+
+        ``DDLColumnMixin.format_column_attribute`` wraps an ``IdentityAttribute``
+        into an ``IdentityClause`` and renders it; without the gate that call
+        would fail on a missing method instead of refusing by name.
+        """
+        from rhosocial.activerecord.base import IdentityAttribute
+
+        attr = IdentityAttribute(generation="ALWAYS", start=10, increment=2)
+        with pytest.raises(UnsupportedFeatureError, match="IDENTITY column"):
+            dialect.format_column_attribute(attr)
+
+
+class TestLiveServerRefusesTheOldRendering:
+    """The SQL the old formatter emitted really is rejected -- measured, not assumed."""
+
+    OLD_RENDERINGS = (
+        ("bare", "GENERATED BY DEFAULT AS IDENTITY"),
+        ("always", "GENERATED ALWAYS AS IDENTITY"),
+        (
+            "start-increment",
+            "GENERATED BY DEFAULT AS IDENTITY (START WITH 100 INCREMENT BY 5)",
+        ),
+    )
+
+    def test_sentinel_is_rejected(self, clickhouse_backend_single):
+        """A classifier that cannot see a rejection makes every verdict vacuous."""
+        assert (
+            classify_execution(clickhouse_backend_single, "THIS IS NOT SQL")
+            is ExecutionOutcome.REJECTED
+        )
+
+    def test_positive_control_is_accepted(self, clickhouse_backend_single):
+        """The same channel can report acceptance, so rejection is not the only signal."""
+        assert (
+            classify_execution(clickhouse_backend_single, "SELECT 1")
+            is ExecutionOutcome.ACCEPTED
+        )
+
+    @pytest.mark.parametrize(
+        "name,clause", OLD_RENDERINGS, ids=[name for name, _ in OLD_RENDERINGS]
+    )
+    def test_old_rendering_is_rejected(self, clickhouse_backend_single, name, clause):
+        backend = clickhouse_backend_single
+        database = backend.config.database
+        table = f"_identity_refusal_probe_{name.replace('-', '_')}"
+        sql = f"CREATE TABLE `{database}`.`{table}` (id Int64 {clause}) ENGINE = Memory"
+        outcome = classify_execution(backend, sql)
+        if outcome is ExecutionOutcome.ACCEPTED:
+            backend.execute(f"DROP TABLE IF EXISTS `{database}`.`{table}`")
+        assert outcome is ExecutionOutcome.REJECTED, (
+            f"the server accepted {sql!r}; the dialect's refusal would then be wrong"
+        )
+
+
+class TestExecutionConfirmation:
+    """The same expressions, through the helper: NOT_RENDERED, never a rejection."""
+
+    @pytest.mark.parametrize("name,make", IDENTITY_CASES, ids=IDENTITY_CASE_IDS)
+    def test_identity_case_is_not_rendered(self, clickhouse_backend_single, name, make):
+        outcome = confirm_expression_execution(
+            clickhouse_backend_single, make(clickhouse_backend_single.dialect)
+        )
+        assert outcome is ExecutionOutcome.NOT_RENDERED, (
+            f"{name}: expected the expression to refuse rendering, got {outcome}"
+        )
+
+    def test_auto_increment_marker_is_not_rendered(self, clickhouse_backend_single):
+        outcome = confirm_expression_execution(
+            clickhouse_backend_single,
+            AutoIncrementClause(clickhouse_backend_single.dialect),
+        )
+        assert outcome is ExecutionOutcome.NOT_RENDERED
