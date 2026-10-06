@@ -119,10 +119,8 @@ CLICKHOUSE_PROTOCOLS = [
     # what the engine has; the capability switches each protocol also declares
     # come from the core mixins and answer honestly either way.
     dialect_protocols.AlterDatabaseSupport,
-    dialect_protocols.AlterSequenceSupport,
     dialect_protocols.AlterTableSupport,
     dialect_protocols.CreateIndexSupport,
-    dialect_protocols.CreateSequenceSupport,
     dialect_protocols.CreateTableAsSupport,
     dialect_protocols.CreateTableCloneSupport,
     dialect_protocols.CreateTableLikeSupport,
@@ -133,7 +131,6 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.DateTimeSupport,
     dialect_protocols.DqlOrderSupport,
     dialect_protocols.DropIndexSupport,
-    dialect_protocols.DropSequenceSupport,
     dialect_protocols.DropTableSupport,
     dialect_protocols.DropTriggerSupport,
     dialect_protocols.DropViewSupport,
@@ -236,6 +233,16 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     # capability the backend cannot emit. ``supports_generated_column()`` returns
     # False to preserve the existing fail-fast contract.
     dialect_protocols.GeneratedColumnSupport,
+    # ClickHouse has no sequence object, so sequence DDL is absent from the base
+    # list rather than inherited and declined, and these three protocols each
+    # name a formatter this dialect therefore does not have. Naming a sequence is
+    # a different capability and is still met: SequenceObjectSupport above is
+    # satisfied by SequenceNameMixin, so a Sequence is accepted as an
+    # identifier. ClickHouseSequenceMixin stays in the base list too, for the
+    # two switches it answers itself.
+    dialect_protocols.CreateSequenceSupport,
+    dialect_protocols.AlterSequenceSupport,
+    dialect_protocols.DropSequenceSupport,
 ]
 
 

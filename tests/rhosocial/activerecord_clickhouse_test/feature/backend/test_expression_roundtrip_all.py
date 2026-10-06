@@ -901,6 +901,26 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_schema_statement"),
     ),
+    # SEQUENCE. ClickHouse has no sequence object, so these three are the same
+    # declared gap as the schema rows above: the base list names no formatter for
+    # them. They rendered until core's SequenceMixin was taken out of that list,
+    # and what they rendered was the defect -- the inherited formatters never
+    # consult supports_sequence(), so "CREATE SEQUENCE `s` NO CYCLE" came back out
+    # of a dialect that had itself declared the feature absent. Naming a sequence
+    # is a separate capability and is untouched: SequenceNameMixin stays, so
+    # Sequence(dialect, "s").to_sql() still renders.
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceExpression": (
+        UnsupportedFeatureError,
+        _no_dialect_formatter("format_create_sequence_statement"),
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.DropSequenceExpression": (
+        UnsupportedFeatureError,
+        _no_dialect_formatter("format_drop_sequence_statement"),
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.AlterSequenceExpression": (
+        UnsupportedFeatureError,
+        _no_dialect_formatter("format_alter_sequence_statement"),
+    ),
     # SQL/XML. Not mixed in; thirteen XML-family expressions each want their
     # own formatter. The last four were UNCONSTRUCTIBLE until the harness
     # stopped reading ``Sequence[X]`` as the Sequence catalogue object; they

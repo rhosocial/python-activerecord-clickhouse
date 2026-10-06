@@ -92,7 +92,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     JoinMixin,
     ViewMixin,
     IndexMixin,
-    SequenceMixin,
     AutoIncrementMixin,
     TableMixin,
     ConstraintMixin,
@@ -260,8 +259,19 @@ class ClickHouseDialect(
     ClickHouseDatabaseMixin,
     ClickHouseIndexMixin,
     IndexMixin,
+    # No core SequenceMixin here, and its absence is deliberate rather than an
+    # oversight: ClickHouse has no sequence object, so CREATE / DROP / ALTER
+    # SEQUENCE is not a statement the server parses -- and the core formatters
+    # never consult supports_sequence(), so inheriting them would render
+    # well-formed SQL ClickHouse would refuse rather than refuse it here.
+    # Leaving the mixin out makes the absence structural: the dispatch finds no
+    # formatter and raises UnsupportedFeatureError naming the dialect and the
+    # statement. ClickHouseSequenceMixin just below stays, because the two
+    # switches it answers are the ones ClickHouse states for itself; and
+    # SequenceNameMixin above stays too, because naming an object and creating
+    # one are different jobs -- a Sequence is still accepted as an identifier
+    # and Sequence(dialect, "s").to_sql() keeps rendering.
     ClickHouseSequenceMixin,
-    SequenceMixin,
     ClickHouseAutoIncrementMixin,
     AutoIncrementMixin,
     ClickHousePartitionMixin,
