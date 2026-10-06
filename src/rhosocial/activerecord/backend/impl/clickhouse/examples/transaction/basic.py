@@ -13,6 +13,8 @@ For transactional workloads, use a database engine that supports transactions
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -34,7 +36,6 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     InsertExpression,
     ValuesSource,
     QueryExpression,
-    TableExpression,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
@@ -46,13 +47,13 @@ from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E40
 from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table="accounts", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "accounts"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="accounts",
+    table=Table(dialect, "accounts"),
     columns=[
         ColumnDefinition(
             "id",
@@ -84,7 +85,7 @@ backend.execute(sql, params)
 
 insert_expr = InsertExpression(
     dialect=dialect,
-    into="accounts",
+    into=Table(dialect, "accounts"),
     columns=["name", "balance"],
     source=ValuesSource(
         dialect,
@@ -111,7 +112,7 @@ print("Use plain INSERT/SELECT statements instead.")
 # Insert another row
 insert_expr2 = InsertExpression(
     dialect=dialect,
-    into="accounts",
+    into=Table(dialect, "accounts"),
     columns=["name", "balance"],
     source=ValuesSource(
         dialect,
@@ -127,7 +128,7 @@ backend.execute(sql, params)
 query = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "name"), Column(dialect, "balance")],
-    from_=TableExpression(dialect, "accounts"),
+    from_=NamedRelationRef(dialect, Table(dialect, "accounts")),
 )
 sql, params = query.to_sql()
 result = backend.execute(sql, params, options=dql_options)
@@ -148,7 +149,7 @@ except Exception as e:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table="accounts", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "accounts"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

@@ -11,6 +11,8 @@ This example demonstrates:
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -32,7 +34,6 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     ValuesSource,
     DropTableExpression,
     QueryExpression,
-    TableExpression,
     CTEExpression,
     WithQueryExpression,
 )
@@ -49,13 +50,13 @@ from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
 # Drop table first for clean setup
-drop = DropTableExpression(dialect=dialect, table="employees", if_exists=True)
+drop = DropTableExpression(dialect=dialect, table=Table(dialect, "employees"), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="employees",
+    table=Table(dialect, "employees"),
     columns=[
         ColumnDefinition(
             "id",
@@ -77,7 +78,7 @@ backend.execute(delete_sql)
 
 insert_expr = InsertExpression(
     dialect=dialect,
-    into="employees",
+    into=Table(dialect, "employees"),
     columns=["id", "name", "manager_id"],
     source=ValuesSource(
         dialect,
@@ -104,7 +105,7 @@ high_earners_cte = CTEExpression(
     query=QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=TableExpression(dialect, "employees"),
+        from_=NamedRelationRef(dialect, Table(dialect, "employees")),
         where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 2)),
     ),
 )
@@ -115,7 +116,7 @@ cte_query = WithQueryExpression(
     main_query=QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=TableExpression(dialect, "high_earners"),
+        from_=NamedRelationRef(dialect, Table(dialect, "high_earners")),
     ),
 )
 sql, params = cte_query.to_sql()
@@ -137,7 +138,7 @@ base_query = QueryExpression(
         Column(dialect, "manager_id"),
         Literal(dialect, 1),
     ],
-    from_=TableExpression(dialect, "employees"),
+    from_=NamedRelationRef(dialect, Table(dialect, "employees")),
     where=ComparisonPredicate(dialect, "IS", Column(dialect, "manager_id"), Literal(dialect, None)),
 )
 
@@ -154,7 +155,7 @@ recursive_query = WithQueryExpression(
     main_query=QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "manager_id")],
-        from_=TableExpression(dialect, "org_chart"),
+        from_=NamedRelationRef(dialect, Table(dialect, "org_chart")),
     ),
     recursive=True,
 )
@@ -176,7 +177,7 @@ active_cte = CTEExpression(
     query=QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=TableExpression(dialect, "employees"),
+        from_=NamedRelationRef(dialect, Table(dialect, "employees")),
         where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 0)),
     ),
 )
@@ -187,7 +188,7 @@ top_cte = CTEExpression(
     query=QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=TableExpression(dialect, "active_employees"),
+        from_=NamedRelationRef(dialect, Table(dialect, "active_employees")),
         where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 2)),
     ),
 )
@@ -198,7 +199,7 @@ multi_cte_query = WithQueryExpression(
     main_query=QueryExpression(
         dialect=dialect,
         select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=TableExpression(dialect, "top_employees"),
+        from_=NamedRelationRef(dialect, Table(dialect, "top_employees")),
     ),
 )
 sql, params = multi_cte_query.to_sql()
@@ -209,7 +210,7 @@ print(f"Multiple CTEs result: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table="employees", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "employees"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

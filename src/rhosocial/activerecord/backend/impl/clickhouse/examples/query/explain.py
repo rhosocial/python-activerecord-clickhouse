@@ -10,6 +10,8 @@ This example demonstrates:
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table, Index
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -18,7 +20,6 @@ from rhosocial.activerecord.backend.expression import (
     InsertExpression,
     ValuesSource,
     QueryExpression,
-    TableExpression,
     ExplainExpression,
     CreateIndexExpression,
     DropTableExpression,
@@ -43,13 +44,13 @@ backend = ClickHouseBackend(connection_config=config)
 backend.connect()
 dialect = backend.dialect
 
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     columns=[
         ColumnDefinition(
             "id",
@@ -76,8 +77,8 @@ backend.execute(sql, params)
 # Create a skip index on email column
 create_index = CreateIndexExpression(
     dialect=dialect,
-    index="idx_users_email",
-    table="users",
+    index=Index(dialect, "idx_users_email"),
+    table=Table(dialect, "users"),
     columns=["email"],
 )
 sql, params = create_index.to_sql()
@@ -91,7 +92,7 @@ users = [
 for name, email in users:
     insert_expr = InsertExpression(
         dialect=dialect,
-        into="users",
+        into=Table(dialect, "users"),
         columns=["name", "email"],
         source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
     )
@@ -106,7 +107,7 @@ for name, email in users:
 query1 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "*")],
-    from_=TableExpression(dialect, "users"),
+    from_=NamedRelationRef(dialect, Table(dialect, "users")),
     where=ComparisonPredicate(
         dialect,
         "=",
@@ -130,7 +131,7 @@ for row in result.data:
 query2 = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "*")],
-    from_=TableExpression(dialect, "users"),
+    from_=NamedRelationRef(dialect, Table(dialect, "users")),
     where=ComparisonPredicate(
         dialect,
         "=",
@@ -166,7 +167,7 @@ for row in result.data:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

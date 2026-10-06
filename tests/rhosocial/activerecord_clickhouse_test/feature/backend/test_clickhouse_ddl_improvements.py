@@ -9,8 +9,9 @@ from rhosocial.activerecord.backend.expression import (
     CreateTableExpression,
     CreateViewExpression,
     QueryExpression,
-    TableExpression,
 )
+from rhosocial.activerecord.backend.expression.objects import Table, View
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ViewCheckOption,
@@ -27,11 +28,11 @@ class TestClickHouseViewCapabilityGating:
         """WITH CHECK OPTION must fail fast when the capability is off."""
         dialect = ClickHouseDialect()
         query = QueryExpression(
-            dialect, select=[Column(dialect, "id")], from_=TableExpression(dialect, "t")
+            dialect, select=[Column(dialect, "id")], from_=NamedRelationRef(dialect, Table(dialect, "t"))
         )
         expr = CreateViewExpression(
             dialect,
-            view_name="v",
+            view=View(dialect, "v"),
             query=query,
             options=ViewOptions(check_option=ViewCheckOption.CASCADED),
         )
@@ -61,17 +62,17 @@ class TestClickHouseViewCapabilityGating:
 
 
 class TestClickHouseSchemaCapabilityGating:
-    """Tests for ClickHouse SCHEMA DDL capability gating."""
+    """ClickHouse has no SCHEMA DDL at all.
 
-    def test_create_schema_not_supported(self):
-        """ClickHouse does not support CREATE SCHEMA."""
-        dialect = ClickHouseDialect()
-        assert dialect.supports_create_schema() is False
+    The probes are not "returning False" -- they are absent. ClickHouse
+    namespaces objects with databases, so there is no schema statement to
+    report on; see ``backend/schema/test_schema_support.py``.
+    """
 
-    def test_drop_schema_not_supported(self):
-        """ClickHouse does not support DROP SCHEMA."""
+    def test_schema_ddl_probes_absent(self):
         dialect = ClickHouseDialect()
-        assert dialect.supports_drop_schema() is False
+        for probe in ("supports_create_schema", "supports_drop_schema"):
+            assert not hasattr(dialect, probe), probe
 
 
 class TestClickHouseTableDeclarationGating:
@@ -79,7 +80,7 @@ class TestClickHouseTableDeclarationGating:
         dialect = ClickHouseDialect(version=(26, 7, 3))
         expression = CreateTableExpression(
             dialect,
-            "plain_table_defaults",
+            Table(dialect, "plain_table_defaults"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
         )
         sql, params = expression.to_sql()
@@ -94,7 +95,7 @@ class TestClickHouseTableDeclarationGating:
         assert dialect.supports_table_inheritance() is False
         expression = CreateTableExpression(
             dialect,
-            "inherited",
+            Table(dialect, "inherited"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             inherits=["parent_a", "parent_b"],
         )
@@ -107,7 +108,7 @@ class TestClickHouseTableDeclarationGating:
         assert dialect.supports_table_tablespace() is False
         expression = CreateTableExpression(
             dialect,
-            "tablespaced",
+            Table(dialect, "tablespaced"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             tablespace="ts_data",
         )

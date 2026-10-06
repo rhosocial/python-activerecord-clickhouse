@@ -3,6 +3,7 @@
 
 from typing import TYPE_CHECKING, Optional
 
+from rhosocial.activerecord.backend.expression.objects import Database
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     CreateDatabaseExpression,
     DropDatabaseExpression,
@@ -22,7 +23,7 @@ class ClickHouseCreateDatabaseExpression(CreateDatabaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        database_name: str,
+        database: Database,
         if_not_exists: bool = False,
         owner: Optional[str] = None,
         encoding: Optional[str] = None,
@@ -38,7 +39,7 @@ class ClickHouseCreateDatabaseExpression(CreateDatabaseExpression):
     ):
         super().__init__(
             dialect,
-            database_name=database_name,
+            database=database,
             if_not_exists=if_not_exists,
             owner=owner,
             encoding=encoding,
@@ -63,7 +64,7 @@ class ClickHouseDropDatabaseExpression(DropDatabaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        database_name: str,
+        database: Database,
         if_exists: bool = False,
         force: bool = False,
         *,
@@ -71,7 +72,7 @@ class ClickHouseDropDatabaseExpression(DropDatabaseExpression):
     ):
         super().__init__(
             dialect,
-            database_name=database_name,
+            database=database,
             if_exists=if_exists,
             force=force,
         )

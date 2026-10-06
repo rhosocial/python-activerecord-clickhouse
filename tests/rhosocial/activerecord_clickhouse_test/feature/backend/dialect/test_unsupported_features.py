@@ -17,6 +17,12 @@ expression-to-formatter dispatch path is exercised.
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.objects import (
+    Function,
+    Procedure,
+    Table,
+    Trigger,
+)
 from rhosocial.activerecord.backend.expression.statements import OnConflictClause
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     CreateTriggerExpression,
@@ -88,12 +94,19 @@ class TestTriggerStub:
     def test_format_create_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
             CreateTriggerExpression(
-                dialect, "trg", "tbl", TriggerTiming.BEFORE, [TriggerEvent.INSERT], "fn"
+                dialect,
+                Trigger(dialect, "trg"),
+                Table(dialect, "tbl"),
+                TriggerTiming.BEFORE,
+                [TriggerEvent.INSERT],
+                Function(dialect, "fn"),
             ).to_sql()
 
     def test_format_drop_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            DropTriggerExpression(dialect, "trg", "tbl").to_sql()
+            DropTriggerExpression(
+                dialect, Trigger(dialect, "trg"), Table(dialect, "tbl")
+            ).to_sql()
 
 
 class TestSpatialStub:
@@ -168,7 +181,12 @@ class TestMaintenanceStub:
 
     def test_format_table_maintenance_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseAnalyzeTableExpression(dialect, ["tbl"]).to_sql()
+            ClickHouseAnalyzeTableExpression(dialect, [Table(dialect, "tbl")]).to_sql()
+
+    def test_bare_string_table_is_rejected(self, dialect):
+        """A string says nothing about which database the table is in."""
+        with pytest.raises(TypeError, match="Table objects"):
+            ClickHouseAnalyzeTableExpression(dialect, ["tbl"])
 
 
 class TestRoutineStub:
@@ -179,11 +197,15 @@ class TestRoutineStub:
 
     def test_format_create_procedure_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCreateProcedureExpression(dialect, "proc").to_sql()
+            ClickHouseCreateProcedureExpression(dialect, Procedure(dialect, "proc")).to_sql()
 
     def test_format_call_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCallExpression(dialect, "proc").to_sql()
+            ClickHouseCallExpression(dialect, Procedure(dialect, "proc")).to_sql()
+
+    def test_bare_string_routine_is_rejected(self, dialect):
+        with pytest.raises(TypeError, match="Function or Procedure object"):
+            ClickHouseCreateProcedureExpression(dialect, "proc")
 
 
 class TestLoadXmlStub:

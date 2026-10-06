@@ -119,7 +119,15 @@ class ClickHouseIntrospectionMixin:
         if not include_system:
             conditions.append("database != 'system'")
         if not include_views:
-            conditions.append("engine NOT LIKE '%%View'")
+            # The set of engines that store a view is declared, not guessed at
+            # with a substring match: `LIKE '%View'` also matched anything whose
+            # engine name merely ended in "View", and said nothing about which
+            # kinds were being included when `include_views` was true.
+            engine_condition, engine_params = self.engine_kind_condition(
+                include_views=False, offset=len(sql_params),
+            )
+            conditions.append(engine_condition)
+            sql_params.extend(engine_params)
         if table_type:
             conditions.append(f"engine = {p(len(sql_params))}")
             sql_params.append(table_type)
@@ -187,8 +195,11 @@ class ClickHouseIntrospectionMixin:
         include_system = params.get("include_system", False)
         p = self.get_parameter_placeholder
 
-        conditions = [f"database = {p(0)}", "engine LIKE '%%View'"]
-        sql_params: list = [schema]
+        engine_condition, engine_params = self.engine_kind_condition(
+            include_views=True, offset=1,
+        )
+        conditions = [f"database = {p(0)}", engine_condition]
+        sql_params: list = [schema, *engine_params]
 
         if not include_system:
             conditions.append("database != 'system'")
@@ -207,13 +218,16 @@ class ClickHouseIntrospectionMixin:
         view_name = params.get("view_name", "")
         schema = params.get("schema", "")
         p = self.get_parameter_placeholder
+        engine_condition, engine_params = self.engine_kind_condition(
+            include_views=True, offset=2,
+        )
         sql = (
             "SELECT name AS TABLE_NAME, create_table_query AS VIEW_DEFINITION, "
             "'NONE' AS CHECK_OPTION, 'NO' AS IS_UPDATABLE "
             "FROM system.tables "
-            f"WHERE database = {p(0)} AND name = {p(1)} AND engine LIKE '%%View'"
+            f"WHERE database = {p(0)} AND name = {p(1)} AND {engine_condition}"
         )
-        return (sql, (schema, view_name))
+        return (sql, (schema, view_name, *engine_params))
 
     def format_trigger_list_query(self, expr: "TriggerListExpression") -> Tuple[str, tuple]:
         """ClickHouse has no triggers; raise UnsupportedFeatureError."""

@@ -6,6 +6,8 @@ Aggregate queries with GROUP BY and HAVING.
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -36,13 +38,13 @@ from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnConstraintType,
 )
 
-drop_table = DropTableExpression(dialect=dialect, table="sales", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "sales"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="sales",
+    table=Table(dialect, "sales"),
     columns=[
         ColumnDefinition(
             "id",
@@ -64,7 +66,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="sales",
+    into=Table(dialect, "sales"),
     columns=["product", "quantity", "price", "region"],
     source=ValuesSource(
         dialect,
@@ -85,7 +87,6 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     QueryExpression,
-    TableExpression,
     Column,
     GroupByHavingClause,
 )
@@ -99,7 +100,7 @@ query = QueryExpression(
         FunctionCall(dialect, "SUM", Column(dialect, "quantity")).as_("total_qty"),
         FunctionCall(dialect, "AVG", Column(dialect, "price")).as_("avg_price"),
     ],
-    from_=TableExpression(dialect, "sales"),
+    from_=NamedRelationRef(dialect, Table(dialect, "sales")),
     group_by_having=GroupByHavingClause(
         dialect,
         group_by=[Column(dialect, "product")],

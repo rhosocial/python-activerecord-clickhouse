@@ -13,6 +13,8 @@ This example demonstrates:
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -34,7 +36,6 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     ValuesSource,
     DropTableExpression,
     QueryExpression,
-    TableExpression,
     Column,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, FunctionCall  # noqa: E402
@@ -48,14 +49,14 @@ from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-drop_table = DropTableExpression(dialect=dialect, table="documents", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "documents"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 # Create table with JSON column
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="documents",
+    table=Table(dialect, "documents"),
     columns=[
         ColumnDefinition(
             "id",
@@ -74,7 +75,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="documents",
+    into=Table(dialect, "documents"),
     columns=["data"],
     source=ValuesSource(
         dialect,
@@ -105,7 +106,7 @@ query = QueryExpression(
             Literal(dialect, "$.age"), Literal(dialect, "UInt32"),
         ).as_("age"),
     ],
-    from_=TableExpression(dialect, "documents"),
+    from_=NamedRelationRef(dialect, Table(dialect, "documents")),
 )
 
 sql, params = query.to_sql()

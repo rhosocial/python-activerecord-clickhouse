@@ -4,17 +4,6 @@ from typing import Any, Tuple
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
-def format_table_name(dialect, table):
-    """Format a possibly schema-qualified table name."""
-    if isinstance(table, tuple):
-        schema, name = table
-        return f"{dialect.format_identifier(schema)}.{dialect.format_identifier(name)}"
-    return dialect.format_identifier(table)
-
-
-_fmt_table = format_table_name
-
-
 class ClickHouseMaintenanceMixin:
     """ClickHouse does not support the MySQL whole-table maintenance
     statement set (``ANALYZE`` / ``CHECK`` / ``CHECKSUM`` / ``REPAIR TABLE``).

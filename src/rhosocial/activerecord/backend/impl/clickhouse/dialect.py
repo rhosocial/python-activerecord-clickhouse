@@ -27,9 +27,25 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     LateralJoinSupport,
     WildcardSupport,
     JoinSupport,
-    ViewSupport,
-    SchemaSupport,
-    SequenceSupport,
+    # Named objects: naming one, not creating or dropping it.
+    ViewObjectSupport,
+    MaterializedViewObjectSupport,
+    TableObjectSupport,
+    IndexObjectSupport,
+    SequenceObjectSupport,
+    TriggerObjectSupport,
+    RoutineObjectSupport,
+    TypeObjectSupport,
+    SynonymObjectSupport,
+    ForeignTableObjectSupport,
+    NamespaceSupport,
+    # DDL statement protocols
+    CreateTypeSupport,
+    AlterTypeSupport,
+    DropTypeSupport,
+    CreateDomainSupport,
+    AlterDomainSupport,
+    DropDomainSupport,
     AutoIncrementSupport,
     ConstraintSupport,
     IntrospectionSupport,
@@ -37,10 +53,27 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     TransactionControlSupport,
     SQLFunctionSupport,
     DataTypeSupport,
-    UserDefinedTypeSupport,
-    DomainSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
+    # The object tree: each *NameMixin renders one object kind and inherits
+    # NamespaceMixin for the namespace levels, so they precede it.
+    RelationSourceMixin,
+    NamespaceMixin,
+    TableNameMixin,
+    ViewNameMixin,
+    MaterializedViewNameMixin,
+    ForeignTableNameMixin,
+    IndexNameMixin,
+    SequenceNameMixin,
+    TriggerNameMixin,
+    FunctionNameMixin,
+    ProcedureNameMixin,
+    TypeNameMixin,
+    DomainNameMixin,
+    SynonymNameMixin,
+    SchemaNameMixin,
+    DatabaseNameMixin,
+    PropertyGraphNameMixin,
     CollationMixin,
     CTEMixin,
 
@@ -58,7 +91,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     LateralJoinMixin,
     JoinMixin,
     ViewMixin,
-    SchemaMixin,
     IndexMixin,
     SequenceMixin,
     AutoIncrementMixin,
@@ -140,7 +172,7 @@ from .mixins import (
     ClickHouseDQLMixin,
     ClickHouseMaterializedViewMixin,  # MV DDL overrides ClickHouseViewMixin and ViewMixin
     ClickHouseViewMixin,
-    ClickHouseSchemaMixin,
+    ClickHouseNamespaceMixin,
     ClickHouseDatabaseMixin,
     ClickHouseIndexMixin,
     ClickHouseSequenceMixin,
@@ -157,6 +189,43 @@ if TYPE_CHECKING:
 
 class ClickHouseDialect(
     SQLDialectBase,
+    RelationSourceMixin,
+    # The object tree: each *NameMixin renders one object kind and inherits
+    # NamespaceMixin for the namespace levels, so they precede it. The object
+    # protocols name the format_*_object methods and inherit NamespaceSupport,
+    # so they precede it too. Both sit ahead of the DDL mixins because naming an
+    # object and changing one are independent capabilities.
+    TableNameMixin,
+    ViewNameMixin,
+    MaterializedViewNameMixin,
+    ForeignTableNameMixin,
+    IndexNameMixin,
+    SequenceNameMixin,
+    TriggerNameMixin,
+    FunctionNameMixin,
+    ProcedureNameMixin,
+    TypeNameMixin,
+    DomainNameMixin,
+    SynonymNameMixin,
+    SchemaNameMixin,
+    DatabaseNameMixin,
+    PropertyGraphNameMixin,
+    # ClickHouse has a database and no inner schema, so the catalog switches
+    # answer True and ``supports_schema_qualification`` keeps its default
+    # False: a name carrying a schema is reported rather than rendered as a
+    # namespace ClickHouse does not have.
+    #
+    # ORDER IS LOAD-BEARING. This mixin also spells the name in
+    # this mixin answers the two catalog switches True -- rather than core's
+    # default False -- and spells the one level it has in
+    # ``format_qualified_name``. C3 linearisation gives the earlier name in
+    # this list priority, so it must stay AHEAD of ``NamespaceMixin``, whose
+    # defaults are no catalog and a two-slot spelling. Listed after it,
+    # ``CREATE TABLE analytics.users`` silently renders as ``users``: the
+    # statement is still well-formed, so nothing about the SQL looks wrong and
+    # only a test asserting the qualified spelling catches it.
+    ClickHouseNamespaceMixin,
+    NamespaceMixin,
     # ClickHouse-specific mixins (must come before corresponding global mixins to override)
     ClickHouseCollationMixin,
     CollationMixin,
@@ -188,9 +257,7 @@ class ClickHouseDialect(
     ClickHouseMaterializedViewMixin,  # MV DDL must precede ClickHouseViewMixin and ViewMixin
     ClickHouseViewMixin,
     ViewMixin,
-    ClickHouseSchemaMixin,
     ClickHouseDatabaseMixin,
-    SchemaMixin,
     ClickHouseIndexMixin,
     IndexMixin,
     ClickHouseSequenceMixin,
@@ -259,9 +326,12 @@ class ClickHouseDialect(
     LateralJoinSupport,
     WildcardSupport,
     JoinSupport,
-    ViewSupport,
-    SchemaSupport,
-    SequenceSupport,
+    CreateTypeSupport,
+    AlterTypeSupport,
+    DropTypeSupport,
+    CreateDomainSupport,
+    AlterDomainSupport,
+    DropDomainSupport,
     AutoIncrementSupport,
     ClickHouseTableSupport,
     ConstraintSupport,
@@ -285,8 +355,21 @@ class ClickHouseDialect(
     ClickHouseAdminCommandSupport,
     SQLFunctionSupport,
     DataTypeSupport,
-    UserDefinedTypeSupport,
-    DomainSupport,
+    # Named objects. Each object protocol names the ``format_<kind>_object``
+    # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they
+    # precede it. They sit after the ClickHouse protocols that derive from them
+    # -- a subclass must precede its base.
+    TableObjectSupport,
+    ViewObjectSupport,
+    MaterializedViewObjectSupport,
+    ForeignTableObjectSupport,
+    IndexObjectSupport,
+    SequenceObjectSupport,
+    TriggerObjectSupport,
+    RoutineObjectSupport,
+    TypeObjectSupport,
+    SynonymObjectSupport,
+    NamespaceSupport,
 ):
     """
     ClickHouse dialect implementation that adapts to the ClickHouse version.

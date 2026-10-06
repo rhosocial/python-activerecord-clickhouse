@@ -7,6 +7,7 @@ These are the building blocks used by NamedMigration up()/down() methods.
 
 """
 
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableExpression,
     ColumnDefinition,
@@ -24,7 +25,7 @@ def create_users_table(dialect):
     """CREATE TABLE users (id UInt32 PRIMARY KEY, name String, email String)."""
     return CreateTableExpression(
         dialect,
-        table="users",
+        table=Table(dialect, "users"),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -44,14 +45,14 @@ def create_users_table(dialect):
 
 def drop_users_table(dialect):
     """DROP TABLE IF EXISTS users."""
-    return DropTableExpression(dialect, table="users", if_exists=True)
+    return DropTableExpression(dialect, table=Table(dialect, "users"), if_exists=True)
 
 
 def create_posts_table(dialect):
     """CREATE TABLE posts (id UInt32 PRIMARY KEY, title String, user_id UInt32)."""
     return CreateTableExpression(
         dialect,
-        table="posts",
+        table=Table(dialect, "posts"),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -71,18 +72,20 @@ def create_posts_table(dialect):
 
 def drop_posts_table(dialect):
     """DROP TABLE IF EXISTS posts."""
-    return DropTableExpression(dialect, table="posts", if_exists=True)
+    return DropTableExpression(dialect, table=Table(dialect, "posts"), if_exists=True)
 
 
 def create_custom_table(dialect, table: str = "custom_table"):
     """CREATE TABLE <table> (id UInt32 PRIMARY KEY, value String).
 
     This expression accepts an extra ``table`` parameter, allowing
-    the migration to control the target table name at runtime.
+    the migration to control the target table name at runtime. The name is
+    the migration's to choose, so the object is composed here rather than
+    passed in.
     """
     return CreateTableExpression(
         dialect,
-        table=table,
+        table=Table(dialect, table),
         columns=[
             ColumnDefinition(
                 dialect,
@@ -101,4 +104,4 @@ def create_custom_table(dialect, table: str = "custom_table"):
 
 def drop_custom_table(dialect, table: str = "custom_table"):
     """DROP TABLE IF EXISTS <table>."""
-    return DropTableExpression(dialect, table=table, if_exists=True)
+    return DropTableExpression(dialect, table=Table(dialect, table), if_exists=True)

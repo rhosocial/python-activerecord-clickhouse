@@ -36,14 +36,24 @@ table are transformed by the ``SELECT`` and pushed into a target table::
 
 Removal uses ``DROP VIEW``, not ``DROP MATERIALIZED VIEW``.
 
+Every object these statements name is a schema object from
+:mod:`rhosocial.activerecord.backend.expression.objects`, and each one carries
+its own ``catalog_name`` -- the ClickHouse database it lives in. That is what
+makes the ``TO <target>`` clause correct: the target table's database is the
+target table's business, not the materialized view's, and an expression that
+kept one ``database`` field for both would silently aim the MV at another
+database's table.
+
 Reference:
 https://clickhouse.com/docs/sql-reference/statements/create/view
 """
+from collections.abc import Sequence as AbcSequence
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Dict, Optional, Sequence, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import MaterializedView, Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..dialect import ClickHouseDialect
@@ -71,11 +81,6 @@ class ClickHouseIntervalUnit(Enum):
     YEAR = "YEAR"
 
 
-def _validate_name(value: Optional[str], field_name: str) -> None:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{field_name} must be a non-empty string")
-
-
 @dataclass
 class ClickHouseRefreshSchedule:
     """The ``REFRESH`` clause of a refreshable materialized view.
@@ -85,7 +90,8 @@ class ClickHouseRefreshSchedule:
         after: ``AFTER interval`` — fires relative to the previous completion.
         offset: ``OFFSET interval``, only valid together with ``every``.
         randomize_for: ``RANDOMIZE FOR interval``.
-        depends_on: ``DEPENDS ON`` materialized view names.
+        depends_on: materialized views this refresh waits on, each a
+            :class:`MaterializedView` carrying its own ``catalog_name``.
         settings: ``SETTINGS name = value, ...`` refresh settings.
         append: ``APPEND`` — each refresh inserts without deleting.
         incremental: ``APPEND INCREMENTAL`` — refresh only rows committed since
@@ -99,7 +105,7 @@ class ClickHouseRefreshSchedule:
     after: Optional[str] = None
     offset: Optional[str] = None
     randomize_for: Optional[str] = None
-    depends_on: Sequence[str] = field(default_factory=tuple)
+    depends_on: Sequence[MaterializedView] = field(default_factory=tuple)
     settings: Optional[Dict[str, Any]] = None
     append: bool = False
     incremental: bool = False
@@ -111,6 +117,8 @@ class ClickHouseRefreshSchedule:
             ValueError: on a bare ``REFRESH``, ``OFFSET`` without ``EVERY``,
                 ``APPEND INCREMENTAL`` without ``APPEND``, or an empty
                 ``DEPENDS ON`` list.
+            TypeError: ``depends_on`` is not a sequence, or an entry is not a
+                materialized view object.
         """
         if not self.every and not self.after and not self.depends_on:
             raise ValueError(
@@ -120,11 +128,14 @@ class ClickHouseRefreshSchedule:
             raise ValueError("OFFSET is only valid with EVERY")
         if self.incremental and not self.append:
             raise ValueError("INCREMENTAL requires APPEND")
-        if self.depends_on is not None and not isinstance(self.depends_on, (list, tuple)):
-            raise TypeError("depends_on must be a sequence of view names")
-        if self.depends_on:
-            for name in self.depends_on:
-                _validate_name(name, "depends_on entry")
+        if not isinstance(self.depends_on, AbcSequence):
+            raise TypeError("depends_on must be a sequence of materialized views")
+        for upstream in self.depends_on:
+            if not isinstance(upstream, MaterializedView):
+                raise TypeError(
+                    "depends_on entries must be MaterializedView objects carrying "
+                    f"their own catalog_name, got {type(upstream).__name__}"
+                )
 
 
 class ClickHouseCreateMaterializedViewExpression(BaseExpression):
@@ -132,12 +143,13 @@ class ClickHouseCreateMaterializedViewExpression(BaseExpression):
 
     Args:
         dialect: the ClickHouse dialect instance.
-        view_name: materialized view name.
+        view: the materialized view being created, carrying its own
+            ``catalog_name``.
         query: defining query, an expression or raw SQL.
-        database: optional database qualifier.
         on_cluster: optional ``ON CLUSTER`` name.
-        to_table: target table for the ``TO`` form; its columns come from the
-            query unless ``to_columns`` is given.
+        to_table: target table for the ``TO`` form, a :class:`Table` carrying
+            **its own** ``catalog_name``; its columns come from the query
+            unless ``to_columns`` is given.
         engine: table engine, e.g. ``"MergeTree ORDER BY id"``. Mandatory
             without ``to_table``.
         populate: backfill existing rows (incremental MVs only).
@@ -148,17 +160,18 @@ class ClickHouseCreateMaterializedViewExpression(BaseExpression):
         if_not_exists: emit ``IF NOT EXISTS``.
 
     Raises:
+        TypeError: ``view`` is not a :class:`MaterializedView`, or ``to_table``
+            is not a :class:`Table`.
         ValueError: on an invalid combination — see ``validate``.
     """
 
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        view_name: str,
+        view: MaterializedView,
         query: Any,
-        database: Optional[str] = None,
         on_cluster: Optional[str] = None,
-        to_table: Optional[str] = None,
+        to_table: Optional[Table] = None,
         to_columns: Optional[Sequence[str]] = None,
         engine: Optional[str] = None,
         populate: bool = False,
@@ -169,25 +182,29 @@ class ClickHouseCreateMaterializedViewExpression(BaseExpression):
         if_not_exists: bool = False,
     ):
         super().__init__(dialect)
-        _validate_name(view_name, "view_name")
         if query is None:
             raise ValueError("CREATE MATERIALIZED VIEW requires a defining query")
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                "view must be a MaterializedView object carrying its own "
+                f"catalog_name, got {type(view).__name__}"
+            )
+        if to_table is not None and not isinstance(to_table, Table):
+            raise TypeError(
+                "to_table must be a Table object carrying its own catalog_name, "
+                f"got {type(to_table).__name__}"
+            )
         if or_replace and if_not_exists:
             raise ValueError(
                 "ClickHouse rejects OR REPLACE together with IF NOT EXISTS"
             )
-        if database is not None:
-            _validate_name(database, "database")
-        if to_table is not None:
-            _validate_name(to_table, "to_table")
         if to_columns is not None and (
             isinstance(to_columns, str) or not to_columns
         ):
             raise ValueError("to_columns must be a non-empty sequence of columns")
 
-        self.view_name = view_name
+        self.view = view
         self.query = query
-        self.database = database
         self.on_cluster = on_cluster
         self.to_table = to_table
         self.to_columns = list(to_columns) if to_columns else None
@@ -199,6 +216,16 @@ class ClickHouseCreateMaterializedViewExpression(BaseExpression):
         self.or_replace = or_replace
         self.if_not_exists = if_not_exists
         self.validate()
+
+    @property
+    def view_name(self) -> str:
+        """The materialized view's own name, unqualified."""
+        return self.view.name
+
+    @property
+    def database(self) -> Optional[str]:
+        """The materialized view's database, or ``None`` for the default one."""
+        return self.view.catalog_name
 
     def validate(self) -> None:
         """Validate the MV form the way the server does.
@@ -234,22 +261,37 @@ class ClickHouseCreateMaterializedViewExpression(BaseExpression):
 
 
 class ClickHouseDropMaterializedViewExpression(BaseExpression):
-    """``DROP VIEW [IF EXISTS]`` — ClickHouse removes MVs with ``DROP VIEW``."""
+    """``DROP VIEW [IF EXISTS]`` — ClickHouse removes MVs with ``DROP VIEW``.
+
+    The ``VIEW`` keyword is ClickHouse's, not a mis-classification: the server
+    has no ``DROP MATERIALIZED VIEW``. Which keyword to emit follows from the
+    object's kind, and the dialect owns that mapping.
+    """
 
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        view_name: str,
-        database: Optional[str] = None,
+        view: MaterializedView,
         if_exists: bool = True,
     ):
         super().__init__(dialect)
-        _validate_name(view_name, "view_name")
-        if database is not None:
-            _validate_name(database, "database")
-        self.view_name = view_name
-        self.database = database
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                "view must be a MaterializedView object carrying its own "
+                f"catalog_name, got {type(view).__name__}"
+            )
+        self.view = view
         self.if_exists = if_exists
+
+    @property
+    def view_name(self) -> str:
+        """The materialized view's own name, unqualified."""
+        return self.view.name
+
+    @property
+    def database(self) -> Optional[str]:
+        """The materialized view's database, or ``None`` for the default one."""
+        return self.view.catalog_name
 
     @property
     def format_method(self) -> str:
@@ -266,25 +308,35 @@ class ClickHouseRefreshMaterializedViewExpression(BaseExpression):
 
     Args:
         dialect: the ClickHouse dialect instance.
-        view_name: materialized view name.
-        database: optional database qualifier.
+        view: the materialized view to refresh, carrying its own
+            ``catalog_name``.
         wait: also emit ``SYSTEM WAIT VIEW`` so the call blocks until done.
     """
 
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        view_name: str,
-        database: Optional[str] = None,
+        view: MaterializedView,
         wait: bool = False,
     ):
         super().__init__(dialect)
-        _validate_name(view_name, "view_name")
-        if database is not None:
-            _validate_name(database, "database")
-        self.view_name = view_name
-        self.database = database
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                "view must be a MaterializedView object carrying its own "
+                f"catalog_name, got {type(view).__name__}"
+            )
+        self.view = view
         self.wait = wait
+
+    @property
+    def view_name(self) -> str:
+        """The materialized view's own name, unqualified."""
+        return self.view.name
+
+    @property
+    def database(self) -> Optional[str]:
+        """The materialized view's database, or ``None`` for the default one."""
+        return self.view.catalog_name
 
     @property
     def format_method(self) -> str:
@@ -302,22 +354,32 @@ class ClickHouseModifyMaterializedViewRefreshExpression(BaseExpression):
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        view_name: str,
+        view: MaterializedView,
         schedule: ClickHouseRefreshSchedule,
-        database: Optional[str] = None,
         if_exists: bool = False,
     ):
         super().__init__(dialect)
-        _validate_name(view_name, "view_name")
-        if database is not None:
-            _validate_name(database, "database")
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                "view must be a MaterializedView object carrying its own "
+                f"catalog_name, got {type(view).__name__}"
+            )
         if not isinstance(schedule, ClickHouseRefreshSchedule):
             raise TypeError("schedule must be a ClickHouseRefreshSchedule")
         schedule.validate()
-        self.view_name = view_name
+        self.view = view
         self.schedule = schedule
-        self.database = database
         self.if_exists = if_exists
+
+    @property
+    def view_name(self) -> str:
+        """The materialized view's own name, unqualified."""
+        return self.view.name
+
+    @property
+    def database(self) -> Optional[str]:
+        """The materialized view's database, or ``None`` for the default one."""
+        return self.view.catalog_name
 
     @property
     def format_method(self) -> str:

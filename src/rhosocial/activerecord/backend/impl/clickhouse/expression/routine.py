@@ -12,11 +12,16 @@ ClickHouse supports:
 Note: ``CREATE FUNCTION ... SONAME 'library.so'`` creates a loadable (UDF)
 function and is intentionally NOT represented here because it is an
 installation-time administrative action (see admin expressions instead).
+
+The routine is named by a schema object carrying its own ``catalog_name``. There
+is no ``(database, name)`` tuple input and no rendering here: the expression
+holds the identity and the dialect renders it.
 """
 
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import RoutineObject
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -26,38 +31,47 @@ class ClickHouseRoutineExpression(BaseExpression):
     """Base class for stored routine DDL / invocation statements.
 
     Attributes:
-        name: Routine name (may be schema-qualified).
-        params: Parameter definitions list (strings or ``(mode, name, type)`` tuples).
+        routine: The routine being named -- a :class:`Function` or
+            :class:`Procedure` carrying its own ``catalog_name``. The
+            expression never renders it; the dialect does, through the
+            routine's own ``to_sql()``.
+        params: Parameter definitions list.
         body: Routine body SQL text (for CREATE statements).
+
+    Raises:
+        TypeError: ``routine`` is not a routine object (see :meth:`validate`).
     """
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: RoutineObject,
         *,
-        params: Optional[List[Any]] = None,
+        params: Optional[Sequence[Any]] = None,
         body: Optional[str] = None,
     ):
         super().__init__(dialect)
-        self.name: Any = name
-        self.params: List[Any] = list(params or [])
+        self.routine: RoutineObject = routine
+        self.params: list = list(params or [])
         self.body: Optional[str] = body
+        self.validate()
 
     def validate(self, strict: bool = True) -> None:
+        """Validate the routine identity.
+
+        Raises:
+            TypeError: ``routine`` is not a routine object. A ``str`` or a
+                ``(database, name)`` tuple is refused: both only say *which*
+                routine, never *what kind*, and neither can carry the
+                database without the caller unpacking it by hand.
+        """
         if not strict:
             return
-        if isinstance(self.name, tuple):
-            if len(self.name) != 2 or not all(isinstance(part, str) for part in self.name):
-                raise ValueError(f"Invalid schema-qualified routine name: {self.name!r}")
-        elif not isinstance(self.name, str):
-            raise TypeError(f"name must be str or (schema, name) tuple, got {type(self.name)}")
-
-    def _format_name(self) -> str:
-        if isinstance(self.name, tuple):
-            schema, name = self.name
-            return f"{self.dialect.format_identifier(schema)}.{self.dialect.format_identifier(name)}"
-        return self.dialect.format_identifier(self.name)
+        if not isinstance(self.routine, RoutineObject):
+            raise TypeError(
+                "routine must be a Function or Procedure object carrying its own "
+                f"catalog_name, got {type(self.routine).__name__}"
+            )
 
 
 class ClickHouseCreateProcedureExpression(ClickHouseRoutineExpression):
@@ -74,11 +88,11 @@ class ClickHouseDropProcedureExpression(ClickHouseRoutineExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: RoutineObject,
         *,
         if_exists: bool = False,
     ):
-        super().__init__(dialect, name)
+        super().__init__(dialect, routine)
         self.if_exists: bool = if_exists
 
     @property
@@ -92,16 +106,16 @@ class ClickHouseCreateFunctionExpression(ClickHouseRoutineExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: RoutineObject,
         *,
         returns: str,
-        params: Optional[List[Any]] = None,
+        params: Optional[Sequence[Any]] = None,
         body: Optional[str] = None,
         deterministic: bool = False,
     ):
         super().__init__(
             dialect,
-            name,
+            routine,
             params=params,
             body=body,
         )
@@ -119,11 +133,11 @@ class ClickHouseDropFunctionExpression(ClickHouseRoutineExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
+        routine: RoutineObject,
         *,
         if_exists: bool = False,
     ):
-        super().__init__(dialect, name)
+        super().__init__(dialect, routine)
         self.if_exists: bool = if_exists
 
     @property
@@ -135,28 +149,38 @@ class ClickHouseCallExpression(BaseExpression):
     """Represent ``CALL procedure_name([args])``.
 
     Attributes:
-        name: Stored procedure name (may be schema-qualified).
+        routine: The stored procedure being called, carrying its own
+            ``catalog_name``.
         args: Positional argument list.
+
+    Raises:
+        TypeError: ``routine`` is not a :class:`Procedure` object.
     """
 
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        name: Any,
-        args: Optional[List[Any]] = None,
+        routine: RoutineObject,
+        args: Optional[Sequence[Any]] = None,
     ):
         super().__init__(dialect)
-        self.name: Any = name
-        self.args: List[Any] = list(args or [])
+        self.routine: RoutineObject = routine
+        self.args: list = list(args or [])
+        self.validate()
 
     def validate(self, strict: bool = True) -> None:
+        """Validate the procedure identity.
+
+        Raises:
+            TypeError: ``routine`` is not a routine object.
+        """
         if not strict:
             return
-        if isinstance(self.name, tuple):
-            if len(self.name) != 2 or not all(isinstance(part, str) for part in self.name):
-                raise ValueError(f"Invalid schema-qualified procedure name: {self.name!r}")
-        elif not isinstance(self.name, str):
-            raise TypeError(f"name must be str or (schema, name) tuple, got {type(self.name)}")
+        if not isinstance(self.routine, RoutineObject):
+            raise TypeError(
+                "CALL requires a Function or Procedure object carrying its own "
+                f"catalog_name, got {type(self.routine).__name__}"
+            )
 
     @property
     def format_method(self) -> str:

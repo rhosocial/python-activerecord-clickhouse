@@ -2,6 +2,7 @@
 from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
@@ -29,7 +30,20 @@ class ClickHouseTruncateMixin:
         return False
 
     def format_truncate_statement(self, expr: "TruncateExpression") -> Tuple[str, tuple]:
-        """Format ClickHouse ``TRUNCATE [TABLE] tbl_name``."""
+        """Format ClickHouse ``TRUNCATE [TABLE] tbl_name``.
+
+        Raises:
+            TypeError: ``expr.table`` is not a Table. Any other object kind
+                carries its own ``format_method``, so the dialect would render a
+                well-formed ``TRUNCATE TABLE`` over e.g. an index's name.
+            UnsupportedFeatureError: ``RESTART IDENTITY`` or ``CASCADE``, neither
+                of which ClickHouse has.
+        """
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"TruncateExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         if expr.restart_identity:
             raise UnsupportedFeatureError(
                 self.name,
@@ -42,5 +56,5 @@ class ClickHouseTruncateMixin:
                 "TRUNCATE ... CASCADE",
                 suggestion="ClickHouse does not support CASCADE on TRUNCATE.",
             )
-        sql = f"TRUNCATE TABLE {self.format_identifier(expr.table_name)}"
+        sql = f"TRUNCATE TABLE {expr.table.to_sql()[0]}"
         return sql, ()

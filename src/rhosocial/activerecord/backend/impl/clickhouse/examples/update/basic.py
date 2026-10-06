@@ -11,6 +11,7 @@ This example demonstrates:
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -45,13 +46,13 @@ from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
 )
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     columns=[
         ColumnDefinition(
             "id",
@@ -78,7 +79,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="users",
+    into=Table(dialect, "users"),
     columns=["name", "age"],
     source=ValuesSource(
         dialect,
@@ -97,7 +98,7 @@ backend.execute(sql, params)
 # ============================================================
 update_expr = UpdateExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     assignments={"age": Literal(dialect, 26)},
     where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
 )
@@ -114,7 +115,7 @@ print(f"Updated rows: {result.affected_rows}")
 # ============================================================
 update_expr = UpdateExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     assignments={
         "age": BinaryArithmeticExpression(dialect, "+", Column(dialect, "age"), Literal(dialect, 1)),
     },
@@ -130,7 +131,7 @@ print(f"Updated rows: {result.affected_rows}")
 # ============================================================
 update_expr = UpdateExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     assignments={"age": Literal(dialect, 99)},
 )
 sql, params = update_expr.to_sql()
@@ -141,7 +142,7 @@ print(f"Updated rows: {result.affected_rows}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_expr = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_expr = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
