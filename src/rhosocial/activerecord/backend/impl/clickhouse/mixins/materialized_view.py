@@ -156,7 +156,8 @@ class ClickHouseMaterializedViewMixin:
             TypeError: ``expr.view`` is not a MaterializedView. ``drop_object_keyword``
                 would otherwise answer ``VIEW`` for a plain View and the statement
                 would name something the caller did not ask to drop.
-            UnsupportedFeatureError: ``CASCADE``, which ClickHouse has no form for.
+            UnsupportedFeatureError: ``CASCADE`` or ``RESTRICT``, neither of which
+                ClickHouse accepts (measured: Code 62).
         """
         view = getattr(expr, "view", None)
         if not isinstance(view, MaterializedView):
@@ -166,6 +167,8 @@ class ClickHouseMaterializedViewMixin:
             )
         if getattr(expr, "cascade", False):
             raise UnsupportedFeatureError(self.name, "DROP MATERIALIZED VIEW CASCADE")
+        if getattr(expr, "restrict", False):
+            raise UnsupportedFeatureError(self.name, "DROP MATERIALIZED VIEW RESTRICT")
         parts = ["DROP", self.drop_object_keyword(view)]
         if getattr(expr, "if_exists", False):
             parts.append("IF EXISTS")
@@ -181,8 +184,8 @@ class ClickHouseMaterializedViewMixin:
             TypeError: ``expr.view`` is not a MaterializedView. The generic
                 ``RefreshMaterializedViewExpression`` would otherwise render any
                 object's name as the view refreshed.
-            UnsupportedFeatureError: ``CONCURRENTLY`` or ``WITH DATA``, neither of
-                which ClickHouse spells this way.
+            UnsupportedFeatureError: ``CONCURRENTLY``, ``WITH DATA`` or
+                ``WITH NO DATA``, none of which ClickHouse spells this way.
         """
         view = getattr(expr, "view", None)
         if not isinstance(view, MaterializedView):
@@ -197,10 +200,16 @@ class ClickHouseMaterializedViewMixin:
                 "ClickHouse refreshes through SYSTEM REFRESH VIEW; use wait=True to "
                 "block until the refresh completes.",
             )
-        if getattr(expr, "with_data", None) is not None:
+        if getattr(expr, "with_data", False):
             raise UnsupportedFeatureError(
                 self.name,
-                "REFRESH MATERIALIZED VIEW WITH [NO] DATA",
+                "REFRESH MATERIALIZED VIEW WITH DATA",
+                "A ClickHouse refresh always repopulates the target.",
+            )
+        if getattr(expr, "no_data", False):
+            raise UnsupportedFeatureError(
+                self.name,
+                "REFRESH MATERIALIZED VIEW WITH NO DATA",
                 "A ClickHouse refresh always repopulates the target.",
             )
         target = view.to_sql()[0]
@@ -311,8 +320,13 @@ class ClickHouseMaterializedViewMixin:
                 f"{feature} STORAGE PARAMETERS",
                 "ClickHouse materializes into a target table or an ENGINE.",
             )
-        with_data = getattr(expr, "with_data", True)
-        if with_data is False:
+        if getattr(expr, "with_data", False):
+            raise UnsupportedFeatureError(
+                self.name,
+                f"{feature} WITH DATA",
+                "ClickHouse uses POPULATE (incremental) or EMPTY (refreshable) instead.",
+            )
+        if getattr(expr, "no_data", False):
             raise UnsupportedFeatureError(
                 self.name,
                 f"{feature} WITH NO DATA",

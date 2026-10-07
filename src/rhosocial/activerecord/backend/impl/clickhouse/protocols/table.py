@@ -9,6 +9,7 @@ from typing import Any, Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.protocols import (
     AlterTableSupport,
+    CreateTableAsSupport,
     CreateTableCloneSupport,
     CreateTableLikeSupport,
     CreateTableSupport,
@@ -27,6 +28,7 @@ if TYPE_CHECKING:  # pragma: no cover
 class ClickHouseTableSupport(
     TableObjectSupport,
     CreateTableSupport,
+    CreateTableAsSupport,
     CreateTableLikeSupport,
     CreateTableCloneSupport,
     DropTableSupport,

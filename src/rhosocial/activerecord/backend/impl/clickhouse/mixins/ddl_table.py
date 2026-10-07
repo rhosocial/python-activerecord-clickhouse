@@ -9,6 +9,7 @@ from rhosocial.activerecord.backend.expression.types import DataType
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
         ColumnDefinition,
+        CreateTableAsExpression,
         CreateTableCloneExpression,
         CreateTableExpression,
         CreateTableLikeExpression,
@@ -199,6 +200,36 @@ class ClickHouseTableMixin:
         parts.append(target)
         parts.append(f"AS {source}")
         return " ".join(parts), ()
+
+    def format_create_table_as_statement(
+        self, expr: "CreateTableAsExpression"
+    ) -> Tuple[str, tuple]:
+        """Format ClickHouse ``CREATE TABLE ... AS <query>``.
+
+        ClickHouse's CTAS always populates the new table and has no
+        ``WITH [NO] DATA`` clause: each spelling is refused by name (measured:
+        Code 62) instead of being rendered, and the unspecified state renders
+        the plain statement through the generic formatter.
+
+        Raises:
+            UnsupportedFeatureError: ``WITH DATA`` or ``WITH NO DATA``, neither
+                of which ClickHouse spells this way.
+        """
+        if expr.with_data:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE TABLE ... WITH DATA",
+                "ClickHouse CTAS always populates the new table; there is no "
+                "WITH DATA clause.",
+            )
+        if expr.no_data:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE TABLE ... WITH NO DATA",
+                "ClickHouse CTAS cannot create an unpopulated table; there is "
+                "no WITH NO DATA clause.",
+            )
+        return super().format_create_table_as_statement(expr)
 
     def format_create_table_clone_statement(
         self, expr: "CreateTableCloneExpression"
@@ -400,6 +431,20 @@ class ClickHouseTableMixin:
     def supports_if_exists_table(self) -> bool:
         """Whether DROP TABLE IF EXISTS is supported."""
         return True
+
+    def supports_drop_table_cascade(self) -> bool:
+        """ClickHouse DROP TABLE has no CASCADE spelling (measured: Code 62).
+
+        Declared here, on the mixin that precedes core's ``TableMixin`` in the
+        MRO: declared on ``ClickHouseConstraintMixin`` (which follows it) the
+        answer would be shadowed by the generic ``True`` and the formatter
+        would render SQL the server rejects.
+        """
+        return False
+
+    def supports_drop_table_restrict(self) -> bool:
+        """ClickHouse DROP TABLE has no RESTRICT spelling (measured: Code 62)."""
+        return False
 
     def supports_temporary_table(self) -> bool:
         """Whether CREATE TEMPORARY TABLE is supported."""

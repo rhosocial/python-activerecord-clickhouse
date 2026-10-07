@@ -429,11 +429,22 @@ class TestRefreshAndDrop:
         assert "CONCURRENTLY" in str(exc.value)
 
     def test_generic_with_data_is_rejected(self, dialect):
+        """``with_data=True`` is the WITH DATA spelling; ClickHouse has neither."""
         expr = RefreshMaterializedViewExpression(
-            dialect=dialect, view=MaterializedView(dialect, "mv_ref"), with_data=False
+            dialect=dialect, view=MaterializedView(dialect, "mv_ref"), with_data=True
         )
-        with pytest.raises(UnsupportedFeatureError):
+        with pytest.raises(UnsupportedFeatureError) as exc:
             expr.to_sql()
+        assert "WITH DATA" in str(exc.value)
+
+    def test_generic_with_no_data_is_rejected(self, dialect):
+        """``no_data=True`` is the WITH NO DATA spelling."""
+        expr = RefreshMaterializedViewExpression(
+            dialect=dialect, view=MaterializedView(dialect, "mv_ref"), no_data=True
+        )
+        with pytest.raises(UnsupportedFeatureError) as exc:
+            expr.to_sql()
+        assert "WITH NO DATA" in str(exc.value)
 
 
 class TestRejectsNonClickHouseClauses:
@@ -461,13 +472,27 @@ class TestRejectsNonClickHouseClauses:
             expr.to_sql()
 
     def test_generic_with_no_data(self, dialect):
-        """The regression that started all this: no WITH DATA in ClickHouse."""
+        """The regression that started all this: no WITH NO DATA in ClickHouse.
+
+        ``no_data=True`` is the explicit spelling; the old ``with_data=False``
+        was the pre-split sentinel and is now simply "unspecified".
+        """
         expr = CreateMaterializedViewExpression(
-            dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, with_data=False
+            dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, no_data=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
             expr.to_sql()
         assert "WITH NO DATA" in str(exc.value)
+        assert "POPULATE" in str(exc.value)  # points at the ClickHouse alternative
+
+    def test_generic_with_data(self, dialect):
+        """``with_data=True`` is refused by name too, not silently dropped."""
+        expr = CreateMaterializedViewExpression(
+            dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, with_data=True
+        )
+        with pytest.raises(UnsupportedFeatureError) as exc:
+            expr.to_sql()
+        assert "WITH DATA" in str(exc.value)
         assert "POPULATE" in str(exc.value)  # points at the ClickHouse alternative
 
     def test_generic_drop_cascade(self, dialect):

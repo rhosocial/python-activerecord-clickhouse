@@ -34,14 +34,6 @@ class ClickHouseConstraintMixin:
         """ClickHouse does not support ALTER TABLE DROP CONSTRAINT."""
         return False
 
-    def supports_drop_table_cascade(self) -> bool:
-        """ClickHouse DROP TABLE does not support CASCADE."""
-        return False
-
-    def supports_drop_table_restrict(self) -> bool:
-        """ClickHouse DROP TABLE does not support RESTRICT."""
-        return False
-
     def supports_check_constraint(self) -> bool:
         """Whether CHECK constraints are enforced."""
         return False

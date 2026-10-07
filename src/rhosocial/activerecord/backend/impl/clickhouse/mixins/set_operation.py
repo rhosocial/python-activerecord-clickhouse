@@ -35,14 +35,20 @@ class ClickHouseSetOperationMixin:
     def format_set_operation_expression(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
         """Format set operations with an explicit ALL/DISTINCT modifier.
 
+        ``all_`` spells ``ALL`` and ``distinct`` spells ``DISTINCT``. The
+        unspecified state maps to the grammar's required default, ``DISTINCT``:
         ClickHouse rejects a bare ``UNION`` when ``union_default_mode`` is
-        empty (the default): ``Expected ALL or DISTINCT in SelectWithUnion
-        query``. A bare SQL-standard ``UNION`` means ``UNION DISTINCT``, so
-        we always emit the explicit modifier.
+        empty (the default) -- measured 26.7.3.19: ``Code: 558. Expected ALL
+        or DISTINCT in SelectWithUnion query`` -- and a bare SQL-standard
+        ``UNION`` means ``UNION DISTINCT``. The collision between the
+        unspecified and explicit-DISTINCT renderings is therefore a property
+        of the grammar, not a dropped parameter; the pair's four states are
+        pinned in ``test_clause_pair_guard.py``.
         """
         left, right = expr.left, expr.right
         operation = expr.operation
         all_ = expr.all_
+        distinct = expr.distinct
         alias = expr.alias
         order_by_clause = expr.order_by_clause
         limit_offset_clause = expr.limit_offset_clause
@@ -58,7 +64,15 @@ class ClickHouseSetOperationMixin:
 
         left_sql, left_params = left.to_sql()
         right_sql, right_params = right.to_sql()
-        modifier = "ALL" if all_ else "DISTINCT"
+        if all_:
+            modifier = "ALL"
+        elif distinct:
+            modifier = "DISTINCT"
+        else:
+            # Unspecified: the grammar requires a modifier and has no accepted
+            # bare form (measured Code 558), so the dialect spells its
+            # required default, DISTINCT.
+            modifier = "DISTINCT"
         base_sql = f"{left_sql} {operation} {modifier} {right_sql}"
         all_params = list(left_params + right_params)
 
