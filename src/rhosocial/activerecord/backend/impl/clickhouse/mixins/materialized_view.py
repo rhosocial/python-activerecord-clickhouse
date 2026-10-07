@@ -51,6 +51,19 @@ class ClickHouseMaterializedViewMixin:
         """``POPULATE`` backfills an incremental MV from existing rows."""
         return True
 
+    def supports_with_data_clause(self) -> bool:
+        """ClickHouse has no ``WITH [NO] DATA`` clause (measured: Code 62).
+
+        The clause is shared by CTAS, CREATE MATERIALIZED VIEW and REFRESH
+        MATERIALIZED VIEW; all three consumers are answered by this dialect's
+        own formatters. Declared here, once, so the answer is this dialect's
+        (a core default flipping must not silently change what ClickHouse
+        claims): ``CREATE TABLE ... AS`` always populates, an incremental MV
+        backfills with ``POPULATE`` and a refreshable MV creates empty with
+        ``EMPTY``.
+        """
+        return False
+
     # ------------------------------------------------------------------
     # Formatters
     # ------------------------------------------------------------------

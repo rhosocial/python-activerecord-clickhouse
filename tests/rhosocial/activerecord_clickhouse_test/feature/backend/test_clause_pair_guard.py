@@ -41,6 +41,25 @@ bare form with the server's default ``union_default_mode`` (bare ``UNION`` is
 Code 558). :class:`TestSetOperationQualifier` asserts that mapping explicitly
 instead of the generic four-state check.
 
+**The four master probes core's gate round consults.** Core now consults
+``supports_materialized_cte()`` in every ``format_cte_expression``,
+``supports_truncate()`` in ``format_truncate_statement``, and the new
+``supports_with_data_clause()`` in the CTAS / CREATE MATERIALIZED VIEW /
+REFRESH MATERIALIZED VIEW renderers; the wait pair added to the two
+transaction expressions is gated by the new ``supports_transaction_wait()``.
+Measured live over the same HTTP interface
+(``.claude/plan/2026-10-07/probe_measure_out.txt``, bracketed by the two
+sentinels): ``WITH c AS MATERIALIZED`` ACCEPTED (with and without
+``enable_materialized_cte=1``), ``AS NOT MATERIALIZED`` Code 62 even with the
+setting; ``CREATE TABLE ... ENGINE = Memory`` + ``TRUNCATE TABLE``
+end-to-end ACCEPTED (count 1 -> 0); ``WITH [NO] DATA`` on CTAS and MV create
+Code 62, ``REFRESH MATERIALIZED VIEW`` Code 62; ``BEGIN TRANSACTION`` Code 48
+(NOT_IMPLEMENTED), ``SET TRANSACTION`` only accepts ``SNAPSHOT``, and both
+``WAIT`` and ``NO WAIT`` spellings are Code 62.
+:class:`TestCoreGatedMasterProbes` pins this dialect's declarations,
+:class:`TestWaitPairRefusesByName` pins that the pair is refused by name
+rather than dropped.
+
 Run red first: this file was run against the unmodified tree before any
 formatter was changed; the failing ids are recorded in the round's report.
 """
@@ -78,6 +97,10 @@ from rhosocial.activerecord.backend.expression.statements.ddl_view import (
 )
 from rhosocial.activerecord.backend.expression.statements.dql import (
     QueryExpression,
+)
+from rhosocial.activerecord.backend.expression.transaction import (
+    BeginTransactionExpression,
+    SetTransactionExpression,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
@@ -503,3 +526,148 @@ class TestProbesMatchTheMeasuredGrammar:
             assert owner == f"ClickHouseTableMixin.{name}", (
                 f"{name} resolves to {owner}, so ClickHouse's answer is shadowed"
             )
+
+
+class TestCoreGatedMasterProbes:
+    """The master probes core's gate round reads, answered by this dialect.
+
+    Each declaration below was measured live (see the module docstring); the
+    owner assertions pin that ClickHouse answers, not a core default that
+    happens to coincide. A core default flipping silently would change what
+    this dialect claims without any ClickHouse change, which is exactly how
+    ``supports_drop_table_cascade`` once rendered server-rejected DROP TABLE.
+    """
+
+    def test_materialized_cte_probe_is_true_and_materialized_renders(self):
+        d = _dialect()
+        assert d.supports_materialized_cte() is True
+        owner = d.supports_materialized_cte.__qualname__
+        assert owner == "ClickHouseCTEMixin.supports_materialized_cte"
+        sql, _params = CTEExpression(d, "c", _query(d), materialized=True).to_sql()
+        assert sql == "`c` AS MATERIALIZED (SELECT `id` FROM `t`)"
+
+    def test_materialized_cte_negative_spelling_is_refused_by_name(self):
+        """``AS NOT MATERIALIZED`` is Code 62 on ClickHouse 26.7 (measured,
+        including with ``enable_materialized_cte=1``); the grammar is
+        ``AS [MATERIALIZED]``. Rendering it would be SQL the server rejects,
+        so the by-name refusal is the faithful outcome."""
+        d = _dialect()
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            CTEExpression(d, "c", _query(d), not_materialized=True).to_sql()
+        assert excinfo.value.dialect_name == "ClickHouse"
+        assert excinfo.value.feature_name == "CTE NOT MATERIALIZED"
+
+    def test_truncate_probe_is_true_and_the_statement_renders(self):
+        d = _dialect()
+        assert d.supports_truncate() is True
+        owner = d.supports_truncate.__qualname__
+        assert owner == "ClickHouseTruncateMixin.supports_truncate"
+        sql, _params = TruncateExpression(d, _table(d)).to_sql()
+        assert sql == "TRUNCATE TABLE `t`"
+
+    def test_with_data_clause_is_declared_false_by_this_dialect(self):
+        """ClickHouse has no ``WITH [NO] DATA`` on any of the three consumers
+        (measured: Code 62). The declaration is this dialect's own so a core
+        default cannot answer for it."""
+        d = _dialect()
+        assert d.supports_with_data_clause() is False
+        owner = d.supports_with_data_clause.__qualname__
+        assert owner == "ClickHouseMaterializedViewMixin.supports_with_data_clause"
+
+    def test_transaction_wait_is_declared_false_by_this_dialect(self):
+        """ClickHouse has no WAIT / NO WAIT clause (measured: Code 62 for both
+        spellings, while the bare statement is Code 48 / SNAPSHOT-only). The
+        bare protocol stub answers ``None``; a dialected answer must be bool."""
+        d = _dialect()
+        assert d.supports_transaction_wait() is False
+        owner = d.supports_transaction_wait.__qualname__
+        assert owner == "ClickHouseTransactionMixin.supports_transaction_wait"
+
+    def test_with_data_gate_refusals_are_this_dialects_own(self):
+        """Every WITH [NO] DATA consumer is refused by a ClickHouse formatter
+        with ClickHouse's own feature name and advice -- not by core's generic
+        gate, whose feature would be the bare ``WITH DATA`` / ``WITH NO DATA``.
+        """
+        d = _dialect()
+        cases = (
+            (
+                CreateTableAsExpression(d, _table(d), _query(d), with_data=True),
+                "CREATE TABLE ... WITH DATA",
+            ),
+            (
+                CreateTableAsExpression(d, _table(d), _query(d), no_data=True),
+                "CREATE TABLE ... WITH NO DATA",
+            ),
+            (_generic_mv_with_target(d, with_data=True), "CREATE MATERIALIZED VIEW WITH DATA"),
+            (_generic_mv_with_target(d, no_data=True), "CREATE MATERIALIZED VIEW WITH NO DATA"),
+            (
+                RefreshMaterializedViewExpression(d, MaterializedView(d, "mv"), with_data=True),
+                "REFRESH MATERIALIZED VIEW WITH DATA",
+            ),
+            (
+                RefreshMaterializedViewExpression(d, MaterializedView(d, "mv"), no_data=True),
+                "REFRESH MATERIALIZED VIEW WITH NO DATA",
+            ),
+        )
+        for expr, feature in cases:
+            with pytest.raises(UnsupportedFeatureError) as excinfo:
+                expr.to_sql()
+            assert excinfo.value.dialect_name == "ClickHouse"
+            assert excinfo.value.feature_name == feature
+            suggestion = excinfo.value.suggestion or ""
+            assert "ClickHouse" in suggestion, (
+                f"{feature}: refusal advice is not ClickHouse's own: {suggestion!r}"
+            )
+
+
+class TestWaitPairRefusesByName:
+    """``supports_transaction_wait()`` is False: the pair is refused by name.
+
+    ``wait`` / ``no_wait`` are two spellings with one parameter each; with
+    neither set the whole statement keeps its blanket refusal, and requesting
+    either spelling refuses *that spelling* -- never renders a statement with
+    the clause dropped.
+    """
+
+    @pytest.mark.parametrize(
+        "expression_class",
+        [BeginTransactionExpression, SetTransactionExpression],
+        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+    )
+    @pytest.mark.parametrize(
+        "parameter,spelling", [("wait", "WAIT"), ("no_wait", "NO WAIT")]
+    )
+    def test_either_spelling_refuses_by_name(
+        self, expression_class, parameter, spelling
+    ):
+        d = _dialect()
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expression_class(d, **{parameter: True}).to_sql()
+        assert excinfo.value.dialect_name == "ClickHouse"
+        assert excinfo.value.feature_name == f"transaction {spelling}"
+        assert spelling in (excinfo.value.suggestion or "")
+
+    @pytest.mark.parametrize(
+        "expression_class",
+        [BeginTransactionExpression, SetTransactionExpression],
+        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+    )
+    def test_neither_spelling_still_refuses_the_whole_statement(
+        self, expression_class
+    ):
+        d = _dialect()
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expression_class(d).to_sql()
+        assert excinfo.value.feature_name == "transactions"
+
+    @pytest.mark.parametrize(
+        "expression_class",
+        [BeginTransactionExpression, SetTransactionExpression],
+        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+    )
+    def test_both_spellings_are_api_misuse(self, expression_class):
+        d = _dialect()
+        with pytest.raises(
+            ValueError, match="wait and no_wait are mutually exclusive"
+        ):
+            expression_class(d, wait=True, no_wait=True)
