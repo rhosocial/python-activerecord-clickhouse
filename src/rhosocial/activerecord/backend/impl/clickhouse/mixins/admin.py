@@ -4,14 +4,6 @@ from typing import Any, Tuple
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 
-def _fmt_table(dialect, table):
-    """Format a possibly schema-qualified table name."""
-    if isinstance(table, tuple):
-        schema, name = table
-        return f"{dialect.format_identifier(schema)}.{dialect.format_identifier(name)}"
-    return dialect.format_identifier(table)
-
-
 class ClickHouseAdminCommandMixin:
     """ClickHouse does not support the MySQL instance-level administrative
     command set.

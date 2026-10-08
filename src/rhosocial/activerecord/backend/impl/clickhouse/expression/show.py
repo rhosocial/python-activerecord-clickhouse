@@ -105,13 +105,28 @@ class ShowColumnsExpression(ShowExpression):
     """Expression for SHOW [FULL] COLUMNS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
+
+    ``full``, ``like_pattern`` and ``schema`` are keyword arguments as well as
+    fluent methods, for the reason given on :class:`ShowTablesExpression`: the
+    constructor has to accept everything ``get_params`` emits, or the expression
+    cannot be rebuilt from its own serialization.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        *,
+        full: bool = False,
+        like_pattern: Optional[str] = None,
+        schema: Optional[str] = None,
+    ):
         super().__init__(dialect)
         self._table = table
-        self._full: bool = False
-        self._like_pattern: Optional[str] = None
+        self._full: bool = full
+        self._like_pattern: Optional[str] = like_pattern
+        if schema is not None:
+            self._schema = schema
 
     def full(self, value: bool = True) -> "ShowColumnsExpression":
         """Include additional column information (privileges, comments)."""
@@ -155,12 +170,30 @@ class ShowIndexExpression(ShowExpression):
 
 
 class ShowTablesExpression(ShowExpression):
-    """Expression for SHOW [FULL] TABLES command."""
+    """Expression for SHOW [FULL] TABLES command.
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    ``full``, ``like_pattern`` and ``schema`` are accepted as keyword arguments
+    as well as set through the fluent methods. They have to be: ``get_params``
+    emits all three, and deserialization rebuilds an expression by calling the
+    constructor with what ``get_params`` produced. A fluent-only field made the
+    round-trip impossible -- ``SHOW TABLES`` serialised fine and then failed to
+    rebuild with "unexpected keyword argument 'full'". The fluent methods are
+    kept because they read better in the call sites that use them.
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        full: bool = False,
+        like_pattern: Optional[str] = None,
+        schema: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._full: bool = False
-        self._like_pattern: Optional[str] = None
+        self._full: bool = full
+        self._like_pattern: Optional[str] = like_pattern
+        if schema is not None:
+            self._schema = schema
 
     def full(self, value: bool = True) -> "ShowTablesExpression":
         """Include table type (BASE TABLE or VIEW)."""
@@ -278,12 +311,25 @@ class ShowVariablesExpression(ShowExpression):
     """Expression for SHOW VARIABLES command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
+
+    ``session``, ``like_pattern`` and ``schema`` are keyword arguments as well as
+    fluent methods; see :class:`ShowTablesExpression` for why the constructor has
+    to accept what ``get_params`` emits.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        session: bool = True,
+        like_pattern: Optional[str] = None,
+        schema: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._like_pattern: Optional[str] = None
-        self._session: bool = True
+        self._like_pattern: Optional[str] = like_pattern
+        self._session: bool = session
+        if schema is not None:
+            self._schema = schema
 
     def like(self, pattern: str) -> "ShowVariablesExpression":
         """Filter variables by name pattern."""
@@ -315,12 +361,25 @@ class ShowStatusExpression(ShowExpression):
     """Expression for SHOW STATUS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
+
+    ``session``, ``like_pattern`` and ``schema`` are keyword arguments as well as
+    fluent methods; see :class:`ShowTablesExpression` for why the constructor has
+    to accept what ``get_params`` emits.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        session: bool = True,
+        like_pattern: Optional[str] = None,
+        schema: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._like_pattern: Optional[str] = None
-        self._session: bool = True
+        self._like_pattern: Optional[str] = like_pattern
+        self._session: bool = session
+        if schema is not None:
+            self._schema = schema
 
     def like(self, pattern: str) -> "ShowStatusExpression":
         """Filter status by name pattern."""
@@ -352,11 +411,23 @@ class ShowProcessListExpression(ShowExpression):
     """Expression for SHOW PROCESSLIST command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
+
+    ``full`` and ``schema`` are keyword arguments as well as fluent methods; see
+    :class:`ShowTablesExpression` for why the constructor has to accept what
+    ``get_params`` emits.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        full: bool = False,
+        schema: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._full: bool = False
+        self._full: bool = full
+        if schema is not None:
+            self._schema = schema
 
     def full(self, value: bool = True) -> "ShowProcessListExpression":
         """Include full query text."""

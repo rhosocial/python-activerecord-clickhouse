@@ -16,6 +16,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
 )
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
     ClickHouseJSONTableExpression,
@@ -420,7 +421,7 @@ class TestClickHouseCreateTableCommentEscaping:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table="test_table",
+            table=Table(dialect, "test_table"),
             columns=[],
             table_options=CreateTableOptions(
                 dialect, comment=TableCommentClause(dialect, "Table's comment with 'quotes'")
@@ -442,7 +443,7 @@ class TestClickHouseCreateTableCommentEscaping:
 
         expr = CreateTableExpression(
             dialect=dialect,
-            table="test_table",
+            table=Table(dialect, "test_table"),
             columns=[],
             table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "Test\\value")),
         )

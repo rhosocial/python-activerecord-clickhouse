@@ -22,6 +22,7 @@ All methods follow the pattern:
 from typing import Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.objects import Table, View
 
 if TYPE_CHECKING:
     from ..expression.show import (
@@ -59,28 +60,25 @@ class ClickHouseShowDialectMixin:
     # ========== SHOW CREATE Statements ==========
 
     def format_show_create_table(self, expr: "ShowCreateTableExpression") -> Tuple[str, tuple]:
-        """Format SHOW CREATE TABLE statement."""
-        params = expr.get_params()
-        table = params["table"]
-        schema = params.get("schema")
+        """Format SHOW CREATE TABLE statement.
 
-        if schema:
-            sql = f"SHOW CREATE TABLE {self.format_identifier(schema)}.{self.format_identifier(table)}"
-        else:
-            sql = f"SHOW CREATE TABLE {self.format_identifier(table)}"
-        return sql, ()
+        The name goes through ``format_table_object``, so the ``schema`` slot
+        -- a ClickHouse database -- becomes the object's ``catalog_name`` and is
+        rendered by the same code that renders every other qualified name.
+        """
+        params = expr.get_params()
+        table = Table(
+            self, params["table"], catalog_name=params.get("schema")
+        ).to_sql()[0]
+        return f"SHOW CREATE TABLE {table}", ()
 
     def format_show_create_view(self, expr: "ShowCreateViewExpression") -> Tuple[str, tuple]:
         """Format SHOW CREATE VIEW statement."""
         params = expr.get_params()
-        view_name = params["view_name"]
-        schema = params.get("schema")
-
-        if schema:
-            sql = f"SHOW CREATE VIEW {self.format_identifier(schema)}.{self.format_identifier(view_name)}"
-        else:
-            sql = f"SHOW CREATE VIEW {self.format_identifier(view_name)}"
-        return sql, ()
+        view = View(
+            self, params["view_name"], catalog_name=params.get("schema")
+        ).to_sql()[0]
+        return f"SHOW CREATE VIEW {view}", ()
 
     def format_show_create_trigger(self, expr: "ShowCreateTriggerExpression") -> Tuple[str, tuple]:
         """Format SHOW CREATE TRIGGER statement.

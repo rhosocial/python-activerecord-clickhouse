@@ -7,6 +7,7 @@ Supported versions: ClickHouse
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -56,7 +57,7 @@ snapshot_before = builder.build()
 
 # Create one table, drop another (if it existed)
 expr = CreateTableExpression(
-    dialect=dialect, table="users", columns=[
+    dialect=dialect, table=Table(dialect, "users"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
@@ -68,7 +69,7 @@ expr = CreateTableExpression(
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 expr = CreateTableExpression(
-    dialect=dialect, table="orders", columns=[
+    dialect=dialect, table=Table(dialect, "orders"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
                 ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),

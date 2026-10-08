@@ -6,6 +6,8 @@ Batch insert with multiple rows.
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -34,13 +36,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table="logs", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "logs"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="logs",
+    table=Table(dialect, "logs"),
     columns=[
         ColumnDefinition(
             "id",
@@ -74,7 +76,6 @@ backend.execute(sql, params)
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     InsertExpression,
     ValuesSource,
-    TableExpression,
     QueryExpression,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column  # noqa: E402
@@ -82,7 +83,7 @@ from rhosocial.activerecord.backend.expression.statements.dql import OrderByClau
 
 insert_expr = InsertExpression(
     dialect=dialect,
-    into=TableExpression(dialect, "logs"),
+    into=Table(dialect, "logs"),
     source=ValuesSource(
         dialect,
         [
@@ -108,7 +109,7 @@ print(f"Affected rows: {result.affected_rows}")
 verify_query = QueryExpression(
     dialect=dialect,
     select=[WildcardExpression(dialect)],
-    from_=TableExpression(dialect, "logs"),
+    from_=NamedRelationRef(dialect, Table(dialect, "logs")),
     order_by=OrderByClause(dialect, [Column(dialect, "id")]),
 )
 options = ExecutionOptions(stmt_type=StatementType.DQL)

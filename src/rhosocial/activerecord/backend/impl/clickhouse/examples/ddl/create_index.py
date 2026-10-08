@@ -6,6 +6,7 @@ Create an index on an existing table.
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table, Index
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -28,13 +29,13 @@ backend.connect()
 dialect = backend.dialect
 
 # Drop table first for clean setup
-drop = DropTableExpression(dialect=dialect, table="products", if_exists=True)
+drop = DropTableExpression(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="products",
+    table=Table(dialect, "products"),
     columns=[
         ColumnDefinition(
             "id",
@@ -60,7 +61,7 @@ from rhosocial.activerecord.backend.expression import CreateIndexExpression, Dro
 
 # Drop index first if exists (ClickHouse does not support IF NOT EXISTS in CREATE INDEX)
 try:
-    drop_idx = DropIndexExpression(dialect=dialect, index="idx_category_price")
+    drop_idx = DropIndexExpression(dialect=dialect, index=Index(dialect, "idx_category_price"))
     sql, params = drop_idx.to_sql()
     backend.execute(sql, params)
 except Exception:
@@ -68,8 +69,8 @@ except Exception:
 
 create_idx = CreateIndexExpression(
     dialect=dialect,
-    index="idx_category_price",
-    table="products",
+    index=Index(dialect, "idx_category_price"),
+    table=Table(dialect, "products"),
     columns=["category", "price"],
 )
 

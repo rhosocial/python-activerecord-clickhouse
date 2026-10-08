@@ -30,8 +30,8 @@ from typing import Tuple
 from rhosocial.activerecord.backend.expression import (
     CreateTableExpression,
     DropTableExpression,
-    TableExpression,
 )
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import ReferentialAction
 
 
@@ -132,6 +132,6 @@ def drop_table(dialect, table_name: str) -> DropTableExpression:
     """Build a canonical ``DROP TABLE IF EXISTS`` expression."""
     return DropTableExpression(
         dialect=dialect,
-        table=TableExpression(dialect, table_name),
+        table=Table(dialect, table_name),
         if_exists=True,
     )

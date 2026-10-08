@@ -19,6 +19,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     TableConstraint,
     TableConstraintType,
 )
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
     PartitionClause,
     PartitionStrategy,
@@ -549,7 +550,7 @@ def test_collected_clickhouse_type_and_options_render_minimal_column():
     try:
         column = option.column_definition_class()(dialect, "physical_value", data_type)
         option.apply_to(column)
-        expression = CreateTableExpression(dialect, "rendered", [column])
+        expression = CreateTableExpression(dialect, Table(dialect, "rendered"), [column])
         rendered = expression.to_sql()
     finally:
         data_type.dialect = None

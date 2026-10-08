@@ -10,6 +10,8 @@ This example demonstrates:
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -39,17 +41,17 @@ from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
 )
 
 # Drop dependent tables first for clean setup
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     columns=[
         ColumnDefinition("id", "UInt32"),
         ColumnDefinition("name", "String"),
@@ -62,7 +64,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="users",
+    into=Table(dialect, "users"),
     columns=["id", "name"],
     source=ValuesSource(
         dialect,
@@ -82,14 +84,13 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     QueryExpression,
-    TableExpression,
     SelectModifier,
 )
 
 query = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "name")],
-    from_=TableExpression(dialect, "users"),
+    from_=NamedRelationRef(dialect, Table(dialect, "users")),
     select_modifier=SelectModifier.DISTINCT,
 )
 sql, params = query.to_sql()
@@ -106,7 +107,7 @@ print(f"DISTINCT result: {result.data}")
 query_distinct = QueryExpression(
     dialect=dialect,
     select=[Column(dialect, "id"), Column(dialect, "name")],
-    from_=TableExpression(dialect, "users"),
+    from_=NamedRelationRef(dialect, Table(dialect, "users")),
     select_modifier=SelectModifier.DISTINCT,
 )
 sql, params = query_distinct.to_sql()
@@ -117,11 +118,11 @@ print(f"Multi-col result: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_expr = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_expr = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

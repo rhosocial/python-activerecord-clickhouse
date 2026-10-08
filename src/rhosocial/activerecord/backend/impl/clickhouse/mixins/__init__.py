@@ -46,7 +46,7 @@ from .dql import ClickHouseDQLMixin
 from .view import ClickHouseViewMixin
 from .materialized_view import ClickHouseMaterializedViewMixin
 from .ddl_database import ClickHouseDatabaseMixin
-from .schema import ClickHouseSchemaMixin
+from .namespace import ClickHouseNamespaceMixin
 from .index import ClickHouseIndexMixin
 from .sequence import ClickHouseSequenceMixin
 from .constraint import ClickHouseConstraintMixin
@@ -99,7 +99,7 @@ __all__ = [
     "ClickHouseDQLMixin",
     "ClickHouseViewMixin",
     "ClickHouseMaterializedViewMixin",
-    "ClickHouseSchemaMixin",
+    "ClickHouseNamespaceMixin",
     "ClickHouseDatabaseMixin",
     "ClickHouseIndexMixin",
     "ClickHouseSequenceMixin",

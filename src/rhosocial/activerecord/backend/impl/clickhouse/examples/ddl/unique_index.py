@@ -10,6 +10,7 @@ This example demonstrates:
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table, Index
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -33,17 +34,17 @@ from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
 )
 
 # Drop dependent tables first for clean setup
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 create_table = CreateTableExpression(
     dialect=dialect,
-    table="users",
+    table=Table(dialect, "users"),
     columns=[
         ColumnDefinition(
             "id",
@@ -68,7 +69,7 @@ from rhosocial.activerecord.backend.expression import CreateIndexExpression, Dro
 
 # Drop index first if exists (ClickHouse does not support IF NOT EXISTS in CREATE INDEX)
 try:
-    drop_idx = DropIndexExpression(dialect=dialect, index="idx_users_email_unique")
+    drop_idx = DropIndexExpression(dialect=dialect, index=Index(dialect, "idx_users_email_unique"))
     sql, params = drop_idx.to_sql()
     backend.execute(sql, params)
 except Exception:
@@ -76,8 +77,8 @@ except Exception:
 
 unique_idx = CreateIndexExpression(
     dialect=dialect,
-    index="idx_users_email_unique",
-    table="users",
+    index=Index(dialect, "idx_users_email_unique"),
+    table=Table(dialect, "users"),
     columns=["email"],
     unique=True,
 )
@@ -91,7 +92,7 @@ backend.execute(sql, params)
 # ============================================================
 # Drop composite index first if exists
 try:
-    drop_idx2 = DropIndexExpression(dialect=dialect, index="idx_users_name_email")
+    drop_idx2 = DropIndexExpression(dialect=dialect, index=Index(dialect, "idx_users_name_email"))
     sql, params = drop_idx2.to_sql()
     backend.execute(sql, params)
 except Exception:
@@ -99,8 +100,8 @@ except Exception:
 
 composite_idx = CreateIndexExpression(
     dialect=dialect,
-    index="idx_users_name_email",
-    table="users",
+    index=Index(dialect, "idx_users_name_email"),
+    table=Table(dialect, "users"),
     columns=["name", "email"],
 )
 sql, params = composite_idx.to_sql()
@@ -110,11 +111,11 @@ backend.execute(sql, params)
 # ============================================================
 # SECTION: Teardown
 # ============================================================
-drop_orders = DropTableExpression(dialect=dialect, table="orders", if_exists=True)
+drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table="users", if_exists=True)
+drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

@@ -10,7 +10,7 @@ import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.expression.statements import ColumnDefinition, CreateTableExpression
-from rhosocial.activerecord.backend.expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
     VarCharType,
@@ -30,7 +30,7 @@ class TestClickHouseDDLGeneration:
         """CREATE TABLE with ClickHouse storage options."""
         expr = CreateTableExpression(
             dialect,
-            TableExpression(dialect, "users"),
+            Table(dialect, "users"),
             [
                 ColumnDefinition(dialect, "id", IntegerType(dialect)),
                 ColumnDefinition(dialect, "name", VarCharType(length=100, dialect=dialect)),
@@ -45,7 +45,7 @@ class TestClickHouseDDLGeneration:
     def test_create_table_if_not_exists(self, dialect):
         expr = CreateTableExpression(
             dialect,
-            TableExpression(dialect, "events"),
+            Table(dialect, "events"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             if_not_exists=True,
             storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
@@ -57,7 +57,7 @@ class TestClickHouseDDLGeneration:
         """Core types map to ClickHouse equivalents."""
         expr = CreateTableExpression(
             dialect,
-            TableExpression(dialect, "t"),
+            Table(dialect, "t"),
             [
                 ColumnDefinition(dialect, "id", IntegerType(dialect)),
                 ColumnDefinition(dialect, "name", VarCharType(length=100, dialect=dialect)),
@@ -78,7 +78,7 @@ class TestClickHouseDDLGeneration:
         """Full ENGINE / ORDER BY / PARTITION BY clauses."""
         expr = CreateTableExpression(
             dialect,
-            TableExpression(dialect, "metrics"),
+            Table(dialect, "metrics"),
             [
                 ColumnDefinition(dialect, "id", IntegerType(dialect)),
                 ColumnDefinition(dialect, "ts", DateTimeType(dialect)),

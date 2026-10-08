@@ -63,10 +63,39 @@ class ClickHouseTransactionMixin:
     def supports_savepoint(self) -> bool:
         return False
 
+    def supports_transaction_wait(self) -> bool:
+        """ClickHouse has no ``WAIT`` / ``NO WAIT`` transaction clause.
+
+        Measured on ClickHouse 26.7.3.19: ``BEGIN TRANSACTION`` is Code 48
+        (NOT_IMPLEMENTED), ``SET TRANSACTION`` accepts only ``SNAPSHOT``, and
+        both ``SET TRANSACTION WAIT`` and ``SET TRANSACTION NO WAIT`` are Code
+        62. The probe is declared so the protocol stub cannot answer ``None``.
+        """
+        return False
+
+    def _reject_wait_clause(self, expr) -> None:
+        """Refuse a requested ``WAIT`` / ``NO WAIT`` spelling by name.
+
+        The clause is refused before the blanket statement refusal so the
+        error names the spelling that was asked for, never leaving a caller
+        to read a rendered statement with the clause silently dropped.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        params = expr.get_params()
+        if params.get("wait") or params.get("no_wait"):
+            feature = "WAIT" if params.get("wait") else "NO WAIT"
+            raise UnsupportedFeatureError(
+                self.name,
+                f"transaction {feature}",
+                f"ClickHouse does not support the {feature} transaction clause.",
+            )
+
     def format_set_transaction(self, expr) -> Tuple[str, tuple]:
         """ClickHouse does not support transactions."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
+        self._reject_wait_clause(expr)
         raise UnsupportedFeatureError(
             self.name, "transactions",
             "ClickHouse does not support SET TRANSACTION."
@@ -76,6 +105,7 @@ class ClickHouseTransactionMixin:
         """ClickHouse does not support transactions."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
+        self._reject_wait_clause(expr)
         raise UnsupportedFeatureError(
             self.name, "transactions",
             "ClickHouse does not support START TRANSACTION."

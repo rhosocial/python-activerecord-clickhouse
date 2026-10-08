@@ -80,7 +80,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           repository: rhosocial/python-activerecord-testsuite
-          ref: release/v1.0.0.dev17
+          ref: feature/expression-schema-object-refactor
           path: _testsuite
 
       - name: Install activerecord and testsuite (editable)

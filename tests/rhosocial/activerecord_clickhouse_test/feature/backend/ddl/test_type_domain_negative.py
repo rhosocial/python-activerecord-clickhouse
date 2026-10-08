@@ -9,12 +9,19 @@ from rhosocial.activerecord.backend.dialect import (
     DataTypeMixin,
     DataTypeSupport,
     DomainMixin,
-    DomainSupport,
     UserDefinedTypeMixin,
-    UserDefinedTypeSupport,
+)
+from rhosocial.activerecord.backend.dialect.protocols import (
+    AlterDomainSupport,
+    AlterTypeSupport,
+    CreateDomainSupport,
+    CreateTypeSupport,
+    DropDomainSupport,
+    DropTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Literal
+from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
     AlterDomainExpression,
     AlterTypeExpression,
@@ -110,19 +117,27 @@ def test_type_and_domain_protocols_and_mixins_are_composed(
     dialect: ClickHouseDialect,
 ) -> None:
     assert isinstance(dialect, DataTypeSupport)
-    assert isinstance(dialect, UserDefinedTypeSupport)
-    assert isinstance(dialect, DomainSupport)
+    for protocol in (
+        CreateTypeSupport,
+        AlterTypeSupport,
+        DropTypeSupport,
+        CreateDomainSupport,
+        AlterDomainSupport,
+        DropDomainSupport,
+    ):
+        assert isinstance(dialect, protocol)
     assert isinstance(dialect, UserDefinedTypeMixin)
     assert isinstance(dialect, DomainMixin)
 
     mro = ClickHouseDialect.__mro__
-    for mixin, protocol in (
-        (UserDefinedTypeMixin, UserDefinedTypeSupport),
-        (DomainMixin, DomainSupport),
+    for mixin, protocols in (
+        (UserDefinedTypeMixin, (CreateTypeSupport, AlterTypeSupport, DropTypeSupport)),
+        (DomainMixin, (CreateDomainSupport, AlterDomainSupport, DropDomainSupport)),
     ):
         assert mixin in mro
-        assert protocol in mro
-        assert mro.index(mixin) < mro.index(protocol)
+        for protocol in protocols:
+            assert protocol in mro
+            assert mro.index(mixin) < mro.index(protocol)
 
     assert issubclass(ClickHouseTypeSupportMixin, DataTypeMixin)
     assert issubclass(ClickHouseTypeSupportMixin, DataTypeSupport)
@@ -162,20 +177,21 @@ def test_schema_level_type_and_domain_support_is_false(
 def test_type_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -> None:
     definition = _NegativeTypeDefinition(dialect)
     action = _NegativeTypeAlterAction(dialect)
+    status = Type(dialect, "status")
     expressions = (
         CreateTypeExpression(
             dialect,
-            "status",
+            status,
             definition,
             if_not_exists=True,
         ),
         AlterTypeExpression(
             dialect,
-            "status",
+            status,
             [action],
             if_exists=True,
         ),
-        DropTypeExpression(dialect, "status", if_exists=True),
+        DropTypeExpression(dialect, status, if_exists=True),
         definition,
         action,
     )
@@ -195,16 +211,17 @@ def test_domain_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect)
     )
     check = DomainCheckConstraint(dialect, condition, name="positive")
     action = DropDomainDefaultAction(dialect)
+    positive = Domain(dialect, "positive")
     expressions = (
         CreateDomainExpression(
             dialect,
-            "positive",
+            positive,
             IntegerType(dialect),
             checks=[check],
             collation="en_US",
         ),
-        AlterDomainExpression(dialect, "positive", [action]),
-        DropDomainExpression(dialect, "positive"),
+        AlterDomainExpression(dialect, positive, [action]),
+        DropDomainExpression(dialect, positive),
         DomainValueExpression(dialect),
         check,
         action,

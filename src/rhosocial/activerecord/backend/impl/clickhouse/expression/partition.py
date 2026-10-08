@@ -11,6 +11,7 @@ declarative partitioning (RANGE/LIST/HASH/KEY). All ``to_sql()`` methods raise
 
 from __future__ import annotations
 
+from collections.abc import Sequence as AbcSequence
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
@@ -19,7 +20,7 @@ from typing import Any, List, Optional, Sequence, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
-from rhosocial.activerecord.backend.expression.core import TableExpression
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     PartitionClause,
     PartitionDefinition,
@@ -348,11 +349,11 @@ class ClickHouseAddPartitionExpression(BaseExpression):
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        table: str,
+        table: Table,
         partitions: List[ClickHousePartitionDefinition],
     ):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = partitions
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -371,9 +372,9 @@ class ClickHouseDropPartitionExpression(BaseExpression):
     interface compatibility; ``to_sql()`` raises ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -391,9 +392,9 @@ class ClickHouseTruncatePartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -414,12 +415,12 @@ class ClickHouseReorganizePartitionExpression(BaseExpression):
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        table: str,
+        table: Table,
         partition: str,
         into: List[ClickHousePartitionDefinition],
     ):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partition = partition
         self.into = into
 
@@ -441,16 +442,16 @@ class ClickHouseExchangePartitionExpression(BaseExpression):
     def __init__(
         self,
         dialect: "ClickHouseDialect",
-        table: str,
+        table: Table,
         partition: str,
-        exchange_table: str,
+        exchange_table: Table,
         *,
         with_validation: bool = True,
     ):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partition = partition
-        self.exchange_table = TableExpression(dialect, exchange_table)
+        self.exchange_table = exchange_table
         self.with_validation = with_validation
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -468,9 +469,9 @@ class ClickHouseRemovePartitioningExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
 
     def to_sql(self) -> SQLQueryAndParams:
         """Raise UnsupportedFeatureError: MySQL declarative REMOVE PARTITIONING."""
@@ -487,11 +488,11 @@ class ClickHouseCoalescePartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, count: int):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, count: int):
         super().__init__(dialect)
         if not isinstance(count, int) or count <= 0:
             raise ValueError("count must be a positive integer")
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.count = count
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -509,9 +510,9 @@ class ClickHouseAnalyzePartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -529,9 +530,9 @@ class ClickHouseCheckPartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -549,9 +550,9 @@ class ClickHouseOptimizePartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -569,9 +570,9 @@ class ClickHouseRebuildPartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -589,9 +590,9 @@ class ClickHouseRepairPartitionExpression(BaseExpression):
     ``UnsupportedFeatureError``.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str, partitions: Sequence[str]):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table, partitions: Sequence[str]):
         super().__init__(dialect)
-        self.table = TableExpression(dialect, table)
+        self.table = table
         self.partitions = list(partitions)
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -627,7 +628,7 @@ class ClickHousePartitionNameListExpression(BaseExpression):
         super().__init__(dialect)
         if not partitions:
             raise ValueError("partitions must not be empty")
-        if not isinstance(partitions, (list, tuple)):
+        if not isinstance(partitions, AbcSequence):
             partitions = list(partitions)
         for i, p in enumerate(partitions):
             if not isinstance(p, str):
@@ -652,13 +653,24 @@ class ClickHouseGetPartitionsExpression(BaseExpression):
     ``UnsupportedFeatureError``.
 
     Raises:
-        ValueError: if table is empty.
+        TypeError: ``table`` is not a Table object.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str):
+    def __init__(self, dialect: "ClickHouseDialect", table: Table):
         super().__init__(dialect)
-        if not table or not table.strip():
-            raise ValueError("table must not be empty")
+        # The parameter is a Table object, and always has been: the rest of this
+        # class names it ``table: Table`` and every sibling takes the same. The
+        # emptiness test called ``table.strip()``, which a Table does not have,
+        # so the one thing this constructor claimed to check could not be
+        # reached with any valid argument -- which is what left the class
+        # unconstructible, and so untested. A bare string is refused instead:
+        # it cannot say which database it lives in, and the database is the only
+        # namespace there is.
+        if not isinstance(table, Table):
+            raise TypeError(
+                "table must be a Table object carrying its own catalog_name, "
+                f"got {type(table).__name__}"
+            )
         self.table = table
 
     def to_sql(self) -> SQLQueryAndParams:

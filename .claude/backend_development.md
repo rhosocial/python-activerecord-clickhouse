@@ -269,35 +269,58 @@ Every dialect inherits from:
 
 ##### Current Protocols and Mixins (Main Package)
 
+The names below are the ones that exist today. An earlier version of this table
+listed `TableSupport`, `ViewSupport`, `SchemaSupport`, `IndexSupport`,
+`SequenceSupport`, `TriggerSupport` and `FunctionSupport`, none of which are
+importable; the DDL protocols are split per operation instead
+(`CreateTableSupport` / `DropTableSupport` / `AlterTableSupport`, and so on), and
+naming one object is a separate concern handled by `TableObjectSupport` and its
+siblings. Several mixin names were wrong for the same reason, so a mixin column
+is only filled in where the mixin actually exists -- a capability whose default
+lives in a broader mixin is listed without one.
+
 | Protocol | Mixin | Description |
 |----------|-------|-------------|
 | `WindowFunctionSupport` | `WindowFunctionMixin` | Window functions (OVER, PARTITION BY) |
 | `CTESupport` | `CTEMixin` | Common Table Expressions (WITH clause) |
-| `AdvancedGroupingSupport` | `AdvancedGroupingMixin` | ROLLUP, CUBE, GROUPING SETS |
-| `ReturningSupport` | `ReturningMixin` | RETURNING clause |
+| `AdvancedGroupingSupport` | — | ROLLUP, CUBE, GROUPING SETS (probes live on `DQLMixin`) |
+| `ReturningSupport` | — | RETURNING clause (probe lives on `DMLMixin`) |
 | `UpsertSupport` | `UpsertMixin` | UPSERT operations (ON CONFLICT) |
 | `LateralJoinSupport` | `LateralJoinMixin` | LATERAL joins |
 | `ArraySupport` | `ArrayMixin` | Array types and operations |
 | `JSONSupport` | `JSONMixin` | JSON types and operations |
 | `ExplainSupport` | `ExplainMixin` | EXPLAIN statement |
-| `FilterClauseSupport` | `FilterClauseMixin` | FILTER clause for aggregates |
-| `OrderedSetAggregationSupport` | `OrderedSetAggregationMixin` | WITHIN GROUP (ORDER BY) |
+| `FilterClauseSupport` | — | FILTER clause for aggregates (on `ExpressionMixin`) |
+| `OrderedSetAggregationSupport` | — | WITHIN GROUP (ORDER BY) (on `ExpressionMixin`) |
 | `MergeSupport` | `MergeMixin` | MERGE statement |
 | `TemporalTableSupport` | `TemporalTableMixin` | FOR SYSTEM_TIME queries |
-| `QualifyClauseSupport` | `QualifyClauseMixin` | QUALIFY clause |
-| `LockingSupport` | `LockingMixin` | FOR UPDATE, SKIP LOCKED |
+| `QualifyClauseSupport` | — | QUALIFY clause (on `DQLMixin`) |
+| `LockingSupport` | — | FOR UPDATE, SKIP LOCKED (probes on `DQLMixin`) |
 | `GraphSupport` | `GraphMixin` | Graph queries (MATCH) |
 | `JoinSupport` | `JoinMixin` | JOIN operations |
 | `SetOperationSupport` | `SetOperationMixin` | UNION, INTERSECT, EXCEPT |
 | `ILIKESupport` | `ILIKEMixin` | Case-insensitive LIKE |
-| `TableSupport` | `TableMixin` | CREATE/DROP/ALTER TABLE |
-| `ViewSupport` | `ViewMixin` | CREATE/DROP VIEW |
 | `TruncateSupport` | `TruncateMixin` | TRUNCATE TABLE |
-| `SchemaSupport` | `SchemaMixin` | CREATE/DROP SCHEMA |
-| `IndexSupport` | `IndexMixin` | CREATE/DROP INDEX |
-| `SequenceSupport` | `SequenceMixin` | CREATE/DROP/ALTER SEQUENCE |
-| `TriggerSupport` | `TriggerMixin` | CREATE/DROP TRIGGER (SQL:1999) |
-| `FunctionSupport` | `FunctionMixin` | CREATE/DROP FUNCTION (SQL/PSM) |
+
+DDL statements are one protocol per operation, not one per object kind, so
+CREATE TABLE is `CreateTableSupport`, DROP TABLE is `DropTableSupport`, and
+ALTER TABLE is `AlterTableSupport`; the same shape holds for views, indexes,
+sequences, triggers, routines, types, domains and schemas. The mixins those
+protocols name are `TableMixin`, `ViewMixin`, `IndexMixin`, `SequenceMixin`,
+`TriggerMixin`, `FunctionMixin`, `UserDefinedTypeMixin`, `DomainMixin`,
+`SchemaMixin`, `DatabaseMixin`, `TruncateMixin`, `DDLColumnMixin` and
+`CommentOnMixin`.
+
+Naming a catalogue object is a separate capability from creating or dropping
+one, and it is the part most likely to be missed. `TableObjectSupport`,
+`ViewObjectSupport`, `MaterializedViewObjectSupport`, `ForeignTableObjectSupport`,
+`IndexObjectSupport`, `SequenceObjectSupport`, `TriggerObjectSupport`,
+`RoutineObjectSupport`, `TypeObjectSupport`, `SynonymObjectSupport` and
+`NamespaceSupport` each name a `format_<kind>_object` method that the matching
+`<Kind>NameMixin` provides. `NamespaceSupport` is the naming protocol, not a DDL
+one: it answers whether a name may be qualified, and whether the engine *has*
+those objects is a separate question answered by `CreateSchemaSupport` /
+`CreateDatabaseSupport`. An engine can answer the two differently, and one does.
 
 ##### Principles for Adding New Protocols/Mixins
 

@@ -9,12 +9,16 @@ level (as opposed to the partition-level variants in ``partition.py``):
     CHECKSUM TABLE table [, table ...] [QUICK | EXTENDED]
     OPTIMIZE TABLE [NO_WRITE_TO_BINLOG | LOCAL] table [, table ...]
     REPAIR TABLE [NO_WRITE_TO_BINLOG | LOCAL] table [, table ...] [QUICK] [EXTENDED] [USE_FRM]
+
+Each ``table`` is a schema object carrying its own ``catalog_name``; a bare
+string is refused because it cannot say which database it names.
 """
 
 from enum import Enum
-from typing import Any, List, Optional, TYPE_CHECKING
+from typing import Optional, Sequence, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.objects import RelationObject, Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
@@ -59,8 +63,14 @@ class ClickHouseTableMaintenanceExpression(BaseExpression):
 
     Attributes:
         operation: Statement keyword (ANALYZE / CHECK / CHECKSUM / OPTIMIZE / REPAIR).
-        tables: List of table names (may be schema-qualified tuples).
+        tables: The tables the statement acts on, each a :class:`Table` carrying
+            its own ``catalog_name``. A bare string is rejected: it cannot say
+            which database it lives in, and the ClickHouse database is the only
+            namespace there is.
         no_write_to_binlog: NO_WRITE_TO_BINLOG / LOCAL selector (where supported).
+
+    Raises:
+        TypeError: An entry is not a relation object (see :meth:`validate`).
     """
 
     operation: str = ""
@@ -68,30 +78,35 @@ class ClickHouseTableMaintenanceExpression(BaseExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        tables: List[Any],
+        tables: Sequence[Table],
         *,
         no_write_to_binlog: "NoWriteToBinlogOption" = NoWriteToBinlogOption.NONE,
     ):
         super().__init__(dialect)
-        self.tables: List[Any] = list(tables)
+        self.tables: list = list(tables)
         self.no_write_to_binlog: NoWriteToBinlogOption = no_write_to_binlog
+        self.validate()
 
     def validate(self, strict: bool = True) -> None:
-        """Validate table list.
+        """Validate the table list.
 
         Raises:
-            ValueError: If the table list is empty or malformed.
+            ValueError: The table list is empty.
+            TypeError: An entry is not a relation object. A ``str`` or a
+                ``(database, table)`` tuple is refused: both can only be
+                interpreted by guessing, and a guess that drops the database
+                produces a statement aimed at the wrong table.
         """
         if not strict:
             return
         if not self.tables:
             raise ValueError(f"{self.operation} TABLE requires at least one table")
         for table in self.tables:
-            if isinstance(table, tuple):
-                if len(table) != 2 or not all(isinstance(part, str) for part in table):
-                    raise ValueError(f"Invalid schema-qualified table: {table!r}")
-            elif not isinstance(table, str):
-                raise TypeError(f"table must be str or (schema, table) tuple, got {type(table)}")
+            if not isinstance(table, RelationObject):
+                raise TypeError(
+                    f"{self.operation} TABLE requires Table objects carrying their "
+                    f"own catalog_name, got {type(table).__name__}"
+                )
 
     @property
     def format_method(self) -> str:
@@ -112,16 +127,16 @@ class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        tables: List[Any],
+        tables: Sequence[Table],
         *,
-        options: Optional[List[CheckTableOption]] = None,
+        options: Optional[list[CheckTableOption]] = None,
     ):
         super().__init__(
             dialect,
             tables,
             no_write_to_binlog=NoWriteToBinlogOption.NONE,
         )
-        self.options: List[CheckTableOption] = list(options or [])
+        self.options: list[CheckTableOption] = list(options or [])
 
 
 class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
@@ -132,7 +147,7 @@ class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        tables: List[Any],
+        tables: Sequence[Table],
         *,
         option: Optional[ChecksumTableOption] = None,
     ):
@@ -158,14 +173,14 @@ class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceExpression):
     def __init__(
         self,
         dialect: "SQLDialectBase",
-        tables: List[Any],
+        tables: Sequence[Table],
         *,
         no_write_to_binlog: "NoWriteToBinlogOption" = NoWriteToBinlogOption.NONE,
-        options: Optional[List[RepairTableOption]] = None,
+        options: Optional[list[RepairTableOption]] = None,
     ):
         super().__init__(
             dialect,
             tables,
             no_write_to_binlog=no_write_to_binlog,
         )
-        self.options: List[RepairTableOption] = list(options or [])
+        self.options: list[RepairTableOption] = list(options or [])

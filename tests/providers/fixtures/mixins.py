@@ -15,6 +15,7 @@ from typing import Callable, Dict
 from rhosocial.activerecord.backend.expression import (
     CreateTableExpression,
 )
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -53,7 +54,7 @@ def to_sql(expr: CreateTableExpression):
 def create_combined_articles_table(dialect, table_name: str = "combined_articles") -> CreateTableExpression:
     return CreateTableExpression(
         dialect=dialect,
-        table=table_name,
+        table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
@@ -84,7 +85,7 @@ def create_combined_articles_table(dialect, table_name: str = "combined_articles
 def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableExpression:
     return CreateTableExpression(
         dialect=dialect,
-        table=table_name,
+        table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
@@ -108,7 +109,7 @@ def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableExpress
 def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts") -> CreateTableExpression:
     return CreateTableExpression(
         dialect=dialect,
-        table=table_name,
+        table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
@@ -131,7 +132,7 @@ def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts
 def create_versioned_products_table(dialect, table_name: str = "versioned_products") -> CreateTableExpression:
     return CreateTableExpression(
         dialect=dialect,
-        table=table_name,
+        table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),

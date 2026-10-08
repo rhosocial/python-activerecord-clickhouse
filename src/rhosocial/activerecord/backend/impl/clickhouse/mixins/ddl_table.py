@@ -2,9 +2,15 @@
 from typing import Any, List, Tuple, TYPE_CHECKING
 import re
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.types import DataType
+
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
         ColumnDefinition,
+        CreateTableAsExpression,
+        CreateTableCloneExpression,
         CreateTableExpression,
         CreateTableLikeExpression,
         StorageOptionsExpression,
@@ -22,6 +28,16 @@ class ClickHouseTableMixin:
         return bool(re.fullmatch(r"[A-Za-z0-9\s\(\),\']+", data_type))
 
     def supports_create_table_like(self) -> bool:
+        """ClickHouse expresses a structure copy with ``AS <source>``, not ``LIKE``.
+
+        The capability exists; only the keyword differs, so the probe still
+        answers ``True`` and the renderer in
+        :meth:`format_create_table_like_statement` overrides the generic form.
+        """
+        return True
+
+    def supports_create_table_clone(self) -> bool:
+        """ClickHouse has ``CREATE TABLE target CLONE AS source``."""
         return True
 
     def supports_create_or_replace_table(self) -> bool:
@@ -51,9 +67,25 @@ class ClickHouseTableMixin:
         return True
 
     def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
-        """Format CREATE TABLE statement for ClickHouse."""
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        """Format CREATE TABLE statement for ClickHouse.
 
+        The target is read from ``expr.table`` as a schema object and rendered by
+        ``format_table_object``. Reading a bare name instead would take the name
+        only and drop whatever database the object carried, so a statement aimed
+        at ``other_db.users`` would create ``users`` in the connection's own
+        database.
+
+        Raises:
+            TypeError: ``CreateTableExpression.table`` is not a Table. Any other
+                object kind carries its own ``format_method``, so the dialect
+                would call that kind's formatter and render a well-formed
+                ``CREATE TABLE`` whose name is a view, an index or a sequence.
+        """
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"CreateTableExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
         if expr.tablespace:
             raise UnsupportedFeatureError(
                 self.name, "TABLESPACE",
@@ -81,7 +113,7 @@ class ClickHouseTableMixin:
         parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(self.format_identifier(expr.table_name))
+        parts.append(expr.table.to_sql()[0])
 
         column_parts = []
         for col_def in expr.columns:
@@ -129,16 +161,31 @@ class ClickHouseTableMixin:
     def format_create_table_like_statement(
         self, expr: "CreateTableLikeExpression"
     ) -> Tuple[str, tuple]:
-        """Format ClickHouse ``CREATE TABLE ... AS <source>``.
+        """Format ClickHouse ``CREATE TABLE target AS source``.
 
-        ClickHouse has no ``LIKE`` keyword.  Copying a table's structure uses
-        ``CREATE TABLE target AS source`` (or ``CREATE TABLE target CLONE AS
-        source`` to also copy data).  The capability probe
-        :meth:`supports_create_table_like` still reports ``True`` because the
-        underlying capability exists; only the keyword differs.
+        ClickHouse has no ``LIKE`` keyword: a structure copy is spelled ``AS``.
+        ``CREATE TABLE target CLONE AS source`` -- which also copies data -- is
+        a *different* statement and lives in
+        :meth:`format_create_table_clone_statement`, driven by
+        ``CreateTableCloneExpression``. It used to be mentioned in this
+        docstring as if it were something this method could emit; it never was.
+
+        Raises:
+            TypeError: ``CreateTableLikeExpression.table`` or ``.like_table`` is
+                not a Table. Either one would otherwise render its own name as
+                the target or the copied table's.
+            UnsupportedFeatureError: The form is not available.
         """
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"CreateTableLikeExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
+        if not isinstance(expr.like_table, Table):
+            raise TypeError(
+                f"CreateTableLikeExpression.like_table must be a Table, "
+                f"got {type(expr.like_table).__name__}"
+            )
         if not self.supports_create_table_like():
             raise UnsupportedFeatureError(self.name, "CREATE TABLE ... AS <source>")
 
@@ -148,8 +195,96 @@ class ClickHouseTableMixin:
         parts.append("TABLE")
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
-        parts.append(expr.table.to_sql()[0])
-        parts.append(f"AS {expr.like_table.to_sql()[0]}")
+        target = expr.table.to_sql()[0]
+        source = expr.like_table.to_sql()[0]
+        parts.append(target)
+        parts.append(f"AS {source}")
+        return " ".join(parts), ()
+
+    def format_create_table_as_statement(
+        self, expr: "CreateTableAsExpression"
+    ) -> Tuple[str, tuple]:
+        """Format ClickHouse ``CREATE TABLE ... AS <query>``.
+
+        ClickHouse's CTAS always populates the new table and has no
+        ``WITH [NO] DATA`` clause: each spelling is refused by name (measured:
+        Code 62) instead of being rendered, and the unspecified state renders
+        the plain statement through the generic formatter.
+
+        Raises:
+            UnsupportedFeatureError: ``WITH DATA`` or ``WITH NO DATA``, neither
+                of which ClickHouse spells this way.
+        """
+        if expr.with_data:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE TABLE ... WITH DATA",
+                "ClickHouse CTAS always populates the new table; there is no "
+                "WITH DATA clause.",
+            )
+        if expr.no_data:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE TABLE ... WITH NO DATA",
+                "ClickHouse CTAS cannot create an unpopulated table; there is "
+                "no WITH NO DATA clause.",
+            )
+        return super().format_create_table_as_statement(expr)
+
+    def format_create_table_clone_statement(
+        self, expr: "CreateTableCloneExpression"
+    ) -> Tuple[str, tuple]:
+        """Format ClickHouse ``CREATE TABLE target CLONE AS source``.
+
+        ClickHouse's zero-copy clone is ``CLONE AS``: the one engine where the
+        keyword is neither bare ``CLONE`` nor ``COPY``, and neither
+        ``COPY GRANTS`` nor the time-travel suffixes the generic form carries.
+        The generic renderer is therefore overridden rather than reused.
+
+        Reference:
+        https://clickhouse.com/docs/sql-reference/statements/create/table#create-table-clone-as
+
+        Raises:
+            TypeError: ``CreateTableCloneExpression.table`` or ``.source_table``
+                is not a Table. Either one would otherwise render its own name
+                as the target or the cloned table's.
+            UnsupportedFeatureError: A clause ClickHouse's ``CLONE AS`` has no
+                form for, or the form is not available.
+        """
+        if not isinstance(expr.table, Table):
+            raise TypeError(
+                f"CreateTableCloneExpression.table must be a Table, "
+                f"got {type(expr.table).__name__}"
+            )
+        if not isinstance(expr.source_table, Table):
+            raise TypeError(
+                f"CreateTableCloneExpression.source_table must be a Table, "
+                f"got {type(expr.source_table).__name__}"
+            )
+        if not self.supports_create_table_clone():
+            raise UnsupportedFeatureError(self.name, "CREATE TABLE ... CLONE AS")
+        for unsupported, flag in (
+            ("CREATE TABLE CLONE COPY GRANTS", expr.copy_grants),
+            ("CREATE TABLE CLONE AT", expr.at),
+            ("CREATE TABLE CLONE BEFORE", expr.before),
+        ):
+            if flag:
+                raise UnsupportedFeatureError(
+                    self.name,
+                    unsupported,
+                    "ClickHouse's CLONE AS has no such clause.",
+                )
+
+        parts = ["CREATE"]
+        if expr.temporary:
+            parts.append("TEMPORARY")
+        parts.append("TABLE")
+        if expr.if_not_exists:
+            parts.append("IF NOT EXISTS")
+        target = expr.table.to_sql()[0]
+        source = expr.source_table.to_sql()[0]
+        parts.append(target)
+        parts.append(f"CLONE AS {source}")
         return " ".join(parts), ()
 
     def format_column_definition(self, col_def: "ColumnDefinition") -> Tuple[str, tuple]:
@@ -158,7 +293,18 @@ class ClickHouseTableMixin:
         Accepts both the generic ``ColumnDefinition`` and the ClickHouse
         ``ClickHouseColumnDefinition``; the latter's ClickHouse-only attributes
         (``codec`` / ``materialized`` / ``alias`` / ``ttl``) are rendered here.
+
+        Raises:
+            TypeError: ``col_def.data_type`` is not a DataType. The generic
+                constructor already refuses one, but ``ClickHouseColumnDefinition``
+                binds its type differently and a ``str`` reaching here would
+                render as a column of that literal text.
         """
+        if not isinstance(col_def.data_type, DataType):
+            raise TypeError(
+                f"{type(col_def).__name__}.data_type must be a DataType, "
+                f"got {type(col_def.data_type).__name__}"
+            )
         from rhosocial.activerecord.backend.impl.clickhouse.expression.column import (
             ClickHouseColumnDefinition,
         )
@@ -174,7 +320,6 @@ class ClickHouseTableMixin:
                 parts.append(constraint_text)
             params.extend(list(cp))
             if constraint.is_auto_increment:
-                from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
                 raise UnsupportedFeatureError(
                     self.name, "AUTO_INCREMENT column",
                     suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
@@ -208,8 +353,21 @@ class ClickHouseTableMixin:
         return " ".join(parts), tuple(params)
 
     def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
-        """Format a table-level constraint."""
+        """Format a table-level constraint.
+
+        Raises:
+            TypeError: ``t_const.foreign_key_table`` is not a Table. The check
+                runs before the kind dispatch so the error names the wrong type
+                rather than reporting FOREIGN KEY as unsupported, which is a
+                different mistake and sends the caller looking in the wrong place.
+        """
         from rhosocial.activerecord.backend.expression.statements import TableConstraintType
+        foreign_key_table = getattr(t_const, "foreign_key_table", None)
+        if foreign_key_table is not None and not isinstance(foreign_key_table, Table):
+            raise TypeError(
+                f"TableConstraint.foreign_key_table must be a Table, "
+                f"got {type(foreign_key_table).__name__}"
+            )
         parts = []
         params: List[Any] = []
 
@@ -221,13 +379,11 @@ class ClickHouseTableMixin:
                 cols_str = ", ".join(self.format_identifier(c) for c in t_const.columns)
                 parts.append(f"PRIMARY KEY ({cols_str})")
         elif t_const.constraint_type == TableConstraintType.UNIQUE:
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(
                 self.name, "UNIQUE table constraint",
                 suggestion="ClickHouse does not support UNIQUE constraints."
             )
         elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
-            from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
             raise UnsupportedFeatureError(
                 self.name, "FOREIGN KEY constraint",
                 suggestion="ClickHouse does not support FOREIGN KEY constraints."
@@ -242,8 +398,6 @@ class ClickHouseTableMixin:
         granularity is taken from :class:`ClickHouseIndexDefinition` and defaults
         to 1 for a plain ``IndexDefinition``.
         """
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-
         from ..expression.index import ClickHouseIndexDefinition
 
         if idx_def.unique:
@@ -277,6 +431,20 @@ class ClickHouseTableMixin:
     def supports_if_exists_table(self) -> bool:
         """Whether DROP TABLE IF EXISTS is supported."""
         return True
+
+    def supports_drop_table_cascade(self) -> bool:
+        """ClickHouse DROP TABLE has no CASCADE spelling (measured: Code 62).
+
+        Declared here, on the mixin that precedes core's ``TableMixin`` in the
+        MRO: declared on ``ClickHouseConstraintMixin`` (which follows it) the
+        answer would be shadowed by the generic ``True`` and the formatter
+        would render SQL the server rejects.
+        """
+        return False
+
+    def supports_drop_table_restrict(self) -> bool:
+        """ClickHouse DROP TABLE has no RESTRICT spelling (measured: Code 62)."""
+        return False
 
     def supports_temporary_table(self) -> bool:
         """Whether CREATE TEMPORARY TABLE is supported."""

@@ -136,7 +136,7 @@ class MixinsSyncProvider(MixinsProviderBase, IMixinsSyncProvider):
     def _setup_model(self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str) -> Type[ActiveRecord]:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
+        from rhosocial.activerecord.backend.expression import DropTableExpression
         from providers.fixtures.mixins import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -150,7 +150,7 @@ class MixinsSyncProvider(MixinsProviderBase, IMixinsSyncProvider):
         try:
             drop_expr = DropTableExpression(
                 dialect=backend_instance.dialect,
-                table=TableExpression(backend_instance.dialect, table_name),
+                table=Table(backend_instance, table_name),
                 if_exists=True,
             )
             backend_instance.execute(*drop_expr.to_sql(), options=options)
@@ -210,7 +210,7 @@ class MixinsAsyncProvider(MixinsProviderBase, IMixinsAsyncProvider):
         )
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression, TableExpression
+        from rhosocial.activerecord.backend.expression import DropTableExpression
         from providers.fixtures.mixins import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -224,7 +224,7 @@ class MixinsAsyncProvider(MixinsProviderBase, IMixinsAsyncProvider):
         try:
             drop_expr = DropTableExpression(
                 dialect=backend_instance.dialect,
-                table=TableExpression(backend_instance.dialect, table_name),
+                table=Table(backend_instance, table_name),
                 if_exists=True,
             )
             await backend_instance.execute(*drop_expr.to_sql(), options=options)

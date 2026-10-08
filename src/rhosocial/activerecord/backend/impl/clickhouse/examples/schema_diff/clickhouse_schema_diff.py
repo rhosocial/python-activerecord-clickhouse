@@ -18,6 +18,7 @@ Supported versions: ClickHouse
 # ============================================================
 # SECTION: Setup (necessary for execution, reference only)
 # ============================================================
+from rhosocial.activerecord.backend.expression.objects import Table
 import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
@@ -58,7 +59,7 @@ backend.execute(sql, params)
 
 expr = CreateTableExpression(
     dialect=dialect,
-    table="events",
+    table=Table(dialect, "events"),
     columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
@@ -76,7 +77,7 @@ backend.execute(sql, params)
 
 insert = InsertExpression(
     dialect=dialect,
-    into="events",
+    into=Table(dialect, "events"),
     columns=["id", "message", "value"],
     source=ValuesSource(
         dialect,

@@ -6,10 +6,18 @@ ways that must not be papered over — see
 :mod:`..expression.materialized_view` for the two MV flavours and their grammar.
 Anything the generic expressions carry that ClickHouse cannot express is
 rejected with ``UnsupportedFeatureError`` instead of being silently dropped.
+
+Every name here -- the view, the ``TO`` target, each ``DEPENDS ON`` upstream --
+is rendered by the object's own ``to_sql()``, which reaches the matching
+``format_<kind>_object``. There is deliberately no second ``_qualified()``
+helper: clicking the shared renderer is what keeps the database a name carries
+from being dropped between the statement that wrote it and the statement that
+reads it back.
 """
 from typing import Any, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.objects import MaterializedView, Table
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..expression.materialized_view import (
@@ -43,6 +51,19 @@ class ClickHouseMaterializedViewMixin:
         """``POPULATE`` backfills an incremental MV from existing rows."""
         return True
 
+    def supports_with_data_clause(self) -> bool:
+        """ClickHouse has no ``WITH [NO] DATA`` clause (measured: Code 62).
+
+        The clause is shared by CTAS, CREATE MATERIALIZED VIEW and REFRESH
+        MATERIALIZED VIEW; all three consumers are answered by this dialect's
+        own formatters. Declared here, once, so the answer is this dialect's
+        (a core default flipping must not silently change what ClickHouse
+        claims): ``CREATE TABLE ... AS`` always populates, an incremental MV
+        backfills with ``POPULATE`` and a refreshable MV creates empty with
+        ``EMPTY``.
+        """
+        return False
+
     # ------------------------------------------------------------------
     # Formatters
     # ------------------------------------------------------------------
@@ -60,13 +81,30 @@ class ClickHouseMaterializedViewMixin:
             Tuple of (SQL string, params tuple from the defining query).
 
         Raises:
+            TypeError: ``expr.view`` is not a MaterializedView, or ``expr.to_table``
+                is present and is not a Table. The generic
+                ``CreateMaterializedViewExpression`` carries neither kind of
+                check, and every object renders its own name, so without this a
+                View or a Table would produce a well-formed CREATE MATERIALIZED
+                VIEW naming something else.
             UnsupportedFeatureError: for clauses ClickHouse does not have.
         """
+        if not isinstance(getattr(expr, "view", None), MaterializedView):
+            raise TypeError(
+                f"CreateMaterializedViewExpression.view must be a MaterializedView, "
+                f"got {type(getattr(expr, 'view', None)).__name__}"
+            )
+        to_table = getattr(expr, "to_table", None)
+        if to_table is not None and not isinstance(to_table, Table):
+            raise TypeError(
+                f"CreateMaterializedViewExpression.to_table must be a Table, "
+                f"got {type(to_table).__name__}"
+            )
         self._reject_unsupported_clauses(expr, "CREATE MATERIALIZED VIEW")
         # The validation also runs in the ClickHouse expression constructor, but a
-        # generic CreateMaterializedViewExpression never goes through it — and it
+        # generic CreateMaterializedViewExpression never goes through it -- and it
         # carries neither TO nor ENGINE, which ClickHouse requires.
-        to_table = getattr(expr, "to_table", None)
+        to_table = self._mv_target(expr)
         engine = getattr(expr, "engine", None)
         if not to_table and not engine:
             raise UnsupportedFeatureError(
@@ -82,14 +120,16 @@ class ClickHouseMaterializedViewMixin:
         parts.append("MATERIALIZED VIEW")
         if getattr(expr, "if_not_exists", False):
             parts.append("IF NOT EXISTS")
-        parts.append(self._qualified(expr.view_name, getattr(expr, "database", None)))
+        parts.append(expr.view.to_sql()[0])
 
         on_cluster = getattr(expr, "on_cluster", None)
         if on_cluster:
             parts.append(f"ON CLUSTER {self.format_identifier(str(on_cluster))}")
 
         if to_table:
-            target = self._qualified(to_table, getattr(expr, "database", None))
+            # The target table carries its own database. Reusing the view's here
+            # would aim the materialized view at another database's table.
+            target = to_table.to_sql()[0]
             to_columns = getattr(expr, "to_columns", None)
             if to_columns:
                 target = f"{target} ({', '.join(str(c) for c in to_columns)})"
@@ -119,19 +159,53 @@ class ClickHouseMaterializedViewMixin:
         return " ".join(parts), query_params
 
     def format_drop_materialized_view_statement(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ``DROP VIEW [IF EXISTS]`` — ClickHouse has no ``DROP MATERIALIZED VIEW``."""
+        """Format ``DROP VIEW [IF EXISTS]`` — ClickHouse has no ``DROP MATERIALIZED VIEW``.
+
+        The keyword comes from :meth:`drop_object_keyword`, which reads the
+        object's kind; a materialized view landing on ``VIEW`` is the engine's
+        rule, not a mis-classification.
+
+        Raises:
+            TypeError: ``expr.view`` is not a MaterializedView. ``drop_object_keyword``
+                would otherwise answer ``VIEW`` for a plain View and the statement
+                would name something the caller did not ask to drop.
+            UnsupportedFeatureError: ``CASCADE`` or ``RESTRICT``, neither of which
+                ClickHouse accepts (measured: Code 62).
+        """
+        view = getattr(expr, "view", None)
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                f"DropMaterializedViewExpression.view must be a MaterializedView, "
+                f"got {type(view).__name__}"
+            )
         if getattr(expr, "cascade", False):
             raise UnsupportedFeatureError(self.name, "DROP MATERIALIZED VIEW CASCADE")
-        parts = ["DROP", "VIEW"]
+        if getattr(expr, "restrict", False):
+            raise UnsupportedFeatureError(self.name, "DROP MATERIALIZED VIEW RESTRICT")
+        parts = ["DROP", self.drop_object_keyword(view)]
         if getattr(expr, "if_exists", False):
             parts.append("IF EXISTS")
-        parts.append(self._qualified(expr.view_name, getattr(expr, "database", None)))
+        parts.append(view.to_sql()[0])
         return " ".join(parts), ()
 
     def format_refresh_materialized_view_statement(
         self, expr: "ClickHouseRefreshMaterializedViewExpression"
     ) -> Tuple[str, tuple]:
-        """Format ``SYSTEM REFRESH VIEW`` (optionally followed by ``SYSTEM WAIT VIEW``)."""
+        """Format ``SYSTEM REFRESH VIEW`` (optionally followed by ``SYSTEM WAIT VIEW``).
+
+        Raises:
+            TypeError: ``expr.view`` is not a MaterializedView. The generic
+                ``RefreshMaterializedViewExpression`` would otherwise render any
+                object's name as the view refreshed.
+            UnsupportedFeatureError: ``CONCURRENTLY``, ``WITH DATA`` or
+                ``WITH NO DATA``, none of which ClickHouse spells this way.
+        """
+        view = getattr(expr, "view", None)
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                f"RefreshMaterializedViewExpression.view must be a MaterializedView, "
+                f"got {type(view).__name__}"
+            )
         if getattr(expr, "concurrent", False):
             raise UnsupportedFeatureError(
                 self.name,
@@ -139,13 +213,19 @@ class ClickHouseMaterializedViewMixin:
                 "ClickHouse refreshes through SYSTEM REFRESH VIEW; use wait=True to "
                 "block until the refresh completes.",
             )
-        if getattr(expr, "with_data", None) is not None:
+        if getattr(expr, "with_data", False):
             raise UnsupportedFeatureError(
                 self.name,
-                "REFRESH MATERIALIZED VIEW WITH [NO] DATA",
+                "REFRESH MATERIALIZED VIEW WITH DATA",
                 "A ClickHouse refresh always repopulates the target.",
             )
-        target = self._qualified(expr.view_name, getattr(expr, "database", None))
+        if getattr(expr, "no_data", False):
+            raise UnsupportedFeatureError(
+                self.name,
+                "REFRESH MATERIALIZED VIEW WITH NO DATA",
+                "A ClickHouse refresh always repopulates the target.",
+            )
+        target = view.to_sql()[0]
         statement = f"SYSTEM REFRESH VIEW {target}"
         if getattr(expr, "wait", False):
             statement = f"{statement}; SYSTEM WAIT VIEW {target}"
@@ -154,11 +234,32 @@ class ClickHouseMaterializedViewMixin:
     def format_modify_materialized_view_refresh_statement(
         self, expr: "ClickHouseModifyMaterializedViewRefreshExpression"
     ) -> Tuple[str, tuple]:
-        """Format ``ALTER TABLE ... MODIFY REFRESH``."""
+        """Format ``ALTER TABLE ... MODIFY REFRESH``.
+
+        Raises:
+            TypeError: ``expr.view`` is not a MaterializedView, or an entry of
+                ``expr.schedule.depends_on`` is not one. ``DEPENDS ON`` renders
+                each upstream through its own ``to_sql()``, so a Table there
+                would name a table in a list documented as materialized views.
+        """
+        view = getattr(expr, "view", None)
+        if not isinstance(view, MaterializedView):
+            raise TypeError(
+                f"ModifyMaterializedViewRefreshExpression.view must be a "
+                f"MaterializedView, got {type(view).__name__}"
+            )
+        depends_on = getattr(getattr(expr, "schedule", None), "depends_on", ()) or ()
+        for position, upstream in enumerate(depends_on):
+            if not isinstance(upstream, MaterializedView):
+                raise TypeError(
+                    f"ClickHouseRefreshSchedule.depends_on must hold "
+                    f"MaterializedView instances, got "
+                    f"{type(upstream).__name__} at position {position}"
+                )
         parts = ["ALTER TABLE"]
         if getattr(expr, "if_exists", False):
             parts.append("IF EXISTS")
-        parts.append(self._qualified(expr.view_name, getattr(expr, "database", None)))
+        parts.append(view.to_sql()[0])
         clause = self._format_refresh_clause(expr.schedule)
         # ALTER TABLE ... MODIFY REFRESH requires the schedule keyword; the
         # SYSTEM form spells it the same way.
@@ -168,6 +269,15 @@ class ClickHouseMaterializedViewMixin:
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def _mv_target(self, expr: Any) -> Optional[Table]:
+        """Return the ``TO`` target table *expr* names, or ``None``.
+
+        The target is a :class:`Table` with its own ``catalog_name``: which
+        database a materialized view writes into is the target's business.
+        """
+        target = getattr(expr, "to_table", None)
+        return target if isinstance(target, Table) else None
 
     def _format_refresh_clause(self, schedule: "ClickHouseRefreshSchedule") -> str:
         """Render a ``REFRESH ...`` clause body (without the leading keyword)."""
@@ -182,7 +292,7 @@ class ClickHouseMaterializedViewMixin:
             parts.append(f"RANDOMIZE FOR {schedule.randomize_for}")
         if schedule.depends_on:
             deps = ", ".join(
-                self.format_identifier(str(name)) for name in schedule.depends_on
+                upstream.to_sql()[0] for upstream in schedule.depends_on
             )
             parts.append(f"DEPENDS ON {deps}")
         if schedule.settings:
@@ -193,12 +303,6 @@ class ClickHouseMaterializedViewMixin:
         if schedule.append:
             parts.append("APPEND INCREMENTAL" if schedule.incremental else "APPEND")
         return " ".join(parts)
-
-    def _qualified(self, name: str, database: Optional[str]) -> str:
-        """Render a possibly database-qualified ClickHouse object name."""
-        if database:
-            return f"{self.format_identifier(database)}.{self.format_identifier(name)}"
-        return self.format_identifier(name)
 
     def _materialized_view_query_sql(self, expr: Any) -> Tuple[str, tuple]:
         """Return the defining query SQL, accepting an expression or raw SQL."""
@@ -229,8 +333,13 @@ class ClickHouseMaterializedViewMixin:
                 f"{feature} STORAGE PARAMETERS",
                 "ClickHouse materializes into a target table or an ENGINE.",
             )
-        with_data = getattr(expr, "with_data", True)
-        if with_data is False:
+        if getattr(expr, "with_data", False):
+            raise UnsupportedFeatureError(
+                self.name,
+                f"{feature} WITH DATA",
+                "ClickHouse uses POPULATE (incremental) or EMPTY (refreshable) instead.",
+            )
+        if getattr(expr, "no_data", False):
             raise UnsupportedFeatureError(
                 self.name,
                 f"{feature} WITH NO DATA",

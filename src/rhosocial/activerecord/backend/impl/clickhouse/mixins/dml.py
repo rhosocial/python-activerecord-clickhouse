@@ -2,6 +2,7 @@
 from typing import Any, List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import InsertExpression
@@ -45,7 +46,18 @@ class ClickHouseDMLOperationMixin:
         ClickHouse does not support INSERT IGNORE / REPLACE INTO / ON CONFLICT;
         those dialect options raise UnsupportedFeatureError. INSERT ... RETURNING
         is supported.
+
+        Raises:
+            TypeError: ``expr.into`` is not a Table. A View or an Index would
+                otherwise have its own name rendered as the inserted-into table's.
+            UnsupportedFeatureError: ``REPLACE INTO``, ``INSERT IGNORE`` or a
+                conflict clause, none of which ClickHouse has.
         """
+        if not isinstance(expr.into, Table):
+            raise TypeError(
+                f"InsertExpression.into must be a Table, "
+                f"got {type(expr.into).__name__}"
+            )
         if self.strict_validation:
             expr.validate(strict=True)
 
