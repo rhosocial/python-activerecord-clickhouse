@@ -14,21 +14,21 @@ class TestClickHouseFunctionSupportBasic:
 
     def test_supports_functions_returns_dict(self):
         """Test that supports_functions returns a dictionary."""
-        dialect = ClickHouseDialect((8, 0, 0))
+        dialect = ClickHouseDialect((26, 7, 1))
         result = dialect.supports_functions()
         assert isinstance(result, dict)
         assert len(result) > 0
 
     def test_supports_functions_all_values_are_bool(self):
         """Test that all values in the returned dict are booleans."""
-        dialect = ClickHouseDialect((8, 0, 0))
+        dialect = ClickHouseDialect((26, 7, 1))
         result = dialect.supports_functions()
         for func_name, supported in result.items():
             assert isinstance(supported, bool), f"Value for {func_name} is not bool"
 
     def test_core_functions_always_supported(self):
         """Test that core functions are marked as supported."""
-        dialect = ClickHouseDialect((8, 0, 0))
+        dialect = ClickHouseDialect((26, 7, 1))
         result = dialect.supports_functions()
         core_functions = ["count", "sum_", "avg", "min_", "max_", "coalesce", "nullif"]
         for func in core_functions:
@@ -37,7 +37,7 @@ class TestClickHouseFunctionSupportBasic:
 
     def test_sqlxml_constructors_are_not_plain_functions(self):
         """Test that standard SQL/XML constructors are not plain functions."""
-        dialect = ClickHouseDialect((8, 0, 0))
+        dialect = ClickHouseDialect((26, 7, 1))
         result = dialect.supports_functions()
         sqlxml_constructors = [
             "xmlparse",
@@ -136,7 +136,7 @@ class TestClickHouseFunctionSupportPrivateMethod:
 
     def test_unknown_function_returns_true(self):
         """Test that unknown functions return True (no restriction)."""
-        dialect = ClickHouseDialect((8, 0, 0))
+        dialect = ClickHouseDialect((26, 7, 1))
         result = dialect._is_clickhouse_function_supported("unknown_function_xyz")
         assert result is True
 
@@ -152,7 +152,7 @@ class TestClickHouseFunctionSupportIntegration:
 
     def test_function_dict_contains_core_functions(self):
         """Test that the result contains core functions (not MySQL wrappers)."""
-        dialect = ClickHouseDialect((8, 0, 0))
+        dialect = ClickHouseDialect((26, 7, 1))
         result = dialect.supports_functions()
 
         assert any(func in result for func in ["count", "sum_", "avg"])
@@ -161,9 +161,15 @@ class TestClickHouseFunctionSupportIntegration:
         assert "find_in_set" not in result
 
     def test_function_support_stable_across_versions(self):
-        """Core function support does not change across ClickHouse versions."""
-        old_dialect = ClickHouseDialect(version=(5, 6, 0))
-        new_dialect = ClickHouseDialect(version=(26, 0, 0))
+        """Core function support does not change across ClickHouse versions.
+
+        The two versions are real release lines — the oldest maintained LTS
+        (25.8) and the current stable line (26.7). They were ``(5, 6, 0)`` and
+        ``(26, 0, 0)``; ``5.6`` is a MySQL release number and no ClickHouse
+        server has reported it.
+        """
+        old_dialect = ClickHouseDialect(version=(25, 8, 0))
+        new_dialect = ClickHouseDialect(version=(26, 7, 1))
 
         old_result = old_dialect.supports_functions()
         new_result = new_dialect.supports_functions()

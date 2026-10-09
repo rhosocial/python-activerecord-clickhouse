@@ -12,11 +12,38 @@ The implementation:
 - Executes SQL via backend.execute()
 - Parses results into typed dataclasses
 
-.. warning::
-    This module was copied from the MySQL backend template and contains
-    MySQL-style SQL functions/show commands. ClickHouse uses different
-    function names (e.g. ``JSONExtract*``) and a different SHOW command
-    subset. May generate non-ClickHouse SQL; verify before use.
+What this module renders, and what it refuses
+---------------------------------------------
+Nine of these commands are ClickHouse statements and are rendered, each read
+back from the column names the 26.7.3.19 server actually sends:
+
+======================  ========================================
+``SHOW CREATE TABLE``   ``ClickHouseShowDialectMixin``
+``SHOW CREATE VIEW``    (single ``statement`` output column —
+                        verified on 26.7.3.19)
+``SHOW [FULL] TABLES``  ``name`` / ``engine`` output columns
+``SHOW DATABASES``      ``name`` output column
+``SHOW [FULL] COLUMNS`` ``field`` / ``type`` / ``null`` / ``key`` /
+                        ``default`` / ``extra`` (+ ``collation``,
+                        ``comment``, ``privileges`` under FULL)
+``SHOW INDEX``          ``table`` / ``key_name`` / ``pk_col`` /
+                        ``index_type`` / ``expression`` / ...
+``SHOW PROCESSLIST``    ``system.processes``' 43 columns
+``SHOW ENGINES``        ``name`` + eight ``supports_*`` flags +
+                        ``description`` / ``syntax`` / ``introduced_in``
+``SHOW GRANTS``         one column named after the statement text
+======================  ========================================
+
+Every other command in the MySQL ``SHOW`` set is ClickHouse's to not have,
+and its ``format_show_*`` raises ``UnsupportedFeatureError`` naming the
+ClickHouse replacement — ``SHOW TABLE STATUS`` → ``system.tables``,
+``SHOW VARIABLES`` → ``system.settings``, ``SHOW WARNINGS`` →
+``system.query_log``, and so on. Their result dataclasses stay declared so the
+API is complete, but nothing can reach them.
+
+``version`` is taken from the connection the caller already opened (the
+backend reports it through ``get_server_version()``); it is not compared
+against a capability threshold anywhere in this file.
 """
 
 from typing import Optional, Tuple, TYPE_CHECKING
@@ -24,10 +51,15 @@ from typing import Optional, Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 from ..expression.show import (
+    ShowColumnsExpression,
     ShowCreateTableExpression,
     ShowCreateViewExpression,
-    ShowTablesExpression,
     ShowDatabasesExpression,
+    ShowEnginesExpression,
+    ShowGrantsExpression,
+    ShowIndexExpression,
+    ShowProcessListExpression,
+    ShowTablesExpression,
 )
 
 if TYPE_CHECKING:
@@ -37,8 +69,16 @@ if TYPE_CHECKING:
 class ClickHouseShowFunctionality:
     """ClickHouse-specific SHOW functionality implementation.
 
-    Provides all ClickHouse SHOW commands using expression-dialect pattern.
-    Supports version-aware feature detection for ClickHouse 5.7 vs 8.0 differences.
+    Provides the nine SHOW commands ClickHouse has, using the
+    expression-dialect pattern; every other one refuses.
+
+    No capability here is gated on a version. The ``version`` argument is kept
+    for interface symmetry with the other backends' show functionality and for
+    logging, not for feature detection: this module previously held a
+    "ClickHouse 5.7 vs 8.0" distinction and an ``_supports_invisible_columns``
+    flag tested as ``version >= (8, 0, 0)``. ClickHouse's numbering has never
+    had a 5.7 or an 8.0, no SHOW command was branched on either, and the flag
+    was read by nothing in this repository.
     """
 
     def __init__(self, backend: "ClickHouseBackend", version: Optional[Tuple[int, ...]] = None):
@@ -46,111 +86,62 @@ class ClickHouseShowFunctionality:
 
         Args:
             backend: ClickHouseBackend instance for executing queries.
-            version: ClickHouse server version tuple, e.g., (8, 0, 0) for ClickHouse 8.0.
+            version: ClickHouse server version tuple as the backend reports it,
+                e.g. ``(26, 7, 3)`` for 26.7.3.19. Recorded, not compared.
         """
         self._backend = backend
         self._version = version
         self.dialect = backend.dialect
-        # ClickHouse 8.0+ supports invisible columns
-        self._supports_invisible_columns = version >= (8, 0, 0) if version else True
 
     # ========== Parsing Helper Methods ==========
+    #
+    # Every one of these delegates to the corresponding parser on
+    # :class:`...introspection.show_introspector.ShowMixin`, so there is exactly
+    # one implementation of "which ClickHouse column goes in which field" in this
+    # package — reachable from both the sync/async show sub-introspector and this
+    # ``ShowFunctionality`` surface, without the two drifting apart.
+
+    @staticmethod
+    def _show_parser():
+        from ..introspection.show_introspector import ShowMixin
+
+        return ShowMixin
 
     def _parse_create_table_result(self, result, table: str):
-        """Parse SHOW CREATE TABLE result."""
-        from .types import ShowCreateTableResult
-
-        if not result.data or len(result.data) == 0:
-            return None
-
-        row = result.data[0]
-        return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table)),
-            create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
-        )
+        """Parse ``SHOW CREATE TABLE`` — a single ``statement`` column."""
+        return self._show_parser()._parse_create_table(result.data, table)
 
     def _parse_create_view_result(self, result, view_name: str):
-        """Parse SHOW CREATE VIEW result."""
-        from .types import ShowCreateViewResult
-
-        if not result.data or len(result.data) == 0:
-            return None
-
-        row = result.data[0]
-        return ShowCreateViewResult(
-            view_name=row.get("View", row.get("VIEW", view_name)),
-            create_statement=row.get("Create View", row.get("CREATE VIEW", "")),
-            character_set_client=row.get("character_set_client"),
-            collation_connection=row.get("collation_connection"),
-        )
+        """Parse ``SHOW CREATE VIEW`` — a single ``statement`` column, as above."""
+        return self._show_parser()._parse_create_view(result.data, view_name)
 
     def _parse_columns_result(self, result):
-        """Parse SHOW COLUMNS result."""
-        from .types import ShowColumnResult
-
-        columns = []
-        for row in result.data:
-            col = ShowColumnResult(
-                field=row.get("Field", row.get("COLUMN_NAME")),
-                type=row.get("Type", row.get("COLUMN_TYPE")),
-                null=row.get("Null", row.get("IS_NULLABLE")),
-                key=row.get("Key", row.get("COLUMN_KEY")),
-                default=row.get("Default", row.get("COLUMN_DEFAULT")),
-                extra=row.get("Extra", row.get("EXTRA")),
-            )
-            # FULL mode additional fields
-            if "Collation" in row or "Privileges" in row:
-                col.privileges = row.get("Privileges")
-                col.comment = row.get("Comment")
-            columns.append(col)
-        return columns
+        """Parse ``SHOW [FULL] COLUMNS`` — ``field`` / ``type`` / ``null`` /
+        ``key`` / ``default`` / ``extra``, plus the three ``FULL`` columns."""
+        return self._show_parser()._parse_columns(result.data)
 
     def _parse_indexes_result(self, result):
-        """Parse SHOW INDEX result."""
-        from .types import ShowIndexResult
-
-        indexes = []
-        for row in result.data:
-            indexes.append(
-                ShowIndexResult(
-                    table_name=row.get("Table", row.get("TABLE_NAME")),
-                    non_unique=row.get("Non_unique", row.get("NON_UNIQUE")),
-                    key_name=row.get("Key_name", row.get("INDEX_NAME")),
-                    seq_in_index=row.get("Seq_in_index", row.get("SEQ_IN_INDEX")),
-                    column_name=row.get("Column_name", row.get("COLUMN_NAME")),
-                    collation=row.get("Collation", row.get("COLLATION")),
-                    cardinality=row.get("Cardinality", row.get("CARDINALITY")),
-                    sub_part=row.get("Sub_part", row.get("SUB_PART")),
-                    packed=row.get("Packed", row.get("PACKED")),
-                    null=row.get("Null", row.get("NULLABLE")),
-                    index_type=row.get("Index_type") or row.get("INDEX_TYPE") or "BTREE",
-                    comment=row.get("Comment", row.get("INDEX_COMMENT")),
-                    index_comment=row.get("Index_comment", row.get("INDEX_COMMENT")),
-                    visible=row.get("Visible", row.get("IS_VISIBLE")),
-                    expression=row.get("Expression", row.get("EXPRESSION")),
-                )
-            )
-        return indexes
+        """Parse ``SHOW INDEX`` — ``table`` / ``key_name`` / ``pk_col`` / ..."""
+        return self._show_parser()._parse_indexes(result.data)
 
     def _parse_tables_result(self, result):
-        """Parse SHOW TABLES result."""
+        """Parse ``SHOW [FULL] TABLES`` — columns ``name`` and, under ``FULL``, ``engine``.
+
+        ``ShowTableResult.table_type`` therefore carries the ClickHouse storage
+        engine name, not MySQL's ``BASE TABLE`` / ``VIEW``.
+        """
         from .types import ShowTableResult
 
-        tables = []
-        for row in result.data:
-            if len(row) == 1:
-                tables.append(ShowTableResult(name=list(row.values())[0], table_type=None))
-            else:
-                name_key = next((k for k in row.keys() if k.startswith("Tables_in_")), None)
-                if name_key:
-                    tables.append(ShowTableResult(name=row[name_key], table_type=row.get("Table_type")))
-        return tables
+        return [
+            ShowTableResult(name=row.get("name"), table_type=row.get("engine"))
+            for row in result.data
+        ]
 
     def _parse_databases_result(self, result):
-        """Parse SHOW DATABASES result."""
+        """Parse ``SHOW DATABASES`` — the column is ``name``, not ``Database``."""
         from .types import ShowDatabaseResult
 
-        return [ShowDatabaseResult(name=row.get("Database")) for row in result.data]
+        return [ShowDatabaseResult(name=row.get("name")) for row in result.data]
 
     def _parse_table_status_result(self, result):
         """Parse SHOW TABLE STATUS result."""
@@ -246,24 +237,8 @@ class ClickHouseShowFunctionality:
         ]
 
     def _parse_processlist_result(self, result):
-        """Parse SHOW PROCESSLIST result."""
-        from .types import ShowProcessListResult
-
-        processes = []
-        for row in result.data:
-            processes.append(
-                ShowProcessListResult(
-                    id=row.get("Id", row.get("ID")),
-                    user=row.get("User"),
-                    host=row.get("Host"),
-                    command=row.get("Command"),
-                    time=row.get("Time"),
-                    db=row.get("db"),
-                    state=row.get("State"),
-                    info=row.get("Info"),
-                )
-            )
-        return processes
+        """Parse ``SHOW PROCESSLIST`` — ``system.processes``' own columns."""
+        return self._show_parser()._parse_processlist(result.data)
 
     def _parse_warnings_result(self, result):
         """Parse SHOW WARNINGS result."""
@@ -292,21 +267,8 @@ class ClickHouseShowFunctionality:
         ]
 
     def _parse_engines_result(self, result):
-        """Parse SHOW ENGINES result."""
-        from .types import ShowEngineResult
-
-        engines = []
-        for row in result.data:
-            engines.append(
-                ShowEngineResult(
-                    engine=row.get("Engine"),
-                    support=row.get("Support"),
-                    transactions=row.get("Transactions"),
-                    xa=row.get("XA"),
-                    savepoints=row.get("Savepoints"),
-                )
-            )
-        return engines
+        """Parse ``SHOW ENGINES`` — ``name`` plus the eight ``supports_*`` flags."""
+        return self._show_parser()._parse_engines(result.data)
 
     def _parse_charset_result(self, result):
         """Parse SHOW CHARACTER SET result."""
@@ -339,10 +301,8 @@ class ClickHouseShowFunctionality:
         ]
 
     def _parse_grants_result(self, result):
-        """Parse SHOW GRANTS result."""
-        from .types import ShowGrantResult
-
-        return [ShowGrantResult(grants=row.get("Grants for")) for row in result.data]
+        """Parse ``SHOW GRANTS`` — one column, named after the statement text."""
+        return self._show_parser()._parse_grants(result.data)
 
     def _parse_plugins_result(self, result):
         """Parse SHOW PLUGINS result."""
@@ -411,28 +371,36 @@ class ClickHouseShowFunctionality:
     ):
         """Get column information for a table.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        Renders ``SHOW [FULL] COLUMNS FROM [<schema>.]<table> [LIKE <pattern>]``
+        and reads ClickHouse's own output columns. See
+        ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        raise UnsupportedFeatureError(
-            self._backend.dialect.name,
-            "SHOW COLUMNS",
-            suggestion="Use DESCRIBE TABLE or query system.columns instead.",
-        )
+        expr = ShowColumnsExpression(self.dialect, table)
+        if schema:
+            expr.schema(schema)
+        if full:
+            expr.full()
+        if like:
+            expr.like(like)
+        sql, params = expr.to_sql()
+        result = self._backend.execute(sql, params)
+        return self._parse_columns_result(result)
 
     # ========== SHOW INDEX ==========
 
     def indexes(self, table: str, schema: Optional[str] = None):
         """Get index information for a table.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        Renders ``SHOW INDEX FROM [<schema>.]<table>`` and reads ClickHouse's own
+        output columns — the primary key columns plus one row per data skipping
+        index. See ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        raise UnsupportedFeatureError(
-            self._backend.dialect.name,
-            "SHOW INDEX",
-            suggestion="Query system.data_skipping_indices or system.tables instead.",
-        )
+        expr = ShowIndexExpression(self.dialect, table)
+        if schema:
+            expr.schema(schema)
+        sql, params = expr.to_sql()
+        result = self._backend.execute(sql, params)
+        return self._parse_indexes_result(result)
 
     # ========== SHOW TABLES ==========
 
@@ -556,14 +524,17 @@ class ClickHouseShowFunctionality:
     def processlist(self, full: bool = False):
         """Show process list.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        Renders ``SHOW PROCESSLIST``, which in ClickHouse is
+        ``SELECT * FROM system.processes``. ``full`` is accepted for interface
+        symmetry and ignored: the statement has no ``FULL`` variant and already
+        reports the full query text in ``query``.
         """
-        raise UnsupportedFeatureError(
-            self._backend.dialect.name,
-            "SHOW PROCESSLIST",
-            suggestion="Query system.processes instead.",
-        )
+        expr = ShowProcessListExpression(self.dialect)
+        if full:
+            expr.full()
+        sql, params = expr.to_sql()
+        result = self._backend.execute(sql, params)
+        return self._parse_processlist_result(result)
 
     # ========== SHOW WARNINGS/ERRORS ==========
 
@@ -596,14 +567,15 @@ class ClickHouseShowFunctionality:
     def engines(self):
         """Show storage engines.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        Renders ``SHOW ENGINES``, which in ClickHouse is
+        ``SELECT * FROM system.table_engines``; the result carries the engine name,
+        the eight ``supports_*`` capability flags and the engine's own
+        ``description`` / ``syntax`` / ``introduced_in`` documentation columns.
         """
-        raise UnsupportedFeatureError(
-            self._backend.dialect.name,
-            "SHOW ENGINES",
-            suggestion="Query system.table_engines instead.",
-        )
+        expr = ShowEnginesExpression(self.dialect)
+        sql, params = expr.to_sql()
+        result = self._backend.execute(sql, params)
+        return self._parse_engines_result(result)
 
     # ========== SHOW CHARSET ==========
 
@@ -638,14 +610,22 @@ class ClickHouseShowFunctionality:
     def grants(self, user: Optional[str] = None, host: Optional[str] = None):
         """Show grants.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        Renders ``SHOW GRANTS`` or ``SHOW GRANTS FOR <user>``. ClickHouse
+        identifies access entities by role name alone and has no ``user@host``
+        form — ``SHOW GRANTS FOR root@localhost`` is
+        ``Code: 511. DB::Exception: There is no role `root@localhost` in `user
+        directories`. (UNKNOWN_ROLE)`` on 26.7.3.19 — so a supplied ``host`` is
+        not rendered.
+
+        The statement returns a single column whose name follows the output
+        format, so the parser reads the column's value rather than a named key.
         """
-        raise UnsupportedFeatureError(
-            self._backend.dialect.name,
-            "SHOW GRANTS",
-            suggestion="Query system.grants or other system.* access control tables instead.",
-        )
+        expr = ShowGrantsExpression(self.dialect)
+        if user:
+            expr.for_user(user, host)
+        sql, params = expr.to_sql()
+        result = self._backend.execute(sql, params)
+        return self._parse_grants_result(result)
 
     # ========== SHOW PLUGINS ==========
 

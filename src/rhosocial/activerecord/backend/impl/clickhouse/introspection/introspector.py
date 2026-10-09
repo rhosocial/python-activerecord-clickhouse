@@ -82,8 +82,15 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
         return ""
 
     def _get_version(self) -> tuple:
-        """Return the ClickHouse server version tuple from the backend."""
-        return getattr(self._backend, "_version", (8, 0, 0))
+        """Return the ClickHouse server version tuple from the backend.
+
+        Falls back to ``(0, 0, 0)``, the tuple
+        :meth:`...backend.backend.ClickHouseBackend.get_server_version` itself uses
+        for "not adapted yet", rather than to an invented version — this used to
+        return ``(8, 0, 0)``, which is not a release ClickHouse has and which a
+        caller could not distinguish from a server-reported version.
+        """
+        return getattr(self._backend, "_version", None) or (0, 0, 0)
 
     # ------------------------------------------------------------------ #
     # Parse methods — pure Python, no I/O

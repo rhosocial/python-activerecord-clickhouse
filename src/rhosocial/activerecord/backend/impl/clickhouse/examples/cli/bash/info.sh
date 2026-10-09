@@ -39,8 +39,8 @@ echo "--- JSON output ---"
 $PYTHON_CMD info -o json
 
 echo ""
-echo "--- Info with specific MySQL version ---"
-$PYTHON_CMD info --version 5.7.0
+echo "--- Info against a specific release line ---"
+$PYTHON_CMD info --version 25.8.0
 
 echo ""
 echo "--- Rich ASCII output ---"

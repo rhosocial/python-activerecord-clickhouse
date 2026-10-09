@@ -140,9 +140,35 @@ than being silently emulated.
 version. Beyond the ones in the table, that includes: `check_constraint`,
 `create_sequence`, `drop_sequence`, `auto_increment`, `clone`, `call`,
 `binlog`, `analyze_table`, `check_table`, `checksum_table`, `descending_index`,
-`add_constraint`, `drop_constraint`, `add_partition`, `attach_partition`,
-`detach_partition`, `deferrable_*`, and every MySQL spatial `ST_*` surface
-plus the MySQL 9.0 `VECTOR` type.
+`add_constraint`, `drop_constraint`, `deferrable_*`, and every MySQL spatial
+`ST_*` surface plus the MySQL 9.0 `VECTOR` type.
+
+## Partitioning
+
+ClickHouse partitions a `MergeTree` table with `PARTITION BY <expr>` in
+`CREATE TABLE` — any expression over the table's columns, or a tuple of them —
+declared through `storage_options` alongside `ENGINE` / `ORDER BY`. There is no
+partitioning strategy to choose, no `PARTITION ... VALUES LESS THAN` /
+`VALUES IN` / `MAXVALUE` boundary and no subpartitioning; a partition comes
+into existence when a row lands in it. Partitions are introspected through
+`system.parts` (`partition`, `partition_id`, `name`) and maintained by
+partition id:
+
+```python
+from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+    ClickHouseDetachPartitionExpression,   # ... also DROP / ATTACH
+)
+sql, params = ClickHouseDetachPartitionExpression(dialect, "visits", "202601").to_sql()
+# ALTER TABLE `visits` DETACH PARTITION ID '202601'
+```
+
+`DROP` / `DETACH` / `ATTACH` partition are the only partition clauses this
+backend renders. ClickHouse has no `ADD PARTITION`, `TRUNCATE PARTITION`,
+`REORGANIZE PARTITION`, `EXCHANGE PARTITION`, `SUBPARTITION BY` or
+`ANALYZE`/`CHECK`/`OPTIMIZE`/`REBUILD`/`REPAIR PARTITION`; the full inventory
+is at <https://clickhouse.com/docs/sql-reference/statements/alter/partition>.
+Empty a partition with `ALTER TABLE ... DELETE IN PARTITION ... WHERE ...`, and
+a table with `TRUNCATE TABLE`.
 
 ## Version Gates
 

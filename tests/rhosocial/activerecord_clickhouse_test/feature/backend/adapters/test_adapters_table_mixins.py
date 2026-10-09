@@ -20,7 +20,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.adapters import (
     ClickHouseJSONAdapter,
     ClickHouseTimeAdapter,
     ClickHouseUUIDAdapter,
-    ClickHouseVectorAdapter,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins.ddl_table import ClickHouseTableMixin
@@ -109,12 +108,25 @@ class TestAdapters:
         assert parsed.year == 2024 and parsed.hour == 10
         assert a.from_database(None, datetime) is None
 
-    def test_vector_adapter(self):
-        a = ClickHouseVectorAdapter()
-        assert a.to_database([1.0, 2.0], list) == "[1.0,2.0]"
-        assert a.to_database(None, list) is None
-        assert a.from_database("[1.0, 2.0]", list) == [1.0, 2.0]
-        assert a.from_database(None, list) is None
+    def test_there_is_no_vector_adapter(self):
+        """``ClickHouseVectorAdapter`` adapted MySQL 9.0's ``VECTOR`` column.
+
+        ClickHouse has no such type — ``CREATE TABLE t (a VECTOR(4))`` is
+        rejected with ``Unknown data type family: VECTOR`` on 26.7.3.19 — and the
+        adapter's only real content was MySQL's 16384-dimension ceiling. What
+        ClickHouse stores an embedding in is ``Array(Float32)``, which is a plain
+        Python ``list`` of floats and needs no adapter: the driver already returns
+        an array column as a list (``test_array_roundtrip`` in
+        ``types/test_native_types.py``).
+
+        Asserted as an absence, so re-adding the class does not quietly restore a
+        ``VECTOR(n)`` adapter.
+        """
+        import rhosocial.activerecord.backend.impl.clickhouse.adapters as adapters
+
+        assert "ClickHouseVectorAdapter" not in vars(adapters)
+        assert not [name for name in vars(adapters) if "Vector" in name]
+        assert not hasattr(adapters, "MAX_VECTOR_DIMENSION")
 
 
 class TestEnumAdapter:

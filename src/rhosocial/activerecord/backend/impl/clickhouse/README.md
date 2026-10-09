@@ -86,7 +86,7 @@ python -m rhosocial.activerecord.backend.impl.clickhouse \
 ```json
 [
   {
-    "VERSION()": "8.0.43"
+    "VERSION()": "26.7.3.19"
   }
 ]
 ```

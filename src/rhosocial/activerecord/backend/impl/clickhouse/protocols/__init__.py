@@ -15,11 +15,11 @@ answers the catalog switches and leaves schema qualification off.
 from .dml import ClickHouseDMLOperationSupport
 from .trigger import ClickHouseTriggerSupport
 from .table import ClickHouseTableSupport
+from .type import ClickHouseTypeSupport
 from .partition import ClickHousePartitionSupport
 from .set_type import ClickHouseSetTypeSupport
 from .json import ClickHouseJSONFunctionSupport
 from .spatial import ClickHouseSpatialSupport
-from .vector import ClickHouseVectorSupport
 from .fulltext_search import ClickHouseFullTextSearchSupport
 from .locking import ClickHouseLockingSupport
 from .modify_column import ClickHouseModifyColumnSupport
@@ -36,11 +36,11 @@ __all__ = [
     "ClickHouseDMLOperationSupport",
     "ClickHouseTriggerSupport",
     "ClickHouseTableSupport",
+    "ClickHouseTypeSupport",
     "ClickHousePartitionSupport",
     "ClickHouseSetTypeSupport",
     "ClickHouseJSONFunctionSupport",
     "ClickHouseSpatialSupport",
-    "ClickHouseVectorSupport",
     "ClickHouseFullTextSearchSupport",
     "ClickHouseLockingSupport",
     "ClickHouseModifyColumnSupport",

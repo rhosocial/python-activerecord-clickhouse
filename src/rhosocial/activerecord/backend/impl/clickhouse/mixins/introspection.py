@@ -37,12 +37,15 @@ class ClickHouseIntrospectionMixin:
     trigger introspection are NOT supported (ClickHouse has neither FKs nor
     triggers), so those supports_* methods return False.
 
-    NOTE: The format_*_query methods below currently generate MySQL-style
-    information_schema SQL inherited from the MySQL backend. They are known
-    MySQL remnants that still need to be rewritten against ClickHouse system
-    tables (system.databases / system.tables / system.columns / system.views
-    / system.data_skipping_indices). index/foreign_key/trigger queries have
-    no direct system-table equivalent in ClickHouse.
+    NOTE: Every ``format_*_query`` below already reads a ClickHouse system
+    table — ``system.databases``, ``system.tables``, ``system.columns``,
+    ``system.data_skipping_indices``, and the ``engine LIKE '%View'`` subset of
+    ``system.tables``. (An earlier note here claimed these still emitted MySQL
+    ``information_schema`` SQL "inherited from the MySQL backend"; that was
+    stale, they had already been rewritten.) Column aliases such as
+    ``AS TABLE_NAME`` are kept because the result parsers upstream read those
+    names; the *sources* are ClickHouse's own. Foreign-key and trigger queries
+    have no ClickHouse system table at all and raise.
     """
 
     # ========== Capability Detection ==========

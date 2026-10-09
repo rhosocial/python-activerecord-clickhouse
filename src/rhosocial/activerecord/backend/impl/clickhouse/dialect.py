@@ -111,13 +111,15 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DomainMixin,
     TransactionControlMixin,
     SetOperationMixin,
+    # Column-type suggestions: the generic half, which
+    # ClickHouseColumnSuggestionMixin below overrides.
+    ColumnSuggestionMixin,
 )
 from .protocols import (
     ClickHouseTriggerSupport,
     ClickHouseTableSupport,
     ClickHouseJSONFunctionSupport,
     ClickHouseSpatialSupport,
-    ClickHouseVectorSupport,
     ClickHouseDMLOperationSupport,
     ClickHouseFullTextSearchSupport,
     ClickHouseLockingSupport,
@@ -131,6 +133,7 @@ from .protocols import (
     ClickHouseRoutineSupport,
     ClickHouseLoadXMLSupport,
     ClickHouseAdminCommandSupport,
+    ClickHouseTypeSupport,
 )
 from .mixins import (
     ClickHouseTransactionMixin,
@@ -140,7 +143,6 @@ from .mixins import (
     ClickHouseTableMixin,
     ClickHouseJSONFunctionMixin,
     ClickHouseSpatialMixin,
-    ClickHouseVectorMixin,
     ClickHouseIntrospectionMixin,
     ClickHouseLockingMixin,
     ClickHouseModifyColumnMixin,
@@ -180,6 +182,7 @@ from .mixins import (
     ClickHouseConstraintMixin,
     ClickHouseDDLColumnMixin,
     ClickHouseFunctionMixin,
+    ClickHouseColumnSuggestionMixin,
 )
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
@@ -287,13 +290,15 @@ class ClickHouseDialect(
     ClickHouseTransactionMixin,
     ClickHouseTableMixin,
     ClickHouseRenameTableMixin,
+    # Before TableMixin: this answers False where the core answers True, and it
+    # sat in the backend block below, so DROP TABLE was rendered with CASCADE
+    # and RESTRICT that ClickHouse does not accept.
+    ClickHouseConstraintMixin,
     TableMixin,
     ClickHouseTruncateMixin,
     TruncateMixin,
-    ClickHouseConstraintMixin,
     ConstraintMixin,
     ClickHouseSpatialMixin,
-    ClickHouseVectorMixin,
     ClickHouseIntrospectionMixin,
     ClickHouseShowDialectMixin,
     ClickHouseModifyColumnMixin,
@@ -324,6 +329,14 @@ class ClickHouseDialect(
     ClickHouseSetOperationMixin,
     SetOperationMixin,
     ClickHouseFunctionMixin,
+    # Column-type suggestions. The ClickHouse half first: it overrides both the
+    # eighteen-entry table and supports_column_operation, and C3 gives the
+    # earlier name priority. Nothing else in this list can answer either, so
+    # the pair may move as a unit without disturbing the order around it --
+    # which is the reason for not standing it next to ClickHouseTypeSupportMixin
+    # higher up, where a mistake would reorder the DDL formatters too.
+    ClickHouseColumnSuggestionMixin,
+    ColumnSuggestionMixin,
     # Protocols for type checking
     CollationSupport,
     CTESupport,
@@ -359,7 +372,6 @@ class ClickHouseDialect(
     TransactionControlSupport,
     ClickHouseTriggerSupport,
     ClickHouseSpatialSupport,
-    ClickHouseVectorSupport,
     ClickHouseFullTextSearchSupport,
     ClickHouseModifyColumnSupport,
     ClickHouseJsonDualityViewSupport,
@@ -373,6 +385,10 @@ class ClickHouseDialect(
     ClickHouseLoadXMLSupport,
     ClickHouseAdminCommandSupport,
     SQLFunctionSupport,
+    # Before the generic DataTypeSupport it extends, for the same reason
+    # ClickHouseTypeSupportMixin precedes the mixin it completes: the backend
+    # protocol refines the generic one and must be seen first in the MRO.
+    ClickHouseTypeSupport,
     DataTypeSupport,
     # Named objects. Each object protocol names the ``format_<kind>_object``
     # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they

@@ -4,6 +4,29 @@ ClickHouse-specific JSON_TABLE expression.
 
 This module provides ClickHouseJSONTableExpression, JSONTableColumn, and NestedPath
 for ClickHouse's JSON_TABLE functionality.
+
+**ClickHouse has no ``JSON_TABLE`` at any version**, so there is nothing to name
+a version for. MySQL's is the SQL/JSON ``JSON_TABLE(expr, path COLUMNS (...)
+NESTED PATH ...)`` table expression; three inventories on 26.7.3.19 rule out
+every ClickHouse spelling of it:
+
+* ``SELECT count() FROM system.functions WHERE name = 'JSON_TABLE'`` is ``0``.
+* ``SELECT name FROM system.table_functions WHERE name ILIKE '%json%'`` returns
+  one row, ``fuzzJSON`` — there is no ``json_table`` table function either. (The
+  table-function slot is what ClickHouse's JSON support looks like: the ``JSON``
+  column type plus the ``JSONExtract*`` function family.)
+* ``SELECT JSON_TABLE('[]', '$[*]' COLUMNS (a Int32))`` —
+  ``Code: 62. DB::Exception: Syntax error: failed at position 33 (COLUMNS):
+  COLUMNS (a Int32)). Expected one of: token, Comma, ClosingRoundBracket, OR,
+  AND, IS NOT DISTINCT FROM, ... (SYNTAX_ERROR)``. The parser got as far as
+  treating ``JSON_TABLE`` as an ordinary function call with two arguments and
+  then only wanted an operator; it never saw a ``COLUMNS`` clause. This is the
+  signature of an unknown function name, not of a dialect difference.
+
+So ``supports_json_table()`` is ``False`` and ``format_json_table_expression``
+raises ``UnsupportedFeatureError``, naming ``JSONExtract*`` as the ClickHouse
+route. The class below stays as that fail-fast switch rather than as a
+renderer.
 """
 
 from dataclasses import dataclass
@@ -54,10 +77,12 @@ class NestedPath:
 
 
 class ClickHouseJSONTableExpression(BaseExpression):
-    """ClickHouse JSON_TABLE expression.
+    """MySQL's ``JSON_TABLE`` table expression — a statement ClickHouse does not have.
 
-    Generates JSON_TABLE function for converting JSON data to relational format.
-    Supported in ClickHouse 8.0.4+.
+    Kept as a fail-fast switch: ``to_sql()`` raises ``UnsupportedFeatureError``
+    through the dialect, pointing at the ``JSONExtract*`` family and the ``JSON``
+    column type. No ClickHouse version parses this statement; see the module
+    docstring for the three inventories that establish it.
 
     Attributes:
         json_doc: JSON document string or expression

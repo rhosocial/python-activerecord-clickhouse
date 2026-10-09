@@ -1,5 +1,23 @@
 """
-Common Table Expressions (CTE) - ClickHouse 8.0+.
+Common Table Expressions (CTE) in ClickHouse.
+
+ClickHouse supports ``WITH <identifier> AS [MATERIALIZED] <subquery expression>``,
+and both plain and ``WITH RECURSIVE`` forms were measured working on 26.7.3.19
+(``WITH cte AS (SELECT 1 AS x) SELECT * FROM cte`` → one row;
+``WITH RECURSIVE t AS (SELECT 1 AS n UNION ALL SELECT n+1 FROM t WHERE n<3)
+SELECT sum(n) FROM t`` → 6).
+
+There is no version floor to state for the plain form — the ``WITH`` reference
+page
+(``https://clickhouse.com/docs/reference/statements/select/with``) documents it
+with no version qualifier. The one version that matters here is for
+**recursive** CTEs, and it comes from that same page: they rely on the query
+analyzer, "introduced in version **24.3**, which is the default since that
+version and mandatory since **26.9**"; on an older instance with the analyzer
+disabled a recursive CTE raises ``(UNKNOWN_TABLE)`` or
+``(UNSUPPORTED_METHOD)``. The ``MATERIALIZED`` keyword is a separate,
+experimental feature that additionally needs the ``enable_materialized_cte``
+setting.
 
 This example demonstrates:
 1. Basic CTE with WITH clause
@@ -219,7 +237,9 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. CTE requires ClickHouse 8.0+
+# 1. Plain `WITH name AS (subquery)` has no ClickHouse version floor; the
+#    recursive form needs the query analyzer (default since 24.3, mandatory
+#    since 26.9) — see https://clickhouse.com/docs/reference/statements/select/with
 # 2. Use CTEExpression to define CTEs
 # 3. Use WithQueryExpression to combine CTEs with a main query
 # 4. Set recursive=True for recursive CTEs (hierarchical queries)

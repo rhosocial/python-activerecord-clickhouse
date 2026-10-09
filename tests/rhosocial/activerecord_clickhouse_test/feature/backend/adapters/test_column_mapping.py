@@ -31,7 +31,13 @@ def setup_mapped_users_table(clickhouse_backend):
 def test_insert_with_mapping(clickhouse_backend, setup_mapped_users_table):
     """
     Tests that execute() with an INSERT correctly handles mapped data.
-    Note: ClickHouse < 8.0.1 does not support RETURNING, so we verify with a subsequent SELECT.
+
+    ClickHouse has no ``RETURNING`` clause at any version — the ``INSERT INTO``
+    reference page's syntax block is ``INSERT INTO [TABLE] [db.]table [(c1, c2,
+    c3)] [SETTINGS ...] VALUES ...`` and ``RETURNING`` appears nowhere in it — so
+    the inserted row is verified with a subsequent ``SELECT``. This note used to
+    say "ClickHouse < 8.0.1", a version gate that no ClickHouse server could be
+    checked against.
     """
     backend = clickhouse_backend
     now = datetime.now()

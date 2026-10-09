@@ -54,7 +54,9 @@ and raise `UnsupportedFeatureError` instead of being emulated:
 - MySQL-style spatial types (`GEOMETRY`/`POINT`/...) and the `ST_*` function
   family
 - MySQL 9.0 `VECTOR` type and `STRING_TO_VECTOR` / `VECTOR_TO_STRING` /
-  `VECTOR_DIM` / `DISTANCE_*` functions (use `Array(Float32)` + `L2Distance`)
+  `VECTOR_DIM` / `DISTANCE_*` functions — no such API here, by design; ClickHouse's
+  own vector type is `QBit`, rendered as `ClickHouseVectorType` →
+  `QBit(Float32, n)`, and `Array(Float32)` + `L2Distance` also works
 - MySQL `SET` type and `FIND_IN_SET`
 - Stored procedures / stored functions / `CALL`
 - `LOAD DATA INFILE` / `LOAD XML`

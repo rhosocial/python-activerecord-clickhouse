@@ -12,14 +12,34 @@ All methods follow the pattern:
 - Generate SQL string and parameter tuple
 - Return (sql, params) tuple
 
-.. warning::
-    This module was copied from the MySQL backend template and contains
-    MySQL-style SQL functions/show commands. ClickHouse uses different
-    function names (e.g. ``JSONExtract*``) and a different SHOW command
-    subset. May generate non-ClickHouse SQL; verify before use.
+Nine of these are ClickHouse statements and produce SQL:
+``SHOW CREATE TABLE``, ``SHOW CREATE VIEW``, ``SHOW [FULL] TABLES``,
+``SHOW DATABASES``, ``SHOW [FULL] COLUMNS``, ``SHOW INDEX``,
+``SHOW PROCESSLIST``, ``SHOW ENGINES`` and ``SHOW GRANTS`` (all nine verified
+against the 26.7.3.19 scenario server; the ``SHOW`` reference page at
+https://clickhouse.com/docs/reference/statements/show documents each).
+The rest of the MySQL ``SHOW`` set is ClickHouse's to not have; each raises
+``UnsupportedFeatureError`` naming the ClickHouse replacement, so no method
+here emits SQL this server would reject.
+
+Two places where ClickHouse's own grammar is narrower than MySQL's, and the
+rendering has to respect that rather than MySQL's shape:
+
+* ``SHOW COLUMNS`` / ``SHOW INDEX`` take the database as part of the table
+  reference (``SHOW COLUMNS FROM db.t``), never as a second ``FROM``. The
+  documentation lists ``[{FROM | IN} <db>]``, but 26.7.3.19 answers
+  ``SHOW INDEX FROM t FROM db`` with
+  ``Code: 62 ... Expected one of: ParserArrayOfJSONIdentifierDelimiter, token
+  sequence, OpeningSquareBracket, Dot, token, WHERE, INTO OUTFILE, FORMAT,
+  SETTINGS, ParallelWithClause, PARALLEL WITH, end of query``; the abbreviated
+  ``db.t`` form is the one the server accepts.
+* ``SHOW PROCESSLIST`` has no ``FULL`` variant (26.7.3.19:
+  ``Code: 62 ... Expected one of: DATABASES, CLUSTERS, MERGES, FILESYSTEM
+  CACHES, CLUSTER, CHANGED, SETTINGS, TEMPORARY, TABLES, DICTIONARIES, COLUMNS,
+  FIELDS``), so ``full=True`` cannot be rendered and is not rendered.
 """
 
-from typing import Tuple, TYPE_CHECKING
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Table, View
@@ -56,6 +76,24 @@ class ClickHouseShowDialectMixin:
 
     This mixin is added to ClickHouseDialect to provide SHOW functionality.
     """
+
+    # ========== Shared helpers ==========
+
+    def _qualified_table(self, table: str, schema: Optional[str] = None) -> str:
+        """Render ``table`` or ``db.table`` as one identifier reference.
+
+        ``SHOW COLUMNS`` and ``SHOW INDEX`` in ClickHouse take the database
+        inside the table reference (``SHOW COLUMNS FROM db.t``); the two-``FROM``
+        form MySQL allows is a ``SYNTAX_ERROR`` on 26.7.3.19. Measured error:
+        ``Code: 62. DB::Exception: Syntax error: failed at position 34 (FROM):
+        FROM test_db. Expected one of: ParserArrayOfJSONIdentifierDelimiter,
+        token sequence, OpeningSquareBracket, Dot, token, WHERE, INTO OUTFILE,
+        FORMAT, SETTINGS, ParallelWithClause, PARALLEL WITH, end of query.
+        (SYNTAX_ERROR)``.
+        """
+        if schema:
+            return f"{self.format_identifier(schema)}.{self.format_identifier(table)}"
+        return self.format_identifier(table)
 
     # ========== SHOW CREATE Statements ==========
 
@@ -95,28 +133,50 @@ class ClickHouseShowDialectMixin:
     # ========== SHOW COLUMNS/INDEX ==========
 
     def format_show_columns(self, expr: "ShowColumnsExpression") -> Tuple[str, tuple]:
-        """Format SHOW [FULL] COLUMNS statement.
+        """Format SHOW [FULL] COLUMNS FROM <table> [LIKE <pattern>].
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        ClickHouse has this statement and answers it with lower-cased column
+        names — on 26.7.3.19 ``SHOW COLUMNS FROM db.t`` reports ``field``,
+        ``type``, ``null``, ``key``, ``default``, ``extra``, and adds
+        ``collation``, ``comment`` and ``privileges`` under ``FULL``. Bare
+        ``SHOW COLUMNS`` (no table) is a ``SYNTAX_ERROR``: the server expects
+        ``FROM`` or ``IN`` after the keyword.
+
+        ``EXTENDED`` is also accepted and documented but has no effect, so it is
+        not rendered.
         """
-        raise UnsupportedFeatureError(
-            self.name,
-            "SHOW COLUMNS",
-            suggestion="Use DESCRIBE TABLE or query system.columns instead.",
-        )
+        params = expr.get_params()
+        table = params["table"]
+        schema = params.get("schema")
+        full = params.get("full", False)
+        like_pattern = params.get("like_pattern")
+
+        parts = ["SHOW"]
+        if full:
+            parts.append("FULL")
+        parts.append("COLUMNS FROM")
+        parts.append(self._qualified_table(table, schema))
+
+        sql_params = ()
+        if like_pattern:
+            parts.append(f"LIKE {self.p()}")
+            sql_params = (like_pattern,)
+
+        return " ".join(parts), sql_params
 
     def format_show_index(self, expr: "ShowIndexExpression") -> Tuple[str, tuple]:
-        """Format SHOW INDEX statement.
+        """Format SHOW INDEX FROM <table>.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        ClickHouse has this statement, explicitly "for compatibility with MySQL",
+        and answers it with ClickHouse's own column names — notably ``pk_col``
+        where MySQL says ``Column_name``, and ``index_type`` carrying
+        ``PRIMARY`` / ``MINMAX`` / ``BLOOM_FILTER`` / ``SET`` / ... rather than
+        ``BTREE``. See ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        raise UnsupportedFeatureError(
-            self.name,
-            "SHOW INDEX",
-            suggestion="Query system.data_skipping_indices or system.tables instead.",
-        )
+        params = expr.get_params()
+        table = params["table"]
+        schema = params.get("schema")
+        return f"SHOW INDEX FROM {self._qualified_table(table, schema)}", ()
 
     # ========== SHOW TABLES/DATABASES ==========
 
@@ -205,16 +265,19 @@ class ClickHouseShowDialectMixin:
     # ========== SHOW PROCESSLIST/WARNINGS/ERRORS ==========
 
     def format_show_processlist(self, expr: "ShowProcessListExpression") -> Tuple[str, tuple]:
-        """Format SHOW PROCESSLIST statement.
+        """Format SHOW PROCESSLIST.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        ClickHouse's ``SHOW PROCESSLIST`` is ``SELECT * FROM system.processes``:
+        it answers with that table's 43 lower-cased columns (``query_id``,
+        ``user``, ``address``, ``port``, ``elapsed``, ``current_database``,
+        ``query``, ...). ``full`` is accepted and ignored because ClickHouse has
+        no ``FULL`` variant — on 26.7.3.19 ``SHOW FULL PROCESSLIST`` is
+        ``Code: 62 ... Expected one of: DATABASES, CLUSTERS, MERGES, FILESYSTEM
+        CACHES, CLUSTER, CHANGED, SETTINGS, TEMPORARY, TABLES, DICTIONARIES,
+        COLUMNS, FIELDS. (SYNTAX_ERROR)``, and the statement already reports
+        the full query text in ``query``.
         """
-        raise UnsupportedFeatureError(
-            self.name,
-            "SHOW PROCESSLIST",
-            suggestion="Query system.processes instead.",
-        )
+        return "SHOW PROCESSLIST", ()
 
     def format_show_warnings(self, expr: "ShowWarningsExpression") -> Tuple[str, tuple]:
         """Format SHOW WARNINGS statement.
@@ -243,16 +306,19 @@ class ClickHouseShowDialectMixin:
     # ========== SHOW ENGINES/CHARSET/COLLATION ==========
 
     def format_show_engines(self, expr: "ShowEnginesExpression") -> Tuple[str, tuple]:
-        """Format SHOW ENGINES statement.
+        """Format SHOW ENGINES.
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        ClickHouse's ``SHOW ENGINES`` is ``SELECT * FROM system.table_engines``.
+        Its columns are its own, not MySQL's: ``name`` plus eight
+        ``supports_*`` flags (``supports_settings``,
+        ``supports_skipping_indices``, ``supports_projections``,
+        ``supports_sort_order``, ``supports_ttl``, ``supports_replication``,
+        ``supports_deduplication``, ``supports_parallel_insert``) and then
+        ``description``, ``syntax``, ``examples``, ``introduced_in`` and
+        ``related``. MySQL's ``Engine`` / ``Support`` / ``Transactions`` / ``XA``
+        / ``Savepoints`` appear nowhere in that list.
         """
-        raise UnsupportedFeatureError(
-            self.name,
-            "SHOW ENGINES",
-            suggestion="Query system.table_engines instead.",
-        )
+        return "SHOW ENGINES", ()
 
     def format_show_charset(self, expr: "ShowCharsetExpression") -> Tuple[str, tuple]:
         """Format SHOW CHARACTER SET statement.
@@ -281,16 +347,23 @@ class ClickHouseShowDialectMixin:
     # ========== SHOW GRANTS/PLUGINS ==========
 
     def format_show_grants(self, expr: "ShowGrantsExpression") -> Tuple[str, tuple]:
-        """Format SHOW GRANTS statement.
+        """Format SHOW GRANTS [FOR <user>].
 
-        Note:
-            MySQL-only command, not supported by ClickHouse.
+        ClickHouse's grammar is ``SHOW GRANTS [FOR user1 [, user2 ...]] [WITH
+        IMPLICIT] [FINAL]`` — a comma-separated list of access-entity names,
+        with **no** ``user@host`` form: ``SHOW GRANTS FOR root@localhost`` on
+        26.7.3.19 is ``Code: 511. DB::Exception: There is no role
+        `root@localhost` in `user directories`. (UNKNOWN_ROLE)``, because
+        ClickHouse identifies access entities by role name alone. A supplied
+        ``host`` is therefore not rendered; ``FOR <user>`` is the whole
+        statement. ``SHOW GRANTS FOR CURRENT USER`` is also a ``SYNTAX_ERROR``
+        here; omitting ``FOR`` is how the current user's grants are read.
         """
-        raise UnsupportedFeatureError(
-            self.name,
-            "SHOW GRANTS",
-            suggestion="Query system.grants or other system.* access control tables instead.",
-        )
+        params = expr.get_params()
+        user = params.get("user")
+        if not user:
+            return "SHOW GRANTS", ()
+        return f"SHOW GRANTS FOR {self.format_identifier(user)}", ()
 
     def format_show_plugins(self, expr: "ShowPluginsExpression") -> Tuple[str, tuple]:
         """Format SHOW PLUGINS statement.

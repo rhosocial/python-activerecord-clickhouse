@@ -159,7 +159,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     maintenance,
     materialized_view,
     partition,
-    partition_lifecycle,
     rename_table,
     routine,
 )
@@ -288,17 +287,6 @@ def _integer_column(dialect, name="col"):
     renders it.
     """
     return ddl_table.ColumnDefinition(dialect, name, IntegerType(dialect))
-
-
-def _partition_definition(dialect):
-    """A named ClickHouse partition with a bound upper limit."""
-    return partition.ClickHousePartitionDefinition(
-        name="p2024", less_than=[Literal(dialect, 2025)]
-    )
-
-
-def _partition_keys(dialect):
-    return [Column(dialect, "id")]
 
 
 def register_specials():
@@ -480,124 +468,20 @@ def register_specials():
     )
 
     # -- ClickHouse partitions ----------------------------------------------
-    # ``keys`` is keyword-only behind a defaulted positional for the ``*By*``
-    # family, so the introspective constructor skips it and the clause declares
-    # no partitioning at all.
-    for _name in (
-        "ClickHousePartitionByRange",
-        "ClickHousePartitionByRangeColumns",
-        "ClickHousePartitionByList",
-        "ClickHousePartitionByListColumns",
-    ):
-        register_special_constructor(
-            f"partition.{_name}",
-            lambda d, _n=_name: getattr(partition, _n)(d, keys=_partition_keys(d)),
-        )
-    register_special_constructor(
-        "partition.ClickHousePartitionByHash",
-        lambda d: partition.ClickHousePartitionByHash(
-            d, keys=_partition_keys(d), partitions_count=4
-        ),
-    )
-    register_special_constructor(
-        "partition.ClickHousePartitionByKey",
-        lambda d: partition.ClickHousePartitionByKey(d, keys=_partition_keys(d)),
-    )
-    register_special_constructor(
-        "partition.ClickHouseSubpartitionClause",
-        lambda d: partition.ClickHouseSubpartitionClause(
-            d, partition.ClickHouseSubpartitionStrategy.HASH, count=2
-        ),
-    )
-    register_special_constructor(
-        "partition.ClickHousePartitionClause",
-        lambda d: partition.ClickHousePartitionClause(
-            d, partition.ClickHousePartitionStrategy.RANGE, keys=_partition_keys(d)
-        ),
-    )
-    register_special_constructor(
-        "partition.ClickHousePartitionNameListExpression",
-        lambda d: partition.ClickHousePartitionNameListExpression(d, ["p2024"]),
-    )
-    register_special_constructor(
-        "partition.ClickHousePartitionValue",
-        lambda d: partition.ClickHousePartitionValue(d, 1),
-    )
-    register_special_constructor(
-        "partition.ClickHouseGetPartitionsExpression",
-        lambda d: partition.ClickHouseGetPartitionsExpression(d, _table(d)),
-    )
-    # The partition maintenance statements share one shape: a base table and a
-    # list of partition names.
+    # The MySQL-style declarative partitioning family was deleted outright:
+    # ClickHouse declares partitioning as an arbitrary expression in CREATE
+    # TABLE, not as PARTITION ... VALUES statements. What remains are the
+    # three system.parts-addressed statements, each taking the table name
+    # and the partition id, and each rendering through one shared base.
     for _name in (
         "ClickHouseDropPartitionExpression",
-        "ClickHouseTruncatePartitionExpression",
-        "ClickHouseRebuildPartitionExpression",
-        "ClickHouseRepairPartitionExpression",
-        "ClickHouseAnalyzePartitionExpression",
-        "ClickHouseCheckPartitionExpression",
-        "ClickHouseOptimizePartitionExpression",
+        "ClickHouseDetachPartitionExpression",
+        "ClickHouseAttachPartitionExpression",
     ):
         register_special_constructor(
             f"partition.{_name}",
-            lambda d, _n=_name: getattr(partition, _n)(
-                d, table=_table(d), partitions=["p2024"]
-            ),
+            lambda d, _n=_name: getattr(partition, _n)(d, "t", "p2024"),
         )
-    register_special_constructor(
-        "partition.ClickHouseCoalescePartitionExpression",
-        lambda d: partition.ClickHouseCoalescePartitionExpression(
-            d, table=_table(d), count=2
-        ),
-    )
-    register_special_constructor(
-        "partition.ClickHouseRemovePartitioningExpression",
-        lambda d: partition.ClickHouseRemovePartitioningExpression(d, table=_table(d)),
-    )
-    register_special_constructor(
-        "partition.ClickHouseAddPartitionExpression",
-        lambda d: partition.ClickHouseAddPartitionExpression(
-            d, table=_table(d), partitions=[_partition_definition(d)]
-        ),
-    )
-    register_special_constructor(
-        "partition.ClickHouseReorganizePartitionExpression",
-        lambda d: partition.ClickHouseReorganizePartitionExpression(
-            d, table=_table(d), partition="p2024", into=[_partition_definition(d)]
-        ),
-    )
-    register_special_constructor(
-        "partition.ClickHouseExchangePartitionExpression",
-        lambda d: partition.ClickHouseExchangePartitionExpression(
-            d, table=_table(d), partition="p2024", exchange_table=Table(d, "other")
-        ),
-    )
-
-    # -- ClickHouse partition helpers ---------------------------------------
-    register_special_constructor(
-        "partition_lifecycle.ClickHouseAddPartitionHelper",
-        lambda d: partition_lifecycle.ClickHouseAddPartitionHelper(
-            d, table=_table(d), partition_values=[1]
-        ),
-    )
-    register_special_constructor(
-        "partition_lifecycle.ClickHouseDropOldestPartitionHelper",
-        lambda d: partition_lifecycle.ClickHouseDropOldestPartitionHelper(
-            d, table=_table(d), partition_names=["p0"]
-        ),
-    )
-    register_special_constructor(
-        "partition_lifecycle.ClickHouseAddSubpartitionHelper",
-        lambda d: partition_lifecycle.ClickHouseAddSubpartitionHelper(
-            d, table=_table(d), partition_name="p0", less_than=[Literal(d, 2)]
-        ),
-    )
-    register_special_constructor(
-        "partition_lifecycle.ClickHouseCoalescePartitionHelper",
-        lambda d: partition_lifecycle.ClickHouseCoalescePartitionHelper(
-            d, table=_table(d), target_count=1, current_count=3
-        ),
-    )
 
     # -- ClickHouse maintenance, routines, materialized views ----------------
     for _name in (
@@ -674,6 +558,20 @@ def register_specials():
         "rename_table.ClickHouseRenameTableExpression",
         lambda d: rename_table.ClickHouseRenameTableExpression(d, [("a", "b")]),
     )
+    # CUSTOM. Its ``raw`` slot exists to carry the SQL type name and defaults
+    # to the empty string, which the filler skips and the class refuses while
+    # constructing. Handed a real name it builds -- and then the dialect
+    # refuses it, which is what the existing LEGITIMATE_NON_RENDERS pin below
+    # asserts. A constructor rather than a skip, so the pin has something to
+    # assert against.
+    def _custom_type(dialect):
+        from rhosocial.activerecord.backend.expression.types.custom import (
+            CustomType,
+        )
+
+        return CustomType(dialect, "String")
+
+    register_special_constructor("types.custom.CustomType", _custom_type)
 
 
 register_specials()
@@ -720,6 +618,13 @@ UNCONSTRUCTIBLE = (
     # positional, so the introspective constructor skips it and the type declares
     # no members.
     "rhosocial.activerecord.backend.expression.types.enum_.EnumType",
+    # The three UUID nodes refuse in __init__, not in to_sql(): ClickHouse
+    # spells no UUID SQL, so the answer is the same for every argument and no
+    # registered constructor can change it. Measured with a valid ``which`` --
+    # an invalid one raises ValueError first and hides the dialect's answer.
+    "rhosocial.activerecord.backend.expression.uuid.UUIDCastExpression",
+    "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
+    "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
 )
 # Four XML classes used to be entries here, and retiring them is what the pin
 # demands rather than a loss of coverage: each named a gap that no longer exists.
@@ -784,6 +689,14 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.introspection.IntrospectionExpression": (
         NotImplementedError,
         _NO_FORMATTER,
+    ),
+    # The shared base of the three ``ALTER TABLE ... PARTITION ID`` clauses.
+    # Each concrete subclass declares its own ``format_method``; the base names
+    # the convention and refuses, which is the same answer as the category
+    # bases above rather than a construction gap.
+    "rhosocial.activerecord.backend.impl.clickhouse.expression.partition._ClickHousePartitionIdExpression": (
+        NotImplementedError,
+        "must declare its format_method property",
     ),
     # An expression-category base whose concrete members each name their own
     # formatter: an ALTER TABLE action, an INSERT row source, a transaction step,
@@ -1046,17 +959,13 @@ LEGITIMATE_NON_RENDERS = {
         TypeError,
         "does not support the generic type 'timestamptz'",
     ),
-    "rhosocial.activerecord.backend.expression.types.integer.IntType": (
-        TypeError,
-        "does not support the generic type 'int'",
-    ),
     "rhosocial.activerecord.backend.expression.types.json_.JsonBType": (
         TypeError,
         "does not support the generic type 'jsonb'",
     ),
-    "rhosocial.activerecord.backend.expression.types.uuid_.UUIDType": (
+    "rhosocial.activerecord.backend.expression.types.xml_.XmlType": (
         TypeError,
-        "does not support the generic type 'uuid'",
+        "does not support the generic type 'xml'",
     ),
 }
 

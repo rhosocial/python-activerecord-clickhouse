@@ -1,302 +1,234 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/partition.py
-from typing import Sequence, Tuple, Union, TYPE_CHECKING
+"""ClickHouse table-partition capability and rendering.
+
+ClickHouse partitioning is a property of the ``MergeTree`` family: a
+``PARTITION BY <expr>`` clause on ``CREATE TABLE``, where the expression is
+any expression over the table's columns (or a tuple of them). There is no
+strategy to pick, no ``VALUES`` boundary and no subpartitioning. Declaring the
+clause is done by the storage-clause formatter
+(:meth:`~.ddl_table_engine.ClickHouseTableEngineMixin.format_table_engine_clauses`,
+which renders ``PARTITION BY`` out of the ``storage_options`` mapping); what is
+left for this mixin is the capability switches and the three ``ALTER TABLE``
+maintenance clauses ClickHouse actually has, each addressed by **partition id**.
+
+References (both fetched and HTTP-resolving):
+https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key
+https://clickhouse.com/docs/sql-reference/statements/alter/partition
+"""
+from typing import NoReturn, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements import PartitionClause
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
-        ClickHouseAddPartitionExpression,
+    from ..expression.partition import (
+        ClickHouseAttachPartitionExpression,
+        ClickHouseDetachPartitionExpression,
         ClickHouseDropPartitionExpression,
-        ClickHouseGetPartitionsExpression,
-        ClickHousePartitionByHash,
-        ClickHousePartitionByKey,
-        ClickHousePartitionByList,
-        ClickHousePartitionByListColumns,
-        ClickHousePartitionByRange,
-        ClickHousePartitionByRangeColumns,
-        ClickHousePartitionDefinition,
-        ClickHousePartitionMaxValue,
-        ClickHousePartitionNameListExpression,
-        ClickHousePartitionValue,
-        ClickHouseExchangePartitionExpression,
-        ClickHouseReorganizePartitionExpression,
-        ClickHouseTruncatePartitionExpression,
-        ClickHouseRemovePartitioningExpression,
-        ClickHouseCoalescePartitionExpression,
-        ClickHouseAnalyzePartitionExpression,
-        ClickHouseCheckPartitionExpression,
-        ClickHouseOptimizePartitionExpression,
-        ClickHouseRebuildPartitionExpression,
-        ClickHouseRepairPartitionExpression,
-        ClickHouseSubpartitionClause,
-        ClickHouseSubpartitionDefinition,
     )
 
 
-class ClickHousePartitionMixin:
-    """ClickHouse table partitioning implementation.
+#: The ``ALTER TABLE ... PARTITION`` inventory, transcribed from the ALTER TABLE
+#: ... PARTITION reference cited below. This is also what proves the absence of
+#: everything else, so it is kept as data rather than prose: a test asserts
+#: that nothing in :data:`MYSQL_ONLY_PARTITION_STATEMENTS` /
+#: :data:`MYSQL_ONLY_PARTITION_SYNTAX` appears in it.
+#:
+#: The server's own expectation list is a mild superset of this tuple — it also
+#: offers partition-level ``MODIFY TTL`` / ``REMOVE TTL`` / ``MATERIALIZE TTL``
+#: and ``UNLOCK SNAPSHOT`` — so nothing here is wrong, but the tuple is not the
+#: whole of what ClickHouse accepts either.
+ALTER_PARTITION_INVENTORY = (
+    "DETACH PARTITION|PART",
+    "DROP PARTITION|PART",
+    "DROP DETACHED PARTITION|PART",
+    "FORGET PARTITION",
+    "ATTACH PARTITION|PART",
+    "ATTACH PARTITION FROM",
+    "REPLACE PARTITION",
+    "MOVE PARTITION TO TABLE",
+    "CLEAR COLUMN IN PARTITION",
+    "CLEAR INDEX IN PARTITION",
+    "FREEZE PARTITION",
+    "UNFREEZE PARTITION",
+    "FETCH PARTITION|PART",
+    "MOVE PARTITION|PART TO DISK|VOLUME",
+    "UPDATE IN PARTITION",
+    "DELETE IN PARTITION",
+    "REWRITE PARTS",
+)
 
-    WARNING: ClickHouse does not support MySQL declarative partitioning
-    (``PARTITION BY RANGE/LIST/HASH/KEY`` with explicit partition definitions,
-    subpartitioning, and ``ALTER TABLE ... PARTITION`` maintenance statements).
-    ClickHouse partitioning is expressed as a ``PARTITION BY`` expression in
-    ``CREATE TABLE``, handled by ``ClickHouseTableEngineMixin``. All MySQL
-    declarative partition SQL generation methods in this class raise
-    ``UnsupportedFeatureError``; the corresponding ``supports_*`` switches
-    return ``False``.
+#: MySQL ``ALTER TABLE`` partition statements with no ClickHouse spelling.
+#: Nothing in :data:`ALTER_PARTITION_INVENTORY` matches any of these; asking the
+#: server for one returns its expectation list naming every clause it does
+#: accept, and none of those names is among them.
+MYSQL_ONLY_PARTITION_STATEMENTS = (
+    "ADD PARTITION",
+    "TRUNCATE PARTITION",
+    "REORGANIZE PARTITION",
+    "EXCHANGE PARTITION",
+    "REMOVE PARTITIONING",
+    "COALESCE PARTITION",
+    "ANALYZE PARTITION",
+    "CHECK PARTITION",
+    "OPTIMIZE PARTITION",
+    "REBUILD PARTITION",
+    "REPAIR PARTITION",
+    "SUBPARTITION BY",
+)
+
+#: MySQL inline partition syntax with no ClickHouse spelling. Not a statement
+#: name, so kept apart from :data:`MYSQL_ONLY_PARTITION_STATEMENTS` to keep that
+#: tuple comparable against :data:`ALTER_PARTITION_INVENTORY` entry by entry.
+MYSQL_ONLY_PARTITION_SYNTAX = (
+    "PARTITION ... VALUES LESS THAN",
+    "PARTITION ... VALUES IN",
+    "MAXVALUE partition boundary",
+)
+
+_PARTITION_ALTERNATIVES = (
+    "ClickHouse partitions a MergeTree table with PARTITION BY <expr> in "
+    "CREATE TABLE, not with a named RANGE/LIST/HASH/KEY strategy; it is "
+    "declared through the storage_options mapping. A partition comes into "
+    "existence when a row lands in it, so there is nothing to ADD, and its "
+    "contents are addressed by system.parts.partition_id rather than by a "
+    "DDL-declared name."
+)
+
+
+class ClickHousePartitionMixin:
+    """ClickHouse table-partition support.
+
+    Covers the two things ClickHouse genuinely has — the ``PARTITION BY``
+    capability and partition maintenance by partition id — and refuses
+    everything the MySQL partition surface asked for. The refusals are
+    overrides of the generic ``PartitionSupport`` contract rather than one
+    ``supports_*`` switch per MySQL statement: a switch per MySQL statement
+    would be an inventory of statements ClickHouse does not have, and the
+    authoritative inventory is
+    :data:`ALTER_PARTITION_INVENTORY` (see :mod:`..expression.partition`).
     """
 
+    # ------------------------------------------------------------------
+    # Capabilities
+    # ------------------------------------------------------------------
+
     def supports_table_partitioning(self) -> bool:
-        """ClickHouse supports ``PARTITION BY`` expression in CREATE TABLE."""
+        """ClickHouse partitions tables, via ``PARTITION BY <expr>`` on MergeTree."""
         return True
 
     def supports_partitioned_table_creation(self) -> bool:
-        """ClickHouse supports ``PARTITION BY`` in partitioned table creation."""
+        """``CREATE TABLE`` may carry the ``PARTITION BY`` clause."""
         return True
 
-    def supports_range_table_partitioning(self) -> bool:
-        return False
+    def supports_partition_metadata_introspection(self) -> bool:
+        """ClickHouse reports partitions in ``system.parts``.
 
-    def supports_list_table_partitioning(self) -> bool:
-        return False
-
-    def supports_hash_table_partitioning(self) -> bool:
-        return False
-
-    def supports_key_table_partitioning(self) -> bool:
-        return False
-
-    def supports_subpartitioning(self) -> bool:
-        """ClickHouse has no subpartitioning."""
-        return False
-
-    def supports_range_columns_partitioning(self) -> bool:
-        return False
-
-    def supports_list_columns_partitioning(self) -> bool:
-        return False
-
-    def supports_linear_hash_partitioning(self) -> bool:
-        return False
-
-    def supports_linear_key_partitioning(self) -> bool:
-        return False
-
-    def supports_add_partition(self) -> bool:
-        return False
+        The columns that carry the partition are ``partition`` (the key value),
+        ``partition_id`` (the id ``ALTER TABLE ... PARTITION ID`` addresses) and
+        ``name`` (the part name). ``information_schema.PARTITIONS`` is MySQL's
+        and the server rejects that table name.
+        """
+        return True
 
     def supports_drop_partition(self) -> bool:
-        return False
-
-    def supports_truncate_partition(self) -> bool:
-        return False
-
-    def supports_reorganize_partition(self) -> bool:
-        return False
-
-    def supports_attach_partition(self) -> bool:
-        return False
+        """``ALTER TABLE ... DROP PARTITION ID`` — supported."""
+        return True
 
     def supports_detach_partition(self) -> bool:
-        return False
+        """``ALTER TABLE ... DETACH PARTITION ID`` — supported."""
+        return True
 
-    def supports_partition_metadata_introspection(self) -> bool:
-        """ClickHouse partition introspection uses ``system.parts``, not
-        MySQL ``information_schema.PARTITIONS``."""
-        return False
+    def supports_attach_partition(self) -> bool:
+        """``ALTER TABLE ... ATTACH PARTITION ID`` — supported."""
+        return True
 
-    def supports_partition_definition_options(self) -> bool:
-        return False
+    # ------------------------------------------------------------------
+    # Refusals
+    # ------------------------------------------------------------------
 
-    def supports_partition_value_maxvalue(self) -> bool:
-        return False
+    def format_partition_clause(self, expr) -> Tuple[str, tuple]:
+        """Refuse a generic ``PartitionClause``.
 
-    def supports_remove_partitioning(self) -> bool:
-        return False
-
-    def supports_coalesce_partition(self) -> bool:
-        return False
-
-    def supports_exchange_partition(self) -> bool:
-        return False
-
-    def supports_analyze_partition(self) -> bool:
-        return False
-
-    def supports_check_partition(self) -> bool:
-        return False
-
-    def supports_optimize_partition(self) -> bool:
-        return False
-
-    def supports_rebuild_partition(self) -> bool:
-        return False
-
-    def supports_repair_partition(self) -> bool:
-        return False
-
-    def _unsupported(self, feature: str) -> None:
-        """Raise UnsupportedFeatureError for MySQL declarative partitioning.
-
-        ClickHouse partitioning is a ``PARTITION BY`` expression in
-        ``CREATE TABLE`` (see ``ClickHouseTableEngineMixin``), not MySQL
-        declarative partitioning.
+        A generic ``PartitionClause`` can only be spelled ``RANGE``/``LIST``/
+        ``HASH`` (or the backend's own enum), and none of those is a ClickHouse
+        partition key — ClickHouse takes an arbitrary expression instead. The
+        honest refusal points at where ``PARTITION BY`` *is* written.
         """
-        raise UnsupportedFeatureError(
-            self.name,
-            feature,
-            suggestion="ClickHouse uses PARTITION BY expression in CREATE TABLE, not MySQL declarative partitioning.",
-        )
+        self._refuse_mysql_partition("declarative PARTITION BY <strategy>")
 
-    def format_partition_clause(self, expr: "PartitionClause") -> Tuple[str, tuple]:
-        """Format ClickHouse PARTITION BY clause from a PartitionClause expression.
+    def format_partition_definition(self, definition) -> Tuple[str, tuple]:
+        """Refuse an inline ``PARTITION ... VALUES ...`` definition.
 
-        MySQL declarative partitioning is not supported by ClickHouse.
+        ClickHouse has no inline partition definitions: a partition is not
+        declared in the table's DDL, so there is nothing for a definition to
+        render.
         """
-        self._unsupported(f"{expr.method} declarative partitioning")
+        self._refuse_mysql_partition("inline partition definitions")
 
-    def format_partition_by_range(self, expr: "ClickHousePartitionByRange") -> Tuple[str, tuple]:
-        """MySQL ``PARTITION BY RANGE`` is not supported by ClickHouse."""
-        self._unsupported("RANGE declarative partitioning")
+    def _refuse_mysql_partition(self, feature: str) -> NoReturn:
+        """Raise ``UnsupportedFeatureError`` naming ClickHouse's partitioning."""
+        raise UnsupportedFeatureError(self.name, feature, _PARTITION_ALTERNATIVES)
 
-    def format_partition_by_range_columns(self, expr: "ClickHousePartitionByRangeColumns") -> Tuple[str, tuple]:
-        """MySQL ``PARTITION BY RANGE COLUMNS`` is not supported by ClickHouse."""
-        self._unsupported("RANGE COLUMNS declarative partitioning")
+    # ------------------------------------------------------------------
+    # Formatters — the three maintenance clauses ClickHouse has
+    # ------------------------------------------------------------------
 
-    def format_partition_by_list(self, expr: "ClickHousePartitionByList") -> Tuple[str, tuple]:
-        """MySQL ``PARTITION BY LIST`` is not supported by ClickHouse."""
-        self._unsupported("LIST declarative partitioning")
-
-    def format_partition_by_list_columns(self, expr: "ClickHousePartitionByListColumns") -> Tuple[str, tuple]:
-        """MySQL ``PARTITION BY LIST COLUMNS`` is not supported by ClickHouse."""
-        self._unsupported("LIST COLUMNS declarative partitioning")
-
-    def format_partition_by_hash(self, expr: "ClickHousePartitionByHash") -> Tuple[str, tuple]:
-        """MySQL ``PARTITION BY HASH`` is not supported by ClickHouse."""
-        self._unsupported("HASH declarative partitioning")
-
-    def format_partition_by_key(self, expr: "ClickHousePartitionByKey") -> Tuple[str, tuple]:
-        """MySQL ``PARTITION BY KEY`` is not supported by ClickHouse."""
-        self._unsupported("KEY declarative partitioning")
-
-    def format_partition_definition(self, definition: "ClickHousePartitionDefinition") -> Tuple[str, tuple]:
-        """MySQL partition definitions are not supported by ClickHouse."""
-        self._unsupported("partition definitions")
-
-    def format_partition_definition_options(self, options: dict) -> Tuple[str, tuple]:
-        """MySQL partition definition options are not supported by ClickHouse."""
-        self._unsupported("partition definition options")
-
-    def format_get_partitions_expression(self, expr: "ClickHouseGetPartitionsExpression") -> Tuple[str, tuple]:
-        """MySQL ``SELECT ... FROM information_schema.PARTITIONS`` is not supported.
-
-        ClickHouse partition introspection uses the ``system.parts`` table.
-
-        Args:
-            expr: ClickHouseGetPartitionsExpression with the target table name.
+    def format_drop_partition_statement(
+        self, expr: "ClickHouseDropPartitionExpression"
+    ) -> Tuple[str, tuple]:
+        """Render ``ALTER TABLE ... DROP PARTITION ID '<id>'``.
 
         Raises:
-            UnsupportedFeatureError: always.
+            UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        self._unsupported("information_schema.PARTITIONS introspection")
+        return self._format_partition_id_statement(expr, "DROP")
 
-    def format_partition_value(
-        self,
-        expr: Union["ClickHousePartitionValue", "ClickHousePartitionMaxValue"],
+    def format_detach_partition_statement(
+        self, expr: "ClickHouseDetachPartitionExpression"
     ) -> Tuple[str, tuple]:
-        """MySQL partition boundary values are not supported by ClickHouse."""
-        self._unsupported("partition boundary VALUES")
+        """Render ``ALTER TABLE ... DETACH PARTITION ID '<id>'``.
 
-    def format_subpartition_by(self, expr: "ClickHouseSubpartitionClause") -> Tuple[str, tuple]:
-        """MySQL ``SUBPARTITION BY`` is not supported by ClickHouse."""
-        self._unsupported("subpartitioning")
-
-    def format_subpartition_definition(self, definition: "ClickHouseSubpartitionDefinition") -> Tuple[str, tuple]:
-        """MySQL subpartition definitions are not supported by ClickHouse."""
-        self._unsupported("subpartition definitions")
-
-    def format_add_partition_statement(self, expr: "ClickHouseAddPartitionExpression") -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... ADD PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("ADD PARTITION")
-
-    def format_drop_partition_statement(self, expr: "ClickHouseDropPartitionExpression") -> Tuple[str, tuple]:
-        """MySQL declarative ``ALTER TABLE ... DROP PARTITION`` is not supported.
-
-        ClickHouse removes partitions by partition-id via
-        ``ALTER TABLE ... DROP PARTITION``.
+        Raises:
+            UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        self._unsupported("declarative DROP PARTITION")
+        return self._format_partition_id_statement(expr, "DETACH")
 
-    def format_truncate_partition_statement(self, expr: "ClickHouseTruncatePartitionExpression") -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... TRUNCATE PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("TRUNCATE PARTITION")
-
-    def format_reorganize_partition_statement(
-        self,
-        expr: "ClickHouseReorganizePartitionExpression",
+    def format_attach_partition_statement(
+        self, expr: "ClickHouseAttachPartitionExpression"
     ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... REORGANIZE PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("REORGANIZE PARTITION")
+        """Render ``ALTER TABLE ... ATTACH PARTITION ID '<id>'``.
 
-    def format_exchange_partition_statement(
-        self,
-        expr: "ClickHouseExchangePartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... EXCHANGE PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("EXCHANGE PARTITION")
+        Raises:
+            UnsupportedFeatureError: if ``expr`` does not carry a partition id.
+        """
+        return self._format_partition_id_statement(expr, "ATTACH")
 
-    def format_partition_name_list(
-        self, expr: "ClickHousePartitionNameListExpression"
-    ) -> Tuple[str, tuple]:
-        """MySQL partition-name lists are not supported by ClickHouse."""
-        self._unsupported("partition name list")
+    def _format_partition_id_statement(self, expr, verb: str) -> Tuple[str, tuple]:
+        """Render one ``ALTER TABLE ... <verb> PARTITION ID '<id>'`` statement.
 
-    def format_remove_partitioning_statement(
-        self,
-        expr: "ClickHouseRemovePartitioningExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... REMOVE PARTITIONING`` is not supported by ClickHouse."""
-        self._unsupported("REMOVE PARTITIONING")
+        The id is an inline literal rather than a bind parameter because an
+        ``ALTER`` clause is DDL-shaped: the partition id is chosen by the
+        caller, not derived from a column value, so there is no query-planning
+        benefit in parameterising it.
+        """
+        partition_id = getattr(expr, "partition_id", None)
+        if not isinstance(partition_id, str) or not partition_id.strip():
+            raise UnsupportedFeatureError(
+                self.name,
+                f"{verb} PARTITION",
+                _PARTITION_ALTERNATIVES,
+            )
+        from rhosocial.activerecord.backend.expression.objects import Table
 
-    def format_coalesce_partition_statement(
-        self,
-        expr: "ClickHouseCoalescePartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... COALESCE PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("COALESCE PARTITION")
-
-    def format_analyze_partition_statement(
-        self,
-        expr: "ClickHouseAnalyzePartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... ANALYZE PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("ANALYZE PARTITION")
-
-    def format_check_partition_statement(
-        self,
-        expr: "ClickHouseCheckPartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... CHECK PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("CHECK PARTITION")
-
-    def format_optimize_partition_statement(
-        self,
-        expr: "ClickHouseOptimizePartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... OPTIMIZE PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("OPTIMIZE PARTITION")
-
-    def format_rebuild_partition_statement(
-        self,
-        expr: "ClickHouseRebuildPartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... REBUILD PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("REBUILD PARTITION")
-
-    def format_repair_partition_statement(
-        self,
-        expr: "ClickHouseRepairPartitionExpression",
-    ) -> Tuple[str, tuple]:
-        """MySQL ``ALTER TABLE ... REPAIR PARTITION`` is not supported by ClickHouse."""
-        self._unsupported("REPAIR PARTITION")
+        # The expression stores the bare name (and the database, when given)
+        # so its round trip carries exactly what the constructor accepted; the
+        # catalog slot is where ClickHouse keeps its database, so that is where
+        # the name is qualified here, at render time.
+        table_sql, table_params = self.format_table_object(
+            Table(self, expr.table, catalog_name=expr.schema)
+        )
+        return (
+            f"ALTER TABLE {table_sql} {verb} PARTITION ID "
+            f"{self.format_literal(partition_id)}",
+            tuple(table_params),
+        )

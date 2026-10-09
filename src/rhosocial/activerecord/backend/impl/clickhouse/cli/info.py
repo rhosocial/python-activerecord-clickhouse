@@ -212,12 +212,17 @@ def handle(args):
 
     # Create default dialect if not connected
     if dialect is None:
-        # Parse version from command line or use default
+        # Parse version from command line, else fall back to the oldest maintained
+        # line. 25.8 is a real ClickHouse LTS release (see
+        # docs/en_US/introduction/supported_versions.md) and is the safest floor to
+        # simulate: capability gates for anything newer stay off, so the output
+        # shows what an older server can do rather than what the newest can. The
+        # previous default was (8, 0, 0), a release ClickHouse has never had.
         actual_version = args.version
         if actual_version:
             version = parse_version(actual_version)
         else:
-            version = (8, 0, 0)  # Default version
+            version = (25, 8, 0)
         from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
         dialect = ClickHouseDialect(version=version)

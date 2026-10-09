@@ -436,8 +436,11 @@ class ClickHouseBackend(
                 conn.close()
                 self.log(logging.INFO, "Disconnected from ClickHouse database")
             except (ClickHouseError, BrokenPipeError, OSError) as e:
-                # ClickHouse 5.6 may raise BrokenPipeError when closing a dead connection
-                # after KILL CONNECTION. We treat disconnect as always successful
+                # Closing a connection the server has already dropped (e.g. after
+                # KILL CONNECTION) writes to a socket the peer has closed, and
+                # the OS reports that as BrokenPipeError/OSError. That comes from
+                # the socket layer, not from a server release, so it is treated
+                # as expected at any version: disconnect is always successful
                 # since the reference is already cleared.
                 self.log(logging.WARNING, f"Error during disconnection (ignored): {str(e)}")
 

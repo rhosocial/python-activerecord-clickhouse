@@ -33,7 +33,15 @@ class ClickHouseMatchAgainstExpression(
     """ClickHouse MATCH...AGAINST expression.
 
     Generates MATCH(col1, col2, ...) AGAINST(search_string [IN mode]) syntax.
-    Supported in ClickHouse 5.6+ (with FULLTEXT index).
+
+    This dialect never renders it: ``ClickHouseFullTextSearchMixin.format_match_against``
+    raises ``UnsupportedFeatureError``. ClickHouse has no ``MATCH ... AGAINST``
+    and no ``FULLTEXT`` index type — declaring one answers ``Unknown Index type
+    'fulltext'`` and lists what the server does have (``hypothesis, text,
+    vector_similarity, bloom_filter, sparse_grams, tokenbf_v1, ngrambf_v1, set,
+    minmax``). The ClickHouse equivalent is a ``text`` inverted index queried
+    with ``hasAllTokens`` / ``hasAnyTokens``. No ClickHouse version enables this
+    syntax, because no version has the statement.
 
     Attributes:
         columns: Column names to search

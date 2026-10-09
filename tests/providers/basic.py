@@ -348,11 +348,15 @@ class BasicProviderBase:
         """Return a bare, fully-constructed ClickHouse dialect instance.
 
         Used by the ``feature/basic/ddl`` subtopic (expression/dialect
-        contract). ``(8, 0, 0)`` is the version the ddl provider used.
+        contract). A version has to be supplied because an unadapted
+        ``ClickHouseDialect()`` raises ``DialectNotAdaptedException`` the moment
+        ``dialect.version`` is read; ``(26, 7, 1)`` is the current stable line
+        and is the same version the backend's own dialect tests use. It used to
+        be ``(8, 0, 0)``, which is not a ClickHouse release.
         """
         from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
-        return ClickHouseDialect(version=(8, 0, 0))
+        return ClickHouseDialect(version=(26, 7, 1))
 
     def _track_backend(self, backend_instance, collection: List) -> None:
         if backend_instance not in collection:

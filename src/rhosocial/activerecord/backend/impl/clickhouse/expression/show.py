@@ -15,11 +15,19 @@ Key design:
 - to_sql() delegates to dialect.format_show_* methods
 - Dialect handles actual SQL generation
 
-.. warning::
-    This module was copied from the MySQL backend template and contains
-    MySQL-style SQL functions/show commands. ClickHouse uses different
-    function names (e.g. ``JSONExtract*``) and a different SHOW command
-    subset. May generate non-ClickHouse SQL; verify before use.
+Nine of these are ClickHouse statements, and their output column names differ
+from MySQL's: ``SHOW CREATE TABLE`` / ``SHOW CREATE VIEW`` answer a single
+``statement`` column; ``SHOW TABLES`` names it ``name``, adding ``engine``
+under ``FULL``; ``SHOW DATABASES`` names it ``name``; ``SHOW COLUMNS`` reports
+``field`` / ``type`` / ``null`` / ``key`` / ``default`` / ``extra``; ``SHOW
+INDEX`` reports ``pk_col`` where MySQL says ``Column_name``; ``SHOW
+PROCESSLIST`` and ``SHOW ENGINES`` are ``system.processes`` and
+``system.table_engines`` verbatim; and ``SHOW GRANTS`` returns one column named
+after the statement text plus the requested output format. The rest of the
+MySQL ``SHOW`` set is ClickHouse's to not have, and each of those expressions
+carries a NOTE saying so — their dialect formatter raises
+``UnsupportedFeatureError`` naming the ClickHouse replacement, so no expression
+here renders SQL the server would reject.
 """
 
 from typing import Any, Dict, Optional, TYPE_CHECKING
@@ -104,12 +112,9 @@ class ShowCreateViewExpression(ShowExpression):
 class ShowColumnsExpression(ShowExpression):
     """Expression for SHOW [FULL] COLUMNS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    ``full``, ``like_pattern`` and ``schema`` are keyword arguments as well as
-    fluent methods, for the reason given on :class:`ShowTablesExpression`: the
-    constructor has to accept everything ``get_params`` emits, or the expression
-    cannot be rebuilt from its own serialization.
+    ClickHouse has this statement; the table is mandatory (bare ``SHOW COLUMNS``
+    is a ``SYNTAX_ERROR``) and the database, when given, is part of the table
+    reference (``SHOW COLUMNS FROM db.t``), never a second ``FROM``.
     """
 
     def __init__(
@@ -153,7 +158,8 @@ class ShowColumnsExpression(ShowExpression):
 class ShowIndexExpression(ShowExpression):
     """Expression for SHOW INDEX command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement "mostly for compatibility with MySQL". As with
+    ``SHOW COLUMNS``, the database is part of the table reference.
     """
 
     def __init__(self, dialect: "ClickHouseDialect", table: str):
@@ -410,11 +416,9 @@ class ShowStatusExpression(ShowExpression):
 class ShowProcessListExpression(ShowExpression):
     """Expression for SHOW PROCESSLIST command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    ``full`` and ``schema`` are keyword arguments as well as fluent methods; see
-    :class:`ShowTablesExpression` for why the constructor has to accept what
-    ``get_params`` emits.
+    ClickHouse has this statement; it is ``SELECT * FROM system.processes``.
+    ``full`` is accepted and never rendered — the statement has no ``FULL``
+    variant.
     """
 
     def __init__(
@@ -496,7 +500,7 @@ class ShowErrorsExpression(ShowExpression):
 class ShowEnginesExpression(ShowExpression):
     """Expression for SHOW ENGINES command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement; it is ``SELECT * FROM system.table_engines``.
     """
 
     def to_sql(self) -> SQLQueryAndParams:
@@ -556,7 +560,8 @@ class ShowCollationExpression(ShowExpression):
 class ShowGrantsExpression(ShowExpression):
     """Expression for SHOW GRANTS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement. Its ``FOR`` clause takes access-entity names
+    only — there is no ``user@host`` form — so ``host`` is accepted and ignored.
     """
 
     def __init__(self, dialect: "ClickHouseDialect"):

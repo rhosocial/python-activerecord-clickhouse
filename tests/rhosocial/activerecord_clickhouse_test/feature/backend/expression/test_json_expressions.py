@@ -23,7 +23,7 @@ class TestClickHouseJSONExtractExpression:
 
     def test_json_extract_basic(self):
         """Test basic JSON extraction."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONExtractExpression(dialect, "data", "$.name")
         sql, params = expr.to_sql()
@@ -34,7 +34,7 @@ class TestClickHouseJSONExtractExpression:
 
     def test_json_extract_with_alias(self):
         """Test JSON extraction with alias."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONExtractExpression(dialect, "data", "$.name").as_("extracted_name")
         sql, params = expr.to_sql()
@@ -44,7 +44,7 @@ class TestClickHouseJSONExtractExpression:
 
     def test_json_extract_array_path(self):
         """Test JSON extraction with array path."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONExtractExpression(dialect, "data", "$[0]")
         sql, params = expr.to_sql()
@@ -58,7 +58,7 @@ class TestClickHouseJSONObjectExpression:
 
     def test_json_object_basic(self):
         """Test basic JSON object creation."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONObjectExpression(dialect, data={"name": "John", "age": 30})
         sql, params = expr.to_sql()
@@ -69,7 +69,7 @@ class TestClickHouseJSONObjectExpression:
 
     def test_json_object_with_kwargs(self):
         """Test JSON object creation with keyword arguments."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONObjectExpression(dialect, name="John", age=30).as_("obj")
         sql, params = expr.to_sql()
@@ -83,7 +83,7 @@ class TestClickHouseJSONArrayExpression:
 
     def test_json_array_basic(self):
         """Test basic JSON array creation."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONArrayExpression(dialect, values=[1, 2, 3])
         sql, params = expr.to_sql()
@@ -93,7 +93,7 @@ class TestClickHouseJSONArrayExpression:
 
     def test_json_array_with_args(self):
         """Test JSON array with positional arguments."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONArrayExpression(dialect, 1, 2, 3)
         sql, params = expr.to_sql()
@@ -103,7 +103,7 @@ class TestClickHouseJSONArrayExpression:
 
     def test_json_array_with_alias(self):
         """Test JSON array with alias."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONArrayExpression(dialect, ["a", "b"]).as_("arr")
         sql, params = expr.to_sql()
@@ -117,7 +117,7 @@ class TestClickHouseJSONContainsExpression:
 
     def test_json_contains_basic(self):
         """Test basic JSON contains check."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONContainsExpression(dialect, "data", "John", "$.name")
         sql, params = expr.to_sql()
@@ -128,7 +128,7 @@ class TestClickHouseJSONContainsExpression:
 
     def test_json_contains_with_alias(self):
         """Test JSON contains with alias."""
-        dialect = ClickHouseDialect(version=(8, 0, 0))
+        dialect = ClickHouseDialect(version=(26, 7, 1))
 
         expr = ClickHouseJSONContainsExpression(dialect, "data", "value", "$.key").as_("contains")
         sql, params = expr.to_sql()

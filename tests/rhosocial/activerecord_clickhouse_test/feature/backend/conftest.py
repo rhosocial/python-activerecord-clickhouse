@@ -323,9 +323,19 @@ def check_protocol_requirements(request):
 
 @pytest.fixture(scope="function")
 def clickhouse_dialect():
-    """Fixture providing ClickHouseDialect instance for testing transaction expressions."""
+    """Fixture providing ClickHouseDialect instance for testing transaction expressions.
+
+    The version has to be set: ``ClickHouseDialect()`` with no version raises
+    ``DialectNotAdaptedException`` from the moment anything reads
+    ``dialect.version``. It is set to ``(26, 7, 1)`` — a real ClickHouse release
+    line, and the same one ``test_unsupported_features.py`` uses — because the
+    value is not cosmetic: ``dialect.version`` is what the real gates compare
+    against, including ``supports_explain_analyze()`` at ``>= (26, 7, 0)``, the
+    JSON gates at ``>= (26, 0, 0)``, the function-version table and the ``QBit``
+    floor. The fabricated ``(8, 0, 0)`` this used to set compares *below* every
+    one of them, so it silently reported the server as too old for features it
+    has. ClickHouse's numbering has never had an 8.0.
+    """
     from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
-    dialect = ClickHouseDialect()
-    dialect.version = (8, 0, 0)
-    return dialect
+    return ClickHouseDialect(version=(26, 7, 1))

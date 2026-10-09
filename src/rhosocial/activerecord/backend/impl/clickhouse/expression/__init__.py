@@ -7,10 +7,12 @@ Only ClickHouse-native expressions are exported from this package:
 - ``json``       — ClickHouse ``JSONExtract*`` / ``JSONObject`` / ``JSONArray``
                    function expressions (ClickHouse JSON is accessed via
                    functions, not MySQL arrow operators).
-- ``partition``  — MySQL declarative partitioning expression classes, kept as
-                   fail-fast stubs (ClickHouse uses ``PARTITION BY <expr>``
-                   inside ``CREATE TABLE``, handled by the table-engine layer,
-                   not MySQL ``PARTITION ... VALUES`` syntax).
+- ``partition``  — ClickHouse's own partition maintenance, addressed by
+                   partition id (``DROP`` / ``DETACH`` / ``ATTACH PARTITION ID``).
+                   ClickHouse has no declarative partitioning: it partitions a
+                   MergeTree table with ``PARTITION BY <expr>`` inside
+                   ``CREATE TABLE``, rendered by the table-engine layer, and a
+                   partition appears when a row lands in it.
 - ``rename_table`` — ClickHouse ``RENAME TABLE``.
 - ``types``      — ClickHouse-native ``DataType`` subclasses for DDL.
 
@@ -52,34 +54,9 @@ from .json import (
     ClickHouseJSONSearchExpression,
 )
 from .partition import (
-    ClickHousePartitionStrategy,
-    ClickHousePartitionClause,
-    ClickHousePartitionMaxValue,
-    ClickHousePartitionValue,
-    ClickHousePartitionDefinition,
-    ClickHousePartitionByRange,
-    ClickHousePartitionByRangeColumns,
-    ClickHousePartitionByList,
-    ClickHousePartitionByListColumns,
-    ClickHousePartitionByHash,
-    ClickHousePartitionByKey,
-    ClickHouseAddPartitionExpression,
     ClickHouseDropPartitionExpression,
-    ClickHouseTruncatePartitionExpression,
-    ClickHouseReorganizePartitionExpression,
-    ClickHouseExchangePartitionExpression,
-    ClickHouseRemovePartitioningExpression,
-    ClickHouseCoalescePartitionExpression,
-    ClickHouseAnalyzePartitionExpression,
-    ClickHouseCheckPartitionExpression,
-    ClickHouseOptimizePartitionExpression,
-    ClickHouseRebuildPartitionExpression,
-    ClickHouseRepairPartitionExpression,
-    ClickHouseGetPartitionsExpression,
-    ClickHousePartitionNameListExpression,
-    ClickHouseSubpartitionStrategy,
-    ClickHouseSubpartitionDefinition,
-    ClickHouseSubpartitionClause,
+    ClickHouseDetachPartitionExpression,
+    ClickHouseAttachPartitionExpression,
 )
 from .rename_table import ClickHouseRenameTableExpression
 from .spatial import (
@@ -92,16 +69,6 @@ from .spatial import (
     ClickHouseSTGeomFromWKBExpression,
     ClickHouseSTWithinExpression,
     ClickHouseSpatialLiteralExpression,
-)
-from .vector import (
-    ClickHouseCreateVectorIndexExpression,
-    ClickHouseDistanceCosineExpression,
-    ClickHouseDistanceDotExpression,
-    ClickHouseDistanceEuclideanExpression,
-    ClickHouseStringToVectorExpression,
-    ClickHouseVectorDimExpression,
-    ClickHouseVectorLiteralExpression,
-    ClickHouseVectorToStringExpression,
 )
 
 # DataType subclasses for DDL
@@ -173,44 +140,10 @@ __all__ = [
     "ClickHouseSTGeomFromWKBExpression",
     "ClickHouseSTWithinExpression",
     "ClickHouseSpatialLiteralExpression",
-    # Vector expressions
-    "ClickHouseCreateVectorIndexExpression",
-    "ClickHouseDistanceCosineExpression",
-    "ClickHouseDistanceDotExpression",
-    "ClickHouseDistanceEuclideanExpression",
-    "ClickHouseStringToVectorExpression",
-    "ClickHouseVectorDimExpression",
-    "ClickHouseVectorLiteralExpression",
-    "ClickHouseVectorToStringExpression",
     # Partition
-    "ClickHousePartitionStrategy",
-    "ClickHousePartitionClause",
-    "ClickHousePartitionMaxValue",
-    "ClickHousePartitionValue",
-    "ClickHousePartitionDefinition",
-    "ClickHousePartitionByRange",
-    "ClickHousePartitionByRangeColumns",
-    "ClickHousePartitionByList",
-    "ClickHousePartitionByListColumns",
-    "ClickHousePartitionByHash",
-    "ClickHousePartitionByKey",
-    "ClickHouseAddPartitionExpression",
     "ClickHouseDropPartitionExpression",
-    "ClickHouseTruncatePartitionExpression",
-    "ClickHouseReorganizePartitionExpression",
-    "ClickHouseExchangePartitionExpression",
-    "ClickHouseRemovePartitioningExpression",
-    "ClickHouseCoalescePartitionExpression",
-    "ClickHouseAnalyzePartitionExpression",
-    "ClickHouseCheckPartitionExpression",
-    "ClickHouseOptimizePartitionExpression",
-    "ClickHouseRebuildPartitionExpression",
-    "ClickHouseRepairPartitionExpression",
-    "ClickHouseGetPartitionsExpression",
-    "ClickHousePartitionNameListExpression",
-    "ClickHouseSubpartitionStrategy",
-    "ClickHouseSubpartitionDefinition",
-    "ClickHouseSubpartitionClause",
+    "ClickHouseDetachPartitionExpression",
+    "ClickHouseAttachPartitionExpression",
     # Rename table
     "ClickHouseRenameTableExpression",
     # DataType subclasses for DDL
