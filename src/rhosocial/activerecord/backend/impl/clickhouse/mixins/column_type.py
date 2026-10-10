@@ -82,11 +82,11 @@ from rhosocial.activerecord.backend.expression.column_types import (
     BinaryColumn,
     BooleanColumn,
     ColumnBase,
-    DateTimeColumn,
     IntegerColumn,
     JSONColumn,
     NumericColumn,
     StringColumn,
+    TimestampColumn,
     UUIDColumn,
 )
 
@@ -145,15 +145,15 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     bytes: BinaryColumn,
     bytearray: BinaryColumn,
     # --- date / time ---------------------------------------------------
-    # DateTimeColumn for all three temporal entries, which is the shared
+    # TimestampColumn for all three temporal entries, which is the shared
     # baseline. Two are provisional and say so: core has no DateColumn yet
     # (appendix C, `date`), and this backend's own TimeType renders DateTime
     # even though ClickHouse has had Time/Time64 for a while (appendix D-①,
     # 待办 #7). Neither gap is a reason to refuse an entry; both are reasons
     # the answer may move.
-    datetime.date: DateTimeColumn,
-    datetime.time: DateTimeColumn,
-    datetime.datetime: DateTimeColumn,
+    datetime.date: TimestampColumn,
+    datetime.time: TimestampColumn,
+    datetime.datetime: TimestampColumn,
     # A timedelta is a number of seconds here, answered by the numeric
     # surface. ClickHouse does have a native `Interval` family and the
     # driver binds a timedelta natively, but core has no IntervalColumn, and

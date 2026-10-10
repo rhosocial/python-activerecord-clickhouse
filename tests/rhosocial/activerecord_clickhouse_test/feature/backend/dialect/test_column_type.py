@@ -25,11 +25,11 @@ from rhosocial.activerecord.backend.expression.column_types import (
     BinaryColumn,
     BooleanColumn,
     ColumnBase,
-    DateTimeColumn,
     IntegerColumn,
     JSONColumn,
     NumericColumn,
     StringColumn,
+    TimestampColumn,
     UUIDColumn,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
@@ -55,9 +55,9 @@ _CLICKHOUSE_ANSWERS = [
     (str, StringColumn),
     (bytes, BinaryColumn),
     (bytearray, BinaryColumn),
-    (datetime.date, DateTimeColumn),
-    (datetime.time, DateTimeColumn),
-    (datetime.datetime, DateTimeColumn),
+    (datetime.date, TimestampColumn),
+    (datetime.time, TimestampColumn),
+    (datetime.datetime, TimestampColumn),
     (datetime.timedelta, NumericColumn),
     (uuid.UUID, UUIDColumn),
     (dict, JSONColumn),
@@ -200,13 +200,13 @@ class TestMeasuredCells:
         assert resolve_column_class(dialect, datetime.timedelta) is NumericColumn
 
     def test_time_is_provisional(self, dialect):
-        """Core has no TimeColumn yet, so the shared DateTimeColumn stands.
+        """Core has no TimeColumn yet, so the shared TimestampColumn stands.
 
         Worth pinning because it is wrong twice over in the meantime: this
         backend's own ``TimeType`` still renders ``DateTime`` while ClickHouse
         has had ``Time``/``Time64`` for a while (investigation appendix D-①).
         """
-        assert resolve_column_class(dialect, datetime.time) is DateTimeColumn
+        assert resolve_column_class(dialect, datetime.time) is TimestampColumn
 
 
 class TestArrayCells:
