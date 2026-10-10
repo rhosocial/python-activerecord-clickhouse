@@ -111,9 +111,9 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DomainMixin,
     TransactionControlMixin,
     SetOperationMixin,
-    # Column-type suggestions: the generic half, which
-    # ClickHouseColumnSuggestionMixin below overrides.
-    ColumnSuggestionMixin,
+    # Column types: the generic half, which ClickHouseColumnTypeMixin below
+    # overrides.
+    ColumnTypeMixin,
 )
 from .protocols import (
     ClickHouseTriggerSupport,
@@ -182,7 +182,7 @@ from .mixins import (
     ClickHouseConstraintMixin,
     ClickHouseDDLColumnMixin,
     ClickHouseFunctionMixin,
-    ClickHouseColumnSuggestionMixin,
+    ClickHouseColumnTypeMixin,
 )
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
@@ -329,14 +329,14 @@ class ClickHouseDialect(
     ClickHouseSetOperationMixin,
     SetOperationMixin,
     ClickHouseFunctionMixin,
-    # Column-type suggestions. The ClickHouse half first: it overrides both the
-    # eighteen-entry table and supports_column_operation, and C3 gives the
-    # earlier name priority. Nothing else in this list can answer either, so
-    # the pair may move as a unit without disturbing the order around it --
-    # which is the reason for not standing it next to ClickHouseTypeSupportMixin
-    # higher up, where a mistake would reorder the DDL formatters too.
-    ClickHouseColumnSuggestionMixin,
-    ColumnSuggestionMixin,
+    # Column types. The ClickHouse half first: it overrides the eighteen-entry
+    # table, and C3 gives the earlier name priority. Nothing else in this list
+    # can answer it, so the pair may move as a unit without disturbing the order
+    # around it -- which is the reason for not standing it next to
+    # ClickHouseTypeSupportMixin higher up, where a mistake would reorder the
+    # DDL formatters too.
+    ClickHouseColumnTypeMixin,
+    ColumnTypeMixin,
     # Protocols for type checking
     CollationSupport,
     CTESupport,
