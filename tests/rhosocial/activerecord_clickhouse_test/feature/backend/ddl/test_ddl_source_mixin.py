@@ -329,11 +329,13 @@ def _assert_declaration_model(model):
         CLICKHOUSE_OPTIONS[1],
     )
     assert metadata.annotations == expected_annotations
-    assert model.column_type("value") is SQL_TYPE
-    assert model.column_type("value").data_types == NATIVE_TYPES
+    assert model.column_data_type("value") is SQL_TYPE
+    assert model.column_data_type("value").data_types == NATIVE_TYPES
     assert all(
         actual is expected
-        for actual, expected in zip(model.column_type("value").data_types, NATIVE_TYPES, strict=True)
+        for actual, expected in zip(
+            model.column_data_type("value").data_types, NATIVE_TYPES, strict=True
+        )
     )
 
     value_constraints = model.column_constraints("value")
@@ -420,9 +422,9 @@ def _assert_batch_interfaces(model):
         "id": "record_id",
         "quantity": "quantity",
     }
-    assert list(model.columns_type(fields)) == fields
-    assert model.columns_type(fields)["value"] is SQL_TYPE
-    assert model.columns_type(fields)["quantity"] is None
+    assert list(model.columns_data_type(fields)) == fields
+    assert model.columns_data_type(fields)["value"] is SQL_TYPE
+    assert model.columns_data_type(fields)["quantity"] is None
     assert list(model.columns_constraints(fields)) == fields
     assert model.columns_constraints(fields)["value"][0] is DEFAULT_CONSTRAINT.constraint
     assert list(model.columns_attributes(fields)) == fields
@@ -446,6 +448,7 @@ def _assert_batch_interfaces(model):
 def _assert_plain_defaults(model):
     assert isinstance(model, DDLSource)
     assert model.ddl_field_names() == ("id", "value")
+    assert model.column_data_type("value") is None
     assert model.column_type("value") is None
     assert model.column_constraints("value") == []
     assert model.column_attributes("value") == []
@@ -509,7 +512,7 @@ async def test_sync_and_async_declarations_are_identical():
     sync_model, async_model = MODEL_CLASSES
     assert sync_model.ddl_field_names() == async_model.ddl_field_names()
     assert sync_model.columns_name() == async_model.columns_name()
-    assert sync_model.column_type("value") is async_model.column_type("value")
+    assert sync_model.column_data_type("value") is async_model.column_data_type("value")
     assert sync_model.column_constraints("value") == async_model.column_constraints("value")
     assert sync_model.column_attributes("value") == async_model.column_attributes("value")
     sync_indexes = sync_model.column_indexes("value")
@@ -543,7 +546,7 @@ def test_clickhouse_column_options_are_collected_with_explicit_handler():
 
 def test_collected_clickhouse_type_and_options_render_minimal_column():
     dialect = ClickHouseDialect(version=(26, 7, 3))
-    data_type = DeclarationModel.column_type("value").data_types[0]
+    data_type = DeclarationModel.column_data_type("value").data_types[0]
     assert isinstance(data_type, ClickHouseStringType)
     option = DeclarationModel.column_options("value")[0]
     data_type.dialect = dialect
