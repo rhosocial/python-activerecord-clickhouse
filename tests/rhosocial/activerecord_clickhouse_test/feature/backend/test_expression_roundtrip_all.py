@@ -32,8 +32,15 @@ So every outcome here is named and asserted:
 
 * **renders** -- all three encodings must restore byte-identical SQL *and*
   byte-identical bind parameters.
-* ``UnsupportedFeatureError`` -- this dialect does not model the feature.
-  Asserted as exactly that type, so a different failure cannot hide behind it.
+* ``UnsupportedFeatureError`` from a probe inside a formatter -- this dialect
+  does not model the feature. Asserted as exactly that type, so a different
+  failure cannot hide behind it.
+* ``UnsupportedFeatureError`` from the dispatch -- the dialect's base list
+  names no ``format_*`` method for the class at all, which is a wiring fact
+  about this backend rather than a capability answer. The method the dispatch
+  names must be a row in :data:`UNMODELLED_FORMATTERS`, so the gap is a
+  decision with a reason rather than an omission; see
+  :func:`_dispatched_formatter`.
 * a member of :data:`LEGITIMATE_NON_RENDERS` -- a class that cannot render for a
   reason belonging to its own tree. Each entry pins the exception type *and* a
   message fragment, so a class that starts failing differently fails here.
@@ -51,6 +58,24 @@ one of these features would silently turn a documented gap into a passing render
 and nothing in this file would report that the decision had been reversed.
 :func:`test_pinned_non_render_really_does_not_render` is what makes the entry
 load-bearing in both directions.
+
+The same incident is also why the blanket branch itself was split in two
+=======================================================================
+
+A probe inside a formatter and the dispatch naming a missing formatter raise the
+same type, and for a long time this file allowed both identically -- which let a
+class whose formatter this dialect never mixed in read as "ClickHouse lacks the
+feature" and pass. Core turning ``trim``/``lpad``/``rpad``/``repeat`` into
+dedicated nodes made the hole load-bearing: a backend shipping no formatter for
+one of them would answer every ``.lpad(...)`` with that refusal, and nothing here
+could tell it apart from a genuine "not on this engine". The exception itself
+records who is refusing: a probe names the feature, while the dispatch frames
+the formatting method it could not find as ``the '<method>' statement`` -- see
+:func:`_dispatched_formatter`. Only the dispatch's refusal is a wiring fact
+about this backend, so only it must be accounted for:
+:meth:`TestMatrixIntegrity.test_unmodelled_formatter_list_is_exact` pins
+:data:`UNMODELLED_FORMATTERS` in both directions, and a method nobody listed
+fails the run.
 
 And what happens when a class cannot be constructed
 ===================================================
@@ -971,6 +996,123 @@ LEGITIMATE_NON_RENDERS = {
 
 
 # ---------------------------------------------------------------------------
+# The dispatch gap: a missing formatter is a decision, not an omission
+# ---------------------------------------------------------------------------
+#
+# ``to_sql()`` reports a dialect that names no formatter for a class through
+# the same ``UnsupportedFeatureError`` a capability probe uses, so the type
+# alone cannot say "this backend never wired the feature in". The frame the
+# dispatch puts around the method name can, and it is the only place in the
+# tree that opens it -- see :func:`_dispatched_formatter`.
+
+#: The two ends of the frame ``to_sql()`` puts around a formatting method name
+#: in the ``feature_name`` of the ``UnsupportedFeatureError`` it raises for a
+#: dialect that has no such formatter.
+_DISPATCH_FEATURE_PREFIX = "the '"
+_DISPATCH_FEATURE_SUFFIX = "' statement"
+
+
+def _dispatched_formatter(exc):
+    """The formatting method *exc* says the dialect does not have, or ``None``.
+
+    ``None`` means *exc* is not the dispatch reporting a missing formatter --
+    it is a probe inside a formatter that refused a feature, which is the
+    ``"unsupported"`` branch and needs no row anywhere.
+
+    Args:
+        exc: An :class:`UnsupportedFeatureError` raised out of ``to_sql()``.
+
+    Returns:
+        The method name out of the ``feature_name`` frame, or ``None`` when
+        *exc* came from a probe rather than from the dispatch.
+    """
+    feature = exc.feature_name
+    if not feature.startswith(_DISPATCH_FEATURE_PREFIX):
+        return None
+    if not feature.endswith(_DISPATCH_FEATURE_SUFFIX):
+        return None
+    method = feature[len(_DISPATCH_FEATURE_PREFIX) : len(feature) - len(_DISPATCH_FEATURE_SUFFIX)]
+    return method if method else None
+
+
+#: Formatters ClickHouse declares no implementation of, grouped by the feature
+#: that is absent, each group naming every method the matrix's classes need.
+#:
+#: A class needing one of these fails with ``UnsupportedFeatureError`` naming
+#: the method it wanted, and :func:`assert_sql_roundtrip_classified` asserts
+#: that method is a row here. :meth:`TestMatrixIntegrity.\
+#: test_unmodelled_formatter_list_is_exact` pins the table in both directions:
+#: a formatter that starts existing moves its classes out of the table and the
+#: pin fails until the entry goes, and a class that starts needing a method
+#: outside the table fails outright instead of passing as "unsupported".
+#:
+#: These are not defects: they are features ClickHouse does not have, which the
+#: shared renderer reports by naming the method it could not find. The grouping
+#: is the point -- "31 methods" says nothing, "no SQL/XML, no property-graph
+#: DDL, no schema, no sequence, no COMMENT ON, no ILIKE, no PIVOT" says what
+#: the dialect is. ClickHouse does spell the new pad/repeat/trim nodes -- LPAD,
+#: RPAD and REPEAT natively, and TRIM through ClickHouseTrimMixin's
+#: ``trimBoth``/``trimLeft``/``trimRight`` -- so none of the four appears here.
+UNMODELLED_FORMATTERS = {
+    "SQL/XML (ClickHouse mixes in no SQL/XML formatter at all)": (
+        "format_xmlagg_expression",
+        "format_xmlattributes_expression",
+        "format_xmlcomment_expression",
+        "format_xmlconcat_expression",
+        "format_xmlelement_expression",
+        "format_xmlexists_expression",
+        "format_xmlforest_expression",
+        "format_xmlpi_expression",
+        "format_xmlparse_expression",
+        "format_xmlquery_expression",
+        "format_xmlroot_expression",
+        "format_xmlserialize_expression",
+        "format_xmltable_expression",
+    ),
+    "SQL/PGQ (ClickHouse mixes in GraphMixin, whose MATCH formatters exist "
+    "and refuse; the GRAPH_TABLE half lives in GraphTableMixin, which is not "
+    "mixed in)": (
+        "format_graph_table_expression",
+        "format_vertex_table",
+        "format_edge_table",
+        "format_graph_columns_clause",
+        "format_table_properties_clause",
+        "format_create_property_graph_statement",
+        "format_drop_property_graph_statement",
+        "format_alter_property_graph_statement",
+    ),
+    "COMMENT ON (the dialect mixes in no comment-DDL mixin; ClickHouse "
+    "comments ride on table and column definitions)": ("format_comment_statement",),
+    "SCHEMA (ClickHouse has a database and no inner schema, so CREATE/DROP "
+    "SCHEMA is not in its grammar at all)": (
+        "format_create_schema_statement",
+        "format_drop_schema_statement",
+    ),
+    "SEQUENCE (ClickHouse has no sequence object; naming a sequence is a "
+    "separate capability and is untouched -- SequenceNameMixin stays)": (
+        "format_create_sequence_statement",
+        "format_drop_sequence_statement",
+        "format_alter_sequence_statement",
+    ),
+    "ILIKE (the dialect mixes in no ILIKE mixin; case-insensitive matching "
+    "is ClickHouse's positionCaseInsensitive)": ("format_ilike_expression",),
+    "the core PIVOT / UNPIVOT expressions (the dialect mixes in no pivot "
+    "mixin)": (
+        "format_pivot_expression",
+        "format_unpivot_expression",
+    ),
+    "the TableSource root (every concrete row source overrides its "
+    "formatter; the root carries nothing but an alias and is never "
+    "rendered)": ("format_table_source",),
+}
+
+
+def _unmodelled_methods():
+    """The flat set of formatter names in :data:`UNMODELLED_FORMATTERS`."""
+    return {method for methods in UNMODELLED_FORMATTERS.values() for method in methods}
+
+
+# ---------------------------------------------------------------------------
 # The local SQL assertion: classify the outcome instead of swallowing it
 # ---------------------------------------------------------------------------
 
@@ -982,18 +1124,23 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
 
     * **renders** -- all three encodings must restore byte-identical SQL *and*
       byte-identical bind parameters.
-    * ``UnsupportedFeatureError`` -- the dialect does not model the feature.
-      Asserted as exactly that type, so a formatter raising it for an unrelated
-      reason is still visible as that type rather than as a pass.
+    * ``UnsupportedFeatureError`` from a probe inside a formatter -- the
+      dialect does not model the feature. Asserted as exactly that type, so a
+      formatter raising it for an unrelated reason is still visible as that
+      type rather than as a pass.
+    * ``UnsupportedFeatureError`` from the dispatch -- the dialect's base list
+      names no ``format_*`` method for the class at all, which is a wiring
+      fact about this backend rather than a capability answer. The method must
+      be in :data:`UNMODELLED_FORMATTERS`; the table entry is the reason.
     * a member of :data:`LEGITIMATE_NON_RENDERS` -- unrenderable by design,
       asserted as its exact type *and* message fragment.
     * **anything else** -- a failure naming the class and the exception.
 
-    The second and third overlap: a pinned entry may itself raise
-    ``UnsupportedFeatureError``, in which case the blanket branch above takes it
-    and this function does not look at the pin. That is fine -- the pin's job for
-    those classes is to name the specific missing formatter, and that is asserted
-    by :meth:`TestMatrixIntegrity.test_pinned_non_render_really_does_not_render`.
+    The first, third and fourth overlap: a pinned entry may itself raise
+    ``UnsupportedFeatureError``, in which case the dispatch branch above takes
+    it and this function does not look at the pin. That is fine -- the pin's
+    job for those classes is to name the specific missing formatter, and that
+    is asserted by :meth:`TestMatrixIntegrity.test_pinned_non_render_really_does_not_render`.
 
     Returns:
         A short string naming the branch taken, so a caller can report the
@@ -1007,6 +1154,17 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
         expected_sql, expected_params = instance.to_sql()
     except UnsupportedFeatureError as exc:
         assert type(exc) is UnsupportedFeatureError, fqn
+        method = _dispatched_formatter(exc)
+        if method is not None:
+            assert method in _unmodelled_methods(), (
+                f"{fqn}: to_sql() reported that {exc.dialect_name} declares no "
+                f"{method!r}, which is not in UNMODELLED_FORMATTERS.\n"
+                f"  Either ClickHouse now needs that formatter -- in which case "
+                f"the class should render and this entry should go -- or the "
+                f"feature is absent and the method belongs in that table with "
+                f"its reason."
+            )
+            return "unmodelled"
         return "unsupported"
     except Exception as exc:
         if fqn not in LEGITIMATE_NON_RENDERS:
@@ -1415,6 +1573,60 @@ class TestMatrixIntegrity:
                 f"{exc_info.value}"
             )
 
+    def test_unmodelled_formatter_list_is_exact(self, clickhouse_matrix_dialect):
+        """Pin the unmodelled-formatter table against what the dialect lacks.
+
+        Observed rather than assumed: for each class the matrix covers, either
+        it renders or it fails, and every dispatch refusal is attributed to the
+        method it named -- including the classes pinned in
+        :data:`LEGITIMATE_NON_RENDERS`, whose dispatch failures those pins
+        record class by class. Then the table is compared with the set
+        observed, in both directions, so:
+
+        * a method in the table that ClickHouse now implements fails here,
+          because its classes render and are no longer attributed to it --
+          which is the moment to delete the entry rather than leave a lie in
+          the table;
+        * a class that starts needing a method outside the table fails the
+          per-class assertion in :func:`assert_sql_roundtrip_classified`
+          instead of being absorbed into "unsupported".
+
+        This is the regression test for the pad/trim incident. Core turned
+        ``trim``/``lpad``/``rpad``/``repeat`` into dedicated nodes; ClickHouse
+        spells all four -- LPAD, RPAD and REPEAT natively, TRIM through
+        ClickHouseTrimMixin -- so none of the four is a gap here, and this test
+        is what would have said so loudly if a fifth node of that family had
+        arrived without a ClickHouse formatter.
+        """
+        observed = set()
+        for fqn in sorted(REGISTERED):
+            instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            if instance is None:
+                continue
+            try:
+                instance.to_sql()
+            except UnsupportedFeatureError as exc:
+                method = _dispatched_formatter(exc)
+                if method is not None:
+                    observed.add(method)
+                continue
+            except Exception:
+                continue
+
+        declared = _unmodelled_methods()
+        assert not (observed - declared), (
+            "classes need formatters that are not in UNMODELLED_FORMATTERS: "
+            f"{sorted(observed - declared)}. Add each with the feature that is "
+            f"absent and why -- or mix the formatter in, in which case the "
+            f"classes render and the entry is not needed."
+        )
+        assert not (declared - observed), (
+            "UNMODELLED_FORMATTERS names formatters no class actually needs: "
+            f"{sorted(declared - observed)}. ClickHouse may have gained one of "
+            f"these, in which case the classes needing it now render and the "
+            f"entry should go."
+        )
+
     def test_matrix_covers_both_packages(self):
         """The matrix covers every concrete class in the two packages.
 
@@ -1476,7 +1688,11 @@ class TestMatrixIntegrity:
             f"pinned-unconstructible, {len(LEGITIMATE_NON_RENDERS)} "
             f"pinned-non-render; rendered={branches.get('rendered', 0)}, "
             f"unsupported={branches.get('unsupported', 0)}, "
+            f"unmodelled={branches.get('unmodelled', 0)} (pinned in "
+            f"UNMODELLED_FORMATTERS), "
             f"non-render={branches.get('non-render', 0)}"
         )
         for fqn in UNCONSTRUCTIBLE:
             print(f"  not constructible: {fqn}")
+        for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):
+            print(f"  not modelled: {feature} ({len(methods)} formatters)")
