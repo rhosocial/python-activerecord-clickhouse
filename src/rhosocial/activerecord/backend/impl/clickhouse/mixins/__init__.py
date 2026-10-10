@@ -52,6 +52,7 @@ from .constraint import ClickHouseConstraintMixin
 from .ddl_column import ClickHouseDDLColumnMixin
 from .function import ClickHouseFunctionMixin
 from .column_type import ClickHouseColumnTypeMixin
+from .trim import ClickHouseTrimMixin
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
@@ -106,4 +107,5 @@ __all__ = [
     "ClickHouseDDLColumnMixin",
     "ClickHouseFunctionMixin",
     "ClickHouseColumnTypeMixin",
+    "ClickHouseTrimMixin",
 ]

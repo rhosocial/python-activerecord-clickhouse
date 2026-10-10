@@ -111,6 +111,15 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DomainMixin,
     TransactionControlMixin,
     SetOperationMixin,
+    # ``LPAD``/``RPAD``/``REPEAT`` are nodes with default formatters, and
+    # ClickHouse spells all three natively -- the aliases ``lpad``/``rpad`` of
+    # ``leftPad``/``rightPad`` (21.8+) and ``repeat`` (20.1+) -- so the shared
+    # defaults are the answer for those three and no override is needed.
+    # ``TRIM`` is the one that differs; see ClickHouseTrimMixin.
+    LpadMixin,
+    RepeatMixin,
+    RpadMixin,
+    TrimMixin,
     # Column types: the generic half, which ClickHouseColumnTypeMixin below
     # overrides.
     ColumnTypeMixin,
@@ -183,6 +192,10 @@ from .mixins import (
     ClickHouseDDLColumnMixin,
     ClickHouseFunctionMixin,
     ClickHouseColumnTypeMixin,
+    # TRIM differs and is overridden by ClickHouseTrimMixin (above) for the
+    # reason documented there: the direction is the function name, and the
+    # no-characters ANSI form the default renders is a syntax error here.
+    ClickHouseTrimMixin,
 )
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
@@ -337,6 +350,15 @@ class ClickHouseDialect(
     # DDL formatters too.
     ClickHouseColumnTypeMixin,
     ColumnTypeMixin,
+    # TRIM is the one of the four string nodes ClickHouse spells differently:
+    # the direction lives in the function name, so ClickHouseTrimMixin must
+    # outrank core's TrimMixin in the MRO. LPAD, RPAD and REPEAT are the
+    # shared spellings verbatim here.
+    ClickHouseTrimMixin,
+    LpadMixin,
+    RepeatMixin,
+    RpadMixin,
+    TrimMixin,
     # Protocols for type checking
     CollationSupport,
     CTESupport,
