@@ -128,7 +128,7 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.CreateTableUsingTemplateSupport,
     dialect_protocols.CreateTriggerSupport,
     dialect_protocols.CreateViewSupport,
-    dialect_protocols.DateTimeSupport,
+    dialect_protocols.TimestampSupport,
     dialect_protocols.DqlOrderSupport,
     dialect_protocols.DropIndexSupport,
     dialect_protocols.DropTableSupport,
