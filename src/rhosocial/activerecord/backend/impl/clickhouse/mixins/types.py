@@ -161,8 +161,24 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``bigint`` names, which are the same concepts reached by their own
         dispatch keys — refuse it the same way and point at the class that does own
         the unsigned column.
+
+        The shape check runs first, and this is the only gate there is: the
+        expression collects ``unsigned`` without judging it, because only the
+        formatter knows which backend must honour it, so a non-boolean arrives
+        here rather than being rejected at construction.  A truth test cannot
+        see it — ``unsigned=0``, ``unsigned=""`` and ``unsigned=None`` are all
+        falsy, so they would pass the test below and render a signed ``Int8``
+        (or a core ``TINYINT``) while reporting success.  ``bool`` is also the
+        only shape that means what the field says: the flag *is* the identity,
+        so ``"yes"`` and ``1`` are not spellings of ``True`` but wrong values.
         """
-        if not data_type.unsigned:
+        unsigned = data_type.unsigned
+        if not isinstance(unsigned, bool):
+            raise TypeError(
+                f"unsigned must be a bool, got {type(unsigned).__name__}; it "
+                f"becomes a type modifier in the rendered DDL."
+            )
+        if not unsigned:
             return
         raise UnsupportedFeatureError(
             self.name,
@@ -255,8 +271,21 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``_check_spelling`` in every caller, so a request wrong in two ways is
         told about the signedness first — that one is a stronger and less
         recoverable statement than a misspelled word.
+
+        The shape check is first for the reason given in
+        :meth:`_refuse_unsigned_integer`, and it covers the same four numeric
+        concepts through their own dispatch keys: a non-boolean reaches this
+        gate unjudged, and a falsy one — ``0``, ``""``, ``None``, an empty
+        container — is invisible to the truth test below, so it would render a
+        signed ``Float32`` / ``Float64`` / ``Decimal(P, S)`` and report success.
         """
-        if not data_type.unsigned:
+        unsigned = data_type.unsigned
+        if not isinstance(unsigned, bool):
+            raise TypeError(
+                f"unsigned must be a bool, got {type(unsigned).__name__}; it "
+                f"becomes a type modifier in the rendered DDL."
+            )
+        if not unsigned:
             return
         raise UnsupportedFeatureError(
             self.name,
