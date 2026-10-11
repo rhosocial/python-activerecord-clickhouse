@@ -14,6 +14,7 @@ from rhosocial.activerecord.backend.expression.functions import (
     interval,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types import ClickHouseInt64Type
 
 
 class TestClickHouseDateTimeIntervalExpressions:
@@ -127,13 +128,16 @@ class TestClickHouseDateTimeIntervalExpressions:
                 Column(clickhouse_dialect, "started_at"),
                 Column(clickhouse_dialect, "ended_at"),
             )
-            .cast("SIGNED")
+            .cast(ClickHouseInt64Type(clickhouse_dialect))
             .as_("elapsed_days")
         )
 
         sql, params = expr.to_sql()
 
-        assert sql == "CAST(dateDiff(%s, `started_at`, `ended_at`) AS SIGNED) AS `elapsed_days`"
+        # ClickHouse spells a 64-bit signed integer Int64. SIGNED is MySQL
+        # syntax, and asserting it here had been checking a word this dialect
+        # never emits rather than the type it was given.
+        assert sql == "CAST(dateDiff(%s, `started_at`, `ended_at`) AS Int64) AS `elapsed_days`"
         assert params == ("DAY",)
 
     def test_query_expression_integration(self, clickhouse_dialect: ClickHouseDialect):

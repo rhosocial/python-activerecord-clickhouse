@@ -44,5 +44,11 @@ class ClickHouseIndexMixin:
         return True
 
     def supports_index_type(self) -> bool:
-        """ClickHouse skip indexes support USING keyword for index type."""
+        """Whether index type specification is supported.
+
+        ClickHouse skip indexes carry a type, but the keyword is ``TYPE``, not
+        MySQL's ``USING``: ``INDEX i (s) TYPE minmax GRANULARITY 1`` is accepted
+        on 26.7.3.19, while ``INDEX i (s) USING minmax`` is a ``SYNTAX_ERROR``
+        ("failed at position 54 (USING)").
+        """
         return True

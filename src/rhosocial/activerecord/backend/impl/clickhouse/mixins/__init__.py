@@ -8,7 +8,6 @@ from .ddl_table import ClickHouseTableMixin
 from .set_type import ClickHouseSetTypeMixin
 from .json import ClickHouseJSONFunctionMixin
 from .spatial import ClickHouseSpatialMixin
-from .vector import ClickHouseVectorMixin
 from .dml import ClickHouseDMLOperationMixin
 from .fulltext import ClickHouseFullTextSearchMixin
 from .locking import ClickHouseLockingMixin
@@ -52,6 +51,8 @@ from .sequence import ClickHouseSequenceMixin
 from .constraint import ClickHouseConstraintMixin
 from .ddl_column import ClickHouseDDLColumnMixin
 from .function import ClickHouseFunctionMixin
+from .column_type import ClickHouseColumnTypeMixin
+from .trim import ClickHouseTrimMixin
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
@@ -63,7 +64,6 @@ __all__ = [
     "ClickHouseSetTypeMixin",
     "ClickHouseJSONFunctionMixin",
     "ClickHouseSpatialMixin",
-    "ClickHouseVectorMixin",
     "ClickHouseDMLOperationMixin",
     "ClickHouseFullTextSearchMixin",
     "ClickHouseLockingMixin",
@@ -106,4 +106,6 @@ __all__ = [
     "ClickHouseConstraintMixin",
     "ClickHouseDDLColumnMixin",
     "ClickHouseFunctionMixin",
+    "ClickHouseColumnTypeMixin",
+    "ClickHouseTrimMixin",
 ]

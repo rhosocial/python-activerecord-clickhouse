@@ -48,34 +48,59 @@ class ClickHouseDDLColumnMixin:
         return " ".join(parts), column_params
 
     def format_alter_column_action(self, action) -> Tuple[str, tuple]:
-        """Format ALTER TABLE ... ALTER COLUMN {SET DEFAULT | DROP DEFAULT}.
+        """Format ALTER TABLE ... ALTER/MODIFY COLUMN for a default change.
 
-        ClickHouse 8.0 syntax is ``ALTER TABLE t ALTER [COLUMN] col {SET DEFAULT
-        literal | DROP DEFAULT}``. Unlike the generic SQL-standard renderer,
-        ClickHouse requires a literal for SET DEFAULT (no parenthesised
-        expressions / parameters), so we inline the value.
+        ClickHouse has no ``SET DEFAULT`` / ``DROP DEFAULT`` action. What it has,
+        per ``https://clickhouse.com/docs/reference/statements/alter/column`` and
+        measured on 26.7.3.19:
+
+        =====================================  ==========================================
+        intent                                  ClickHouse
+        =====================================  ==========================================
+        set a default expression                ``ALTER COLUMN c [TYPE] DEFAULT expr``
+        remove a default expression             ``MODIFY COLUMN c REMOVE DEFAULT``
+        =====================================  ==========================================
+
+        The MySQL spellings this used to emit are both rejected. Quoting the
+        server, for ``ALTER TABLE t ALTER COLUMN a SET DEFAULT 5``::
+
+            Code: 62. DB::Exception: Syntax error: failed at position 45 (SET):
+            SET DEFAULT 5. Expected one of: token sequence, Dot, token, REMOVE,
+            MODIFY SETTING, RESET SETTING, ADD ENUM VALUES, NULL, NOT, DEFAULT,
+            MATERIALIZED, EPHEMERAL, ALIAS, AUTO_INCREMENT, TTL, PRIMARY KEY,
+            COMMENT, CODEC, TYPE. (SYNTAX_ERROR)
+
+        ``DEFAULT`` is on that list and ``SET`` is not, so the keyword ``SET`` is
+        the whole difference; and for ``ALTER TABLE t ALTER COLUMN a DROP
+        DEFAULT`` the same error names no ``DROP`` at all — removing a property
+        is ``MODIFY COLUMN ... REMOVE``, which the reference page lists for
+        ``DEFAULT``, ``ALIAS``, ``MATERIALIZED``, ``CODEC``, ``COMMENT``, ``TTL``
+        and ``SETTINGS``.
+
+        Note that ClickHouse does require a literal default expression here, so
+        the value is inlined rather than parameterised.
         """
         operation = getattr(action.operation, "value", None) or str(action.operation)
         col_name = self.format_identifier(action.column_name)
 
         if operation == "DROP DEFAULT":
-            return f"ALTER COLUMN {col_name} DROP DEFAULT", ()
+            return f"MODIFY COLUMN {col_name} REMOVE DEFAULT", ()
 
         if operation == "SET DEFAULT":
             new_value = getattr(action, "new_value", None)
             if isinstance(new_value, str):
                 escaped = self._escape_sql_string(new_value)
-                return f"ALTER COLUMN {col_name} SET DEFAULT '{escaped}'", ()
+                return f"ALTER COLUMN {col_name} DEFAULT '{escaped}'", ()
             if isinstance(new_value, bool):
-                return f"ALTER COLUMN {col_name} SET DEFAULT {1 if new_value else 0}", ()
+                return f"ALTER COLUMN {col_name} DEFAULT {1 if new_value else 0}", ()
             if new_value is None:
                 raise ValueError("SET DEFAULT requires a default value")
             if isinstance(new_value, (int, float)):
-                return f"ALTER COLUMN {col_name} SET DEFAULT {new_value}", ()
+                return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
             if hasattr(new_value, "to_sql"):
                 value_sql, value_params = new_value.to_sql()
-                return f"ALTER COLUMN {col_name} SET DEFAULT {value_sql}", tuple(value_params)
-            return f"ALTER COLUMN {col_name} SET DEFAULT {new_value}", ()
+                return f"ALTER COLUMN {col_name} DEFAULT {value_sql}", tuple(value_params)
+            return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
 
         return super().format_alter_column_action(action)
 
@@ -85,8 +110,36 @@ class ClickHouseDDLColumnMixin:
     ) -> Tuple[str, tuple]:
         """Format a table-level constraint.
 
-        ClickHouse supports only PRIMARY KEY among table-level constraints;
-        UNIQUE and FOREIGN KEY constraints are not supported.
+        ClickHouse has two table-level constraint forms and they are not these:
+        ``CONSTRAINT name CHECK <expr>`` and ``CONSTRAINT name ASSUME <expr>``
+        (https://clickhouse.com/docs/reference/statements/create/table#constraints).
+        Only ``PRIMARY KEY`` is rendered from the SQL-standard set.
+
+        ``UNIQUE`` and ``FOREIGN KEY`` refuse rather than emit, and the reason is
+        not symmetric:
+
+        * ``UNIQUE (col)`` is a ``SYNTAX_ERROR`` on 26.7.3.19 — ``Code: 62.
+          Syntax error: failed at position 50 ((): (col)). Expected one of: NULL,
+          NOT, DEFAULT, MATERIALIZED, EPHEMERAL, ALIAS, AUTO_INCREMENT, TTL,
+          PRIMARY KEY, data type, identifier. (SYNTAX_ERROR)`` — so rendering it
+          would be an error the caller sees immediately.
+        * ``FOREIGN KEY`` **without** a ``CONSTRAINT`` name is *accepted and
+          silently discarded*, and that is why it refuses. Measured on
+          26.7.3.19: ``CREATE TABLE c (id UInt32, pid UInt32, FOREIGN KEY (pid)
+          REFERENCES p(id)) ENGINE = MergeTree ORDER BY id`` succeeds, but
+          ``SHOW CREATE TABLE c`` reports no foreign key,
+          ``system.tables.create_table_query`` does not contain the string
+          ``FOREIGN``, an orphan row inserts and reads back fine, and dropping
+          the referenced parent also succeeds. (The *named* form ``CONSTRAINT fk
+          FOREIGN KEY ...`` is a ``SYNTAX_ERROR`` expecting ``CHECK`` or
+          ``ASSUME``, as are the inline column-level ``REFERENCES p(id)`` and
+          the form written after the storage clauses.)
+
+          So emitting it would be the worst of the three outcomes: no error at
+          DDL time, no record in the schema, and no enforcement at write time.
+          The referential-integrity bug would surface in production data with
+          nothing in the server's metadata to explain it. Refusing turns that
+          into an ``UnsupportedFeatureError`` at the point of declaration.
         """
         from rhosocial.activerecord.backend.expression.statements.ddl_table import (
             TableConstraintType,
@@ -106,7 +159,13 @@ class ClickHouseDDLColumnMixin:
         elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
             raise UnsupportedFeatureError(
                 self.name, "FOREIGN KEY constraint",
-                suggestion="ClickHouse does not support FOREIGN KEY constraints."
+                suggestion=(
+                    "ClickHouse does not support FOREIGN KEY constraints, and an "
+                    "unnamed FOREIGN KEY (...) REFERENCES ... clause is accepted and "
+                    "then silently discarded, so emitting one would produce a schema "
+                    "with no foreign key and no enforcement. Maintain referential "
+                    "integrity in the application, or use CONSTRAINT ... CHECK."
+                )
             )
 
         return ' '.join(parts), tuple(params)

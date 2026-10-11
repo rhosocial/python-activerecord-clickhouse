@@ -1,13 +1,39 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/expression/table_statement.py
-"""ClickHouse TABLE statement and VALUES table-value constructor expressions.
+"""MySQL's ``TABLE`` / ``VALUES`` simplified statements — ClickHouse has neither.
 
-ClickHouse 8.0+ supports two simplified query forms:
+MySQL 8.0.19 added two query forms::
 
     TABLE <table> [ORDER BY ...] [LIMIT ...]
     VALUES ROW(...), ROW(...) [ORDER BY ...] [LIMIT ...]
 
-``TABLE`` is a shortcut for ``SELECT * FROM <table>`` and ``VALUES`` lets a
-row list be used as a table value constructor.
+where ``TABLE`` is a shortcut for ``SELECT * FROM <table>`` and ``VALUES`` is a
+row-list table-value constructor. **ClickHouse has no such statements at any
+version**, so there is no version floor to name. On 26.7.3.19:
+
+* ``TABLE system.metrics`` — ``Code: 62. DB::Exception: Syntax error: failed at
+  position 1 (TABLE): TABLE system.metrics. Expected one of: Query, Query with
+  output, EXPLAIN, EXPLAIN, SELECT query, possibly with UNION, list of union
+  elements, SELECT query, subquery, possibly with UNION, SELECT or EXPLAIN
+  subquery, SELECT query, WITH, FROM, SELECT, SHOW CREATE QUOTA query, SHOW
+  CREATE, SHOW [FULL] [TEMPORARY] TABLES|DATABASES|CLUSTERS|CLUSTER|MERGES
+  'name' [[NOT] [I]LIKE 'str'] [LIMIT expr], SHOW, SHOW COLUMNS query, SHOW
+  ENGINES query, ... (SYNTAX_ERROR)``. That is the server listing every
+  top-level statement it accepts, and ``TABLE`` is not among them — nor is
+  ``VALUES``.
+* ``SELECT * FROM VALUES(1,2,3)`` **does** work, and
+  ``system.table_functions`` lists ``values``. But that is the ``values``
+  *table function* taking a comma-separated list of scalar values, not MySQL's
+  ``VALUES ROW(...), ROW(...)`` statement: ``SELECT * FROM
+  VALUES(ROW(1,2), ROW(3,4))`` is ``Code: 46. DB::Exception: Function with name
+  `ROW` does not exist. In scope SELECT * FROM `VALUES`(ROW(1, 2), ROW(3, 4)).
+  Maybe you meant: ['now','pow']. (UNKNOWN_FUNCTION)`` — ClickHouse has no
+  ``ROW`` constructor function at all.
+
+So both expression classes below are fail-fast switches:
+``supports_table_statement()`` and ``supports_values_table_constructor()`` are
+``False``, and ``format_table_statement`` / ``format_values_statement`` raise
+``UnsupportedFeatureError`` naming ``SELECT * FROM <table>`` and
+``SELECT ... UNION ALL SELECT ...`` as the ClickHouse spellings.
 """
 
 from typing import Any, List, Optional, TYPE_CHECKING
@@ -48,7 +74,12 @@ class ClickHouseBaseTableStatement(BaseExpression):
 
 
 class ClickHouseTableExpression(ClickHouseBaseTableStatement):
-    """Represent the ClickHouse ``TABLE <table>`` simplified SELECT statement."""
+    """MySQL's ``TABLE <table>`` simplified SELECT — a statement ClickHouse does not have.
+
+    Fail-fast switch: ``to_sql()`` raises ``UnsupportedFeatureError`` through the
+    dialect, naming ``SELECT * FROM <table>``. No ClickHouse release parses it —
+    see the module docstring.
+    """
 
     def __init__(
         self,
@@ -80,7 +111,14 @@ class ClickHouseTableExpression(ClickHouseBaseTableStatement):
 
 
 class ClickHouseValuesExpression(ClickHouseBaseTableStatement):
-    """Represent the ClickHouse ``VALUES ROW(...), ...`` table value constructor."""
+    """MySQL's ``VALUES ROW(...), ...`` table value constructor — not in ClickHouse.
+
+    Fail-fast switch: ``to_sql()`` raises ``UnsupportedFeatureError`` through the
+    dialect, naming ``SELECT ... UNION ALL SELECT ...``. ClickHouse's ``values``
+    *table function* is a different thing and is not what this models — it takes
+    bare scalar values and there is no ``ROW()`` constructor to pass it; see the
+    module docstring.
+    """
 
     def __init__(
         self,

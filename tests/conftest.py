@@ -40,9 +40,11 @@ def setup_asyncio_broken_pipe_handler():
     """
     Set up asyncio event loop exception handler to suppress BrokenPipeError.
 
-    In ClickHouse 5.6 + Python 3.8 asyncio combination, writes to dead connections
-    may raise BrokenPipeError through the asyncio transport layer via the
-    event loop's exception handler rather than through normal try/except.
+    Writing to a connection the server has already dropped raises
+    BrokenPipeError, and under asyncio that arrives through the event loop's
+    exception handler rather than through a normal try/except around the write.
+    The exception comes from the socket layer, not from a server release, so it
+    is suppressed regardless of which ClickHouse version is connected.
 
     This fixture sets up the handler at session start and restores it at end.
     """

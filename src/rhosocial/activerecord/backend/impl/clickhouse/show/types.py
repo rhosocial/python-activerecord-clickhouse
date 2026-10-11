@@ -5,15 +5,54 @@ ClickHouse SHOW command result types.
 This module defines result dataclasses for ClickHouse SHOW commands.
 These types provide structured access to SHOW command output.
 
-.. warning::
-    This module was copied from the MySQL backend template and contains
-    MySQL-style SQL functions/show commands. ClickHouse uses different
-    function names (e.g. ``JSONExtract*``) and a different SHOW command
-    subset. May generate non-ClickHouse SQL; verify before use.
+Which of them can actually be filled
+------------------------------------
+Every statement modelled here is one this backend emits and parses against
+26.7.3.19, and each result dataclass reads the column names the server actually
+sent:
+
+=================================  =========================================
+statement                           ClickHouse output columns
+=================================  =========================================
+``SHOW CREATE TABLE`` / ``VIEW``    ``statement``
+``SHOW [FULL] COLUMNS``             ``field``, ``type``, ``null``, ``key``,
+                                    ``default``, ``extra`` (+ ``collation``,
+                                    ``comment``, ``privileges`` under FULL)
+``SHOW INDEX``                      ``table``, ``non_unique``, ``key_name``,
+                                    ``seq_in_index``, ``pk_col``, ``collation``,
+                                    ``cardinality``, ``sub_part``, ``packed``,
+                                    ``null``, ``index_type``, ``comment``,
+                                    ``index_comment``, ``visible``,
+                                    ``expression``
+``SHOW [FULL] TABLES``              ``name`` (+ ``engine`` under FULL)
+``SHOW DATABASES``                  ``name``
+``SHOW PROCESSLIST``                ``system.processes``'s 43 columns
+``SHOW ENGINES``                    ``name``, eight ``supports_*`` flags,
+                                    ``description``, ``syntax``, ``examples``,
+                                    ``introduced_in``, ``related``
+``SHOW GRANTS``                     one column, named after the statement text
+                                    plus the requested output format
+=================================  =========================================
+
+Where the two databases disagree it is not cosmetic: reading MySQL's names
+against ClickHouse's rows does not raise, it silently yields ``None``. Two of
+those disagreements are structural rather than cosmetic and are documented on
+the dataclasses — ``SHOW INDEX`` calls the indexed column ``pk_col``, and
+``SHOW COLUMNS`` packs ``ALIAS`` / ``DEFAULT`` / ``MATERIALIZED`` expressions
+all into ``default``.
+
+The remaining dataclasses mirror MySQL's ``SHOW`` result shapes for statements
+ClickHouse genuinely does not have. Their dialect formatters raise
+``UnsupportedFeatureError`` naming a ClickHouse replacement, which is the
+negotiation point a caller needs when switching backends.
+
+There is deliberately no dataclass for a statement this package has no path to
+at all — no expression class, no dialect formatter, no parser and no export:
+those were removed rather than left as types nothing can construct.
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 
 # ==================== CREATE Statement Results ====================
@@ -43,8 +82,11 @@ class ShowCreateViewResult:
     Attributes:
         view_name: Name of the view.
         create_statement: Complete CREATE VIEW statement.
-        character_set_client: Client character set.
-        collation_connection: Connection collation.
+        character_set_client: Always ``None`` on this backend. ClickHouse
+            answers ``SHOW CREATE VIEW`` with a single ``statement`` column;
+            the MySQL ``character_set_client`` / ``collation_connection``
+            columns are not produced.
+        collation_connection: Always ``None`` on this backend — see above.
     """
 
     view_name: str
@@ -57,7 +99,11 @@ class ShowCreateViewResult:
 class ShowCreateTriggerResult:
     """Result from SHOW CREATE TRIGGER command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW CREATE TRIGGER``
+    is a ``SYNTAX_ERROR`` on 26.7.3.19 and the server has no triggers at all;
+    ``format_show_create_trigger`` refuses with "ClickHouse does not support
+    triggers". A SQL UDF (``CREATE FUNCTION ... AS``) invoked from the
+    application is the ClickHouse equivalent.
 
     Contains the CREATE TRIGGER statement for a trigger.
 
@@ -76,52 +122,6 @@ class ShowCreateTriggerResult:
     database_collation: Optional[str] = None
 
 
-@dataclass
-class ShowCreateProcedureResult:
-    """Result from SHOW CREATE PROCEDURE command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Contains the CREATE PROCEDURE statement.
-
-    Attributes:
-        procedure_name: Name of the procedure.
-        create_statement: Complete CREATE PROCEDURE statement.
-        character_set_client: Client character set.
-        collation_connection: Connection collation.
-        database_collation: Database collation.
-    """
-
-    procedure_name: str
-    create_statement: str
-    character_set_client: Optional[str] = None
-    collation_connection: Optional[str] = None
-    database_collation: Optional[str] = None
-
-
-@dataclass
-class ShowCreateFunctionResult:
-    """Result from SHOW CREATE FUNCTION command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Contains the CREATE FUNCTION statement.
-
-    Attributes:
-        function_name: Name of the function.
-        create_statement: Complete CREATE FUNCTION statement.
-        character_set_client: Client character set.
-        collation_connection: Connection collation.
-        database_collation: Database collation.
-    """
-
-    function_name: str
-    create_statement: str
-    character_set_client: Optional[str] = None
-    collation_connection: Optional[str] = None
-    database_collation: Optional[str] = None
-
-
 # ==================== Column Information Results ====================
 
 
@@ -129,19 +129,29 @@ class ShowCreateFunctionResult:
 class ShowColumnResult:
     """Result from SHOW [FULL] COLUMNS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse. ClickHouse uses DESCRIBE TABLE.
-
-    Contains column information for a table.
+    ClickHouse has this statement. On 26.7.3.19 ``SHOW COLUMNS FROM db.t``
+    answers with the lower-cased column names ``field``, ``type``, ``null``,
+    ``key``, ``default``, ``extra``, and adds ``collation``, ``comment`` and
+    ``privileges`` under ``FULL`` — the same list the ``SHOW`` reference page
+    documents, so the mapping below is one-to-one.
 
     Attributes:
-        field: Column name.
+        field: Column name (ClickHouse's spelling; MySQL's is ``Field``).
         type: Column data type.
-        null: Whether the column allows NULL ('YES' or 'NO').
-        key: Key type ('PRI', 'UNI', 'MUL', or empty).
-        default: Default value for the column.
-        extra: Additional information (auto_increment, etc.).
-        privileges: Column privileges (FULL mode only).
-        comment: Column comment (FULL mode only).
+        null: ``'YES'`` if the type is ``Nullable``, ``'NO'`` otherwise.
+        key: ``'PRI SOR'`` for a column in the sorting key, ``'PRI'`` for a
+            primary-key-only column, ``''`` otherwise. Not MySQL's
+            ``PRI``/``UNI``/``MUL`` — ClickHouse has no unique-constraint
+            concept to report here.
+        default: The expression of an ``ALIAS``, ``DEFAULT`` **or**
+            ``MATERIALIZED`` column — the server reports all three through this
+            one column — and ``None`` for a plain column.
+        extra: Always ``''``: the server documents this column as unused.
+        collation: Always ``None``: ClickHouse has no per-column collations.
+            ``FULL`` only.
+        comment: Column comment. ``FULL`` only.
+        privileges: Column privilege string; the server documents this as
+            "currently not available", and it is ``''``. ``FULL`` only.
     """
 
     field: str
@@ -150,8 +160,9 @@ class ShowColumnResult:
     key: str
     default: Optional[str] = None
     extra: Optional[str] = None
-    privileges: Optional[str] = None
+    collation: Optional[str] = None
     comment: Optional[str] = None
+    privileges: Optional[str] = None
 
 
 # ==================== Table Status Results ====================
@@ -161,7 +172,10 @@ class ShowColumnResult:
 class ShowTableStatusResult:
     """Result from SHOW TABLE STATUS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse: ``SHOW TABLE STATUS``
+    is the one MySQL ``SHOW`` the server answers with ``UNKNOWN_TABLE``-style
+    failure rather than a bare parse error on 26.7.3.19. ``format_show_table_status``
+    refuses and points at ``system.tables``.
 
     Contains extensive table metadata.
 
@@ -213,27 +227,41 @@ class ShowTableStatusResult:
 class ShowIndexResult:
     """Result from SHOW INDEX command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement — the ``SHOW`` reference page says it "mostly
+    exists for compatibility with MySQL" — and answers with ClickHouse's own
+    column names: ``table``, ``non_unique``, ``key_name``, ``seq_in_index``,
+    ``pk_col``, ``collation``, ``cardinality``, ``sub_part``, ``packed``,
+    ``null``, ``index_type``, ``comment``, ``index_comment``, ``visible``,
+    ``expression``. Note ``pk_col``, which MySQL spells ``Column_name`` (the
+    reference page still calls it ``column_name``; the 26.7.3.19 server sends
+    ``pk_col``, and the server is what the parser reads).
 
-    Contains index information for a table.
-    Each row represents one column in an index.
+    One statement, two kinds of row: the table's **primary key columns**
+    (``key_name='PRIMARY'``, ``pk_col`` holding the column name,
+    ``collation='A'``, ``seq_in_index`` counting from 1) and one row per **data
+    skipping index** (``key_name`` = the index name, ``pk_col=''``,
+    ``seq_in_index`` always 1, the indexed expression in ``expression``).
 
     Attributes:
-        table_name: Table name.
-        non_unique: 1 if index allows duplicates, 0 if unique.
-        key_name: Index name.
-        seq_in_index: Column sequence number in index.
-        column_name: Column name.
-        collation: Column sort order ('A' for ascending, NULL for unsorted).
-        cardinality: Estimated number of unique values.
-        sub_part: Index prefix length (NULL if full column indexed).
-        packed: How the key is packed (NULL if not packed).
-        null: Whether the column allows NULL.
-        index_type: Index type (BTREE, FULLTEXT, HASH, RTREE).
-        comment: Index comment.
-        index_comment: Index comment (ClickHouse 5.5+).
-        visible: Whether index is visible to optimizer (ClickHouse 8.0+).
-        expression: Expression for functional index (ClickHouse 8.0+).
+        table_name: Table name (ClickHouse's column is ``table``).
+        non_unique: Always ``1``: ClickHouse has no uniqueness constraints to
+            report, so this is not a discriminator.
+        key_name: Index name, or ``PRIMARY`` for the sorting-key rows.
+        seq_in_index: Position within the primary key, or ``1`` for a skip index.
+        column_name: Column name for a primary-key row — ClickHouse's ``pk_col``.
+            Empty for a skip-index row, whose expression is in ``expression``.
+        collation: ``'A'`` ascending, ``'D'`` descending, ``None`` unsorted.
+        cardinality: Currently always ``0`` per the reference page.
+        sub_part: Always ``None`` — ClickHouse has no index prefixes.
+        packed: Always ``None`` — ClickHouse has no packed indexes.
+        null: Unused by the server.
+        index_type: ``PRIMARY``, ``MINMAX``, ``SET``, ``BLOOM_FILTER``,
+            ``TEXT``, ... — ClickHouse's index kinds, not MySQL's ``BTREE``.
+        comment: Currently always ``''``.
+        index_comment: Always ``''`` — ClickHouse indexes cannot carry a comment.
+        visible: Always ``'YES'``.
+        expression: Index expression for a skip-index row, ``''`` for a
+            primary-key row.
     """
 
     table_name: str
@@ -243,10 +271,10 @@ class ShowIndexResult:
     column_name: Optional[str] = None
     collation: Optional[str] = None
     cardinality: Optional[int] = None
-    sub_part: Optional[int] = None
+    sub_part: Optional[str] = None
     packed: Optional[str] = None
     null: Optional[str] = None
-    index_type: str = "BTREE"
+    index_type: Optional[str] = None
     comment: Optional[str] = None
     index_comment: Optional[str] = None
     visible: Optional[str] = None
@@ -261,8 +289,12 @@ class ShowTableResult:
     """Result from SHOW TABLES command.
 
     Attributes:
-        name: Table name.
-        table_type: Table type (BASE TABLE or VIEW), available in FULL mode.
+        name: Table name. ClickHouse names this column ``name`` in both plain
+            and ``FULL`` modes (MySQL names it after the database).
+        table_type: Value of the second column ``SHOW FULL TABLES`` reports.
+            On ClickHouse that is the **storage engine** (``MergeTree``,
+            ``ReplicatedMergeTree``, ``View``, ...), not MySQL's ``BASE TABLE``
+            / ``VIEW``; ``None`` in plain mode, which reports one column.
     """
 
     name: str
@@ -274,7 +306,8 @@ class ShowDatabaseResult:
     """Result from SHOW DATABASES command.
 
     Attributes:
-        name: Database name.
+        name: Database name. ClickHouse names this column ``name``; MySQL
+            calls it ``Database``.
     """
 
     name: str
@@ -287,9 +320,13 @@ class ShowDatabaseResult:
 class ShowTriggerResult:
     """Result from SHOW TRIGGERS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Contains trigger information.
+    ClickHouse has no triggers at all: ``SHOW TRIGGERS`` is a ``SYNTAX_ERROR``
+    on 26.7.3.19 and the server's own grammar after ``SHOW`` offers no
+    ``TRIGGERS``. The statement is not emitted — ``format_show_triggers``
+    raises ``UnsupportedFeatureError`` with "ClickHouse does not support
+    triggers" — so the refusal stays the negotiation point for a caller moving
+    between backends. ``CREATE FUNCTION ... AS`` (an SQL UDF) plus a MATERIALIZED
+    VIEW is the ClickHouse way to react to a row.
 
     Attributes:
         trigger_name: Trigger name.
@@ -318,75 +355,6 @@ class ShowTriggerResult:
     database_collation: Optional[str] = None
 
 
-# ==================== Procedure and Function Results ====================
-
-
-@dataclass
-class ShowProcedureResult:
-    """Result from SHOW PROCEDURE STATUS command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Attributes:
-        db: Database name.
-        name: Procedure name.
-        type: Always 'PROCEDURE'.
-        definer: Definer of the procedure.
-        modified: Last modification time.
-        created: Creation time.
-        security_type: Security type (DEFINER or INVOKER).
-        comment: Procedure comment.
-        character_set_client: Client character set.
-        collation_connection: Connection collation.
-        database_collation: Database collation.
-    """
-
-    db: str
-    name: str
-    type: str = "PROCEDURE"
-    definer: Optional[str] = None
-    modified: Optional[str] = None
-    created: Optional[str] = None
-    security_type: Optional[str] = None
-    comment: Optional[str] = None
-    character_set_client: Optional[str] = None
-    collation_connection: Optional[str] = None
-    database_collation: Optional[str] = None
-
-
-@dataclass
-class ShowFunctionResult:
-    """Result from SHOW FUNCTION STATUS command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Attributes:
-        db: Database name.
-        name: Function name.
-        type: Always 'FUNCTION'.
-        definer: Definer of the function.
-        modified: Last modification time.
-        created: Creation time.
-        security_type: Security type (DEFINER or INVOKER).
-        comment: Function comment.
-        character_set_client: Client character set.
-        collation_connection: Connection collation.
-        database_collation: Database collation.
-    """
-
-    db: str
-    name: str
-    type: str = "FUNCTION"
-    definer: Optional[str] = None
-    modified: Optional[str] = None
-    created: Optional[str] = None
-    security_type: Optional[str] = None
-    comment: Optional[str] = None
-    character_set_client: Optional[str] = None
-    collation_connection: Optional[str] = None
-    database_collation: Optional[str] = None
-
-
 # ==================== Variables and Status Results ====================
 
 
@@ -394,7 +362,12 @@ class ShowFunctionResult:
 class ShowVariableResult:
     """Result from SHOW VARIABLES command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW VARIABLES`` and
+    ``SHOW GLOBAL VARIABLES`` are both ``SYNTAX_ERROR`` on 26.7.3.19 — the
+    server's grammar after ``SHOW`` offers no ``VARIABLES``. The configuration
+    lives in ``system.settings`` (what a query or session can change) and
+    ``system.server_settings`` (the ``config.xml`` half), which is where
+    ``ClickHouseStatusIntrospector.list_configuration()`` reads it from.
 
     Attributes:
         variable_name: Variable name.
@@ -409,7 +382,12 @@ class ShowVariableResult:
 class ShowStatusResult:
     """Result from SHOW STATUS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW STATUS`` and
+    ``SHOW GLOBAL STATUS`` are both ``SYNTAX_ERROR`` on 26.7.3.19. ClickHouse
+    splits the same idea three ways: ``system.metrics`` (instantaneous gauges),
+    ``system.events`` (monotonic counters) and ``system.asynchronous_metrics``
+    (sampled OS / disk figures), which is exactly what
+    ``ClickHouseStatusIntrospector.list_performance_metrics()`` reads.
 
     Attributes:
         variable_name: Status variable name.
@@ -427,7 +405,9 @@ class ShowStatusResult:
 class ShowWarningResult:
     """Result from SHOW WARNINGS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW WARNINGS`` is
+    a ``SYNTAX_ERROR`` on 26.7.3.19; the server reports a problem by raising it,
+    and once configured records it in ``system.text_log`` / ``system.query_log``.
 
     Attributes:
         level: Warning level (Note, Warning, Error).
@@ -440,19 +420,6 @@ class ShowWarningResult:
     message: str
 
 
-@dataclass
-class ShowCountResult:
-    """Result from SHOW COUNT(*) WARNINGS/ERRORS command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Attributes:
-        count: Number of warnings or errors.
-    """
-
-    count: int
-
-
 # ==================== Grants Results ====================
 
 
@@ -460,10 +427,20 @@ class ShowCountResult:
 class ShowGrantResult:
     """Result from SHOW GRANTS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement — ``SHOW GRANTS [FOR user1 [, user2 ...]]
+    [WITH IMPLICIT] [FINAL]`` — and returns one row per grant.
+
+    The column it returns has no stable name: the server labels it after the
+    statement text plus the output format the client asked for. Measured on
+    26.7.3.19: ``SHOW GRANTS`` over HTTP with ``default_format=JSONEachRow``
+    gives ``GRANTS``; ``SHOW GRANTS FORMAT JSONEachRow`` gives ``GRANTS FORMAT
+    JSONEachRow``; over the native protocol, where clickhouse-connect appends
+    ``FORMAT Native``, ``GRANTS FORMAT Native``; and ``SHOW GRANTS FOR root``
+    gives ``GRANTS FOR root``. MySQL's ``Grants for`` never appears. The parser
+    therefore reads the single value of each row rather than a named column.
 
     Attributes:
-        grants: List of GRANT statements for the user.
+        grants: One GRANT statement.
     """
 
     grants: str
@@ -476,49 +453,50 @@ class ShowGrantResult:
 class ShowProcessListResult:
     """Result from SHOW PROCESSLIST command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement and it is ``system.processes`` verbatim, so its
+    columns are that table's 43 lower-cased names: ``is_initial_query``, ``user``,
+    ``query_id``, ``address``, ``port``, ``initial_user``, ``initial_query_id``,
+    ``initial_address``, ``initial_port``, ``interface``, ``os_user``,
+    ``client_hostname``, ``client_name``, ``client_agent``, ``client_revision``,
+    ``client_version_major``, ``client_version_minor``, ``client_version_patch``,
+    ``http_method``, ``http_user_agent``, ``http_referer``, ``forwarded_for``,
+    ``quota_key``, ``distributed_depth``, ``elapsed``, ``is_cancelled``,
+    ``is_all_data_sent``, ``read_rows``, ``read_bytes``, ``total_rows_approx``,
+    ``written_rows``, ``written_bytes``, ``memory_usage``,
+    ``peak_memory_usage``, ``query``, ``normalized_query_hash``, ``query_kind``,
+    ``thread_ids``, ``peak_threads_usage``, ``ProfileEvents``, ``Settings``,
+    ``current_database``, ``is_internal`` (26.7.3.19).
+
+    The MySQL-shaped field names below are kept so the result reads the same
+    across backends, but two of them have no ClickHouse source and stay ``None``;
+    see :attr:`command` and :attr:`state`. There is no ``FULL`` variant of the
+    statement either, and none is needed — ``query`` already holds the full
+    query text.
 
     Attributes:
-        id: Connection identifier.
-        user: ClickHouse user.
-        host: Client host and port.
-        command: Command type (Query, Sleep, etc.).
-        time: Time in current state (seconds).
-        db: Selected database.
-        state: Thread state.
-        info: Query text (NULL if not executing query, or in basic mode).
+        id: ``query_id`` — a UUID identifying the running query, **not** MySQL's
+            integer connection id, which ClickHouse does not report here.
+        user: The ClickHouse user the query runs as (``user``).
+        host: ``address`` and ``port`` joined as ``host:port``, matching the
+            shape of MySQL's ``Host`` column. The driver may hand back ``address``
+            as an ``IPv6Address``; it is stringified here.
+        command: Always ``None``. ``system.processes`` has no per-process command
+            column, because every row *is* a running query.
+        time: ``elapsed`` — seconds since the query started, as a float.
+        db: ``current_database``.
+        state: Always ``None``. There is no per-process state column; the closest
+            server-side signal is ``is_cancelled``.
+        info: ``query`` — the query text.
     """
 
-    id: int
+    id: Optional[str]
     user: str
-    host: str
-    command: str
-    time: int
+    host: Optional[str]
+    command: Optional[str] = None
+    time: Optional[float] = None
     db: Optional[str] = None
     state: Optional[str] = None
     info: Optional[str] = None
-
-
-# ==================== Open Tables Results ====================
-
-
-@dataclass
-class ShowOpenTableResult:
-    """Result from SHOW OPEN TABLES command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Attributes:
-        database: Database name.
-        table_name: Table name.
-        in_use: Number of table locks in use.
-        name_locked: Whether table name is locked.
-    """
-
-    database: str
-    table_name: str
-    in_use: int
-    name_locked: int
 
 
 # ==================== Engine Results ====================
@@ -528,21 +506,51 @@ class ShowOpenTableResult:
 class ShowEngineResult:
     """Result from SHOW ENGINES command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    ClickHouse has this statement and it is ``system.table_engines`` verbatim.
+    Its columns are its own, and MySQL's ``Support`` / ``Transactions`` / ``XA`` /
+    ``Savepoints`` are not among them — this result type therefore carries the
+    eight ``supports_*`` capability flags ClickHouse actually reports, plus the
+    engine's own documentation columns. On 26.7.3.19 the statement returns 83
+    rows, one per engine.
+
+    ``introduced_in`` is the only version-shaped column in the whole ``SHOW``
+    set — it is where a table engine's introducing release would come from. It is
+    **empty on this server**: ``SELECT count() FROM system.table_engines WHERE
+    introduced_in != ''`` returns 0 across all 83 engines, so no version is
+    claimed from it here.
 
     Attributes:
-        engine: Storage engine name.
-        support: Support level (YES, NO, DEFAULT).
-        transactions: Whether engine supports transactions.
-        xa: Whether engine supports XA transactions.
-        savepoints: Whether engine supports savepoints.
+        engine: Engine name (ClickHouse's column is ``name``).
+        supports_settings: Whether the engine accepts a ``SETTINGS`` clause.
+        supports_skipping_indices: Whether it supports data skipping indices.
+        supports_projections: Whether it supports projections.
+        supports_sort_order: Whether it supports an explicit sorting key.
+        supports_ttl: Whether it supports TTL.
+        supports_replication: Whether it supports replication.
+        supports_deduplication: Whether it supports block deduplication.
+        supports_parallel_insert: Whether it supports parallel insert.
+        description: Markdown description of the engine.
+        syntax: Markdown syntax block.
+        examples: Markdown examples block.
+        introduced_in: Release the engine was introduced in — ``''`` on
+            26.7.3.19, where the server populates none of them.
+        related: Array of related engine names.
     """
 
     engine: str
-    support: str
-    transactions: Optional[str] = None
-    xa: Optional[str] = None
-    savepoints: Optional[str] = None
+    supports_settings: Optional[int] = None
+    supports_skipping_indices: Optional[int] = None
+    supports_projections: Optional[int] = None
+    supports_sort_order: Optional[int] = None
+    supports_ttl: Optional[int] = None
+    supports_replication: Optional[int] = None
+    supports_deduplication: Optional[int] = None
+    supports_parallel_insert: Optional[int] = None
+    description: Optional[str] = None
+    syntax: Optional[str] = None
+    examples: Optional[str] = None
+    introduced_in: Optional[str] = None
+    related: Optional[Any] = None
 
 
 # ==================== Charset and Collation Results ====================
@@ -552,7 +560,9 @@ class ShowEngineResult:
 class ShowCharsetResult:
     """Result from SHOW CHARACTER SET command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW CHARACTER SET``
+    is a ``SYNTAX_ERROR`` on 26.7.3.19; the equivalents are the
+    ``system.character_sets`` table and the ``output_format_*`` settings.
 
     Attributes:
         charset: Character set name.
@@ -571,7 +581,10 @@ class ShowCharsetResult:
 class ShowCollationResult:
     """Result from SHOW COLLATION command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW COLLATION`` is a
+    ``SYNTAX_ERROR`` on 26.7.3.19; the equivalents are the ``system.collations``
+    table and, per query, ``ORDER BY`` on ``String`` (which is a byte-wise
+    comparison, not a linguistic one).
 
     Attributes:
         collation: Collation name.
@@ -597,7 +610,10 @@ class ShowCollationResult:
 class ShowPluginResult:
     """Result from SHOW PLUGINS command.
 
-    NOTE: MySQL-only command, not supported by ClickHouse.
+    NOTE: MySQL-only command, not supported by ClickHouse, which has no plugin
+    concept at all — ``SHOW PLUGINS`` is a ``SYNTAX_ERROR`` on 26.7.3.19 and the
+    server's grammar after ``SHOW`` offers no ``PLUGINS``. The nearest things
+    that exist are table engines, SQL UDFs, dictionaries and named collections.
 
     Attributes:
         name: Plugin name.
@@ -612,70 +628,3 @@ class ShowPluginResult:
     type: str
     library: Optional[str] = None
     license: Optional[str] = None
-
-
-# ==================== Profile Results (Deprecated) ====================
-
-
-@dataclass
-class ShowProfileResult:
-    """Result from SHOW PROFILE command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Note: Deprecated in ClickHouse 5.7+, use Performance Schema instead.
-
-    Attributes:
-        status: Profile status.
-        duration: Duration in seconds.
-        cpu_user: CPU user time (if CPU profile).
-        cpu_system: CPU system time (if CPU profile).
-        context_voluntary: Voluntary context switches (if BLOCK IO profile).
-        context_involuntary: Involuntary context switches (if BLOCK IO profile).
-        block_ops_in: Block operations in (if BLOCK IO profile).
-        block_ops_out: Block operations out (if BLOCK IO profile).
-        messages_sent: Messages sent (if IPC profile).
-        messages_received: Messages received (if IPC profile).
-        page_faults_major: Major page faults (if PAGE FAULTS profile).
-        page_faults_minor: Minor page faults (if PAGE FAULTS profile).
-        swaps: Number of swaps (if PAGE FAULTS profile).
-        source_function: Source function name (if SOURCE profile).
-        source_file: Source file name (if SOURCE profile).
-        source_line: Source line number (if SOURCE profile).
-    """
-
-    status: str
-    duration: float
-    cpu_user: Optional[float] = None
-    cpu_system: Optional[float] = None
-    context_voluntary: Optional[int] = None
-    context_involuntary: Optional[int] = None
-    block_ops_in: Optional[int] = None
-    block_ops_out: Optional[int] = None
-    messages_sent: Optional[int] = None
-    messages_received: Optional[int] = None
-    page_faults_major: Optional[int] = None
-    page_faults_minor: Optional[int] = None
-    swaps: Optional[int] = None
-    source_function: Optional[str] = None
-    source_file: Optional[str] = None
-    source_line: Optional[int] = None
-
-
-@dataclass
-class ShowProfilesResult:
-    """Result from SHOW PROFILES command.
-
-    NOTE: MySQL-only command, not supported by ClickHouse.
-
-    Note: Deprecated in ClickHouse 5.7+, use Performance Schema instead.
-
-    Attributes:
-        query_id: Query identifier.
-        duration: Query duration in seconds.
-        query: Query text.
-    """
-
-    query_id: int
-    duration: float
-    query: str

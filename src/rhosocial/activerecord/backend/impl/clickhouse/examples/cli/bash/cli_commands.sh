@@ -177,7 +177,7 @@ run_named_expression() {
 
     echo ""
     echo "--- List with dialect version ---"
-    $PYTHON_CMD named-expression --list rhosocial.activerecord.backend.impl.mysql.examples.named_expressions.order_expressions --dialect-version 8.0.0 2>/dev/null || echo "(No named expression examples found)"
+    $PYTHON_CMD named-expression --list rhosocial.activerecord.backend.impl.mysql.examples.named_expressions.order_expressions --dialect-version 26.7.1 2>/dev/null || echo "(No named expression examples found)"
 
     echo ""
     echo "--- Describe expression ---"

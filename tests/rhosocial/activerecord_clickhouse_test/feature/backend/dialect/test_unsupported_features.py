@@ -3,11 +3,25 @@
 Fast-fail contract tests for ClickHouse-unsupported feature stubs.
 
 ClickHouse does not support a large MySQL/SQL-standard feature surface
-(triggers, spatial types, VECTOR, SET, stored routines, LOAD XML,
+(triggers, spatial types, SET, stored routines, LOAD XML,
 admin commands, TABLE/VALUES constructors, whole-table maintenance,
 optimizer hints, JSON Duality Views, FULLTEXT, JSON_TABLE). The dialect
 mixins for these features are fail-fast stubs: ``supports_*`` returns
 ``False`` and ``format_*`` raises :class:`UnsupportedFeatureError`.
+
+Declarative partitioning is the one surface that was **deleted** rather than
+stubbed, because ClickHouse has something with the same name: it partitions a
+MergeTree table with ``PARTITION BY <expr>`` and maintains the result by
+partition id. The MySQL statements it used to stub are absent from the
+ClickHouse ``ALTER TABLE ... PARTITION`` inventory rather than switched off
+one at a time — see ``TestDeclarativePartitionStub`` below.
+
+MySQL's ``VECTOR`` family is deliberately **absent** rather than stubbed:
+ClickHouse has a vector type of its own (``QBit``), which this backend
+renders as ``ClickHouseVectorType``, so a ``supports_vector_type() -> False``
+would contradict the ``supports_data_type_clickhouse_vector() -> True`` next
+to it. See ``TestMySQLVectorSurfaceIsGone`` in
+``tests/.../backend/types/test_clickhouse_type_protocol.py``.
 
 These tests verify that contract without a database connection by building
 the relevant expression node and rendering it via ``to_sql()``, so the real
@@ -23,7 +37,13 @@ from rhosocial.activerecord.backend.expression.objects import (
     Table,
     Trigger,
 )
+from rhosocial.activerecord.backend.expression.core import Column
 from rhosocial.activerecord.backend.expression.statements import OnConflictClause
+from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
+    PartitionClause,
+    PartitionDefinition,
+    PartitionStrategy,
+)
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     CreateTriggerExpression,
     DropTriggerExpression,
@@ -69,10 +89,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.spatial import (
 from rhosocial.activerecord.backend.impl.clickhouse.expression.table_statement import (
     ClickHouseTableExpression,
     ClickHouseValuesExpression,
-)
-from rhosocial.activerecord.backend.impl.clickhouse.expression.vector import (
-    ClickHouseCreateVectorIndexExpression,
-    ClickHouseVectorLiteralExpression,
 )
 
 
@@ -128,20 +144,6 @@ class TestSpatialStub:
     def test_format_create_spatial_index_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
             ClickHouseCreateSpatialIndexExpression(dialect, "idx", "tbl", "col").to_sql()
-
-
-class TestVectorStub:
-    def test_supports_flags(self, dialect):
-        assert dialect.supports_vector_type() is False
-        assert dialect.supports_vector_index() is False
-
-    def test_format_vector_literal_raises(self, dialect):
-        with pytest.raises(UnsupportedFeatureError):
-            ClickHouseVectorLiteralExpression(dialect, [1.0, 2.0]).to_sql()
-
-    def test_format_create_vector_index_raises(self, dialect):
-        with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCreateVectorIndexExpression(dialect, "idx", "tbl", "col").to_sql()
 
 
 class TestOptimizerHintStub:
@@ -279,3 +281,29 @@ class TestUpsertStub:
     def test_format_on_conflict_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
             OnConflictClause(dialect, None, do_nothing=True).to_sql()
+
+
+class TestDeclarativePartitionStub:
+    """MySQL declarative partitioning is gone from this dialect.
+
+    ClickHouse partitions a ``MergeTree`` table with ``PARTITION BY <expr>`` in
+    ``CREATE TABLE`` — an arbitrary expression, not a chosen RANGE/LIST/HASH/KEY
+    strategy with ``VALUES`` boundaries — so a generic ``PartitionClause`` and
+    an inline ``PartitionDefinition`` both have nothing to render. What
+    ClickHouse *does* have is maintenance by partition id, which is covered by
+    ``ClickHousePartitionMixin`` and
+    ``tests/.../backend/expression/test_expression_signatures.py``.
+    """
+
+    def test_partition_clause_raises(self, dialect):
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            PartitionClause(
+                dialect, PartitionStrategy.RANGE, [Column(dialect, "created_at")]
+            ).to_sql()
+        # The refusal points at where PARTITION BY is actually written.
+        assert "PARTITION BY <expr>" in excinfo.value.suggestion
+
+    def test_inline_partition_definition_raises(self, dialect):
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            dialect.format_partition_definition(PartitionDefinition(name="p1"))
+        assert "PARTITION BY <expr>" in excinfo.value.suggestion

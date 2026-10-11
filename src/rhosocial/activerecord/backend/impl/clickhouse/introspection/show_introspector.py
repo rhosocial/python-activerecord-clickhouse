@@ -61,94 +61,164 @@ class ShowMixin:
 
     @staticmethod
     def _parse_create_table(rows: List[Dict], table: str):
+        """Parse ``SHOW CREATE TABLE``.
+
+        ClickHouse answers with a single column named ``statement``
+        (verified on 26.7.3.19: ``SHOW CREATE TABLE t FORMAT JSONEachRow``
+        yields ``{"statement":"CREATE TABLE default.t\\n(...)"}``), where MySQL
+        answers with two columns, ``Table`` and ``Create Table``. Reading the
+        MySQL names here would return an empty statement rather than fail, so
+        the ClickHouse column is read and MySQL's are not consulted.
+        """
         from ..show.types import ShowCreateTableResult
 
         if not rows:
             return None
         row = rows[0]
         return ShowCreateTableResult(
-            table_name=row.get("Table", row.get("TABLE", table)),
-            create_statement=row.get("Create Table", row.get("CREATE TABLE", "")),
+            table_name=table,
+            create_statement=row.get("statement", ""),
         )
 
     @staticmethod
     def _parse_create_view(rows: List[Dict], view_name: str):
+        """Parse ``SHOW CREATE VIEW``.
+
+        Single ``statement`` column, as for ``SHOW CREATE TABLE``; the
+        ``character_set_client`` / ``collation_connection`` fields ClickHouse
+        does not report stay ``None``.
+        """
         from ..show.types import ShowCreateViewResult
 
         if not rows:
             return None
         row = rows[0]
         return ShowCreateViewResult(
-            view_name=row.get("View", row.get("VIEW", view_name)),
-            create_statement=row.get("Create View", row.get("CREATE VIEW", "")),
-            character_set_client=row.get("character_set_client"),
-            collation_connection=row.get("collation_connection"),
+            view_name=view_name,
+            create_statement=row.get("statement", ""),
         )
 
     @staticmethod
     def _parse_columns(rows: List[Dict]):
+        """Parse ``SHOW [FULL] COLUMNS``.
+
+        ClickHouse's columns are lower-cased: ``field``, ``type``, ``null``,
+        ``key``, ``default``, ``extra``, plus ``collation``, ``comment`` and
+        ``privileges`` under ``FULL`` (verified on 26.7.3.19 against
+        ``SHOW FULL COLUMNS FROM test_db.t``). MySQL's ``Field`` / ``Type`` /
+        ``Null`` / ``Key`` / ``Default`` / ``Extra`` / ``Collation`` /
+        ``Privileges`` / ``Comment`` are read nowhere here, because reading them
+        yields ``None`` for every field instead of failing.
+
+        Two ClickHouse-specific readings worth stating, both from the ``SHOW``
+        reference page and both reproduced by the live rows:
+
+        * ``key`` is ``'PRI SOR'`` for a column in the sorting key, ``'PRI'`` for
+          a primary-key-only column and ``''`` otherwise — not MySQL's
+          ``PRI``/``UNI``/``MUL``.
+        * ``default`` carries the expression of an ``ALIAS``, ``DEFAULT`` **or**
+          ``MATERIALIZED`` column (ClickHouse reports all three through this one
+          column), and ``extra`` is always ``''`` because the server documents
+          it as unused.
+
+        The rows come back ordered by column **name**, not by declaration order:
+        a table declared ``(id UInt32, created_at DateTime)`` yields
+        ``created_at`` then ``id``. Declaration order lives in
+        ``SHOW CREATE TABLE`` / ``system.columns``.
+        """
         from ..show.types import ShowColumnResult
 
-        columns = []
-        for row in rows:
-            col = ShowColumnResult(
-                field=row.get("Field", row.get("COLUMN_NAME")),
-                type=row.get("Type", row.get("COLUMN_TYPE")),
-                null=row.get("Null", row.get("IS_NULLABLE")),
-                key=row.get("Key", row.get("COLUMN_KEY")),
-                default=row.get("Default", row.get("COLUMN_DEFAULT")),
-                extra=row.get("Extra", row.get("EXTRA")),
+        return [
+            ShowColumnResult(
+                field=row.get("field"),
+                type=row.get("type"),
+                null=row.get("null"),
+                key=row.get("key"),
+                default=row.get("default"),
+                extra=row.get("extra"),
+                collation=row.get("collation"),
+                comment=row.get("comment"),
+                privileges=row.get("privileges"),
             )
-            if "Collation" in row or "Privileges" in row:
-                col.privileges = row.get("Privileges")
-                col.comment = row.get("Comment")
-            columns.append(col)
-        return columns
+            for row in rows
+        ]
 
     @staticmethod
     def _parse_indexes(rows: List[Dict]):
+        """Parse ``SHOW INDEX``.
+
+        ClickHouse answers with its own names, which differ from MySQL's in one
+        place that matters: ``pk_col`` where MySQL says ``Column_name``
+        (verified on 26.7.3.19 — ``SHOW INDEX FROM test_db.t`` reports ``table``,
+        ``non_unique``, ``key_name``, ``seq_in_index``, ``pk_col``, ``collation``,
+        ``cardinality``, ``sub_part``, ``packed``, ``null``, ``index_type``,
+        ``comment``, ``index_comment``, ``visible``, ``expression``; the
+        ``SHOW`` reference page still documents that column as ``column_name``,
+        which the server no longer sends).
+
+        The rows are the table's **primary key columns** (``key_name='PRIMARY'``,
+        ``pk_col`` holding the column name, ``collation='A'``) plus one row per
+        **data skipping index** (``key_name=<index name>``, ``pk_col=''`` and the
+        index expression in ``expression``).
+        """
         from ..show.types import ShowIndexResult
 
         return [
             ShowIndexResult(
-                table_name=row.get("Table", row.get("TABLE_NAME")),
-                non_unique=row.get("Non_unique", row.get("NON_UNIQUE")),
-                key_name=row.get("Key_name", row.get("INDEX_NAME")),
-                seq_in_index=row.get("Seq_in_index", row.get("SEQ_IN_INDEX")),
-                column_name=row.get("Column_name", row.get("COLUMN_NAME")),
-                collation=row.get("Collation", row.get("COLLATION")),
-                cardinality=row.get("Cardinality", row.get("CARDINALITY")),
-                sub_part=row.get("Sub_part", row.get("SUB_PART")),
-                packed=row.get("Packed", row.get("PACKED")),
-                null=row.get("Null", row.get("NULLABLE")),
-                index_type=row.get("Index_type", row.get("INDEX_TYPE"), "BTREE"),
-                comment=row.get("Comment", row.get("INDEX_COMMENT")),
-                index_comment=row.get("Index_comment", row.get("INDEX_COMMENT")),
-                visible=row.get("Visible", row.get("IS_VISIBLE")),
-                expression=row.get("Expression", row.get("EXPRESSION")),
+                table_name=row.get("table"),
+                non_unique=row.get("non_unique"),
+                key_name=row.get("key_name"),
+                seq_in_index=row.get("seq_in_index"),
+                column_name=row.get("pk_col"),
+                collation=row.get("collation"),
+                cardinality=row.get("cardinality"),
+                sub_part=row.get("sub_part"),
+                packed=row.get("packed"),
+                null=row.get("null"),
+                index_type=row.get("index_type"),
+                comment=row.get("comment"),
+                index_comment=row.get("index_comment"),
+                visible=row.get("visible"),
+                expression=row.get("expression"),
             )
             for row in rows
         ]
 
     @staticmethod
     def _parse_tables(rows: List[Dict]):
+        """Parse ``SHOW [FULL] TABLES``.
+
+        ClickHouse names the column ``name`` in both modes and adds an
+        ``engine`` column under ``FULL`` — verified on 26.7.3.19, where
+        ``SHOW TABLES LIMIT 1 FORMAT JSONCompact`` reports
+        ``[{"name": "String"}]`` and the ``FULL`` form adds
+        ``{"name": "String", "engine": "String"}``. MySQL instead names the
+        first column after the database (``Tables_in_<db>``) and calls the
+        second ``Table_type``; reading those names here dropped every ``FULL``
+        row, so the ClickHouse names are used.
+
+        ``ShowTableResult.table_type`` therefore carries the **storage engine**
+        name (``MergeTree``, ``ReplicatedMergeTree``, ``View``, ...) on this
+        backend, which is what ClickHouse reports there, not MySQL's
+        ``BASE TABLE`` / ``VIEW``.
+        """
         from ..show.types import ShowTableResult
 
-        result = []
-        for row in rows:
-            if len(row) == 1:
-                result.append(ShowTableResult(name=list(row.values())[0], table_type=None))
-            else:
-                name_key = next((k for k in row.keys() if k.startswith("Tables_in_")), None)
-                if name_key:
-                    result.append(ShowTableResult(name=row[name_key], table_type=row.get("Table_type")))
-        return result
+        return [
+            ShowTableResult(name=row.get("name"), table_type=row.get("engine"))
+            for row in rows
+        ]
 
     @staticmethod
     def _parse_databases(rows: List[Dict]):
+        """Parse ``SHOW DATABASES``.
+
+        The column is ``name`` (verified on 26.7.3.19); MySQL calls it
+        ``Database``.
+        """
         from ..show.types import ShowDatabaseResult
 
-        return [ShowDatabaseResult(name=row.get("Database")) for row in rows]
+        return [ShowDatabaseResult(name=row.get("name")) for row in rows]
 
     @staticmethod
     def _parse_table_status(rows: List[Dict]):
@@ -228,21 +298,58 @@ class ShowMixin:
 
     @staticmethod
     def _parse_processlist(rows: List[Dict]):
+        """Parse ``SHOW PROCESSLIST``.
+
+        ClickHouse's ``SHOW PROCESSLIST`` is ``system.processes`` verbatim, so the
+        columns are that table's 43 lower-cased names (``query_id``, ``user``,
+        ``address``, ``port``, ``elapsed``, ``current_database``, ``query``,
+        ...) rather than MySQL's ``Id`` / ``User`` / ``Host`` / ``Command`` /
+        ``Time`` / ``db`` / ``State`` / ``Info``.
+
+        Mapping, and the three fields with no ClickHouse counterpart:
+
+        ====================================  =================================
+        ``ShowProcessListResult``              ClickHouse column
+        ====================================  =================================
+        ``id``                                 ``query_id`` (a UUID string, not
+                                               MySQL's integer thread id)
+        ``user``                               ``user``
+        ``host``                               ``address`` + ``port`` joined,
+                                               as MySQL's ``Host`` does
+        ``command``                            **none** — every row in
+                                               ``system.processes`` *is* a
+                                               running query; stays ``None``
+        ``time``                               ``elapsed`` (Float64 seconds)
+        ``db``                                 ``current_database``
+        ``state``                              **none** — no per-process state
+                                               column exists; stays ``None``
+        ``info``                               ``query``
+        ====================================  =================================
+        """
         from ..show.types import ShowProcessListResult
 
-        return [
-            ShowProcessListResult(
-                id=row.get("Id", row.get("ID")),
-                user=row.get("User"),
-                host=row.get("Host"),
-                command=row.get("Command"),
-                time=row.get("Time"),
-                db=row.get("db"),
-                state=row.get("State"),
-                info=row.get("Info"),
+        results = []
+        for row in rows:
+            address = row.get("address")
+            port = row.get("port")
+            host = None
+            if address is not None and port is not None:
+                host = f"{address}:{port}"
+            elif address is not None:
+                host = str(address)
+            results.append(
+                ShowProcessListResult(
+                    id=row.get("query_id"),
+                    user=row.get("user"),
+                    host=host,
+                    command=None,
+                    time=row.get("elapsed"),
+                    db=row.get("current_database"),
+                    state=None,
+                    info=row.get("query"),
+                )
             )
-            for row in rows
-        ]
+        return results
 
     @staticmethod
     def _parse_warnings(rows: List[Dict]):
@@ -254,15 +361,49 @@ class ShowMixin:
 
     @staticmethod
     def _parse_engines(rows: List[Dict]):
+        """Parse ``SHOW ENGINES``.
+
+        ClickHouse's columns are its own, read here as the server sends them:
+        ``name``, the eight ``supports_*`` flags (``supports_settings``,
+        ``supports_skipping_indices``, ``supports_projections``,
+        ``supports_sort_order``, ``supports_ttl``, ``supports_replication``,
+        ``supports_deduplication``, ``supports_parallel_insert`` — each ``UInt8``
+        0/1), then ``description``, ``syntax``, ``examples``, ``introduced_in``
+        and ``related`` — the last five only where the server has them.
+
+        Measured: 25.8.33.6 and 26.3.28.5 carry ``name`` plus the eight flags
+        and nothing else, and a literal ``SELECT syntax FROM system.table_engines``
+        on 25.8 is refused with ``UNKNOWN_IDENTIFIER``; 26.7.3.19 and 26.7.21.2
+        carry all fourteen. (Which release added them was not determined — only
+        the 25.8/26.3 versus 26.7 boundary was.) The older versions therefore
+        yield ``None`` for ``description`` / ``syntax`` / ``examples`` /
+        ``introduced_in`` / ``related``, which is the only honest answer — the
+        statement does not produce them, so no value may be invented for them.
+
+        ``introduced_in`` is the only version-shaped column in the whole ``SHOW``
+        set, and 26.7 leaves it empty: ``SELECT count() FROM
+        system.table_engines WHERE introduced_in != ''`` returns 0 across all 83
+        engines on 26.7.3.19. MySQL's ``Support`` / ``Transactions`` / ``XA`` /
+        ``Savepoints`` are not produced by this statement and are not read.
+        """
         from ..show.types import ShowEngineResult
 
         return [
             ShowEngineResult(
-                engine=row.get("Engine"),
-                support=row.get("Support"),
-                transactions=row.get("Transactions"),
-                xa=row.get("XA"),
-                savepoints=row.get("Savepoints"),
+                engine=row.get("name"),
+                supports_settings=row.get("supports_settings"),
+                supports_skipping_indices=row.get("supports_skipping_indices"),
+                supports_projections=row.get("supports_projections"),
+                supports_sort_order=row.get("supports_sort_order"),
+                supports_ttl=row.get("supports_ttl"),
+                supports_replication=row.get("supports_replication"),
+                supports_deduplication=row.get("supports_deduplication"),
+                supports_parallel_insert=row.get("supports_parallel_insert"),
+                description=row.get("description"),
+                syntax=row.get("syntax"),
+                examples=row.get("examples"),
+                introduced_in=row.get("introduced_in"),
+                related=row.get("related"),
             )
             for row in rows
         ]
@@ -299,9 +440,37 @@ class ShowMixin:
 
     @staticmethod
     def _parse_grants(rows: List[Dict]):
+        """Parse ``SHOW GRANTS``.
+
+        The statement returns **one column whose name is not a name at all**:
+        ClickHouse labels it after the statement text plus whatever output format
+        the client asked for. Measured on 26.7.3.19:
+
+        * ``SHOW GRANTS`` over HTTP with ``default_format=JSONEachRow`` →
+          column ``GRANTS``
+        * ``SHOW GRANTS FORMAT JSONEachRow`` → column ``GRANTS FORMAT JSONEachRow``
+        * ``SHOW GRANTS`` over the native protocol (clickhouse-connect, which
+          appends ``FORMAT Native``) → column ``GRANTS FORMAT Native``
+        * ``SHOW GRANTS FOR root`` → column ``GRANTS FOR root``
+
+        So there is no fixed identifier to look for, and MySQL's ``Grants for``
+        never appears. The statement has exactly one column, so the single value
+        in each row is read: first by the ``GRANTS``-prefix rule the server's own
+        naming obeys, then positionally if even that does not match.
+        """
         from ..show.types import ShowGrantResult
 
-        return [ShowGrantResult(grants=row.get("Grants for")) for row in rows]
+        results = []
+        for row in rows:
+            grants = None
+            grants_key = next((k for k in row if k.upper().startswith("GRANTS")), None)
+            if grants_key is not None:
+                grants = row[grants_key]
+            elif len(row) == 1:
+                # Exactly one column, whatever it is called: take its value.
+                grants = next(iter(row.values()))
+            results.append(ShowGrantResult(grants=grants))
+        return results
 
     @staticmethod
     def _parse_plugins(rows: List[Dict]):

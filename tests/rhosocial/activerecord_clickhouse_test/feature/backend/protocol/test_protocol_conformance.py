@@ -128,7 +128,7 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.CreateTableUsingTemplateSupport,
     dialect_protocols.CreateTriggerSupport,
     dialect_protocols.CreateViewSupport,
-    dialect_protocols.DateTimeSupport,
+    dialect_protocols.TimestampSupport,
     dialect_protocols.DqlOrderSupport,
     dialect_protocols.DropIndexSupport,
     dialect_protocols.DropTableSupport,
@@ -147,13 +147,19 @@ CLICKHOUSE_PROTOCOLS = [
     # probes, and ClickHouse answers supports_identity_column() False -- its
     # server rejects the clause with Code 62 (syntax error at GENERATED).
     dialect_protocols.IdentityColumnSupport,
+    # The column-type table: `ClickHouseColumnTypeMixin` answers
+    # `suggested_column_types()` for all eighteen common Python types and
+    # `suggested_extra_column_types()` with nothing of its own, and the
+    # dialect composes the mixin. The table is the model layer's source for
+    # which column class a field's annotation resolves to, so ClickHouse
+    # declares it rather than leaving it for another dialect to answer.
+    dialect_protocols.ColumnTypeSupport,
     # ClickHouse-specific protocols
     clickhouse_protocols.ClickHouseDMLOperationSupport,
     clickhouse_protocols.ClickHouseTriggerSupport,
     clickhouse_protocols.ClickHouseTableSupport,
     clickhouse_protocols.ClickHouseJSONFunctionSupport,
     clickhouse_protocols.ClickHouseSpatialSupport,
-    clickhouse_protocols.ClickHouseVectorSupport,
     clickhouse_protocols.ClickHouseFullTextSearchSupport,
     clickhouse_protocols.ClickHouseLockingSupport,
     clickhouse_protocols.ClickHouseModifyColumnSupport,
@@ -194,6 +200,11 @@ class TestClickHouseDialectProtocolConformance:
 # ever satisfies one by accident, the negative test fails and forces a conscious
 # decision (move to CLICKHOUSE_PROTOCOLS or revert).
 CLICKHOUSE_NOT_IMPLEMENTED = [
+    # UUID value expressions (generation / nil-max constants / cast) are not
+    # implemented yet on this dialect. Listed here so the omission is a
+    # recorded decision rather than a gap; move it to the implemented list
+    # when the mixin lands.
+    dialect_protocols.UUIDSupport,
     # --- Intentional non-support ---
     # ClickHouse namespaces objects with databases only. There is no inner
     # schema, so it qualifies a name with the catalog slot and reports a
@@ -422,11 +433,9 @@ class TestClickHouseExpressionDialectSeparation:
         ("ClickHouseJSONObjectExpression", "format_json_object"),
         ("ClickHouseJSONArrayExpression", "format_json_array"),
         ("ClickHouseJSONContainsExpression", "format_json_contains"),
-        ("ClickHouseAddPartitionExpression", "format_add_partition_statement"),
         ("ClickHouseDropPartitionExpression", "format_drop_partition_statement"),
-        ("ClickHouseTruncatePartitionExpression", "format_truncate_partition_statement"),
-        ("ClickHouseReorganizePartitionExpression", "format_reorganize_partition_statement"),
-        ("ClickHouseExchangePartitionExpression", "format_exchange_partition_statement"),
+        ("ClickHouseDetachPartitionExpression", "format_detach_partition_statement"),
+        ("ClickHouseAttachPartitionExpression", "format_attach_partition_statement"),
         ("ClickHouseRenameTableExpression", "format_rename_table_statement"),
     ]
 
@@ -467,7 +476,6 @@ CLICKHOUSE_PROTOCOL_MIXIN_PAIRS = [
     (clickhouse_protocols.ClickHouseTableSupport, clickhouse_mixins.ClickHouseTableMixin),
     (clickhouse_protocols.ClickHouseJSONFunctionSupport, clickhouse_mixins.ClickHouseJSONFunctionMixin),
     (clickhouse_protocols.ClickHouseSpatialSupport, clickhouse_mixins.ClickHouseSpatialMixin),
-    (clickhouse_protocols.ClickHouseVectorSupport, clickhouse_mixins.ClickHouseVectorMixin),
     (clickhouse_protocols.ClickHouseFullTextSearchSupport, clickhouse_mixins.ClickHouseFullTextSearchMixin),
     (clickhouse_protocols.ClickHouseLockingSupport, clickhouse_mixins.ClickHouseLockingMixin),
     (clickhouse_protocols.ClickHouseModifyColumnSupport, clickhouse_mixins.ClickHouseModifyColumnMixin),

@@ -175,7 +175,7 @@ def _handle_status_sync(args, backend: ClickHouseBackend, provider):
             data = _serialize_for_output(config_items)
             provider.display_results(data, title="Configuration")
         elif status_type == "performance":
-            perf_items = status_introspector.list_configuration(StatusCategory.PERFORMANCE)
+            perf_items = status_introspector.list_performance_metrics(StatusCategory.PERFORMANCE)
             data = _serialize_for_output(perf_items)
             provider.display_results(data, title="Performance")
         elif status_type == "connections":
@@ -235,7 +235,7 @@ async def _handle_status_async(args, backend: AsyncClickHouseBackend, provider):
             data = _serialize_for_output(config_items)
             provider.display_results(data, title="Configuration")
         elif status_type == "performance":
-            perf_items = await status_introspector.list_configuration(StatusCategory.PERFORMANCE)
+            perf_items = await status_introspector.list_performance_metrics(StatusCategory.PERFORMANCE)
             data = _serialize_for_output(perf_items)
             provider.display_results(data, title="Performance")
         elif status_type == "connections":
@@ -334,8 +334,10 @@ def _display_status_rich(status, verbose: int = 0):
         console.print(config_table)
         console.print()
 
-    # Performance section
-    perf_items = [item for item in status.configuration if item.category == StatusCategory.PERFORMANCE]
+    # Performance section. ServerOverview keeps performance metrics in
+    # `performance`; reading `configuration` here would print the setting list a
+    # second time under the wrong heading.
+    perf_items = [item for item in status.performance if item.category == StatusCategory.PERFORMANCE]
     if perf_items:
         console.print("[bold green]Performance[/bold green]")
         perf_table = Table(show_header=True, header_style="bold")

@@ -88,5 +88,6 @@ class ClickHouseSpatialMixin:
     def format_create_spatial_index(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "SPATIAL indexes",
-            suggestion="ClickHouse has no SPATIAL indexes; use skip indexes (INDEX ... USING).",
+            suggestion="ClickHouse has no SPATIAL indexes; use a skip index declared as "
+            "INDEX name (col) TYPE <type> GRANULARITY n (e.g. minmax, set, bloom_filter, text).",
         )

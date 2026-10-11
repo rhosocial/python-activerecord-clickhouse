@@ -1,10 +1,20 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py
-from typing import Any, List, Tuple, TYPE_CHECKING
+from typing import Union, Any, List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.advanced_functions import JSONExpression
+    from rhosocial.activerecord.backend.expression.advanced_functions import (
+        JSONDocumentExpression,
+        JSONTextExpression,
+    )
+
+    #: Core has one class per JSON operator, and this dialect renders either
+    #: from the same code path -- so the parameter is a union, not one of the
+    #: two. ``JSONTextExpression`` subclasses ``JSONDocumentExpression`` so a
+    #: path chain can keep going after ``->>``; that inheritance is about
+    #: accessors, not about ``->>`` yielding a document.
+    JSONPathNode = Union[JSONDocumentExpression, JSONTextExpression]
 
 
 class ClickHouseJSONFunctionMixin:
@@ -32,7 +42,7 @@ class ClickHouseJSONFunctionMixin:
         """ClickHouse does not support the MySQL-style ``->`` / ``->>`` operators."""
         return False
 
-    def format_json_function_expression(self, expr: "JSONExpression") -> Tuple[str, tuple]:
+    def format_json_function_expression(self, expr: "JSONPathNode") -> Tuple[str, tuple]:
         """Format a JSON path expression using native ClickHouse functions.
 
         ``->``  (JSON value) maps to ``JSONExtractRaw(col, ...parts...)``

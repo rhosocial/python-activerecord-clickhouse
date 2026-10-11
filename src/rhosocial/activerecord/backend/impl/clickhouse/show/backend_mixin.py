@@ -1,16 +1,21 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/show/backend_mixin.py
 """
-ClickHouse backend mixins for SHOW functionality.
-
-This module provides mixin classes that add the show() factory method
-to ClickHouse backends. The show() method returns a ClickHouseShowFunctionality
-instance that provides all ClickHouse SHOW commands.
+ClickHouse backend mixins for the ``show()`` factory method.
 
 .. warning::
-    This module was copied from the MySQL backend template and contains
-    MySQL-style SQL functions/show commands. ClickHouse uses different
-    function names (e.g. ``JSONExtract*``) and a different SHOW command
-    subset. May generate non-ClickHouse SQL; verify before use.
+    **Neither mixin is mixed into a ClickHouse backend.** Neither
+    ``ClickHouseBackend`` nor ``AsyncClickHouseBackend`` lists them in its MRO,
+    so ``backend.show()`` raises ``AttributeError``; verified by introspection,
+    not by reading. The reachable path into this package is
+    ``backend.introspector.show`` (``SyncShowIntrospector`` /
+    ``AsyncShowIntrospector`` in ``..introspection.show_introspector``), which
+    builds the same expressions through the same dialect mixin and carries its
+    own parsers.
+
+    They are kept because they are importable, documented API: deleting them
+    would be a breaking change for any caller importing them directly, whereas
+    mixing them in would change ``backend.show()`` from an ``AttributeError``
+    into a working call and so deserves its own decision.
 """
 
 from typing import TYPE_CHECKING
@@ -23,7 +28,8 @@ class ClickHouseShowMixin:
     """ClickHouse backend mixin for SHOW functionality.
 
     Provides the show() factory method that returns a ClickHouseShowFunctionality
-    instance for executing ClickHouse SHOW commands.
+    instance for executing ClickHouse SHOW commands. Not currently composed
+    into a backend — see the module warning.
     """
 
     def show(self) -> "ClickHouseShowFunctionality":
@@ -34,7 +40,8 @@ class ClickHouseShowMixin:
         """Create ClickHouse SHOW functionality instance.
 
         Returns:
-            ClickHouseShowFunctionality instance with version awareness.
+            ClickHouseShowFunctionality instance. The version it records comes
+            from the backend and is not compared against any threshold.
         """
         from .functionality import ClickHouseShowFunctionality
 
@@ -51,18 +58,22 @@ class ClickHouseShowMixin:
 class AsyncClickHouseShowMixin:
     """Async ClickHouse backend mixin for SHOW functionality.
 
-    ClickHouse backend is synchronous-only (clickhouse-connect is a sync-only
-    driver), so no async SHOW functionality is provided.
+    Refuses rather than providing an async implementation, because the
+    ``clickhouse-connect`` driver is synchronous. Not currently composed into
+    ``AsyncClickHouseBackend`` either; the async backend reaches this package
+    through ``AsyncShowIntrospector``.
     """
 
     def show(self):
         """Raise NotImplementedError: async SHOW functionality is not supported."""
         raise NotImplementedError(
-            "ClickHouse backend is synchronous-only; async SHOW functionality is not supported."
+            "ClickHouse show functionality is synchronous; use "
+            "await backend.introspector.show.<command>() instead."
         )
 
     def _create_show_functionality(self):
         """Raise NotImplementedError: async SHOW functionality is not supported."""
         raise NotImplementedError(
-            "ClickHouse backend is synchronous-only; async SHOW functionality is not supported."
+            "ClickHouse show functionality is synchronous; use "
+            "await backend.introspector.show.<command>() instead."
         )
