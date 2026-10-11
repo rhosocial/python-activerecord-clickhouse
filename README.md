@@ -30,6 +30,11 @@ _ec7d664_
 - **CI-tested server versions**: 25.8, 26.3, 26.7
 - **Published**: _not yet on PyPI_
 
+The `<3.15` ceiling is inherited from the driver: `clickhouse-connect` declares
+`Requires-Python: <3.15,>=3.10`, which is why `requires-python` is pinned to
+`>=3.10,<3.15` in `pyproject.toml` rather than chosen here. The pin moves when
+`clickhouse-connect` lifts its own bound.
+
 ## Installation
 
 ```bash
