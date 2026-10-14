@@ -128,7 +128,11 @@ from rhosocial.activerecord.backend.expression.objects import (
     Table,
     View,
 )
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
+from rhosocial.activerecord.backend.expression.predicates import (
+    ComparisonPredicate,
+    ILikePredicate,
+    LikePredicate,
+)
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
 from rhosocial.activerecord.backend.expression.serialization import (
     ExpressionRegistry,
@@ -159,6 +163,9 @@ from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     AlterDatabaseStatement,
     CreateDatabaseStatement,
     DropDatabaseStatement,
+)
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    AddTableConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableCloneStatement,
@@ -415,6 +422,32 @@ def register_specials():
     register_special_constructor(
         "statements.ddl_table.ReferencesClause",
         lambda d: ddl_table.ReferencesClause(d, Table(d, "other"), ["b"]),
+    )
+    # ADD CONSTRAINT takes a constraint node, and the guess supplies a bare
+    # string, which reaches the formatter as ``constraint.branch`` and raises
+    # AttributeError. A PRIMARY KEY table branch is the cheapest one this
+    # dialect renders in that position.
+    register_special_constructor(
+        "statements.ddl_alter.AddTableConstraint",
+        lambda d: AddTableConstraint(
+            d,
+            ddl_table.TableConstraint(
+                d, branch=ddl_table.TablePrimaryKeyConstraint(d, ["a"])
+            ),
+        ),
+    )
+    # -- predicates whose operands are value nodes ---------------------------
+    # The generic guess hands the operand slot a bare string, which the
+    # formatter then calls ``.to_sql()`` on. Both constructors spell operands
+    # the way the round-trip contract requires; ``Literal`` for the pattern
+    # rather than a string, because a bare string is not a value node.
+    register_special_constructor(
+        "predicates.LikePredicate",
+        lambda d: LikePredicate(d, "LIKE", Column(d, "a"), Literal(d, "%x%")),
+    )
+    register_special_constructor(
+        "predicates.ILikePredicate",
+        lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
     )
 
     # -- DML -----------------------------------------------------------------
@@ -708,6 +741,24 @@ LEGITIMATE_NON_RENDERS = {
         NotImplementedError,
         _NO_FORMATTER,
     ),
+    # The column-definition clause base. Its subclasses each name their own
+    # formatter; the base names only what every column clause has in common.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnClause": (
+        NotImplementedError,
+        _NO_FORMATTER,
+    ),
+    # The constraint-branch bases, new with core's two-level constraint nodes.
+    # A branch names which alternative of the constraint production this is;
+    # rendering the branch is the clause dispatcher's job, so the bases name no
+    # formatter of their own and each concrete branch overrides ``format_method``.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnConstraintBranch": (
+        NotImplementedError,
+        _NO_FORMATTER,
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.TableConstraintBranch": (
+        NotImplementedError,
+        _NO_FORMATTER,
+    ),
     "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
         NotImplementedError,
         _NO_FORMATTER,
@@ -832,11 +883,11 @@ LEGITIMATE_NON_RENDERS = {
     # ClickHouse has a database and no inner schema, so CREATE/DROP SCHEMA is
     # not in its grammar at all. These two are the direct consequence of that
     # decision, which is stated once in the namespace mixin.
-    "rhosocial.activerecord.backend.expression.statements.ddl_schema.CreateSchemaExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_schema.CreateSchemaStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_create_schema_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_schema.DropSchemaExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_schema.DropSchemaStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_schema_statement"),
     ),
@@ -848,15 +899,15 @@ LEGITIMATE_NON_RENDERS = {
     # of a dialect that had itself declared the feature absent. Naming a sequence
     # is a separate capability and is untouched: SequenceNameMixin stays, so
     # Sequence(dialect, "s").to_sql() still renders.
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_create_sequence_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.DropSequenceExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.DropSequenceStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_sequence_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.AlterSequenceExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.AlterSequenceStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_alter_sequence_statement"),
     ),
@@ -942,15 +993,15 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_table_properties_clause"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.CreatePropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.CreatePropertyGraphStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_create_property_graph_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.DropPropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.DropPropertyGraphStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_property_graph_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.AlterPropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.AlterPropertyGraphStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_alter_property_graph_statement"),
     ),
@@ -1056,6 +1107,7 @@ def _dispatched_formatter(exc):
 #: ``trimBoth``/``trimLeft``/``trimRight`` -- so none of the four appears here.
 UNMODELLED_FORMATTERS = {
     "SQL/XML (ClickHouse mixes in no SQL/XML formatter at all)": (
+        "format_passing_clause",
         "format_xmlagg_expression",
         "format_xmlattributes_expression",
         "format_xmlcomment_expression",
