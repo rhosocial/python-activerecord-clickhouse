@@ -126,7 +126,9 @@ to 0/1::
 Nothing is rejected and nothing is warned about: the intended constraint check
 becomes a boolean default column.  **The render path must reject this
 construction itself** -- it cannot be delegated to the server, because the
-server accepts it.  (Not implemented here; see the task's scope note.)
+server accepts it.  That gate is a render-path concern and is not part of the
+switch declarations below; the ``True`` here records only that the *server*
+accepts an expression in the ``DEFAULT`` position.
 
 Naming note: the switches that core's protocol does not own --
 ``supports_rename_constraint``, ``supports_alter_constraint``,
@@ -396,7 +398,8 @@ class ClickHouseConstraintMixin:
     # declared rather than left to be inferred so that "ClickHouse has no
     # column constraints" is stated once, explicitly, next to the evidence,
     # instead of being a reader's job to deduce from the table-level values.
-    # Core S3 may rename them.
+    # Core's S3 wave moved the constraint *nodes* and did not add a protocol
+    # for these per-level switches, so they keep their names.
     # ------------------------------------------------------------------
 
     def supports_column_primary_key_constraint(self) -> bool:
@@ -411,10 +414,12 @@ class ClickHouseConstraintMixin:
 
         The switch is about the *constraint*, so it answers ``False``.
 
-        Note the tension this leaves with the flat
-        :meth:`supports_primary_key_constraint`, which is also ``False`` even
-        though the keyword renders fine in this position; see that method's
-        docstring for the two options and what each costs.
+        Note the deliberate split with the flat
+        :meth:`supports_primary_key_constraint`, which is ``True`` on the same
+        release: that switch gates the ``PRIMARY KEY`` column *modifier* (which
+        renders), this one names the per-level *constraint* (which does not
+        exist). One boolean cannot carry both halves, which is why the two
+        coexist; see the flat switch's docstring for the full measurement.
         """
         return False
 
@@ -505,9 +510,9 @@ class ClickHouseConstraintMixin:
         default column.  A renderer that turns a CHECK-shaped predicate into a
         column ``DEFAULT`` will therefore *succeed* and produce a table that
         stores the violating row.  The refusal has to happen in the render path
-        before the SQL is emitted -- the server will not do it.  (Not
-        implemented here; the gate is out of this change's scope, which is
-        switches and docstrings only.)
+        before the SQL is emitted -- the server will not do it.  That gate is a
+        render-path concern rather than a switch value, so this declaration
+        records only that the server accepts an expression here.
         """
         return True
 
@@ -521,6 +526,13 @@ class ClickHouseConstraintMixin:
         rather than from a ``GENERATED`` constraint.  ``ALIAS`` in particular is
         not stored at all and ``EPHEMERAL`` is not visible after INSERT, so
         neither should be reached through a generic "generated column" request.
+
+        Measured on 26.7.3.19: the parser prints the complete column-modifier
+        set when any column definition is rejected, and ``GENERATED`` is not in
+        it (see :meth:`supports_column_check_constraint` for the list quoted in
+        full -- ``SIGNED, UNSIGNED, COLLATE, NOT, NULL, DEFAULT, MATERIALIZED,
+        ALIAS, EPHEMERAL, AUTO_INCREMENT, COMMENT, CODEC, STATISTICS, TTL,
+        PRIMARY KEY, SETTINGS, FIRST, AFTER, token, Comma, ...``).
 
         Distinct from :meth:`supports_default_column_value_expression`, which is
         ``True``: a generated column and a defaulted column are different

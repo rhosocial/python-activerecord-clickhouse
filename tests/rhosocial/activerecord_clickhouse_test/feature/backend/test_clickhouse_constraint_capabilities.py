@@ -29,6 +29,8 @@ known gaps are named in the notes below rather than encoded as assertions,
 because a test that pins today's wrong behaviour is worse than no test.
 """
 
+import re
+
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.core import Column
@@ -53,6 +55,13 @@ from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDia
 #: purpose: reading it back from the dialect would let a version bump silently
 #: re-label the evidence.
 MEASURED_VERSION = (26, 7, 3)
+
+#: A hard-coded measurement: the draft this file grew out of wrote every switch
+#: against this one instance, and every switch is a statement-level fact rather
+#: than a version gate, so a witness is a quoted server answer or ``accepted``.
+_MEASURED_WITNESS = re.compile(
+    r"(26\.7\.3|Code: \d+|accepted|Expected one of)", re.IGNORECASE
+)
 
 #: Every capability this package declares must come from this package.
 BACKEND_PACKAGE = "rhosocial.activerecord.backend.impl.clickhouse."
@@ -207,6 +216,100 @@ class TestMeasuredConstraintSwitchValues:
                 assert (
                     getattr(dialect, switch_name)() is expected
                 ), f"{switch_name} moved with version {version}"
+
+
+class TestSwitchResolutionIsOwnedByThisBackend:
+    """The resolved answer is this backend's, not a core default reached past it.
+
+    ``_declaring_class`` walks the MRO from the dialect outwards, so the first
+    class that has the name in ``__dict__`` is the one that answers. That is
+    the whole point of declaring locally: a later mixin in the same MRO cannot
+    quietly take a switch back. These guards fail the moment that happens,
+    rather than leaving it to be noticed in a rendering difference.
+
+    The distinction matters more here than on most backends: core's
+    ``ConstraintMixin`` defaults most constraint switches to ``True``, which is
+    the opposite of what a live ClickHouse says about almost all of them, so an
+    inherited answer would not merely be unpinned -- it would be wrong.
+    """
+
+    @pytest.mark.parametrize(
+        "switch_name,_expected", MEASURED_SWITCHES, ids=[s for s, _ in MEASURED_SWITCHES]
+    )
+    def test_the_declaring_class_lives_in_this_package(self, switch_name, _expected):
+        """The class that answers is a ClickHouse one, whatever mixin owns it.
+
+        Not every switch belongs to ``ClickHouseConstraintMixin``:
+        ``supports_drop_constraint_if_exists`` is declared by the DDL-column
+        mixin. What matters is that the answer comes from this package and that
+        the class it comes from is findable, so a reader tracing the contract
+        knows where to look.
+        """
+        declaring = _declaring_class(switch_name)
+        assert declaring.__module__.startswith(BACKEND_PACKAGE), (
+            f"{switch_name} resolves to {declaring.__module__}.{declaring.__qualname__}; "
+            f"a core default answers first, so this backend's measured value is "
+            f"never consulted."
+        )
+
+    @pytest.mark.parametrize(
+        "switch_name,_expected", MEASURED_SWITCHES, ids=[s for s, _ in MEASURED_SWITCHES]
+    )
+    def test_probes_take_no_argument(self, switch_name, _expected):
+        """A probe answers one question and takes no kind.
+
+        The signature is the contract: core calls ``supports_*()`` with no
+        arguments, so a parameterised probe is either never consulted or
+        consulted with a guess. ``(self)`` and nothing else -- checked on the
+        bound method, so a defaulted parameter cannot slip back in.
+        """
+        import inspect
+
+        bound = getattr(_dialect(), switch_name)
+        assert not [
+            param
+            for param in inspect.signature(bound).parameters.values()
+            if param.default is not inspect.Parameter.empty
+            and param.kind
+            not in (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+        ], f"{switch_name} still takes a parameter; a probe names no kind."
+
+
+class TestEverySwitchCarriesItsMeasurement:
+    """A switch whose docstring says only ``True`` is a guess with a name.
+
+    The rule this enforces is the one the whole draft was written for: a value
+    is trustworthy when the statement that produced it is next to it. So each
+    declared switch's docstring has to quote something falsifiable -- the
+    measured server version, the server's own error code, or its ``accepted``
+    verdict -- and a switch that starts documenting without one fails here
+    instead of quietly becoming a guess with a name.
+    """
+
+    @pytest.mark.parametrize(
+        "switch_name,_expected", MEASURED_SWITCHES, ids=[s for s, _ in MEASURED_SWITCHES]
+    )
+    def test_docstring_quotes_the_measurement(self, switch_name, _expected):
+        declaring = _declaring_class(switch_name)
+        doc = (declaring.__dict__[switch_name].__doc__ or "").strip()
+        assert doc, f"{switch_name} has no docstring at all."
+        assert _MEASURED_WITNESS.search(doc), (
+            f"{switch_name}()'s docstring quotes no measurement. Either paste the "
+            f"statement the value came from with the server's own answer, or say "
+            f"why there is no statement to quote."
+        )
+
+    def test_the_measured_engine_is_pinned_in_the_constraint_mixin(self):
+        """The measurement date is a constant, so docstrings and tests cannot drift.
+
+        ``MEASURED_ENGINE`` is what the module's docstrings cite; the two must
+        name the same release, or the evidence stops identifying its source.
+        """
+        from rhosocial.activerecord.backend.impl.clickhouse.mixins.constraint import (
+            MEASURED_ENGINE,
+        )
+
+        assert "26.7.3" in MEASURED_ENGINE
 
 
 class TestTheTwoConstraintKindsAreTheWholeSet:
