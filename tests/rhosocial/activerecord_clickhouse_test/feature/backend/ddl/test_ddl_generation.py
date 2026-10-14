@@ -9,7 +9,7 @@ ClickHouseTypeSupportMixin type formatting.
 import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.expression.statements import ColumnDefinition, CreateTableExpression
+from rhosocial.activerecord.backend.expression.statements import ColumnDefinition, CreateTableStatement
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import (
     IntegerType,
@@ -28,7 +28,7 @@ def dialect():
 class TestClickHouseDDLGeneration:
     def test_create_table_basic(self, dialect):
         """CREATE TABLE with ClickHouse storage options."""
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "users"),
             [
@@ -43,7 +43,7 @@ class TestClickHouseDDLGeneration:
         assert "ORDER BY = id" in sql or "ORDER BY id" in sql
 
     def test_create_table_if_not_exists(self, dialect):
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "events"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
@@ -55,7 +55,7 @@ class TestClickHouseDDLGeneration:
 
     def test_create_table_types_map_to_clickhouse(self, dialect):
         """Core types map to ClickHouse equivalents."""
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "t"),
             [
@@ -76,7 +76,7 @@ class TestClickHouseDDLGeneration:
 
     def test_create_table_engine_clauses(self, dialect):
         """Full ENGINE / ORDER BY / PARTITION BY clauses."""
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "metrics"),
             [

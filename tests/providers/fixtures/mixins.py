@@ -13,7 +13,7 @@ ClickHouse-specific notes:
 from typing import Callable, Dict
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
+    CreateTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
@@ -43,7 +43,7 @@ _DEFAULT_STORAGE_OPTIONS = {
 }
 
 
-def to_sql(expr: CreateTableExpression):
+def to_sql(expr: CreateTableStatement):
     return _common.to_clickhouse_ddl_sql(expr)
 
 
@@ -51,8 +51,8 @@ def to_sql(expr: CreateTableExpression):
 # mixins/combined_articles.sql
 # ---------------------------------------------------------------------------
 
-def create_combined_articles_table(dialect, table_name: str = "combined_articles") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_combined_articles_table(dialect, table_name: str = "combined_articles") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
@@ -82,8 +82,8 @@ def create_combined_articles_table(dialect, table_name: str = "combined_articles
 # mixins/tasks.sql
 # ---------------------------------------------------------------------------
 
-def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
@@ -106,8 +106,8 @@ def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableExpress
 # mixins/timestamped_posts.sql
 # ---------------------------------------------------------------------------
 
-def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
@@ -129,8 +129,8 @@ def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts
 # mixins/versioned_products.sql
 # ---------------------------------------------------------------------------
 
-def create_versioned_products_table(dialect, table_name: str = "versioned_products") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_versioned_products_table(dialect, table_name: str = "versioned_products") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,

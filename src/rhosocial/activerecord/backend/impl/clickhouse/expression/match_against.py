@@ -7,7 +7,7 @@ This module provides ClickHouseMatchAgainstExpression for ClickHouse's full-text
 
 from typing import TYPE_CHECKING, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -28,7 +28,7 @@ class MatchAgainstMode:
 class ClickHouseMatchAgainstExpression(
     AliasableMixin,
     ComparisonMixin,
-    SQLValueExpression,
+    SQLValue,
 ):
     """ClickHouse MATCH...AGAINST expression.
 

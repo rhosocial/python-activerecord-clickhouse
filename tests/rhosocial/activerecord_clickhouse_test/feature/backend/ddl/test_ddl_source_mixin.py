@@ -13,7 +13,7 @@ from rhosocial.activerecord.backend.expression.core import Column, Literal
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
-    CreateTableExpression,
+    CreateTableStatement,
     CreateTableOptions,
     IndexDefinition,
     StorageOptionsExpression,
@@ -183,7 +183,7 @@ class TableDeclarationOverrides:
 
     @classmethod
     def create_table_statement_classes(cls):
-        return CreateTableExpression
+        return CreateTableStatement
 
 
 class DeclarationModel(
@@ -404,7 +404,7 @@ def _assert_declaration_model(model):
     assert model.table_partition().keys[0].name == "physical_value"
     assert model.table_inherits() is TABLE_INHERITS
     assert model.table_tablespace() == TABLE_TABLESPACE
-    assert model.create_table_statement_classes() is CreateTableExpression
+    assert model.create_table_statement_classes() is CreateTableStatement
     assert model.table_constraints() == TABLE_CONSTRAINTS
     assert all(
         actual is expected
@@ -558,7 +558,7 @@ def test_collected_clickhouse_type_and_options_render_minimal_column():
     try:
         column = option.column_definition_class()(dialect, "physical_value", data_type)
         option.apply_to(column)
-        expression = CreateTableExpression(dialect, Table(dialect, "rendered"), [column])
+        expression = CreateTableStatement(dialect, Table(dialect, "rendered"), [column])
         rendered = expression.to_sql()
     finally:
         data_type.dialect = None

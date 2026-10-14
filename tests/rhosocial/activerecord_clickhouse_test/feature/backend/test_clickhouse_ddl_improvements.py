@@ -6,9 +6,9 @@ from unittest.mock import patch
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import (
     Column,
-    CreateTableExpression,
-    CreateViewExpression,
-    QueryExpression,
+    CreateTableStatement,
+    CreateViewStatement,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table, View
 from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
@@ -27,10 +27,10 @@ class TestClickHouseViewCapabilityGating:
     def test_create_view_check_option_gated(self):
         """WITH CHECK OPTION must fail fast when the capability is off."""
         dialect = ClickHouseDialect()
-        query = QueryExpression(
+        query = QueryStatement(
             dialect, select=[Column(dialect, "id")], from_=NamedRelationRef(dialect, Table(dialect, "t"))
         )
-        expr = CreateViewExpression(
+        expr = CreateViewStatement(
             dialect,
             view=View(dialect, "v"),
             query=query,
@@ -78,7 +78,7 @@ class TestClickHouseSchemaCapabilityGating:
 class TestClickHouseTableDeclarationGating:
     def test_table_declaration_defaults_are_absent(self):
         dialect = ClickHouseDialect(version=(26, 7, 3))
-        expression = CreateTableExpression(
+        expression = CreateTableStatement(
             dialect,
             Table(dialect, "plain_table_defaults"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
@@ -93,7 +93,7 @@ class TestClickHouseTableDeclarationGating:
     def test_table_inherits_is_propagated_and_rejected(self):
         dialect = ClickHouseDialect(version=(26, 7, 3))
         assert dialect.supports_table_inheritance() is False
-        expression = CreateTableExpression(
+        expression = CreateTableStatement(
             dialect,
             Table(dialect, "inherited"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
@@ -106,7 +106,7 @@ class TestClickHouseTableDeclarationGating:
     def test_table_tablespace_is_propagated_and_rejected(self):
         dialect = ClickHouseDialect(version=(26, 7, 3))
         assert dialect.supports_table_tablespace() is False
-        expression = CreateTableExpression(
+        expression = CreateTableStatement(
             dialect,
             Table(dialect, "tablespaced"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],

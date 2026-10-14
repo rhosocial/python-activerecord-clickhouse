@@ -36,12 +36,12 @@ backend.introspect_and_adapt()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression,
-    CreateTableExpression,
+    DropTableStatement,
+    CreateTableStatement,
     ColumnDefinition,
     ColumnConstraint,
     ColumnConstraintType,
-    InsertExpression,
+    InsertStatement,
     ValuesSource,
 )
 from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
@@ -53,11 +53,11 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  #
     ClickHouseStringType,
 )
 
-expr = DropTableExpression(dialect, "events", if_exists=True)
+expr = DropTableStatement(dialect, "events", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "events"),
     columns=[
@@ -75,7 +75,7 @@ expr = CreateTableExpression(
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "events"),
     columns=["id", "message", "value"],
@@ -100,7 +100,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # no
     ClickHouseSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
-    AlterTableExpression,
+    AlterTableStatement,
     AddColumn,
     ModifyColumn,
 )
@@ -120,7 +120,7 @@ add_status = AddColumn(
         ],
     ),
 )
-alter_expr = AlterTableExpression(dialect, "events", [add_status])
+alter_expr = AlterTableStatement(dialect, "events", [add_status])
 sql, params = alter_expr.to_sql()
 print(f"ALTER (add column): {sql}")
 backend.execute(sql, params)
@@ -130,7 +130,7 @@ modify_value = ModifyColumn(
     dialect,
     ColumnDefinition(dialect, "value", ClickHouseFloat64Type(dialect)),
 )
-alter_expr = AlterTableExpression(dialect, "events", [modify_value])
+alter_expr = AlterTableStatement(dialect, "events", [modify_value])
 sql, params = alter_expr.to_sql()
 print(f"ALTER (modify type): {sql}")
 backend.execute(sql, params)
@@ -158,7 +158,7 @@ if "events" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "events", if_exists=True)
+expr = DropTableStatement(dialect, "events", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

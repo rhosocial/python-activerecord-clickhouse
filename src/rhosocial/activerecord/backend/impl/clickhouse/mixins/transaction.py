@@ -101,7 +101,7 @@ class ClickHouseTransactionMixin:
             "ClickHouse does not support SET TRANSACTION."
         )
 
-    def format_begin_transaction(self, expr) -> Tuple[str, tuple]:
+    def format_begin_transaction_statement(self, expr) -> Tuple[str, tuple]:
         """ClickHouse does not support transactions."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

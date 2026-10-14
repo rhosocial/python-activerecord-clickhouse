@@ -25,7 +25,7 @@ the server version because the dialect has no mechanism for it.
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ...expression.advanced_functions import TrimExpression
+    from ...expression.advanced_functions import TrimFunction
 
 
 class ClickHouseTrimMixin:
@@ -33,7 +33,7 @@ class ClickHouseTrimMixin:
 
     _TRIM_FUNCTIONS = {"BOTH": "trimBoth", "LEADING": "trimLeft", "TRAILING": "trimRight"}
 
-    def format_trim_expression(self, expr: "TrimExpression") -> Tuple[str, Tuple]:
+    def format_trim_expression(self, expr: "TrimFunction") -> Tuple[str, Tuple]:
         """Format a TRIM node in ClickHouse's form.
 
         Args:

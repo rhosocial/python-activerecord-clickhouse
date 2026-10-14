@@ -44,14 +44,14 @@ User.configure(config, ClickHouseBackend)
 ## 2. Create the table (DDL expression vs raw SQL)
 
 ClickHouse does not auto-create tables. This backend **inherits and extends** the
-core library's DDL expressions: `CreateTableExpression` can generate complete
+core library's DDL expressions: `CreateTableStatement` can generate complete
 native ClickHouse DDL. The two approaches are equivalent:
 
 ### Approach A: DDL expression (recommended, type-safe, serializable)
 
 ```python
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression, ColumnDefinition, DropTableExpression,
+    CreateTableStatement, ColumnDefinition, DropTableStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseInt64Type, ClickHouseStringType, ClickHouseInt32Type,
@@ -59,7 +59,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 )
 
 # Declare ENGINE / ORDER BY / PARTITION BY / TTL / SETTINGS via storage_options
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=User.__dialect__,
     table="users",
     columns=[

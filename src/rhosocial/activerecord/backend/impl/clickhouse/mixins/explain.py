@@ -2,7 +2,7 @@
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements import ExplainExpression
+    from rhosocial.activerecord.backend.expression.statements import ExplainStatement
 
 
 class ClickHouseExplainMixin:
@@ -26,7 +26,7 @@ class ClickHouseExplainMixin:
             return True
         return False
 
-    def format_explain_statement(self, explain_expr: "ExplainExpression") -> tuple:
+    def format_explain_statement(self, explain_expr: "ExplainStatement") -> tuple:
         """Build the ClickHouse EXPLAIN SQL string and return (sql, params).
 
         ClickHouse syntax variants:

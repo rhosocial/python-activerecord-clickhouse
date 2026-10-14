@@ -5,7 +5,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements import InsertExpression
+    from rhosocial.activerecord.backend.expression.statements import InsertStatement
 
 
 class ClickHouseDMLOperationMixin:
@@ -40,7 +40,7 @@ class ClickHouseDMLOperationMixin:
             ),
         )
 
-    def format_insert_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
+    def format_insert_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
         """Format a ClickHouse INSERT statement.
 
         ClickHouse does not support INSERT IGNORE / REPLACE INTO / ON CONFLICT;
@@ -55,7 +55,7 @@ class ClickHouseDMLOperationMixin:
         """
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertExpression.into must be a Table, "
+                f"InsertStatement.into must be a Table, "
                 f"got {type(expr.into).__name__}"
             )
         if self.strict_validation:

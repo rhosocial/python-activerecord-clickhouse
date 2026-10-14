@@ -45,8 +45,8 @@ from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
     PartitionStrategy,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
-    CreateTriggerExpression,
-    DropTriggerExpression,
+    CreateTriggerStatement,
+    DropTriggerStatement,
     TriggerEvent,
     TriggerTiming,
 )
@@ -57,7 +57,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
     FlushOption,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
-    CreateJsonDualityViewExpression,
+    CreateJsonDualityViewStatement,
     DualityObjectSpec,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
@@ -109,7 +109,7 @@ class TestTriggerStub:
 
     def test_format_create_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            CreateTriggerExpression(
+            CreateTriggerStatement(
                 dialect,
                 Trigger(dialect, "trg"),
                 Table(dialect, "tbl"),
@@ -120,7 +120,7 @@ class TestTriggerStub:
 
     def test_format_drop_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            DropTriggerExpression(
+            DropTriggerStatement(
                 dialect, Trigger(dialect, "trg"), Table(dialect, "tbl")
             ).to_sql()
 
@@ -247,7 +247,7 @@ class TestJsonDualityViewStub:
 
     def test_format_create_json_duality_view_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            CreateJsonDualityViewExpression(dialect, "v", DualityObjectSpec()).to_sql()
+            CreateJsonDualityViewStatement(dialect, "v", DualityObjectSpec()).to_sql()
 
 
 class TestFullTextStub:

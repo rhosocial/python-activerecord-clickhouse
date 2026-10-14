@@ -2,7 +2,7 @@
 
 ClickHouse 的 DDL 由 `ENGINE`、`ORDER BY`、`PARTITION BY`、`TTL`、`PRIMARY KEY`、`SAMPLE BY`、`SETTINGS` 等子句组成。本后端在方言层原生支持，且能通过核心库的 DDL 表达式生成——**SQL 语义全覆盖**，无需手写 SQL。
 
-> 📐 本后端继承并扩展了核心库的 `CreateTableExpression`：通过 `storage_options` 字典声明 ClickHouse 子句，`to_sql()` 生成完整 ClickHouse 原生 DDL。
+> 📐 本后端继承并扩展了核心库的 `CreateTableStatement`：通过 `storage_options` 字典声明 ClickHouse 子句，`to_sql()` 生成完整 ClickHouse 原生 DDL。
 
 ## MergeTree 家族
 
@@ -50,14 +50,14 @@ SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 ```python
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression, ColumnDefinition, IndexDefinition,
+    CreateTableStatement, ColumnDefinition, IndexDefinition,
 )
 from rhosocial.activerecord.backend.expression.parts import IndexType
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseInt64Type, ClickHouseStringType, ClickHouseDateTime64Type,
 )
 
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect,
     table="events",
     columns=[
@@ -120,9 +120,9 @@ TTL ts + INTERVAL 30 DAY DELETE
 
 ```python
 from rhosocial.activerecord.backend.expression.statements import (
-    AlterTableExpression, AlterColumn, ColumnAlterOperation,
+    AlterTableStatement, AlterColumn, ColumnAlterOperation,
 )
-expr = AlterTableExpression(dialect, "users", [
+expr = AlterTableStatement(dialect, "users", [
     AlterColumn("col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC"),
 ])
 sql, _ = expr.to_sql()

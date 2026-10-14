@@ -109,7 +109,7 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.advanced_functions import (
-    CaseExpression,
+    CaseFunction,
     WindowClause,
     WindowDefinition,
     WindowSpecification,
@@ -141,12 +141,12 @@ from rhosocial.activerecord.backend.expression.serialization import (
 )
 from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression,
-    CreateTableLikeExpression,
-    CreateViewExpression,
-    DropViewExpression,
-    InsertExpression,
-    TruncateExpression,
+    CreateTableStatement,
+    CreateTableLikeStatement,
+    CreateViewStatement,
+    DropViewStatement,
+    InsertStatement,
+    TruncateStatement,
     ValuesSource,
     ddl_alter,
     ddl_comment,
@@ -156,19 +156,19 @@ from rhosocial.activerecord.backend.expression.statements import (
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     AlterDatabaseAction,
-    AlterDatabaseExpression,
-    CreateDatabaseExpression,
-    DropDatabaseExpression,
+    AlterDatabaseStatement,
+    CreateDatabaseStatement,
+    DropDatabaseStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-    CreateTableCloneExpression,
+    CreateTableCloneStatement,
     TableConstraint,
     TableConstraintType,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
-    CreateMaterializedViewExpression,
-    DropMaterializedViewExpression,
-    RefreshMaterializedViewExpression,
+    CreateMaterializedViewStatement,
+    DropMaterializedViewStatement,
+    RefreshMaterializedViewStatement,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
@@ -333,8 +333,8 @@ def register_specials():
 
     # -- tables --------------------------------------------------------------
     register_special_constructor(
-        "statements.ddl_table.CreateTableExpression",
-        lambda d: ddl_table.CreateTableExpression(d, _table(d), [_integer_column(d)]),
+        "statements.ddl_table.CreateTableStatement",
+        lambda d: ddl_table.CreateTableStatement(d, _table(d), [_integer_column(d)]),
     )
     register_special_constructor(
         "statements.ddl_table.ColumnDefinition", _integer_column
@@ -354,16 +354,16 @@ def register_specials():
         lambda d: ddl_alter.ChangeColumn(d, "old", _integer_column(d)),
     )
     register_special_constructor(
-        "statements.ddl_comment.CommentOnExpression",
-        lambda d: ddl_comment.CommentOnExpression(d, "table", _table(d), comment="c"),
+        "statements.ddl_comment.CommentOnStatement",
+        lambda d: ddl_comment.CommentOnStatement(d, "table", _table(d), comment="c"),
     )
 
     # -- databases -----------------------------------------------------------
     # ``RENAME TO`` is the action core's enum names; without it the guess picks
     # whatever sorts first.
     register_special_constructor(
-        "statements.ddl_database.AlterDatabaseExpression",
-        lambda d: ddl_database.AlterDatabaseExpression(
+        "statements.ddl_database.AlterDatabaseStatement",
+        lambda d: ddl_database.AlterDatabaseStatement(
             d,
             Database(d, "db"),
             action=AlterDatabaseAction.RENAME_TO,
@@ -373,8 +373,8 @@ def register_specials():
 
     # -- containers that need at least one member ----------------------------
     register_special_constructor(
-        "advanced_functions.CaseExpression",
-        lambda d: CaseExpression(
+        "advanced_functions.CaseFunction",
+        lambda d: CaseFunction(
             d, cases=[(_column_predicate(d), Literal(d, 1))], else_result=Literal(d, 0)
         ),
     )
@@ -418,8 +418,8 @@ def register_specials():
 
     # -- DML -----------------------------------------------------------------
     register_special_constructor(
-        "statements.dml.MergeExpression",
-        lambda d: dml.MergeExpression(
+        "statements.dml.MergeStatement",
+        lambda d: dml.MergeStatement(
             d,
             target_table=_table(d),
             source=NamedRelationRef(d, Table(d, "src")),
@@ -647,7 +647,7 @@ UNCONSTRUCTIBLE = (
     # spells no UUID SQL, so the answer is the same for every argument and no
     # registered constructor can change it. Measured with a valid ``which`` --
     # an invalid one raises ValueError first and hides the dialect's answer.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDCastExpression",
+    "rhosocial.activerecord.backend.expression.uuid.UUIDCastFunction",
     "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
     "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
 )
@@ -703,11 +703,11 @@ LEGITIMATE_NON_RENDERS = {
         NotImplementedError,
         _NO_FORMATTER,
     ),
-    "rhosocial.activerecord.backend.expression.bases.SQLValueExpression": (
+    "rhosocial.activerecord.backend.expression.bases.SQLValue": (
         NotImplementedError,
         _NO_FORMATTER,
     ),
-    "rhosocial.activerecord.backend.expression.datetime._TemporalValueExpression": (
+    "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
         NotImplementedError,
         _NO_FORMATTER,
     ),
@@ -820,11 +820,11 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_unpivot_expression"),
     ),
-    "rhosocial.activerecord.backend.expression.predicates.ILIKEExpression": (
+    "rhosocial.activerecord.backend.expression.predicates.ILikePredicate": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_ilike_expression"),
+        _no_dialect_formatter("format_ilike_predicate"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_comment_statement"),
     ),
@@ -884,9 +884,9 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_xmlelement_expression"),
     ),
-    "rhosocial.activerecord.backend.expression.xml.XMLExistsExpression": (
+    "rhosocial.activerecord.backend.expression.xml.XMLExistsPredicate": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlexists_expression"),
+        _no_dialect_formatter("format_xmlexists_predicate"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLForestExpression": (
         UnsupportedFeatureError,
@@ -1060,7 +1060,7 @@ UNMODELLED_FORMATTERS = {
         "format_xmlcomment_expression",
         "format_xmlconcat_expression",
         "format_xmlelement_expression",
-        "format_xmlexists_expression",
+        "format_xmlexists_predicate",
         "format_xmlforest_expression",
         "format_xmlpi_expression",
         "format_xmlparse_expression",
@@ -1095,7 +1095,7 @@ UNMODELLED_FORMATTERS = {
         "format_alter_sequence_statement",
     ),
     "ILIKE (the dialect mixes in no ILIKE mixin; case-insensitive matching "
-    "is ClickHouse's positionCaseInsensitive)": ("format_ilike_expression",),
+    "is ClickHouse's positionCaseInsensitive)": ("format_ilike_predicate",),
     "the core PIVOT / UNPIVOT expressions (the dialect mixes in no pivot "
     "mixin)": (
         "format_pivot_expression",
@@ -1374,7 +1374,7 @@ class TestObjectKindChecks:
 
     def test_create_table_refuses_a_view(self):
         d = self._dialect()
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             d, View(d, "users"), [ddl_table.ColumnDefinition(d, "id", IntegerType(d))]
         )
         with pytest.raises(TypeError, match="must be a Table, got View"):
@@ -1382,38 +1382,38 @@ class TestObjectKindChecks:
 
     def test_create_table_like_refuses_an_index(self):
         d = self._dialect()
-        expr = CreateTableLikeExpression(d, Index(d, "i"), Table(d, "users"))
+        expr = CreateTableLikeStatement(d, Index(d, "i"), Table(d, "users"))
         with pytest.raises(TypeError, match="must be a Table, got Index"):
             expr.to_sql()
 
     def test_create_table_clone_refuses_a_view_source(self):
         d = self._dialect()
-        expr = CreateTableCloneExpression(d, Table(d, "t"), View(d, "v"))
+        expr = CreateTableCloneStatement(d, Table(d, "t"), View(d, "v"))
         with pytest.raises(TypeError, match="source_table must be a Table, got View"):
             expr.to_sql()
 
     def test_create_view_refuses_a_materialized_view(self):
         d = self._dialect()
-        expr = CreateViewExpression(
+        expr = CreateViewStatement(
             d, MaterializedView(d, "mv"), "SELECT 1"
         )
-        with pytest.raises(TypeError, match="CreateViewExpression.view must be a View"):
+        with pytest.raises(TypeError, match="CreateViewStatement.view must be a View"):
             expr.to_sql()
 
     def test_drop_view_refuses_a_table(self):
         d = self._dialect()
-        with pytest.raises(TypeError, match="DropViewExpression.view must be a View"):
-            DropViewExpression(d, Table(d, "t")).to_sql()
+        with pytest.raises(TypeError, match="DropViewStatement.view must be a View"):
+            DropViewStatement(d, Table(d, "t")).to_sql()
 
     def test_generic_materialized_view_ddl_refuses_a_table(self):
         """The generic expression has no kind check of its own, so the formatter's is the only one."""
         d = self._dialect()
         with pytest.raises(TypeError, match="must be a MaterializedView"):
-            CreateMaterializedViewExpression(d, Table(d, "t"), "SELECT 1").to_sql()
+            CreateMaterializedViewStatement(d, Table(d, "t"), "SELECT 1").to_sql()
         with pytest.raises(TypeError, match="must be a MaterializedView"):
-            DropMaterializedViewExpression(d, Table(d, "t")).to_sql()
+            DropMaterializedViewStatement(d, Table(d, "t")).to_sql()
         with pytest.raises(TypeError, match="must be a MaterializedView"):
-            RefreshMaterializedViewExpression(d, Table(d, "t")).to_sql()
+            RefreshMaterializedViewStatement(d, Table(d, "t")).to_sql()
 
     def test_refresh_schedule_refuses_a_non_view_upstream(self):
         """``DEPENDS ON`` renders each entry through its own ``to_sql()``.
@@ -1438,9 +1438,9 @@ class TestObjectKindChecks:
     def test_database_ddl_refuses_a_table(self):
         d = self._dialect()
         for expr in (
-            CreateDatabaseExpression(d, Table(d, "t")),
-            DropDatabaseExpression(d, Table(d, "t")),
-            AlterDatabaseExpression(
+            CreateDatabaseStatement(d, Table(d, "t")),
+            DropDatabaseStatement(d, Table(d, "t")),
+            AlterDatabaseStatement(
                 d, Table(d, "t"), action=AlterDatabaseAction.RENAME_TO, target="x"
             ),
         ):
@@ -1456,7 +1456,7 @@ class TestObjectKindChecks:
         before reaching any clause.
         """
         d = self._dialect()
-        expr = AlterDatabaseExpression(
+        expr = AlterDatabaseStatement(
             d, Database(d, "db"), action=AlterDatabaseAction.SET_PROPERTY, target="x"
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -1464,22 +1464,22 @@ class TestObjectKindChecks:
 
     def test_alter_database_renders_rename_to(self):
         d = self._dialect()
-        expr = AlterDatabaseExpression(
+        expr = AlterDatabaseStatement(
             d, Database(d, "db"), action=AlterDatabaseAction.RENAME_TO, target="renamed"
         )
         assert expr.to_sql()[0] == "ALTER DATABASE `db` RENAME TO `renamed`"
 
     def test_truncate_refuses_a_view(self):
         d = self._dialect()
-        with pytest.raises(TypeError, match="TruncateExpression.table must be a Table"):
-            TruncateExpression(d, View(d, "v")).to_sql()
+        with pytest.raises(TypeError, match="TruncateStatement.table must be a Table"):
+            TruncateStatement(d, View(d, "v")).to_sql()
 
     def test_insert_refuses_an_index(self):
         d = self._dialect()
-        expr = InsertExpression(
+        expr = InsertStatement(
             d, into=Index(d, "i"), source=ValuesSource(d, [[Literal(d, 1)]])
         )
-        with pytest.raises(TypeError, match="InsertExpression.into must be a Table"):
+        with pytest.raises(TypeError, match="InsertStatement.into must be a Table"):
             expr.to_sql()
 
     def test_foreign_key_target_must_be_a_table(self):

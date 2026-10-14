@@ -9,8 +9,8 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
-        CreateTriggerExpression,
-        DropTriggerExpression,
+        CreateTriggerStatement,
+        DropTriggerStatement,
     )
 
 @runtime_checkable
@@ -72,22 +72,22 @@ class ClickHouseTriggerSupport(Protocol):
         """
         ...
 
-    def format_create_trigger_statement(self, expr: "CreateTriggerExpression") -> Tuple[str, tuple]:
+    def format_create_trigger_statement(self, expr: "CreateTriggerStatement") -> Tuple[str, tuple]:
         """Format CREATE TRIGGER statement.
 
         Args:
-            expr: CreateTriggerExpression instance
+            expr: CreateTriggerStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
         """
         ...
 
-    def format_drop_trigger_statement(self, expr: "DropTriggerExpression") -> Tuple[str, tuple]:
+    def format_drop_trigger_statement(self, expr: "DropTriggerStatement") -> Tuple[str, tuple]:
         """Format DROP TRIGGER statement.
 
         Args:
-            expr: DropTriggerExpression instance
+            expr: DropTriggerStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

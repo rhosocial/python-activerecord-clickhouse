@@ -9,10 +9,10 @@ from rhosocial.activerecord.backend.expression.types import DataType
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
         ColumnDefinition,
-        CreateTableAsExpression,
-        CreateTableCloneExpression,
-        CreateTableExpression,
-        CreateTableLikeExpression,
+        CreateTableAsStatement,
+        CreateTableCloneStatement,
+        CreateTableStatement,
+        CreateTableLikeStatement,
         StorageOptionsExpression,
         IndexDefinition,
         TableConstraint,
@@ -66,7 +66,7 @@ class ClickHouseTableMixin:
     def supports_charset_option(self) -> bool:
         return True
 
-    def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
+    def format_create_table_statement(self, expr: "CreateTableStatement") -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for ClickHouse.
 
         The target is read from ``expr.table`` as a schema object and rendered by
@@ -76,14 +76,14 @@ class ClickHouseTableMixin:
         database.
 
         Raises:
-            TypeError: ``CreateTableExpression.table`` is not a Table. Any other
+            TypeError: ``CreateTableStatement.table`` is not a Table. Any other
                 object kind carries its own ``format_method``, so the dialect
                 would call that kind's formatter and render a well-formed
                 ``CREATE TABLE`` whose name is a view, an index or a sequence.
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableExpression.table must be a Table, "
+                f"CreateTableStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if expr.tablespace:
@@ -159,7 +159,7 @@ class ClickHouseTableMixin:
         return storage_options.to_sql()
 
     def format_create_table_like_statement(
-        self, expr: "CreateTableLikeExpression"
+        self, expr: "CreateTableLikeStatement"
     ) -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE target AS source``.
 
@@ -167,23 +167,23 @@ class ClickHouseTableMixin:
         ``CREATE TABLE target CLONE AS source`` -- which also copies data -- is
         a *different* statement and lives in
         :meth:`format_create_table_clone_statement`, driven by
-        ``CreateTableCloneExpression``. It used to be mentioned in this
+        ``CreateTableCloneStatement``. It used to be mentioned in this
         docstring as if it were something this method could emit; it never was.
 
         Raises:
-            TypeError: ``CreateTableLikeExpression.table`` or ``.like_table`` is
+            TypeError: ``CreateTableLikeStatement.table`` or ``.like_table`` is
                 not a Table. Either one would otherwise render its own name as
                 the target or the copied table's.
             UnsupportedFeatureError: The form is not available.
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableLikeExpression.table must be a Table, "
+                f"CreateTableLikeStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not isinstance(expr.like_table, Table):
             raise TypeError(
-                f"CreateTableLikeExpression.like_table must be a Table, "
+                f"CreateTableLikeStatement.like_table must be a Table, "
                 f"got {type(expr.like_table).__name__}"
             )
         if not self.supports_create_table_like():
@@ -202,7 +202,7 @@ class ClickHouseTableMixin:
         return " ".join(parts), ()
 
     def format_create_table_as_statement(
-        self, expr: "CreateTableAsExpression"
+        self, expr: "CreateTableAsStatement"
     ) -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE ... AS <query>``.
 
@@ -232,7 +232,7 @@ class ClickHouseTableMixin:
         return super().format_create_table_as_statement(expr)
 
     def format_create_table_clone_statement(
-        self, expr: "CreateTableCloneExpression"
+        self, expr: "CreateTableCloneStatement"
     ) -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE target CLONE AS source``.
 
@@ -245,7 +245,7 @@ class ClickHouseTableMixin:
         https://clickhouse.com/docs/sql-reference/statements/create/table#create-table-clone-as
 
         Raises:
-            TypeError: ``CreateTableCloneExpression.table`` or ``.source_table``
+            TypeError: ``CreateTableCloneStatement.table`` or ``.source_table``
                 is not a Table. Either one would otherwise render its own name
                 as the target or the cloned table's.
             UnsupportedFeatureError: A clause ClickHouse's ``CLONE AS`` has no
@@ -253,12 +253,12 @@ class ClickHouseTableMixin:
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableCloneExpression.table must be a Table, "
+                f"CreateTableCloneStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not isinstance(expr.source_table, Table):
             raise TypeError(
-                f"CreateTableCloneExpression.source_table must be a Table, "
+                f"CreateTableCloneStatement.source_table must be a Table, "
                 f"got {type(expr.source_table).__name__}"
             )
         if not self.supports_create_table_clone():

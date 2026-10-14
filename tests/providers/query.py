@@ -159,7 +159,7 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
     def _setup_model(self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str) -> Type[ActiveRecord]:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.query import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -171,7 +171,7 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, table_name),
                 if_exists=True,
@@ -210,7 +210,7 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
     def _reset_schema(self, backend_instance, table_name: str) -> None:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.query import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -219,7 +219,7 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
             self._active_backends.append(backend_instance)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, table_name),
                 if_exists=True,
@@ -305,7 +305,7 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
         """Set up the composite-PK OrderItem model for the query feature tests."""
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.basic import TABLE_EXPRESSIONS as BASIC_EXPRS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -317,7 +317,7 @@ class QuerySyncProvider(QueryProviderBase, IQuerySyncProvider, WorkerTestProtoco
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, "order_items"),
                 if_exists=True,
@@ -439,7 +439,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         )
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.query import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -456,7 +456,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, table_name),
                 if_exists=True,
@@ -607,7 +607,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         """Set up the composite-PK AsyncOrderItem model for the query feature tests."""
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from rhosocial.activerecord.backend.expression.objects import Table
         from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
             AsyncClickHouseBackend,
@@ -623,7 +623,7 @@ class QueryAsyncProvider(QueryProviderBase, IQueryAsyncProvider):
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, "order_items"),
                 if_exists=True,

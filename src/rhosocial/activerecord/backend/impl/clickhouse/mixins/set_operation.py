@@ -32,7 +32,7 @@ class ClickHouseSetOperationMixin:
         """Set operations support LIMIT and OFFSET."""
         return True
 
-    def format_set_operation_expression(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
+    def format_set_operation_statement(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
         """Format set operations with an explicit ALL/DISTINCT modifier.
 
         ``all_`` spells ``ALL`` and ``distinct`` spells ``DISTINCT``. The

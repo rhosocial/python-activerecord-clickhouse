@@ -31,11 +31,11 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
-    QueryExpression,
+    DropTableStatement,
+    QueryStatement,
     Column,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, FunctionCall  # noqa: E402
@@ -49,12 +49,12 @@ from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "documents"), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "documents"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
 # Create table with JSON column
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "documents"),
     columns=[
@@ -73,7 +73,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "documents"),
     columns=["data"],
@@ -93,7 +93,7 @@ backend.execute(sql, params)
 # ============================================================
 
 # Use JSONExtract functions (ClickHouse) instead of JSON_EXTRACT (MySQL)
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, "id"),

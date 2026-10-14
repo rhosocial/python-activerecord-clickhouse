@@ -42,7 +42,7 @@ Code 558). :class:`TestSetOperationQualifier` asserts that mapping explicitly
 instead of the generic four-state check.
 
 **The four master probes core's gate round consults.** Core now consults
-``supports_materialized_cte()`` in every ``format_cte_expression``,
+``supports_materialized_cte()`` in every ``format_cte_clause``,
 ``supports_truncate()`` in ``format_truncate_statement``, and the new
 ``supports_with_data_clause()`` in the CTAS / CREATE MATERIALIZED VIEW /
 REFRESH MATERIALIZED VIEW renderers; the wait pair added to the two
@@ -79,27 +79,27 @@ from rhosocial.activerecord.backend.expression.objects import (
     View,
 )
 from rhosocial.activerecord.backend.expression.query_sources import (
-    CTEExpression,
-    SetOperationExpression,
+    CTEClause,
+    SetOperationStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-    CreateTableAsExpression,
-    DropTableExpression,
+    CreateTableAsStatement,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
-    TruncateExpression,
+    TruncateStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
-    CreateMaterializedViewExpression,
-    DropMaterializedViewExpression,
-    DropViewExpression,
-    RefreshMaterializedViewExpression,
+    CreateMaterializedViewStatement,
+    DropMaterializedViewStatement,
+    DropViewStatement,
+    RefreshMaterializedViewStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.dql import (
-    QueryExpression,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.transaction import (
-    BeginTransactionExpression,
+    BeginTransactionStatement,
     SetTransactionExpression,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
@@ -113,15 +113,15 @@ def _table(d: ClickHouseDialect, name: str = "t") -> Table:
     return Table(d, name)
 
 
-def _query(d: ClickHouseDialect) -> QueryExpression:
-    return QueryExpression(d, select=[Column(d, "id")], from_=_table(d))
+def _query(d: ClickHouseDialect) -> QueryStatement:
+    return QueryStatement(d, select=[Column(d, "id")], from_=_table(d))
 
 
-def _union(d: ClickHouseDialect, **kw: Any) -> SetOperationExpression:
-    return SetOperationExpression(
+def _union(d: ClickHouseDialect, **kw: Any) -> SetOperationStatement:
+    return SetOperationStatement(
         d,
-        left=QueryExpression(d, select=[Column(d, "a")], from_=_table(d, "t1")),
-        right=QueryExpression(d, select=[Column(d, "a")], from_=_table(d, "t2")),
+        left=QueryStatement(d, select=[Column(d, "a")], from_=_table(d, "t1")),
+        right=QueryStatement(d, select=[Column(d, "a")], from_=_table(d, "t2")),
         operation="UNION",
         **kw,
     )
@@ -137,7 +137,7 @@ def _generic_mv_with_target(d: ClickHouseDialect, **kw: Any) -> Any:
     would be refused for the missing target and the pair could not be
     observed at all.
     """
-    expr = CreateMaterializedViewExpression(
+    expr = CreateMaterializedViewStatement(
         d, MaterializedView(d, "mv"), _query(d), **kw
     )
     expr.to_table = _table(d, "target")
@@ -185,8 +185,8 @@ def _case(
 #: refusal happens before the pair is read, so no state is silently dropped.
 PAIR_CASES: Tuple[PairCase, ...] = (
     _case(
-        "TruncateExpression.cascade",
-        lambda d, **kw: TruncateExpression(d, _table(d), **kw),
+        "TruncateStatement.cascade",
+        lambda d, **kw: TruncateStatement(d, _table(d), **kw),
         "cascade",
         "restrict",
         Expected(sql="TRUNCATE TABLE `t`"),
@@ -194,8 +194,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="TRUNCATE ... RESTRICT"),
     ),
     _case(
-        "TruncateExpression.restart_identity",
-        lambda d, **kw: TruncateExpression(d, _table(d), **kw),
+        "TruncateStatement.restart_identity",
+        lambda d, **kw: TruncateStatement(d, _table(d), **kw),
         "restart_identity",
         "continue_identity",
         Expected(sql="TRUNCATE TABLE `t`"),
@@ -203,8 +203,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="TRUNCATE ... CONTINUE IDENTITY"),
     ),
     _case(
-        "DropTableExpression.cascade",
-        lambda d, **kw: DropTableExpression(d, _table(d), **kw),
+        "DropTableStatement.cascade",
+        lambda d, **kw: DropTableStatement(d, _table(d), **kw),
         "cascade",
         "restrict",
         Expected(sql="DROP TABLE `t`"),
@@ -212,8 +212,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="DROP TABLE ... RESTRICT"),
     ),
     _case(
-        "DropViewExpression.cascade",
-        lambda d, **kw: DropViewExpression(d, View(d, "v"), **kw),
+        "DropViewStatement.cascade",
+        lambda d, **kw: DropViewStatement(d, View(d, "v"), **kw),
         "cascade",
         "restrict",
         Expected(sql="DROP VIEW `v`"),
@@ -221,8 +221,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="DROP VIEW RESTRICT"),
     ),
     _case(
-        "DropMaterializedViewExpression.cascade",
-        lambda d, **kw: DropMaterializedViewExpression(
+        "DropMaterializedViewStatement.cascade",
+        lambda d, **kw: DropMaterializedViewStatement(
             d, MaterializedView(d, "mv"), **kw
         ),
         "cascade",
@@ -232,8 +232,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="DROP MATERIALIZED VIEW RESTRICT"),
     ),
     _case(
-        "RefreshMaterializedViewExpression.with_data",
-        lambda d, **kw: RefreshMaterializedViewExpression(
+        "RefreshMaterializedViewStatement.with_data",
+        lambda d, **kw: RefreshMaterializedViewStatement(
             d, MaterializedView(d, "mv"), **kw
         ),
         "with_data",
@@ -243,7 +243,7 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="REFRESH MATERIALIZED VIEW WITH NO DATA"),
     ),
     _case(
-        "CreateMaterializedViewExpression.with_data",
+        "CreateMaterializedViewStatement.with_data",
         _generic_mv_with_target,
         "with_data",
         "no_data",
@@ -257,8 +257,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="CREATE MATERIALIZED VIEW WITH NO DATA"),
     ),
     _case(
-        "CreateTableAsExpression.with_data",
-        lambda d, **kw: CreateTableAsExpression(d, _table(d), _query(d), **kw),
+        "CreateTableAsStatement.with_data",
+        lambda d, **kw: CreateTableAsStatement(d, _table(d), _query(d), **kw),
         "with_data",
         "no_data",
         Expected(sql="CREATE TABLE `t` AS SELECT `id` FROM `t`"),
@@ -266,8 +266,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="CREATE TABLE ... WITH NO DATA"),
     ),
     _case(
-        "CTEExpression.materialized",
-        lambda d, **kw: CTEExpression(d, "c", _query(d), **kw),
+        "CTEClause.materialized",
+        lambda d, **kw: CTEClause(d, "c", _query(d), **kw),
         "materialized",
         "not_materialized",
         Expected(sql="`c` AS (SELECT `id` FROM `t`)"),
@@ -281,7 +281,7 @@ PAIR_IDS = [case.case_id for case in PAIR_CASES]
 #: Every consumed pair, including the set-operation qualifier that has its own
 #: class (its grammar has no bare form, so its "neither" state maps to the
 #: required default rather than to "nothing").
-ALL_CONSUMED_PAIRS = frozenset(PAIR_IDS) | {"SetOperationExpression.all_"}
+ALL_CONSUMED_PAIRS = frozenset(PAIR_IDS) | {"SetOperationStatement.all_"}
 
 
 def _render(case: PairCase, **kwargs: Any) -> Tuple[str, str]:
@@ -361,7 +361,7 @@ class TestFourStatesArePairwiseDistinguishable:
 
 
 class TestSetOperationQualifier:
-    """``SetOperationExpression.all_`` / ``distinct`` -- the documented exception.
+    """``SetOperationStatement.all_`` / ``distinct`` -- the documented exception.
 
     ClickHouse's grammar has no bare UNION under the default
     ``union_default_mode`` (measured: ``Code: 558. Expected ALL or DISTINCT in
@@ -418,12 +418,12 @@ class TestSetOperationQualifier:
             ("INTERSECT", "INTERSECT DISTINCT"),
             ("EXCEPT", "EXCEPT DISTINCT"),
         ):
-            expr = SetOperationExpression(
+            expr = SetOperationStatement(
                 d,
-                left=QueryExpression(
+                left=QueryStatement(
                     d, select=[Column(d, "a")], from_=_table(d, "t1")
                 ),
-                right=QueryExpression(
+                right=QueryStatement(
                     d, select=[Column(d, "a")], from_=_table(d, "t2")
                 ),
                 operation=operation,
@@ -442,16 +442,16 @@ class TestGuardIsNotVacuous:
     def test_every_pair_is_covered(self):
         """The pairs this dialect consumes are all in the table."""
         expected = {
-            "TruncateExpression.cascade",
-            "TruncateExpression.restart_identity",
-            "DropTableExpression.cascade",
-            "DropViewExpression.cascade",
-            "DropMaterializedViewExpression.cascade",
-            "RefreshMaterializedViewExpression.with_data",
-            "CreateMaterializedViewExpression.with_data",
-            "CreateTableAsExpression.with_data",
-            "CTEExpression.materialized",
-            "SetOperationExpression.all_",
+            "TruncateStatement.cascade",
+            "TruncateStatement.restart_identity",
+            "DropTableStatement.cascade",
+            "DropViewStatement.cascade",
+            "DropMaterializedViewStatement.cascade",
+            "RefreshMaterializedViewStatement.with_data",
+            "CreateMaterializedViewStatement.with_data",
+            "CreateTableAsStatement.with_data",
+            "CTEClause.materialized",
+            "SetOperationStatement.all_",
         }
         assert expected == ALL_CONSUMED_PAIRS, (
             f"pairs in scope but not guarded: "
@@ -543,7 +543,7 @@ class TestCoreGatedMasterProbes:
         assert d.supports_materialized_cte() is True
         owner = d.supports_materialized_cte.__qualname__
         assert owner == "ClickHouseCTEMixin.supports_materialized_cte"
-        sql, _params = CTEExpression(d, "c", _query(d), materialized=True).to_sql()
+        sql, _params = CTEClause(d, "c", _query(d), materialized=True).to_sql()
         assert sql == "`c` AS MATERIALIZED (SELECT `id` FROM `t`)"
 
     def test_materialized_cte_negative_spelling_is_refused_by_name(self):
@@ -553,7 +553,7 @@ class TestCoreGatedMasterProbes:
         so the by-name refusal is the faithful outcome."""
         d = _dialect()
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            CTEExpression(d, "c", _query(d), not_materialized=True).to_sql()
+            CTEClause(d, "c", _query(d), not_materialized=True).to_sql()
         assert excinfo.value.dialect_name == "ClickHouse"
         assert excinfo.value.feature_name == "CTE NOT MATERIALIZED"
 
@@ -562,7 +562,7 @@ class TestCoreGatedMasterProbes:
         assert d.supports_truncate() is True
         owner = d.supports_truncate.__qualname__
         assert owner == "ClickHouseTruncateMixin.supports_truncate"
-        sql, _params = TruncateExpression(d, _table(d)).to_sql()
+        sql, _params = TruncateStatement(d, _table(d)).to_sql()
         assert sql == "TRUNCATE TABLE `t`"
 
     def test_with_data_clause_is_declared_false_by_this_dialect(self):
@@ -591,21 +591,21 @@ class TestCoreGatedMasterProbes:
         d = _dialect()
         cases = (
             (
-                CreateTableAsExpression(d, _table(d), _query(d), with_data=True),
+                CreateTableAsStatement(d, _table(d), _query(d), with_data=True),
                 "CREATE TABLE ... WITH DATA",
             ),
             (
-                CreateTableAsExpression(d, _table(d), _query(d), no_data=True),
+                CreateTableAsStatement(d, _table(d), _query(d), no_data=True),
                 "CREATE TABLE ... WITH NO DATA",
             ),
             (_generic_mv_with_target(d, with_data=True), "CREATE MATERIALIZED VIEW WITH DATA"),
             (_generic_mv_with_target(d, no_data=True), "CREATE MATERIALIZED VIEW WITH NO DATA"),
             (
-                RefreshMaterializedViewExpression(d, MaterializedView(d, "mv"), with_data=True),
+                RefreshMaterializedViewStatement(d, MaterializedView(d, "mv"), with_data=True),
                 "REFRESH MATERIALIZED VIEW WITH DATA",
             ),
             (
-                RefreshMaterializedViewExpression(d, MaterializedView(d, "mv"), no_data=True),
+                RefreshMaterializedViewStatement(d, MaterializedView(d, "mv"), no_data=True),
                 "REFRESH MATERIALIZED VIEW WITH NO DATA",
             ),
         )
@@ -631,8 +631,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionExpression, SetTransactionExpression],
-        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionExpression],
+        ids=["BeginTransactionStatement", "SetTransactionExpression"],
     )
     @pytest.mark.parametrize(
         "parameter,spelling", [("wait", "WAIT"), ("no_wait", "NO WAIT")]
@@ -649,8 +649,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionExpression, SetTransactionExpression],
-        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionExpression],
+        ids=["BeginTransactionStatement", "SetTransactionExpression"],
     )
     def test_neither_spelling_still_refuses_the_whole_statement(
         self, expression_class
@@ -662,8 +662,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionExpression, SetTransactionExpression],
-        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionExpression],
+        ids=["BeginTransactionStatement", "SetTransactionExpression"],
     )
     def test_both_spellings_are_api_misuse(self, expression_class):
         d = _dialect()

@@ -2,7 +2,7 @@
 
 ClickHouse DDL consists of clauses such as `ENGINE`, `ORDER BY`, `PARTITION BY`, `TTL`, `PRIMARY KEY`, `SAMPLE BY`, and `SETTINGS`. This backend supports them natively at the dialect layer and can generate them through the core library's DDL expressions — **full SQL semantic coverage**, no hand-written SQL required.
 
-> 📐 This backend inherits and extends the core library's `CreateTableExpression`: declaring ClickHouse clauses through the `storage_options` dictionary, with `to_sql()` generating complete native ClickHouse DDL.
+> 📐 This backend inherits and extends the core library's `CreateTableStatement`: declaring ClickHouse clauses through the `storage_options` dictionary, with `to_sql()` generating complete native ClickHouse DDL.
 
 ## MergeTree Family
 
@@ -50,14 +50,14 @@ SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 ```python
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression, ColumnDefinition, IndexDefinition,
+    CreateTableStatement, ColumnDefinition, IndexDefinition,
 )
 from rhosocial.activerecord.backend.expression.parts import IndexType
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseInt64Type, ClickHouseStringType, ClickHouseDateTime64Type,
 )
 
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect,
     table="events",
     columns=[
@@ -120,9 +120,9 @@ This backend supports `ALTER TABLE` ADD/DROP COLUMN (including `IF EXISTS`/`IF N
 
 ```python
 from rhosocial.activerecord.backend.expression.statements import (
-    AlterTableExpression, AlterColumn, ColumnAlterOperation,
+    AlterTableStatement, AlterColumn, ColumnAlterOperation,
 )
-expr = AlterTableExpression(dialect, "users", [
+expr = AlterTableStatement(dialect, "users", [
     AlterColumn("col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC"),
 ])
 sql, _ = expr.to_sql()

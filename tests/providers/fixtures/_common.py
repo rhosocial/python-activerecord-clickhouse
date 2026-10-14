@@ -11,7 +11,7 @@ clauses.
 
 Rather than modifying the ClickHouse backend library source (which is out of
 scope for this refactor), :func:`to_clickhouse_ddl_sql` post-processes the SQL
-produced by ``CreateTableExpression.to_sql()`` so that the generated DDL
+produced by ``CreateTableStatement.to_sql()`` so that the generated DDL
 matches the reference files byte-for-byte for the bits that matter:
 
 * ``KEY='value'`` storage options become ``KEY=value``.
@@ -28,8 +28,8 @@ import re
 from typing import Tuple
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
+    CreateTableStatement,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import ReferentialAction
@@ -59,7 +59,7 @@ def _strip_storage_option_quotes(sql: str) -> str:
     return _STORAGE_OPTION_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}", sql)
 
 
-def _append_fk_actions(expr: CreateTableExpression, sql: str) -> str:
+def _append_fk_actions(expr: CreateTableStatement, sql: str) -> str:
     """Append ``ON DELETE`` / ``ON UPDATE`` clauses to inline FK constraints.
 
     The ClickHouse dialect's ``format_table_constraint`` does not currently emit
@@ -99,8 +99,8 @@ def _append_fk_actions(expr: CreateTableExpression, sql: str) -> str:
     return _FK_RE.sub(repl, sql)
 
 
-def to_clickhouse_ddl_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
-    """Generate canonical ClickHouse DDL for a :class:`CreateTableExpression`.
+def to_clickhouse_ddl_sql(expr: CreateTableStatement) -> Tuple[str, tuple]:
+    """Generate canonical ClickHouse DDL for a :class:`CreateTableStatement`.
 
     Post-processes the dialect output to:
     1. Drop quotes around storage option values.
@@ -123,14 +123,14 @@ def to_clickhouse_ddl_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
     return sql, params
 
 
-def create_table_sql(expr: CreateTableExpression) -> Tuple[str, tuple]:
+def create_table_sql(expr: CreateTableStatement) -> Tuple[str, tuple]:
     """Public alias for :func:`to_clickhouse_ddl_sql`."""
     return to_clickhouse_ddl_sql(expr)
 
 
-def drop_table(dialect, table_name: str) -> DropTableExpression:
+def drop_table(dialect, table_name: str) -> DropTableStatement:
     """Build a canonical ``DROP TABLE IF EXISTS`` expression."""
-    return DropTableExpression(
+    return DropTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_exists=True,

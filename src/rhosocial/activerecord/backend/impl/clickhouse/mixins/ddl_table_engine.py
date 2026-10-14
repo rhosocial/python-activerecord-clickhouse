@@ -62,7 +62,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
     list in ``CREATE TABLE``: ``ENGINE``, ``ORDER BY``, ``PARTITION BY``,
     ``PRIMARY KEY``, ``SAMPLE BY``, ``TTL`` and ``SETTINGS``.
 
-    Usage: pass these clauses through the ``CreateTableExpression``
+    Usage: pass these clauses through the ``CreateTableStatement``
     ``dialect_options`` or ``storage_options`` mapping.
     """
 

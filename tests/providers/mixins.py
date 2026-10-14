@@ -136,7 +136,7 @@ class MixinsSyncProvider(MixinsProviderBase, IMixinsSyncProvider):
     def _setup_model(self, model_class: Type[ActiveRecord], scenario_name: str, table_name: str) -> Type[ActiveRecord]:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.mixins import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -148,7 +148,7 @@ class MixinsSyncProvider(MixinsProviderBase, IMixinsSyncProvider):
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, table_name),
                 if_exists=True,
@@ -210,7 +210,7 @@ class MixinsAsyncProvider(MixinsProviderBase, IMixinsAsyncProvider):
         )
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.mixins import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
@@ -222,7 +222,7 @@ class MixinsAsyncProvider(MixinsProviderBase, IMixinsAsyncProvider):
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         # ClickHouse has no FK constraints; just drop the old table.
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend_instance.dialect,
                 table=Table(backend_instance, table_name),
                 if_exists=True,

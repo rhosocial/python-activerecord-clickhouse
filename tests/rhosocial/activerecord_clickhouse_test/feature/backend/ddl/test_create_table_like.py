@@ -14,8 +14,8 @@ import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import (
     ColumnDefinition,
-    CreateTableExpression,
-    CreateTableLikeExpression,
+    CreateTableStatement,
+    CreateTableLikeStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table, View
 from rhosocial.activerecord.backend.expression.statements import (
@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraintType,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-    CreateTableCloneExpression,
+    CreateTableCloneStatement,
     CreateTableCloneMode,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
@@ -31,22 +31,22 @@ from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDia
 
 
 def _statement(dialect, table, like_table, **kwargs):
-    """Build a CreateTableLikeExpression naming *table* and *like_table*."""
-    return CreateTableLikeExpression(
+    """Build a CreateTableLikeStatement naming *table* and *like_table*."""
+    return CreateTableLikeStatement(
         dialect=dialect, table=table, like_table=like_table, **kwargs
     )
 
 
 def _create_table(dialect, table, columns, **kwargs):
-    """Build a CreateTableExpression naming *table*."""
-    return CreateTableExpression(
+    """Build a CreateTableStatement naming *table*."""
+    return CreateTableStatement(
         dialect=dialect, table=table, columns=columns, **kwargs
     )
 
 
 def _clone(dialect, table, source_table, **kwargs):
-    """Build a CreateTableCloneExpression naming *table* and *source_table*."""
-    return CreateTableCloneExpression(
+    """Build a CreateTableCloneStatement naming *table* and *source_table*."""
+    return CreateTableCloneStatement(
         dialect=dialect, table=table, source_table=source_table, **kwargs
     )
 
@@ -261,7 +261,7 @@ class TestClickHouseCreateTableClone:
         dialect = ClickHouseDialect()
         columns = [ColumnDefinition(dialect, "id", IntegerType(dialect))]
         expr = _create_table(dialect, "users_copy", columns)
-        with pytest.raises(TypeError, match="CreateTableExpression.table must be a Table"):
+        with pytest.raises(TypeError, match="CreateTableStatement.table must be a Table"):
             expr.to_sql()
 
     def test_create_table_refuses_a_view_target(self):

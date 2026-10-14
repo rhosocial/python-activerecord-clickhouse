@@ -172,10 +172,10 @@ class TestClickHouseSQLGeneration:
 
     def test_transaction_formatting_raises(self, dialect):
         """Transaction SQL generation must fail fast for ClickHouse."""
-        from rhosocial.activerecord.backend.expression import BeginTransactionExpression
+        from rhosocial.activerecord.backend.expression import BeginTransactionStatement
 
         with pytest.raises(UnsupportedFeatureError):
-            dialect.format_begin_transaction(BeginTransactionExpression(dialect))
+            dialect.format_begin_transaction_statement(BeginTransactionStatement(dialect))
 
 
 class TestClickHouseExplain:

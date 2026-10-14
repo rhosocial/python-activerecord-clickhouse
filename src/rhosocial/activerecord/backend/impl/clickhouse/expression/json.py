@@ -17,7 +17,7 @@ This module provides expression classes for ClickHouse JSON functions:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_EXTRACT expression.
 
     Extracts a value from a JSON document using a path.
@@ -55,7 +55,7 @@ class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueE
         return "format_json_extract"
 
 
-class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONObjectExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_OBJECT expression.
 
     Creates a JSON object from key-value pairs.
@@ -100,7 +100,7 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
         return "format_json_object"
 
 
-class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONArrayExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_ARRAY expression.
 
     Creates a JSON array from values.
@@ -146,7 +146,7 @@ class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
         return "format_json_array"
 
 
-class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_CONTAINS expression.
 
     Checks if a JSON document contains a specific value.
@@ -176,7 +176,7 @@ class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue
         return "format_json_contains"
 
 
-class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_UNQUOTE expression.
 
     Unquotes a JSON value.
@@ -202,7 +202,7 @@ class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValueExpression):
         return "format_json_unquote"
 
 
-class ClickHouseJSONSetExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONSetExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_SET expression.
 
     Sets a value in a JSON document.
@@ -234,7 +234,7 @@ class ClickHouseJSONSetExpression(AliasableMixin, SQLValueExpression):
         return "format_json_set"
 
 
-class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_REMOVE expression.
 
     Removes a value from a JSON document.
@@ -264,7 +264,7 @@ class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValueExpression):
         return "format_json_remove"
 
 
-class ClickHouseJSONTypeExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONTypeExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_TYPE expression.
 
     Returns the type of a JSON value.
@@ -290,7 +290,7 @@ class ClickHouseJSONTypeExpression(AliasableMixin, SQLValueExpression):
         return "format_json_type"
 
 
-class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_VALID expression.
 
     Checks if a value is valid JSON.
@@ -316,7 +316,7 @@ class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValueExp
         return "format_json_valid"
 
 
-class ClickHouseJSONSearchExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONSearchExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_SEARCH expression.
 
     Searches for a string in a JSON document.

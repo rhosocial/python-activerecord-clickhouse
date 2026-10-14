@@ -6,8 +6,8 @@ from rhosocial.activerecord.backend.expression.objects import View
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import (
-        CreateViewExpression,
-        DropViewExpression,
+        CreateViewStatement,
+        DropViewStatement,
     )
 
 
@@ -46,11 +46,11 @@ class ClickHouseViewMixin:
         """Whether RESTRICT is supported in DROP VIEW (measured: Code 62)."""
         return False
 
-    def format_create_view_statement(self, expr: "CreateViewExpression") -> Tuple[str, tuple]:
+    def format_create_view_statement(self, expr: "CreateViewStatement") -> Tuple[str, tuple]:
         """Format CREATE VIEW statement for ClickHouse.
 
         Raises:
-            TypeError: ``CreateViewExpression.view`` is not a View. A
+            TypeError: ``CreateViewStatement.view`` is not a View. A
                 materialized view passed here would render as a well-formed
                 ``CREATE VIEW`` over the MV's name; an Index or a Table would do
                 the same. The object carries its own ``format_method``, so the
@@ -58,7 +58,7 @@ class ClickHouseViewMixin:
         """
         if not isinstance(expr.view, View):
             raise TypeError(
-                f"CreateViewExpression.view must be a View, "
+                f"CreateViewStatement.view must be a View, "
                 f"got {type(expr.view).__name__}"
             )
         parts = ["CREATE"]
@@ -93,18 +93,18 @@ class ClickHouseViewMixin:
 
         return " ".join(parts), query_params
 
-    def format_drop_view_statement(self, expr: "DropViewExpression") -> Tuple[str, tuple]:
+    def format_drop_view_statement(self, expr: "DropViewStatement") -> Tuple[str, tuple]:
         """Format DROP VIEW statement for ClickHouse.
 
         Raises:
-            TypeError: ``DropViewExpression.view`` is not a View. Anything else
+            TypeError: ``DropViewStatement.view`` is not a View. Anything else
                 would have its own name rendered as the dropped view's.
             UnsupportedFeatureError: ``CASCADE`` or ``RESTRICT``, neither of
                 which ClickHouse accepts (measured: Code 62).
         """
         if not isinstance(expr.view, View):
             raise TypeError(
-                f"DropViewExpression.view must be a View, "
+                f"DropViewStatement.view must be a View, "
                 f"got {type(expr.view).__name__}"
             )
         if expr.cascade:

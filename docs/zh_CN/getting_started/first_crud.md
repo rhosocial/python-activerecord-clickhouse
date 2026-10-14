@@ -37,13 +37,13 @@ User.configure(config, ClickHouseBackend)
 
 ## 2. 建表（DDL 表达式 vs 原始 SQL 对照）
 
-ClickHouse 不自动建表。本后端**继承并扩展**了核心库的 DDL 表达式，能用 `CreateTableExpression` 生成完整 ClickHouse 原生 DDL。两种方式等价：
+ClickHouse 不自动建表。本后端**继承并扩展**了核心库的 DDL 表达式，能用 `CreateTableStatement` 生成完整 ClickHouse 原生 DDL。两种方式等价：
 
 ### 方式 A：DDL 表达式（推荐，类型安全、可序列化）
 
 ```python
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression, ColumnDefinition, DropTableExpression,
+    CreateTableStatement, ColumnDefinition, DropTableStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseInt64Type, ClickHouseStringType, ClickHouseInt32Type,
@@ -51,7 +51,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 )
 
 # 通过 storage_options 声明 ENGINE / ORDER BY / PARTITION BY / TTL / SETTINGS
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=User.__dialect__,
     table="users",
     columns=[

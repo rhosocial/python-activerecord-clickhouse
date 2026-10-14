@@ -26,12 +26,12 @@ dialect = backend.dialect
 
 # Clean up any leftover tables
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression,
+    DropTableStatement,
 )
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableStatement(dialect, "users", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
-expr = DropTableExpression(dialect, "orders", if_exists=True)
+expr = DropTableStatement(dialect, "orders", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 
@@ -45,7 +45,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # no
     ClickHouseSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableExpression, ColumnDefinition,
+    CreateTableStatement, ColumnDefinition,
     ColumnConstraint, ColumnConstraintType,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
@@ -56,7 +56,7 @@ builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Create one table, drop another (if it existed)
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, "users"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
@@ -68,7 +68,7 @@ expr = CreateTableExpression(
 )
 sql, params = expr.to_sql()
 backend.execute(sql, params)
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, "orders"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
@@ -98,10 +98,10 @@ print(f"Diff is empty:  {diff.is_empty}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableStatement(dialect, "users", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
-expr = DropTableExpression(dialect, "orders", if_exists=True)
+expr = DropTableStatement(dialect, "orders", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

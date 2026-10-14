@@ -22,12 +22,12 @@ class ClickHouseCTEMixin:
         """ClickHouse accepts the ``AS MATERIALIZED`` CTE hint.
 
         The negative spelling, ``AS NOT MATERIALIZED``, is a syntax error on
-        ClickHouse 26.7 (``Code: 62``, measured); :meth:`format_cte_expression`
+        ClickHouse 26.7 (``Code: 62``, measured); :meth:`format_cte_clause`
         refuses it by name rather than rendering it.
         """
         return True
 
-    def format_cte_expression(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
+    def format_cte_clause(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
         """Format a CTE definition, refusing the spelling ClickHouse lacks.
 
         The states core renders are kept: neither hint renders nothing and
@@ -44,4 +44,4 @@ class ClickHouseCTEMixin:
                 "ClickHouse spells only AS MATERIALIZED; NOT MATERIALIZED is a "
                 "syntax error (measured: Code 62).",
             )
-        return super().format_cte_expression(expr)
+        return super().format_cte_clause(expr)

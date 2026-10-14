@@ -69,7 +69,7 @@ SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 > mutations by default. See [Mutations (UPDATE/DELETE)](../capabilities/mutations.md).
 >
 > You can also generate the equivalent DDL via a DDL expression
-> (`CreateTableExpression` + `storage_options`); see
+> (`CreateTableStatement` + `storage_options`); see
 > [First CRUD application](first_crud.md#2-create-the-table-ddl-expression-vs-raw-sql).
 
 ## Key points

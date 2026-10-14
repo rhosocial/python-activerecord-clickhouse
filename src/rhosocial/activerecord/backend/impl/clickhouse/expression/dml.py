@@ -3,13 +3,13 @@
 
 from typing import TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression.statements import InsertExpression
+from rhosocial.activerecord.backend.expression.statements import InsertStatement
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseInsertExpression(InsertExpression):
+class ClickHouseInsertExpression(InsertStatement):
     """A ClickHouse INSERT statement extending the generic one.
 
     ClickHouse does not support REPLACE INTO / INSERT IGNORE, but the generic

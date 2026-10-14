@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-        CreateTableLikeExpression,
+        CreateTableLikeStatement,
     )
 
 
@@ -81,7 +81,7 @@ class ClickHouseTableSupport(
         ...
 
     def format_create_table_like_statement(
-        self, expr: "CreateTableLikeExpression"
+        self, expr: "CreateTableLikeStatement"
     ) -> Tuple[str, tuple]:
         """Format the ClickHouse ``CREATE TABLE ... AS <source>`` structure copy.
 

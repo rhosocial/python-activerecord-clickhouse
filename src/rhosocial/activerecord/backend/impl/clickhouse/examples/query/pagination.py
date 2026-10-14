@@ -31,10 +31,10 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
@@ -42,11 +42,11 @@ from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
 )
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "users"),
     columns=[
@@ -59,7 +59,7 @@ sql, params = create_table.to_sql()
 print(f"Create table SQL: {sql}")
 backend.execute(sql, params)
 
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "users"),
     columns=["id", "name"],
@@ -82,11 +82,11 @@ backend.execute(sql, params)
 # SECTION: LIMIT (get first N rows)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    QueryExpression,
+    QueryStatement,
     LimitOffsetClause,
 )
 
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, "id"), Column(dialect, "name")],
     from_=NamedRelationRef(dialect, Table(dialect, "users")),
@@ -103,7 +103,7 @@ print(f"LIMIT result: {result.data}")
 # ============================================================
 # SECTION: OFFSET (skip first N rows)
 # ============================================================
-query_offset = QueryExpression(
+query_offset = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, "id"), Column(dialect, "name")],
     from_=NamedRelationRef(dialect, Table(dialect, "users")),
@@ -117,7 +117,7 @@ print(f"Pagination result: {result.data}")
 # ============================================================
 # SECTION: Teardown
 # ============================================================
-drop_expr = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

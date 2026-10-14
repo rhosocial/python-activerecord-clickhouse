@@ -9,8 +9,8 @@ from typing import Any, Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
-        CreateJsonDualityViewExpression,
-        DropJsonDualityViewExpression,
+        CreateJsonDualityViewStatement,
+        DropJsonDualityViewStatement,
     )
 
 @runtime_checkable
@@ -40,18 +40,18 @@ class ClickHouseJsonDualityViewSupport(Protocol):
         """Whether DML on JSON Duality Views is supported (ClickHouse 9.7+)."""
         ...
 
-    def format_create_json_duality_view_statement(self, expr: "CreateJsonDualityViewExpression") -> Tuple[str, tuple]:
+    def format_create_json_duality_view_statement(self, expr: "CreateJsonDualityViewStatement") -> Tuple[str, tuple]:
         """Format CREATE JSON RELATIONAL DUALITY VIEW statement.
 
         Args:
-            expr: CreateJsonDualityViewExpression instance
+            expr: CreateJsonDualityViewStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
         """
         ...
 
-    def format_drop_json_duality_view_statement(self, expr: "DropJsonDualityViewExpression") -> Tuple[str, tuple]:
+    def format_drop_json_duality_view_statement(self, expr: "DropJsonDualityViewStatement") -> Tuple[str, tuple]:
         """Format DROP VIEW statement for a JSON Duality View."""
         ...
 

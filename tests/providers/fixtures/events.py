@@ -13,7 +13,7 @@ ClickHouse-specific notes:
 from typing import Callable, Dict
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
+    CreateTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
@@ -41,7 +41,7 @@ _DEFAULT_STORAGE_OPTIONS = {
 }
 
 
-def to_sql(expr: CreateTableExpression):
+def to_sql(expr: CreateTableStatement):
     return _common.to_clickhouse_ddl_sql(expr)
 
 
@@ -49,8 +49,8 @@ def to_sql(expr: CreateTableExpression):
 # events/event_tests.sql
 # ---------------------------------------------------------------------------
 
-def create_event_tests_table(dialect, table_name: str = "event_tests") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_event_tests_table(dialect, table_name: str = "event_tests") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
@@ -77,8 +77,8 @@ def create_event_tests_table(dialect, table_name: str = "event_tests") -> Create
 # events/event_tracking_models.sql
 # ---------------------------------------------------------------------------
 
-def create_event_tracking_models_table(dialect, table_name: str = "event_tracking_models") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_event_tracking_models_table(dialect, table_name: str = "event_tracking_models") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,

@@ -16,7 +16,7 @@ This module provides expression classes for ClickHouse spatial functions:
 
 from typing import TYPE_CHECKING, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseSpatialLiteralExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseSpatialLiteralExpression(AliasableMixin, SQLValue):
     """ClickHouse spatial literal expression.
 
     Creates a geometry value from WKT.
@@ -54,7 +54,7 @@ class ClickHouseSpatialLiteralExpression(AliasableMixin, SQLValueExpression):
         return "format_spatial_literal"
 
 
-class ClickHouseSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseSTGeomFromTextExpression(AliasableMixin, SQLValue):
     """ClickHouse ST_GeomFromText expression.
 
     Creates a geometry value from WKT.
@@ -82,7 +82,7 @@ class ClickHouseSTGeomFromTextExpression(AliasableMixin, SQLValueExpression):
         return "format_st_geom_from_text"
 
 
-class ClickHouseSTGeomFromWKBExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseSTGeomFromWKBExpression(AliasableMixin, SQLValue):
     """ClickHouse ST_GeomFromWKB expression.
 
     Creates a geometry value from WKB.
@@ -110,7 +110,7 @@ class ClickHouseSTGeomFromWKBExpression(AliasableMixin, SQLValueExpression):
         return "format_st_geom_from_wkb"
 
 
-class ClickHouseSTAsTextExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseSTAsTextExpression(AliasableMixin, SQLValue):
     """ClickHouse ST_AsText expression.
 
     Converts a geometry to WKT.
@@ -136,7 +136,7 @@ class ClickHouseSTAsTextExpression(AliasableMixin, SQLValueExpression):
         return "format_st_as_text"
 
 
-class ClickHouseSTAsGeoJSONExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseSTAsGeoJSONExpression(AliasableMixin, SQLValue):
     """ClickHouse ST_AsGeoJSON expression.
 
     Converts a geometry to GeoJSON.
@@ -162,7 +162,7 @@ class ClickHouseSTAsGeoJSONExpression(AliasableMixin, SQLValueExpression):
         return "format_st_as_geojson"
 
 
-class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse ST_Distance expression.
 
     Returns the distance between two geometries.
@@ -190,7 +190,7 @@ class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValueEx
         return "format_st_distance"
 
 
-class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse ST_Within expression.
 
     Returns whether one geometry is within another.
@@ -218,7 +218,7 @@ class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValueExpr
         return "format_st_within"
 
 
-class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse ST_Contains expression.
 
     Returns whether one geometry contains another.
@@ -246,7 +246,7 @@ class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValueEx
         return "format_st_contains"
 
 
-class ClickHouseCreateSpatialIndexExpression(SQLValueExpression):
+class ClickHouseCreateSpatialIndexExpression(SQLValue):
     """ClickHouse CREATE SPATIAL INDEX expression.
 
     Example:

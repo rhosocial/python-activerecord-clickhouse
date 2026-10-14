@@ -83,7 +83,7 @@ class ClickHouseMaterializedViewMixin:
         Raises:
             TypeError: ``expr.view`` is not a MaterializedView, or ``expr.to_table``
                 is present and is not a Table. The generic
-                ``CreateMaterializedViewExpression`` carries neither kind of
+                ``CreateMaterializedViewStatement`` carries neither kind of
                 check, and every object renders its own name, so without this a
                 View or a Table would produce a well-formed CREATE MATERIALIZED
                 VIEW naming something else.
@@ -91,18 +91,18 @@ class ClickHouseMaterializedViewMixin:
         """
         if not isinstance(getattr(expr, "view", None), MaterializedView):
             raise TypeError(
-                f"CreateMaterializedViewExpression.view must be a MaterializedView, "
+                f"CreateMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(getattr(expr, 'view', None)).__name__}"
             )
         to_table = getattr(expr, "to_table", None)
         if to_table is not None and not isinstance(to_table, Table):
             raise TypeError(
-                f"CreateMaterializedViewExpression.to_table must be a Table, "
+                f"CreateMaterializedViewStatement.to_table must be a Table, "
                 f"got {type(to_table).__name__}"
             )
         self._reject_unsupported_clauses(expr, "CREATE MATERIALIZED VIEW")
         # The validation also runs in the ClickHouse expression constructor, but a
-        # generic CreateMaterializedViewExpression never goes through it -- and it
+        # generic CreateMaterializedViewStatement never goes through it -- and it
         # carries neither TO nor ENGINE, which ClickHouse requires.
         to_table = self._mv_target(expr)
         engine = getattr(expr, "engine", None)
@@ -175,7 +175,7 @@ class ClickHouseMaterializedViewMixin:
         view = getattr(expr, "view", None)
         if not isinstance(view, MaterializedView):
             raise TypeError(
-                f"DropMaterializedViewExpression.view must be a MaterializedView, "
+                f"DropMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(view).__name__}"
             )
         if getattr(expr, "cascade", False):
@@ -195,7 +195,7 @@ class ClickHouseMaterializedViewMixin:
 
         Raises:
             TypeError: ``expr.view`` is not a MaterializedView. The generic
-                ``RefreshMaterializedViewExpression`` would otherwise render any
+                ``RefreshMaterializedViewStatement`` would otherwise render any
                 object's name as the view refreshed.
             UnsupportedFeatureError: ``CONCURRENTLY``, ``WITH DATA`` or
                 ``WITH NO DATA``, none of which ClickHouse spells this way.
@@ -203,7 +203,7 @@ class ClickHouseMaterializedViewMixin:
         view = getattr(expr, "view", None)
         if not isinstance(view, MaterializedView):
             raise TypeError(
-                f"RefreshMaterializedViewExpression.view must be a MaterializedView, "
+                f"RefreshMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(view).__name__}"
             )
         if getattr(expr, "concurrent", False):

@@ -2,9 +2,9 @@
 """ClickHouse-specific DDL expression fixtures for the testsuite providers.
 
 Each module in this package exposes a ``TABLE_EXPRESSIONS`` mapping of
-table name -> factory callable ``Callable[[DialectLike, str], CreateTableExpression]``.
+table name -> factory callable ``Callable[[DialectLike, str], CreateTableStatement]``.
 
-The factory functions build :class:`CreateTableExpression` instances that emit
+The factory functions build :class:`CreateTableStatement` instances that emit
 ClickHouse-compatible DDL (ENGINE / CHARSET / COLLATE / inline indexes / FK with
 ON DELETE CASCADE / TINYINT(1) / DATETIME(6) / ENUM / JSON).  The pre-existing
 ``.sql`` schema files under ``tests/rhosocial/activerecord_clickhouse_test/feature/<feature>/schema/``

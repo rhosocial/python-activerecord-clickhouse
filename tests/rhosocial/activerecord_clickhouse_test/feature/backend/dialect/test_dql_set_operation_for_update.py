@@ -5,8 +5,8 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Column, ForUpdateClause
-from rhosocial.activerecord.backend.expression.query_sources import SetOperationExpression
-from rhosocial.activerecord.backend.expression.statements import QueryExpression
+from rhosocial.activerecord.backend.expression.query_sources import SetOperationStatement
+from rhosocial.activerecord.backend.expression.statements import QueryStatement
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 
@@ -16,10 +16,10 @@ def dialect():
 
 
 def test_set_operation_for_update_raises(dialect):
-    expr = SetOperationExpression(
+    expr = SetOperationStatement(
         dialect,
-        left=QueryExpression(dialect, select=[Column(dialect, "id")], from_="t1"),
-        right=QueryExpression(dialect, select=[Column(dialect, "id")], from_="t2"),
+        left=QueryStatement(dialect, select=[Column(dialect, "id")], from_="t1"),
+        right=QueryStatement(dialect, select=[Column(dialect, "id")], from_="t2"),
         operation="UNION",
         for_update_clause=ForUpdateClause(dialect),
     )
@@ -28,10 +28,10 @@ def test_set_operation_for_update_raises(dialect):
 
 
 def test_set_operation_without_for_update_renders(dialect):
-    expr = SetOperationExpression(
+    expr = SetOperationStatement(
         dialect,
-        left=QueryExpression(dialect, select=[Column(dialect, "id")], from_="t1"),
-        right=QueryExpression(dialect, select=[Column(dialect, "id")], from_="t2"),
+        left=QueryStatement(dialect, select=[Column(dialect, "id")], from_="t1"),
+        right=QueryStatement(dialect, select=[Column(dialect, "id")], from_="t2"),
         operation="UNION",
     )
     sql, _ = expr.to_sql()

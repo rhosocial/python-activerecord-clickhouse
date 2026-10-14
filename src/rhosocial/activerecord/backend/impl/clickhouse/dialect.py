@@ -526,7 +526,7 @@ class ClickHouseDialect(
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
 
-    # region CreateTableExpression.diff() hooks (CreateTableExpressionDiffMixin)
+    # region CreateTableStatement.diff() hooks (CreateTableExpressionDiffMixin)
     #
     # ClickHouse-specific policy for the expression-level CREATE TABLE diff:
     #

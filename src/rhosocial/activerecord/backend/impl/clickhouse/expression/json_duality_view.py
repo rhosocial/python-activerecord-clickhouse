@@ -101,7 +101,7 @@ class DualityObjectSpec:
     join_condition: Optional[str] = None
 
 
-class CreateJsonDualityViewExpression(BaseExpression):
+class CreateJsonDualityViewStatement(BaseExpression):
     """``CREATE JSON RELATIONAL DUALITY VIEW`` — a statement ClickHouse does not have.
 
     Kept as a fail-fast switch, not as a renderer: ``to_sql()`` raises
@@ -133,7 +133,7 @@ class CreateJsonDualityViewExpression(BaseExpression):
         return "format_create_json_duality_view_statement"
 
 
-class DropJsonDualityViewExpression(BaseExpression):
+class DropJsonDualityViewStatement(BaseExpression):
     """DROP VIEW expression for JSON Duality Views.
 
     Uses standard DROP VIEW syntax since ClickHouse has no special DROP for duality views.

@@ -38,7 +38,7 @@ dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 # which is the SQL:2003 standard niladic form, valid in both DDL DEFAULT
 # and SELECT contexts. ClickHouse also accepts CURRENT_TIMESTAMP() with parentheses.
 
-from rhosocial.activerecord.backend.expression import QueryExpression  # noqa: E402
+from rhosocial.activerecord.backend.expression import QueryStatement  # noqa: E402
 from rhosocial.activerecord.backend.expression.core import FunctionCall  # noqa: E402
 from rhosocial.activerecord.backend.expression.functions.datetime import (  # noqa: E402
     current_timestamp,
@@ -47,7 +47,7 @@ from rhosocial.activerecord.backend.expression.functions.datetime import (  # no
     current_time,
 )
 
-query_ts = QueryExpression(
+query_ts = QueryStatement(
     dialect=dialect,
     select=[current_timestamp(dialect)],
 )
@@ -59,7 +59,7 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT NOW()
 # ============================================================
-query_now = QueryExpression(
+query_now = QueryStatement(
     dialect=dialect,
     select=[now(dialect)],
 )
@@ -71,7 +71,7 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT CURRENT_DATE, CURRENT_TIME
 # ============================================================
-query_date = QueryExpression(
+query_date = QueryStatement(
     dialect=dialect,
     select=[
         current_date(dialect),
@@ -88,7 +88,7 @@ print(f"Result: {result.data}")
 # ============================================================
 from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
 
-query_multi = QueryExpression(
+query_multi = QueryStatement(
     dialect=dialect,
     select=[
         now(dialect).as_("current_time"),
@@ -107,7 +107,7 @@ print(f"Result: {result.data}")
 # ============================================================
 # FunctionCall supports arguments, e.g., formatDateTime, round
 
-query_format = QueryExpression(
+query_format = QueryStatement(
     dialect=dialect,
     select=[
         FunctionCall(dialect, "formatDateTime", now(dialect), Literal(dialect, "%Y-%m-%d")).as_("formatted_date"),
@@ -121,7 +121,7 @@ print(f"Result: {result.data}")
 # ============================================================
 # SECTION: SELECT with generateUUIDv4() (ClickHouse)
 # ============================================================
-query_uuid = QueryExpression(
+query_uuid = QueryStatement(
     dialect=dialect,
     select=[FunctionCall(dialect, "generateUUIDv4").as_("uuid_value")],
 )
@@ -140,7 +140,7 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. Use factory functions (current_timestamp, now, current_date, etc.) for SQL niladic functions
-# 2. QueryExpression without from_ clause generates "SELECT ..." without FROM
+# 2. QueryStatement without from_ clause generates "SELECT ..." without FROM
 # 3. Use FunctionCall(dialect, 'FUNC', arg1, arg2) for regular functions with arguments
 # 4. Use .as_('alias') for column aliases in SELECT
 # 5. SQL:2003 niladic functions (CURRENT_TIMESTAMP, CURRENT_DATE, etc.) omit parentheses

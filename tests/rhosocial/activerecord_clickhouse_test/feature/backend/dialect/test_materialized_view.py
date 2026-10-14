@@ -17,7 +17,7 @@ Every name is a schema object carrying its own database, so the view, the
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression import Column, QueryExpression
+from rhosocial.activerecord.backend.expression import Column, QueryStatement
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.objects import (
@@ -25,9 +25,9 @@ from rhosocial.activerecord.backend.expression.objects import (
     Table,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
-    CreateMaterializedViewExpression,
-    DropMaterializedViewExpression,
-    RefreshMaterializedViewExpression,
+    CreateMaterializedViewStatement,
+    DropMaterializedViewStatement,
+    RefreshMaterializedViewStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.materialized_view import (
@@ -47,7 +47,7 @@ def dialect():
 
 
 def _generic_query(dialect):
-    return QueryExpression(
+    return QueryStatement(
         dialect=dialect,
         select=[Column(dialect, "grp")],
         from_=NamedRelationRef(dialect, Table(dialect, "src")),
@@ -417,11 +417,11 @@ class TestRefreshAndDrop:
             )
 
     def test_generic_refresh_routes_here(self, dialect):
-        expr = RefreshMaterializedViewExpression(dialect=dialect, view=MaterializedView(dialect, "mv_ref"))
+        expr = RefreshMaterializedViewStatement(dialect=dialect, view=MaterializedView(dialect, "mv_ref"))
         assert expr.to_sql()[0] == "SYSTEM REFRESH VIEW `mv_ref`"
 
     def test_generic_concurrent_is_rejected(self, dialect):
-        expr = RefreshMaterializedViewExpression(
+        expr = RefreshMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv_ref"), concurrent=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -430,7 +430,7 @@ class TestRefreshAndDrop:
 
     def test_generic_with_data_is_rejected(self, dialect):
         """``with_data=True`` is the WITH DATA spelling; ClickHouse has neither."""
-        expr = RefreshMaterializedViewExpression(
+        expr = RefreshMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv_ref"), with_data=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -439,7 +439,7 @@ class TestRefreshAndDrop:
 
     def test_generic_with_no_data_is_rejected(self, dialect):
         """``no_data=True`` is the WITH NO DATA spelling."""
-        expr = RefreshMaterializedViewExpression(
+        expr = RefreshMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv_ref"), no_data=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -449,7 +449,7 @@ class TestRefreshAndDrop:
 
 class TestRejectsNonClickHouseClauses:
     def test_generic_column_aliases(self, dialect):
-        expr = CreateMaterializedViewExpression(
+        expr = CreateMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, column_aliases=["a"]
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -457,7 +457,7 @@ class TestRejectsNonClickHouseClauses:
         assert "COLUMN ALIASES" in str(exc.value)
 
     def test_generic_tablespace(self, dialect):
-        expr = CreateMaterializedViewExpression(
+        expr = CreateMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, tablespace="fast_ssd"
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -465,7 +465,7 @@ class TestRejectsNonClickHouseClauses:
         assert "TABLESPACE" in str(exc.value)
 
     def test_generic_storage_options(self, dialect):
-        expr = CreateMaterializedViewExpression(
+        expr = CreateMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, storage_options={"fillfactor": 70}
         )
         with pytest.raises(UnsupportedFeatureError):
@@ -477,7 +477,7 @@ class TestRejectsNonClickHouseClauses:
         ``no_data=True`` is the explicit spelling; the old ``with_data=False``
         was the pre-split sentinel and is now simply "unspecified".
         """
-        expr = CreateMaterializedViewExpression(
+        expr = CreateMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, no_data=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -487,7 +487,7 @@ class TestRejectsNonClickHouseClauses:
 
     def test_generic_with_data(self, dialect):
         """``with_data=True`` is refused by name too, not silently dropped."""
-        expr = CreateMaterializedViewExpression(
+        expr = CreateMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, with_data=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -496,7 +496,7 @@ class TestRejectsNonClickHouseClauses:
         assert "POPULATE" in str(exc.value)  # points at the ClickHouse alternative
 
     def test_generic_drop_cascade(self, dialect):
-        expr = DropMaterializedViewExpression(
+        expr = DropMaterializedViewStatement(
             dialect=dialect, view=MaterializedView(dialect, "mv"), if_exists=True, cascade=True
         )
         with pytest.raises(UnsupportedFeatureError) as exc:
@@ -505,6 +505,6 @@ class TestRejectsNonClickHouseClauses:
 
     def test_generic_create_without_engine_or_to_is_rejected(self, dialect):
         """The generic expression carries neither, so it cannot satisfy the rule."""
-        expr = CreateMaterializedViewExpression(dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY)
+        expr = CreateMaterializedViewStatement(dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY)
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
