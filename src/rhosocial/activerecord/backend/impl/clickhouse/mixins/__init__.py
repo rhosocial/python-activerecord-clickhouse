@@ -50,6 +50,7 @@ from .index import ClickHouseIndexMixin
 from .sequence import ClickHouseSequenceMixin
 from .constraint import ClickHouseConstraintMixin
 from .ddl_column import ClickHouseDDLColumnMixin
+from .wildcard import ClickHouseWildcardMixin
 from .function import ClickHouseFunctionMixin
 from .column_type import ClickHouseColumnTypeMixin
 from .trim import ClickHouseTrimMixin
@@ -105,6 +106,7 @@ __all__ = [
     "ClickHouseSequenceMixin",
     "ClickHouseConstraintMixin",
     "ClickHouseDDLColumnMixin",
+    "ClickHouseWildcardMixin",
     "ClickHouseFunctionMixin",
     "ClickHouseColumnTypeMixin",
     "ClickHouseTrimMixin",

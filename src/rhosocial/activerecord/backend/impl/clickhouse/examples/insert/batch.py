@@ -76,7 +76,7 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     ValuesSource,
     QueryStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column  # noqa: E402
+from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause  # noqa: E402
 
 insert_expr = InsertStatement(
@@ -106,7 +106,7 @@ print(f"Affected rows: {result.affected_rows}")
 
 verify_query = QueryStatement(
     dialect=dialect,
-    select=[WildcardExpression(dialect)],
+    select=[AllColumnsWildcard(dialect)],
     from_=NamedRelationRef(dialect, Table(dialect, "logs")),
     order_by=OrderByClause(dialect, [Column(dialect, "id")]),
 )

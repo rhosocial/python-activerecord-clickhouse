@@ -59,6 +59,7 @@ from .partition import (
     ClickHouseAttachPartitionExpression,
 )
 from .rename_table import ClickHouseRenameTableExpression
+from .wildcard import ClickHouseRowCountDistinctWildcard
 from .spatial import (
     ClickHouseCreateSpatialIndexExpression,
     ClickHouseSTAsGeoJSONExpression,
@@ -146,6 +147,8 @@ __all__ = [
     "ClickHouseAttachPartitionExpression",
     # Rename table
     "ClickHouseRenameTableExpression",
+    # Row-count wildcard: the COUNT(DISTINCT *) spelling only ClickHouse has
+    "ClickHouseRowCountDistinctWildcard",
     # DataType subclasses for DDL
     "ClickHouseAggregateFunctionType",
     "ClickHouseArrayType",

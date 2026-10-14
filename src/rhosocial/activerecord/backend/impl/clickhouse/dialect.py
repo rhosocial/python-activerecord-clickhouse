@@ -182,6 +182,7 @@ from .mixins import (
     ClickHouseJoinMixin,
     ClickHouseSetOperationMixin,
     ClickHouseDQLMixin,
+    ClickHouseWildcardMixin,
     ClickHouseMaterializedViewMixin,  # MV DDL overrides ClickHouseViewMixin and ViewMixin
     ClickHouseViewMixin,
     ClickHouseNamespaceMixin,
@@ -330,6 +331,11 @@ class ClickHouseDialect(
     IntrospectionMixin,
     # Global new mixins
     PredicateMixin,
+    # Before ExpressionMixin: the wildcard split gave the row-count position its
+    # own formatter, and ClickHouse spells ``COUNT(DISTINCT *)`` where core
+    # spells ``*``. C3 gives the earlier name in this list priority, so this must
+    # stay ahead of ``ExpressionMixin`` or the override would never be reached.
+    ClickHouseWildcardMixin,
     ExpressionMixin,
     ClickHouseDateTimeMixin,
     DateTimeMixin,

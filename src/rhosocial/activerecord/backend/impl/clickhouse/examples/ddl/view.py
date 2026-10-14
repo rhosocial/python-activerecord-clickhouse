@@ -87,7 +87,7 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     CreateViewStatement,
     DropViewStatement,
 )
-from rhosocial.activerecord.backend.expression.core import WildcardExpression  # noqa: E402
+from rhosocial.activerecord.backend.expression.core import AllColumnsWildcard  # noqa: E402
 
 query = QueryStatement(
     dialect=dialect,
@@ -109,7 +109,7 @@ backend.execute(sql, params, options=options)
 
 verify_query = QueryStatement(
     dialect=dialect,
-    select=[WildcardExpression(dialect)],
+    select=[AllColumnsWildcard(dialect)],
     from_=NamedRelationRef(dialect, Table(dialect, "user_names")),
 )
 options = ExecutionOptions(stmt_type=StatementType.DQL)
