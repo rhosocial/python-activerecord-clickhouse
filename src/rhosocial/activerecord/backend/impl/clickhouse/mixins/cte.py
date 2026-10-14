@@ -4,7 +4,7 @@ from typing import Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression import bases
+    from rhosocial.activerecord.backend.expression.query_sources import CTEClause
 
 
 class ClickHouseCTEMixin:
@@ -27,7 +27,7 @@ class ClickHouseCTEMixin:
         """
         return True
 
-    def format_cte_clause(self, expr: "bases.BaseExpression") -> Tuple[str, tuple]:
+    def format_cte_clause(self, expr: "CTEClause") -> Tuple[str, tuple]:
         """Format a CTE definition, refusing the spelling ClickHouse lacks.
 
         The states core renders are kept: neither hint renders nothing and
