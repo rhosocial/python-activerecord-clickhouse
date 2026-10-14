@@ -163,7 +163,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_database import (
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableCloneStatement,
     TableConstraint,
-    TableConstraintType,
+    TableForeignKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
     CreateMaterializedViewStatement,
@@ -400,13 +400,14 @@ def register_specials():
     )
 
     # -- constraints and column pieces ---------------------------------------
-    # The guess hands the constraint-type parameter the bare string ``"x"``, which
-    # is not a ColumnConstraintType and not one of their string values, so the
-    # formatter's normalizer refuses it before any clause is spelled.
+    # The branch is a required keyword now, and an introspective constructor
+    # cannot guess one: ``branch=`` takes a node, not a value the guesser can
+    # read off the signature. ``ColumnNotNullConstraint`` is the cheapest branch
+    # that still renders, so it is what the round trip builds.
     register_special_constructor(
         "statements.ddl_table.ColumnConstraint",
         lambda d: ddl_table.ColumnConstraint(
-            d, ddl_table.ColumnConstraintType.NOT_NULL, name="c"
+            d, branch=ddl_table.ColumnNotNullConstraint(d), name="c"
         ),
     )
     # REFERENCES needs at least one referenced column, or the clause is not a
@@ -1488,15 +1489,20 @@ class TestObjectKindChecks:
         Otherwise a caller who passed the wrong object is told FOREIGN KEY is
         unsupported -- a true statement about a different mistake, and one that
         sends them looking in the wrong place.
+
+        The branch carries the references, so the check reads
+        ``TableForeignKeyConstraint.references`` rather than the production's
+        (deleted) ``foreign_key_table`` field.
         """
         d = self._dialect()
         constraint = TableConstraint(
             d,
-            TableConstraintType.FOREIGN_KEY,
-            columns=["a"],
-            foreign_key_table=View(d, "other"),
+            branch=TableForeignKeyConstraint(d, ["a"], (View(d, "other"), None)),
         )
-        with pytest.raises(TypeError, match="foreign_key_table must be a Table, got View"):
+        with pytest.raises(
+            TypeError,
+            match="TableForeignKeyConstraint.references must pair a Table with its columns, got View",
+        ):
             self._dialect().format_table_constraint(constraint)
 
     def test_column_definition_type_must_be_a_data_type(self):

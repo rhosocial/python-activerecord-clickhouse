@@ -25,7 +25,7 @@ from rhosocial.activerecord.backend.expression.functions.datetime import current
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     IndexDefinition,
@@ -56,22 +56,22 @@ columns = [
         name="id",
         data_type="UInt32",
         constraints=[
-            ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
         name="name",
         data_type="String",
         constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
         name="price",
         data_type="Decimal(10, 2)",
         constraints=[
-            ColumnConstraint(ColumnConstraintType.NOT_NULL),
+            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
         ],
     ),
     ColumnDefinition(
@@ -82,14 +82,14 @@ columns = [
         name="is_active",
         data_type="UInt8",
         constraints=[
-            ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=1),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1)),
         ],
     ),
     ColumnDefinition(
         name="created_at",
         data_type="DateTime",
         constraints=[
-            ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=current_timestamp(dialect)),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
         ],
     ),
 ]

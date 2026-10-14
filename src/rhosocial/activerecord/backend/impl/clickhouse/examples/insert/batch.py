@@ -19,7 +19,7 @@ from rhosocial.activerecord.backend.expression.functions.datetime import current
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
@@ -48,8 +48,8 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("level", "String"),
@@ -58,10 +58,8 @@ create_table = CreateTableStatement(
             "created_at",
             "DateTime",
             constraints=[
-                ColumnConstraint(
-                    ColumnConstraintType.DEFAULT,
-                    default_value=current_timestamp(dialect),
-                ),
+                ColumnConstraint(dialect,
+                 branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
             ],
         ),
     ],

@@ -46,7 +46,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # no
 )
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     CreateTableStatement, ColumnDefinition,
-    ColumnConstraint, ColumnConstraintType,
+    ColumnConstraint, ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
     ClickHouseUInt32Type, ClickHouseStringType, ClickHouseDecimalType,
@@ -60,8 +60,8 @@ expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, "users"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
-                ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ]),
         ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
     ]
@@ -72,8 +72,8 @@ expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, "orders"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
-                ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ]),
         ColumnDefinition(dialect, "user_id", ClickHouseUInt32Type(dialect)),
         ColumnDefinition(dialect, "amount", ClickHouseDecimalType(dialect, precision=10, scale=2)),

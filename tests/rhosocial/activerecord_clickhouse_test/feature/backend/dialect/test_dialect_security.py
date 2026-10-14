@@ -13,7 +13,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDia
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -32,11 +32,8 @@ def dialect():
 
 def test_clickhouse_format_column_definition_default_string_escaping(dialect):
     """Test DEFAULT constraint string is escaped in ClickHouse."""
-    constraint = ColumnConstraint(
-        dialect,
-        ColumnConstraintType.DEFAULT,
-        default_value="test's value",
-    )
+    constraint = ColumnConstraint(dialect,
+                 branch=ColumnDefaultConstraint(dialect, "test's value"))
 
     col_def = ColumnDefinition(
         dialect,

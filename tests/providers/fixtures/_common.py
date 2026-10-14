@@ -72,20 +72,24 @@ def _append_fk_actions(expr: CreateTableStatement, sql: str) -> str:
     fk_suffix_by_clause: dict = {}
     for t_const in expr.table_constraints:
         from rhosocial.activerecord.backend.expression.statements import (
-            TableConstraintType,
             ForeignKeyConstraint,
+            TableForeignKeyConstraint,
         )
-        if t_const.constraint_type != TableConstraintType.FOREIGN_KEY:
+        # S3: the kind is the branch class now; ``constraint_type`` is gone as a
+        # field and what the production keeps in its place raises AttributeError.
+        branch = getattr(t_const, "branch", None)
+        if not isinstance(branch, TableForeignKeyConstraint):
             continue
         if not isinstance(t_const, ForeignKeyConstraint):
             continue
-        cols = ", ".join(f"`{c}`" for c in (t_const.columns or []))
-        ref_cols = ", ".join(f"`{c}`" for c in (t_const.foreign_key_columns or []))
-        ref_table = f"`{t_const.foreign_key_table}`"
+        cols = ", ".join(f"`{c}`" for c in (branch.columns or []))
+        ref_table_obj, ref_columns = branch.references
+        ref_cols = ", ".join(f"`{c}`" for c in (ref_columns or []))
+        ref_table = f"`{ref_table_obj}`"
         clause = f"FOREIGN KEY ({cols}) REFERENCES {ref_table} ({ref_cols})"
         suffix_parts = []
-        on_delete = getattr(t_const, "on_delete", None)
-        on_update = getattr(t_const, "on_update", None)
+        on_delete = getattr(branch, "on_delete", None)
+        on_update = getattr(branch, "on_update", None)
         if on_delete and on_delete != ReferentialAction.NO_ACTION:
             suffix_parts.append(f"ON DELETE {on_delete.value}")
         if on_update and on_update != ReferentialAction.NO_ACTION:

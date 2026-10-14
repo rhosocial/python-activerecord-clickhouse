@@ -42,7 +42,7 @@ from rhosocial.activerecord.backend.expression.operators import BinaryArithmetic
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 
 # Drop table first for clean setup
@@ -58,15 +58,15 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "name",
             "String",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("age", "UInt32"),

@@ -33,7 +33,7 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 
 drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
@@ -52,7 +52,7 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
     ],

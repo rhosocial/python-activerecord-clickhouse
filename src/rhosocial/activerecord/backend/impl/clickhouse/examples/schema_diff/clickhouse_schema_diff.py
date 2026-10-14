@@ -40,7 +40,7 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
     CreateTableStatement,
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
     InsertStatement,
     ValuesSource,
 )
@@ -63,8 +63,8 @@ expr = CreateTableStatement(
     columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
-                ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ]),
         ColumnDefinition(dialect, "ts", ClickHouseDateTimeType(dialect)),
         ColumnDefinition(dialect, "message", ClickHouseStringType(dialect)),
@@ -116,7 +116,7 @@ add_status = AddColumn(
         "status",
         ClickHouseStringType(dialect),
         constraints=[
-            ColumnConstraint(constraint_type=ColumnConstraintType.DEFAULT, default_value=Literal(dialect, "new")),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, "new"))),
         ],
     ),
 )

@@ -60,7 +60,7 @@ from rhosocial.activerecord.backend.expression.predicates import ComparisonPredi
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
 from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
@@ -80,7 +80,7 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition("name", "String"),

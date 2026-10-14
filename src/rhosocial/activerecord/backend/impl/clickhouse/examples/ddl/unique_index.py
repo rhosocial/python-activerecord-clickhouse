@@ -30,7 +30,7 @@ from rhosocial.activerecord.backend.expression import CreateTableStatement, Drop
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 
 # Drop dependent tables first for clean setup
@@ -50,7 +50,7 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition("email", "String"),

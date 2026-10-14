@@ -33,7 +33,7 @@ from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 
 drop_customers = DropTableStatement(dialect=dialect, table=Table(dialect, "customers"), if_exists=True)
@@ -52,14 +52,14 @@ create_customers = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "name",
             "String",
-            constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+            constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
         ),
         ColumnDefinition("email", "String"),
     ],
@@ -76,8 +76,8 @@ create_orders = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("customer_id", "UInt32"),

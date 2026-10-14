@@ -185,32 +185,49 @@ class TestTableMixin:
             dialect.format_index_definition(idx)
 
     def test_format_table_constraint_primary_key(self, dialect):
-        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
-        from types import SimpleNamespace
-        tc = SimpleNamespace(name="pk", constraint_type=TableConstraintType.PRIMARY_KEY, columns=["id"])
+        from rhosocial.activerecord.backend.expression.statements import (
+            TableConstraint,
+            TablePrimaryKeyConstraint,
+        )
+
+        tc = TableConstraint(
+            dialect, branch=TablePrimaryKeyConstraint(dialect, ["id"]), name="pk"
+        )
         result, _ = dialect.format_table_constraint(tc)
         assert "PRIMARY KEY" in result
         assert "id" in result
 
     def test_format_table_constraint_unique_raises(self, dialect):
-        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from types import SimpleNamespace
-        tc = SimpleNamespace(name=None, constraint_type=TableConstraintType.UNIQUE, columns=["email"])
+        from rhosocial.activerecord.backend.expression.statements import (
+            TableConstraint,
+            TableUniqueConstraint,
+        )
+
+        tc = TableConstraint(dialect, branch=TableUniqueConstraint(dialect, ["email"]))
         with pytest.raises(UnsupportedFeatureError):
             dialect.format_table_constraint(tc)
 
     def test_format_table_constraint_fk_raises(self, dialect):
-        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from types import SimpleNamespace
-        tc = SimpleNamespace(name=None, constraint_type=TableConstraintType.FOREIGN_KEY, columns=["user_id"])
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.statements import (
+            TableConstraint,
+            TableForeignKeyConstraint,
+        )
+
+        tc = TableConstraint(
+            dialect,
+            branch=TableForeignKeyConstraint(
+                dialect, ["user_id"], (Table(dialect, "users"), ["id"])
+            ),
+        )
         with pytest.raises(UnsupportedFeatureError):
             dialect.format_table_constraint(tc)
 
     def test_format_column_definition_auto_increment_raises(self, dialect):
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from rhosocial.activerecord.backend.expression.statements import ColumnConstraint, ColumnConstraintType
+        from rhosocial.activerecord.backend.expression.statements import ColumnConstraint, ColumnPrimaryKeyConstraint
         from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
         from rhosocial.activerecord.backend.expression.types import IntegerType
 
@@ -218,7 +235,7 @@ class TestTableMixin:
             dialect,
             "id",
             IntegerType(dialect),
-            constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY, is_auto_increment=True)],
+            constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, True))],
         )
         with pytest.raises(UnsupportedFeatureError):
             dialect.format_column_definition(col_def)

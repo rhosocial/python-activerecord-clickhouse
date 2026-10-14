@@ -28,7 +28,7 @@ from rhosocial.activerecord.backend.expression.core import Literal, Column
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.explain import ExplainOptions
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
@@ -56,15 +56,15 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "name",
             "String",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("email", "String"),

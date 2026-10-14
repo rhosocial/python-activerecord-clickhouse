@@ -35,7 +35,7 @@ from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 
 drop_departments = DropTableStatement(dialect=dialect, table=Table(dialect, "departments"), if_exists=True)
@@ -54,8 +54,8 @@ create_departments = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("name", "String"),
@@ -74,8 +74,8 @@ create_employees = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("name", "String"),

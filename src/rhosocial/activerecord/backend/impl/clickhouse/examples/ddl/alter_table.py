@@ -27,7 +27,7 @@ from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
 )
 
 config = ClickHouseConnectionConfig(
@@ -57,8 +57,8 @@ create_table = CreateTableStatement(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("name", "String"),
@@ -113,10 +113,8 @@ add_age_action = AddColumn(
         "age",
         "UInt32",
         constraints=[
-            ColumnConstraint(
-                ColumnConstraintType.DEFAULT,
-                default_value=Literal(dialect, 0),
-            ),
+            ColumnConstraint(dialect,
+                 branch=ColumnDefaultConstraint(dialect, Literal(dialect, 0))),
         ],
     ),
 )

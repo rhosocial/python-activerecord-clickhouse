@@ -18,6 +18,10 @@ if TYPE_CHECKING:
         TableConstraint,
     )
 
+from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    ColumnPrimaryKeyConstraint,
+)
+
 
 class ClickHouseTableMixin:
     """ClickHouse table DDL implementation."""
@@ -314,16 +318,23 @@ class ClickHouseTableMixin:
         params: List[Any] = list(type_params)
 
         for constraint in col_def.constraints:
+            # S3: the branch names the kind and carries that kind's own fields.
+            # ``is_auto_increment`` belongs to the PRIMARY KEY branch, so reading
+            # it off the production would be a field the production does not
+            # declare.
+            if (
+                isinstance(constraint.branch, ColumnPrimaryKeyConstraint)
+                and constraint.branch.is_auto_increment
+            ):
+                raise UnsupportedFeatureError(
+                    self.name, "AUTO_INCREMENT column",
+                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
+                )
             suffix, cp = self.format_column_constraint(constraint)
             constraint_text = suffix.strip()
             if constraint_text:
                 parts.append(constraint_text)
             params.extend(list(cp))
-            if constraint.is_auto_increment:
-                raise UnsupportedFeatureError(
-                    self.name, "AUTO_INCREMENT column",
-                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
-                )
 
         attr_sql, attr_params = self.format_column_attributes(col_def)
         if attr_sql:
@@ -353,41 +364,126 @@ class ClickHouseTableMixin:
         return " ".join(parts), tuple(params)
 
     def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
-        """Format a table-level constraint.
+        """Format a table-level constraint, narrowing on the branch class.
+
+        Core's S3 split moved the kind out of a ``constraint_type`` tag and into
+        the branch node, so the dispatch here reads the branch's class instead
+        of comparing a tag: ``constraint_type`` is gone as a field, and what
+        the production keeps in its place is a property that raises
+        ``AttributeError`` and names the branch. That is the point of the split
+        -- the kind is a class, so it cannot be misspelled.
+
+        ClickHouse has two table-level constraint forms and neither is in the
+        SQL-standard set this used to dispatch on: ``CONSTRAINT name CHECK
+        <expr>`` and ``CONSTRAINT name ASSUME <expr>``
+        (https://clickhouse.com/docs/reference/statements/create/table#constraints).
+        Only ``PRIMARY KEY`` is rendered from the standard set.
+
+        ``UNIQUE``, ``FOREIGN KEY`` and ``EXCLUDE`` refuse rather than emit, and
+        the reasons are not symmetric:
+
+        * ``UNIQUE (col)`` is a ``SYNTAX_ERROR`` on 26.7.3.19 -- ``Code: 62.
+          Syntax error: failed at position 50 ((): (col)). Expected one of: NULL,
+          NOT, DEFAULT, MATERIALIZED, EPHEMERAL, ALIAS, AUTO_INCREMENT, TTL,
+          PRIMARY KEY, data type, identifier. (SYNTAX_ERROR)`` -- so rendering it
+          would be an error the caller sees immediately.
+        * ``FOREIGN KEY`` **without** a ``CONSTRAINT`` name is *accepted and
+          silently discarded*, and that is why it refuses. Measured on
+          26.7.3.19: ``CREATE TABLE c (id UInt32, pid UInt32, FOREIGN KEY (pid)
+          REFERENCES p(id)) ENGINE = MergeTree ORDER BY id`` succeeds, but
+          ``SHOW CREATE TABLE c`` reports no foreign key,
+          ``system.tables.create_table_query`` does not contain the string
+          ``FOREIGN``, an orphan row inserts and reads back fine, and dropping
+          the referenced parent also succeeds. (The *named* form ``CONSTRAINT fk
+          FOREIGN KEY ...`` is a ``SYNTAX_ERROR`` expecting ``CHECK`` or
+          ``ASSUME``, as are the inline column-level ``REFERENCES p(id)`` and
+          the form written after the storage clauses.)
+
+          So emitting it would be the worst of the three outcomes: no error at
+          DDL time, no record in the schema, and no enforcement at write time.
+          The referential-integrity bug would surface in production data with
+          nothing in the server's metadata to explain it. Refusing turns that
+          into an ``UnsupportedFeatureError`` at the point of declaration.
 
         Raises:
-            TypeError: ``t_const.foreign_key_table`` is not a Table. The check
-                runs before the kind dispatch so the error names the wrong type
-                rather than reporting FOREIGN KEY as unsupported, which is a
-                different mistake and sends the caller looking in the wrong place.
+            TypeError: the FOREIGN KEY branch's referenced object is not a
+                :class:`Table`. The check runs before the kind dispatch so the
+                error names the wrong type rather than reporting FOREIGN KEY as
+                unsupported, which is a different mistake and sends the caller
+                looking in the wrong place.
         """
-        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
-        foreign_key_table = getattr(t_const, "foreign_key_table", None)
-        if foreign_key_table is not None and not isinstance(foreign_key_table, Table):
-            raise TypeError(
-                f"TableConstraint.foreign_key_table must be a Table, "
-                f"got {type(foreign_key_table).__name__}"
-            )
-        parts = []
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            TableCheckConstraint,
+            TableExcludeConstraint,
+            TableForeignKeyConstraint,
+            TablePrimaryKeyConstraint,
+            TableUniqueConstraint,
+        )
+
+        branch = t_const.branch
+        if isinstance(branch, TableForeignKeyConstraint):
+            foreign_key_table = branch.references[0]
+            if foreign_key_table is not None and not isinstance(foreign_key_table, Table):
+                raise TypeError(
+                    f"TableForeignKeyConstraint.references must pair a Table with "
+                    f"its columns, got {type(foreign_key_table).__name__}"
+                )
+
+        parts: List[str] = []
         params: List[Any] = []
 
         if t_const.name:
             parts.append(f"CONSTRAINT {self.format_identifier(t_const.name)}")
 
-        if t_const.constraint_type == TableConstraintType.PRIMARY_KEY:
-            if t_const.columns:
-                cols_str = ", ".join(self.format_identifier(c) for c in t_const.columns)
+        if isinstance(branch, TablePrimaryKeyConstraint):
+            if branch.columns:
+                cols_str = ", ".join(self.format_identifier(c) for c in branch.columns)
                 parts.append(f"PRIMARY KEY ({cols_str})")
-        elif t_const.constraint_type == TableConstraintType.UNIQUE:
+        elif isinstance(branch, TableCheckConstraint):
+            branch_sql, branch_params = self.format_table_check_constraint(branch)
+            parts.append(branch_sql)
+            params.extend(branch_params)
+        elif isinstance(branch, TableUniqueConstraint):
             raise UnsupportedFeatureError(
                 self.name, "UNIQUE table constraint",
                 suggestion="ClickHouse does not support UNIQUE constraints."
             )
-        elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
+        elif isinstance(branch, TableForeignKeyConstraint):
             raise UnsupportedFeatureError(
                 self.name, "FOREIGN KEY constraint",
-                suggestion="ClickHouse does not support FOREIGN KEY constraints."
+                suggestion=(
+                    "ClickHouse does not support FOREIGN KEY constraints, and an "
+                    "unnamed FOREIGN KEY (...) REFERENCES ... clause is accepted and "
+                    "then silently discarded, so emitting one would produce a schema "
+                    "with no foreign key and no enforcement. Maintain referential "
+                    "integrity in the application, or use CONSTRAINT ... CHECK."
+                )
             )
+        elif isinstance(branch, TableExcludeConstraint):
+            raise UnsupportedFeatureError(
+                self.name, "EXCLUDE table constraint",
+                suggestion=(
+                    "ClickHouse's table-constraint grammar is CHECK and ASSUME; the "
+                    "server prints 'Expected one of: CHECK, ASSUME.' for every third "
+                    "kind (Code 62, measured on 26.7.3.19)."
+                )
+            )
+
+        # The production-level traits. ClickHouse has no spelling for either, so
+        # both refuse here rather than being dropped silently; rendering them
+        # explicitly is what keeps the override faithful to core's shape.
+        if (
+            t_const.deferrable
+            or t_const.not_deferrable
+            or t_const.initially_deferred
+            or t_const.initially_immediate
+        ):
+            raise UnsupportedFeatureError(
+                self.name, "DEFERRABLE / INITIALLY table constraint"
+            )
+        enforcement = self._format_constraint_enforcement(t_const)
+        if enforcement:
+            parts.append(enforcement)
 
         return " ".join(parts), tuple(params)
 

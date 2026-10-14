@@ -12,7 +12,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableStatement,
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
     DropTableStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
@@ -32,9 +32,8 @@ def create_users_table(dialect):
                 "id",
                 ClickHouseUInt32Type(dialect),
                 constraints=[
-                    ColumnConstraint(
-                        ColumnConstraintType.PRIMARY_KEY,
-                    ),
+                    ColumnConstraint(dialect,
+                 branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
             ),
             ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
@@ -59,9 +58,8 @@ def create_posts_table(dialect):
                 "id",
                 ClickHouseUInt32Type(dialect),
                 constraints=[
-                    ColumnConstraint(
-                        ColumnConstraintType.PRIMARY_KEY,
-                    ),
+                    ColumnConstraint(dialect,
+                 branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
             ),
             ColumnDefinition(dialect, "title", ClickHouseStringType(dialect)),
@@ -92,9 +90,8 @@ def create_custom_table(dialect, table: str = "custom_table"):
                 "id",
                 ClickHouseUInt32Type(dialect),
                 constraints=[
-                    ColumnConstraint(
-                        ColumnConstraintType.PRIMARY_KEY,
-                    ),
+                    ColumnConstraint(dialect,
+                 branch=ColumnPrimaryKeyConstraint(dialect)),
                 ],
             ),
             ColumnDefinition(dialect, "value", ClickHouseStringType(dialect)),

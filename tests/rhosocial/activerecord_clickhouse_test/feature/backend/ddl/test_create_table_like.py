@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.expression import (
 from rhosocial.activerecord.backend.expression.objects import Table, View
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableCloneStatement,
@@ -157,20 +157,31 @@ class TestClickHouseCreateTableLike:
             expr.to_sql()
 
     def test_explicit_schema_still_renders(self):
-        """The explicit-schema form is unaffected by the AS override."""
+        """The explicit-schema form is unaffected by the AS override.
+
+        The ``id`` column carries a PRIMARY KEY column constraint as incidental
+        test data, and it renders: on this core the flat
+        ``supports_primary_key_constraint`` gates the ``PRIMARY KEY`` column
+        *modifier* (which the server accepts -- it is in the parser's
+        expected-token list for a column), not the constraint object
+        (``system.constraints`` holds 0 rows for a table built with
+        ``PRIMARY KEY (id)``; ``ADD CONSTRAINT ... PRIMARY KEY`` is Code 62 --
+        the per-level switches carry that answer and are both ``False``). See
+        ``supports_primary_key_constraint`` in ``mixins/constraint.py``.
+        """
         dialect = ClickHouseDialect()
         columns = [
             ColumnDefinition(
                 dialect,
                 "id",
                 IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))],
             ),
             ColumnDefinition(
                 dialect,
                 "name",
                 VarCharType(length=255, dialect=dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)],
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
             ),
         ]
         sql, params = _create_table(dialect, Table(dialect, "users"), columns).to_sql()
