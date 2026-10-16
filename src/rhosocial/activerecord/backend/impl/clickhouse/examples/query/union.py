@@ -1,10 +1,9 @@
 """
-UNION using SetOperationStatement - ClickHouse.
+UNION using SetOperation - ClickHouse.
 
 This example demonstrates:
 1. UNION (distinct)
 2. UNION ALL
-3. UNION with ORDER BY
 
 """
 
@@ -89,7 +88,7 @@ backend.execute(sql, params)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     QueryStatement,
-    SetOperationStatement,
+    SetOperation,
 )
 
 # First query
@@ -105,10 +104,10 @@ query2 = QueryStatement(
 )
 
 # Union
-union_expr = SetOperationStatement(
+union_expr = SetOperation(
     dialect=dialect,
     left=query1,
-    operation="UNION",
+    op="union",
     right=query2,
 )
 sql, params = union_expr.to_sql()
@@ -122,11 +121,10 @@ print(f"UNION result: {result.data}")
 # ============================================================
 # SECTION: UNION ALL
 # ============================================================
-union_all = SetOperationStatement(
+union_all = SetOperation(
     dialect=dialect,
     left=query1,
-    operation="UNION",
-    all_=True,
+    op="union_all",
     right=query2,
 )
 sql, params = union_all.to_sql()
@@ -146,6 +144,9 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use SetOperationStatement with operation='UNION', all_=True for UNION ALL
+# 1. Use SetOperation with op='union' for UNION DISTINCT, op='union_all' for UNION ALL
 # 2. UNION removes duplicates, UNION ALL keeps all rows
-# 3. Can add ORDER BY using query1.with_order_by()
+# 3. ClickHouse's grammar has no bare UNION: the dialect always spells the
+#    ALL/DISTINCT modifier, so op='union' renders 'UNION DISTINCT'
+# 4. Ordering and row limiting of a compound query are statement-level
+#    clauses, not part of the SetOperation node

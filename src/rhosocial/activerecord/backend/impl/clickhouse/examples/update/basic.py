@@ -38,7 +38,7 @@ from rhosocial.activerecord.backend.expression import (  # noqa: E402
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
-from rhosocial.activerecord.backend.expression.operators import BinaryArithmeticExpression  # noqa: E402
+from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
@@ -117,7 +117,7 @@ update_expr = UpdateStatement(
     dialect=dialect,
     table=Table(dialect, "users"),
     assignments={
-        "age": BinaryArithmeticExpression(dialect, "+", Column(dialect, "age"), Literal(dialect, 1)),
+        "age": ArithmeticOperation(dialect, "add", Column(dialect, "age"), Literal(dialect, 1)),
     },
     where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
 )
@@ -152,6 +152,6 @@ backend.disconnect()
 # ============================================================
 # Key points:
 # 1. Use UpdateStatement with assignments dict for SET clause
-# 2. Use BinaryArithmeticExpression for expressions like age + 1
+# 2. Use ArithmeticOperation for expressions like age + 1 (op="add", not "+")
 # 3. Omit where parameter to update all rows
 # 4. affected_rows shows number of updated rows

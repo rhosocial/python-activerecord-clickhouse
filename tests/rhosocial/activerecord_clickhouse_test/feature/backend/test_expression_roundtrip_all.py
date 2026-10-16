@@ -94,9 +94,10 @@ Both expression packages are collected
 collect only the backend's own package, so core's classes have no systematic
 coverage anywhere except inside core -- which is how postgres's
 ``comment.py:42`` read a field core had removed months earlier and stayed green.
-Discovery walks both package trees; it never reads ``ExpressionRegistry``, which
-is process-global and grows as sibling modules import other backends, so the
-matrix's contents would otherwise depend on which files pytest imported first.
+Discovery walks both package trees; it never reads the serialization class
+index, which is process-global and grows as sibling modules import other
+backends, so the matrix's contents would otherwise depend on which files
+pytest imported first.
 
 No database is involved. The matrix drives the dialect, which is where SQL
 generation happens; nothing here opens a connection.
@@ -109,7 +110,7 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.advanced_functions import (
-    CaseFunction,
+    CaseExpression,
     WindowClause,
     WindowDefinition,
     WindowSpecification,
@@ -128,17 +129,20 @@ from rhosocial.activerecord.backend.expression.objects import (
     Table,
     View,
 )
+from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation
 from rhosocial.activerecord.backend.expression.predicates import (
     ComparisonPredicate,
     ILikePredicate,
     LikePredicate,
 )
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
+from rhosocial.activerecord.backend.expression.query_sources import SetOperation
 from rhosocial.activerecord.backend.expression.serialization import (
-    ExpressionRegistry,
+    auto_register_builtins,
     deserialize,
     deserialize_json,
     deserialize_xml,
+    registered_expression_classes,
     serialize,
     serialize_json,
     serialize_xml,
@@ -177,6 +181,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_view import (
     DropMaterializedViewStatement,
     RefreshMaterializedViewStatement,
 )
+from rhosocial.activerecord.backend.expression.statements.dql import QueryStatement
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
@@ -244,7 +249,7 @@ def assert_params_equal(a, b, path="params"):
 def _collect_matrix_classes() -> Dict[str, type]:
     """Every concrete expression class the two covered packages define.
 
-    Walked from the package, not read from ``ExpressionRegistry``: the registry
+    Walked from the package, not read from the serialization class index: that index
     is process-global and *grows* as other test modules import their own
     backends, so reading it makes this matrix's contents depend on which files
     pytest happened to import first. The matrix passed standalone and failed run
@@ -257,7 +262,7 @@ def _collect_matrix_classes() -> Dict[str, type]:
     object collected twice would be tested twice and reported twice, so the first
     name wins and identity does the deduplication.
     """
-    ExpressionRegistry._auto_register_builtins()
+    auto_register_builtins()
     found: Dict[str, type] = {}
     for package in COVERED_PACKAGES:
         found.update(collect_expression_classes(package))
@@ -274,8 +279,9 @@ def _collect_matrix_classes() -> Dict[str, type]:
 
 REGISTERED = _collect_matrix_classes()
 
-# Deserialization resolves a class by name through ``ExpressionRegistry``. Core's
-# builtins register themselves; the ClickHouse package's classes do not, so they
+# Deserialization resolves a class by name through the serialization class
+# index. Core's builtins register themselves; the ClickHouse package's classes
+# do not, so they
 # are registered here or every round-trip of a backend class raises
 # ``ExpressionDeserializationError`` before it can compare anything.
 register_all(REGISTERED)
@@ -309,6 +315,18 @@ def _table(dialect, name="t"):
 def _column_predicate(dialect):
     """A predicate comparing two columns, so it renders with no bind parameters."""
     return ComparisonPredicate(dialect, "=", Column(dialect, "a"), Column(dialect, "b"))
+
+
+def _operand(dialect, name):
+    """A value expression with no bind parameters, for arithmetic operands."""
+    return Column(dialect, name)
+
+
+def _ddl_dml_query(dialect, table):
+    """A minimal SELECT, the operand a set operation needs."""
+    return QueryStatement(
+        dialect, select=[Column(dialect, "id")], from_=Table(dialect, table)
+    )
 
 
 def _integer_column(dialect, name="col"):
@@ -378,10 +396,32 @@ def register_specials():
         ),
     )
 
+    # -- closed word sets the guesser cannot satisfy --------------------------
+    # Both nodes validate their operation word at construction and refuse
+    # anything outside a fixed set. ``make_instance`` guesses a string for the
+    # ``op`` parameter, so both are refused before they can be rendered -- and
+    # both are among the nodes worth rendering, so a real word is supplied here
+    # rather than a new entry in UNCONSTRUCTIBLE.
+    register_special_constructor(
+        "operators.ArithmeticOperation",
+        lambda d: ArithmeticOperation(
+            d, "add", _operand(d, "a"), _operand(d, "b")
+        ),
+    )
+    register_special_constructor(
+        "query_sources.SetOperation",
+        lambda d: SetOperation(
+            d,
+            op="union",
+            left=_ddl_dml_query(d, "t1"),
+            right=_ddl_dml_query(d, "t2"),
+        ),
+    )
+
     # -- containers that need at least one member ----------------------------
     register_special_constructor(
-        "advanced_functions.CaseFunction",
-        lambda d: CaseFunction(
+        "advanced_functions.CaseExpression",
+        lambda d: CaseExpression(
             d, cases=[(_column_predicate(d), Literal(d, 1))], else_result=Literal(d, 0)
         ),
     )
@@ -714,7 +754,7 @@ def _no_dialect_formatter(format_method: str) -> str:
     """The fragment ``to_sql()`` says when the dialect has no such formatter.
 
     ``BaseExpression.to_sql()`` raises ``UnsupportedFeatureError`` naming the
-    method it wanted, so pinning ``"format_pivot_expression"`` here records *which*
+    method it wanted, so pinning ``"format_pivot"`` here records *which*
     formatter is absent -- the blanket ``UnsupportedFeatureError`` branch in
     :func:`assert_sql_roundtrip_classified` already allows the type on its own.
 
@@ -864,13 +904,13 @@ LEGITIMATE_NON_RENDERS = {
     # two spellings, so a caller could not tell "ClickHouse does not have this"
     # from "this backend is broken". Core made it one spelling, and these entries
     # now say so while naming the specific formatter that is missing.
-    "rhosocial.activerecord.backend.expression.pivot.PivotExpression": (
+    "rhosocial.activerecord.backend.expression.pivot.Pivot": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_pivot_expression"),
+        _no_dialect_formatter("format_pivot"),
     ),
-    "rhosocial.activerecord.backend.expression.pivot.UnpivotExpression": (
+    "rhosocial.activerecord.backend.expression.pivot.Unpivot": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_unpivot_expression"),
+        _no_dialect_formatter("format_unpivot"),
     ),
     "rhosocial.activerecord.backend.expression.predicates.ILikePredicate": (
         UnsupportedFeatureError,
@@ -1151,8 +1191,8 @@ UNMODELLED_FORMATTERS = {
     "is ClickHouse's positionCaseInsensitive)": ("format_ilike_predicate",),
     "the core PIVOT / UNPIVOT expressions (the dialect mixes in no pivot "
     "mixin)": (
-        "format_pivot_expression",
-        "format_unpivot_expression",
+        "format_pivot",
+        "format_unpivot",
     ),
     "the TableSource root (every concrete row source overrides its "
     "formatter; the root carries nothing but an alias and is never "
@@ -1575,7 +1615,7 @@ class TestMatrixIntegrity:
         a constructor and the entry is stale; a class that fails to build without
         being named would become a silent skip. Both fail here.
         """
-        ExpressionRegistry._auto_register_builtins()
+        auto_register_builtins()
         actual = tuple(
             sorted(
                 fqn
@@ -1693,7 +1733,7 @@ class TestMatrixIntegrity:
         rather than the registry because the registry also holds whatever
         backends other test modules happened to import.
         """
-        ExpressionRegistry._auto_register_builtins()
+        auto_register_builtins()
         expected = set(_collect_matrix_classes())
         assert expected == set(REGISTERED), (
             "the set of expression classes the covered packages define changed "
@@ -1719,15 +1759,15 @@ class TestMatrixIntegrity:
         renders but the registry cannot resolve would round-trip into the wrong
         thing or nothing at all.
         """
-        ExpressionRegistry._auto_register_builtins()
-        unresolved = sorted(set(REGISTERED) - set(ExpressionRegistry._registry))
+        auto_register_builtins()
+        unresolved = sorted(set(REGISTERED) - set(registered_expression_classes()))
         assert not unresolved, (
             f"the matrix covers classes the registry cannot resolve: {unresolved}"
         )
 
     def test_coverage_report(self, clickhouse_matrix_dialect):
         """Surface what the matrix covers, so coverage stays transparent."""
-        ExpressionRegistry._auto_register_builtins()
+        auto_register_builtins()
         branches: Dict[str, int] = {}
         constructible = 0
         for fqn in sorted(REGISTERED):

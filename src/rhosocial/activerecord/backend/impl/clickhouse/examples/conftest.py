@@ -115,7 +115,7 @@ EXAMPLES_META = {
         "max_version": "26.7",
     },
     "query/union.py": {
-        "title": "UNION using SetOperationStatement",
+        "title": "UNION using SetOperation",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "25.8",
