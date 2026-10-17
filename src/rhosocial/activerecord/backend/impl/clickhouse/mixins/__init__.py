@@ -54,6 +54,7 @@ from .wildcard import ClickHouseWildcardMixin
 from .function import ClickHouseFunctionMixin
 from .column_type import ClickHouseColumnTypeMixin
 from .trim import ClickHouseTrimMixin
+from .typed_value import ClickHouseTypedValueMixin
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
@@ -110,4 +111,5 @@ __all__ = [
     "ClickHouseFunctionMixin",
     "ClickHouseColumnTypeMixin",
     "ClickHouseTrimMixin",
+    "ClickHouseTypedValueMixin",
 ]

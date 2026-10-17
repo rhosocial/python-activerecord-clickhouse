@@ -120,6 +120,13 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RepeatMixin,
     RpadMixin,
     TrimMixin,
+    # Value literals: the typed value nodes (expression/values) render
+    # through this pair. ClickHouse's own spellings (unhex / bare quoted
+    # UUID text) sit ahead of the base's tier-1 defaults and its explicit
+    # tier-2 NotImplementedError -- this order is what resolves
+    # format_binary_value and format_uuid_value. INTERVAL stays
+    # unimplemented on purpose; see mixins/typed_value.py.
+    TypedValueMixin,
     # Column types: the generic half, which ClickHouseColumnTypeMixin below
     # overrides.
     ColumnTypeMixin,
@@ -193,6 +200,7 @@ from .mixins import (
     ClickHouseDDLColumnMixin,
     ClickHouseFunctionMixin,
     ClickHouseColumnTypeMixin,
+    ClickHouseTypedValueMixin,
     # TRIM differs and is overridden by ClickHouseTrimMixin (above) for the
     # reason documented there: the direction is the function name, and the
     # no-characters ANSI form the default renders is a syntax error here.
@@ -318,6 +326,13 @@ class ClickHouseDialect(
     ClickHouseModifyColumnMixin,
     ClickHouseJsonDualityViewMixin,
     ClickHouseTypeSupportMixin,
+    # Value literals: this backend's tier-2 spellings ahead of the core's
+    # TypedValueMixin, exactly as in the import list -- the pair resolves
+    # format_binary_value / format_uuid_value, and every other kind falls
+    # through to the base's tier-1 defaults (which the measured server
+    # accepts verbatim; see mixins/typed_value.py).
+    ClickHouseTypedValueMixin,
+    TypedValueMixin,
     UserDefinedTypeMixin,
     DomainMixin,
     ClickHouseOptimizerHintMixin,
