@@ -211,7 +211,7 @@ class ClickHousePartitionMixin:
         caller, not derived from a column value, so there is no query-planning
         benefit in parameterising it.
         """
-        partition_id = getattr(expr, "partition_id", None)
+        partition_id = expr.partition_id
         if not isinstance(partition_id, str) or not partition_id.strip():
             raise UnsupportedFeatureError(
                 self.name,

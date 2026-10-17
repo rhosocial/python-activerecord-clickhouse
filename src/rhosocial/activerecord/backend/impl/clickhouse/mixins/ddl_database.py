@@ -2,6 +2,7 @@
 """ClickHouse database DDL mixin."""
 from __future__ import annotations
 
+from enum import Enum
 from typing import Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -66,12 +67,17 @@ class ClickHouseDatabaseMixin:
         if expr.comment:
             escaped_comment = expr.comment.replace("'", "''")
             parts.append(f"COMMENT '{escaped_comment}'")
-        engine = getattr(expr, "engine", None)
-        if engine:
-            parts.append(f"ENGINE = {engine}")
-        on_cluster = getattr(expr, "on_cluster", None)
-        if on_cluster:
-            parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
+        # ``ENGINE`` / ``ON CLUSTER`` are ClickHouse clauses and live on this
+        # backend's own node; the generic CreateDatabaseStatement carries
+        # neither, and which one arrived is a type question asked with
+        # isinstance rather than probed field by field.
+        from ..expression.database import ClickHouseCreateDatabaseExpression
+
+        if isinstance(expr, ClickHouseCreateDatabaseExpression):
+            if expr.engine:
+                parts.append(f"ENGINE = {expr.engine}")
+            if expr.on_cluster:
+                parts.append(f"ON CLUSTER {self.format_identifier(expr.on_cluster)}")
         return " ".join(parts), ()
 
     def format_drop_database_statement(
@@ -92,8 +98,11 @@ class ClickHouseDatabaseMixin:
         if expr.if_exists:
             parts.append("IF EXISTS")
         parts.append(expr.database.to_sql()[0])
-        sync = getattr(expr, "sync", False)
-        if sync:
+        # ``SYNC`` is a ClickHouse clause and lives on this backend's own
+        # node; the generic DropDatabaseStatement does not carry it.
+        from ..expression.database import ClickHouseDropDatabaseExpression
+
+        if isinstance(expr, ClickHouseDropDatabaseExpression) and expr.sync:
             parts.append("SYNC")
         return " ".join(parts), ()
 
@@ -123,6 +132,10 @@ class ClickHouseDatabaseMixin:
         # core's AlterDatabaseAction has no such member, so every ALTER DATABASE
         # raised AttributeError before reaching any of this; an action ClickHouse
         # has no form for is reported rather than silently dropped.
+        # ``action`` accepts the enum or its raw spelling; which one it is is a
+        # type question, so it is asked with isinstance rather than probed for a
+        # ``value`` attribute.
+        action = expr.action.value if isinstance(expr.action, Enum) else expr.action
         if expr.action == AlterDatabaseAction.RENAME_TO:
             target = expr.target
             if not target:
@@ -134,7 +147,7 @@ class ClickHouseDatabaseMixin:
         else:
             raise UnsupportedFeatureError(
                 self.name,
-                f"ALTER DATABASE {getattr(expr.action, 'value', expr.action)}",
+                f"ALTER DATABASE {action}",
                 suggestion="ClickHouse supports ALTER DATABASE ... RENAME TO.",
             )
         return " ".join(parts), ()

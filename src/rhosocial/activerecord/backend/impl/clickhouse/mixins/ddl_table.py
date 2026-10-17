@@ -103,9 +103,8 @@ class ClickHouseTableMixin:
         all_params: List[Any] = []
 
         options_part = ""
-        table_options = getattr(expr, "table_options", None)
-        if table_options is not None:
-            options_sql, options_params = table_options.to_sql()
+        if expr.table_options is not None:
+            options_sql, options_params = expr.table_options.to_sql()
             if options_sql:
                 options_part = options_sql
             all_params.extend(options_params)
@@ -143,9 +142,8 @@ class ClickHouseTableMixin:
                 parts.append(storage_sql)
                 all_params.extend(storage_params)
 
-        table_options = getattr(expr, "table_options", None)
-        if table_options is not None and getattr(table_options, "comment", None) is not None:
-            comment_sql, _ = self.format_table_comment_clause(table_options.comment)
+        if expr.table_options is not None and expr.table_options.comment is not None:
+            comment_sql, _ = self.format_table_comment_clause(expr.table_options.comment)
             parts.append(comment_sql.strip())
 
         if expr.partition is not None:

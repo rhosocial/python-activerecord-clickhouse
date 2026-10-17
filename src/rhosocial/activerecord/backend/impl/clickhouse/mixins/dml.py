@@ -61,12 +61,16 @@ class ClickHouseDMLOperationMixin:
         if self.strict_validation:
             expr.validate(strict=True)
 
-        if getattr(expr, "replace", False):
+        # The core node spells these ``or_replace`` / ``or_ignore``; reading
+        # the names the contract declares makes the two refusals below real
+        # (they used to probe ``replace`` / ``ignore``, fields no InsertStatement
+        # carries, so an INSERT OR REPLACE silently rendered as a plain INSERT).
+        if expr.or_replace:
             raise UnsupportedFeatureError(
                 self.name, "REPLACE INTO",
                 suggestion="ClickHouse does not support REPLACE INTO."
             )
-        if getattr(expr, "ignore", False):
+        if expr.or_ignore:
             raise UnsupportedFeatureError(
                 self.name, "INSERT IGNORE",
                 suggestion="ClickHouse does not support INSERT IGNORE."

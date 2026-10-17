@@ -2,6 +2,7 @@
 from typing import Union, Any, List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import (
@@ -51,7 +52,10 @@ class ClickHouseJSONFunctionMixin:
         Simple dotted paths (``$.a.b``) are split into key arguments; complex
         paths (arrays, wildcards, filters) fall back to ``JSON_VALUE``.
         """
-        if hasattr(expr.column, "to_sql"):
+        # ``column`` is declared as an expression or a bare name; which one it
+        # is is a type question, so it is asked with isinstance rather than
+        # probing for a ``to_sql`` attribute.
+        if isinstance(expr.column, BaseExpression):
             col_sql, col_params = expr.column.to_sql()
         else:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()
@@ -97,31 +101,28 @@ class ClickHouseJSONFunctionMixin:
     def format_json_extract(self, expr) -> Tuple[str, tuple]:
         """Format JSONExtract function."""
         all_paths = [expr.path]
-        if hasattr(expr, "paths") and expr.paths:
+        if expr.paths:
             all_paths.extend(expr.paths)
         ph = self.get_parameter_placeholder()
         placeholders = ", ".join([ph for _ in all_paths])
         sql = f"JSONExtract({expr.json_column}, {placeholders})"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(all_paths)
 
     def format_json_unquote(self, expr) -> Tuple[str, tuple]:
         sql = f"JSONExtractString({expr.json_val})"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
     def format_json_object(self, expr) -> Tuple[str, tuple]:
         """Format map function (ClickHouse equivalent of JSON_OBJECT)."""
-        pairs = getattr(expr, "pairs", [])
+        pairs = expr.pairs
         if not pairs:
             sql = "map()"
-            alias = getattr(expr, "alias", None)
-            if alias:
-                sql = f"{sql} AS {self.format_identifier(alias)}"
+            if expr.alias:
+                sql = f"{sql} AS {self.format_identifier(expr.alias)}"
             return sql, ()
 
         ph = self.get_parameter_placeholder()
@@ -135,22 +136,20 @@ class ClickHouseJSONFunctionMixin:
             params.append(value)
 
         sql = f"map({', '.join(parts)})"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(params)
 
     def format_json_array(self, expr) -> Tuple[str, tuple]:
         """Format ClickHouse array literal (equivalent to JSON_ARRAY)."""
-        values = getattr(expr, "values", [])
+        values = expr.values
         if not values:
             return "[]", ()
         ph = self.get_parameter_placeholder()
         placeholders = ", ".join([ph for _ in values])
         sql = f"[{placeholders}]"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(values)
 
     def format_json_contains(self, expr) -> Tuple[str, tuple]:
@@ -161,16 +160,15 @@ class ClickHouseJSONFunctionMixin:
         reasonable approximation for path-based existence checks.
         """
         ph = self.get_parameter_placeholder()
-        path = getattr(expr, "path", None)
+        path = expr.path
         if path:
             sql = f"isNotNull(JSONExtract({expr.json_column}, {ph}, {ph}))"
             params = (expr.value, path)
         else:
             sql = f"isNotNull(JSONExtract({expr.json_column}, {ph}))"
             params = (expr.value,)
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, params
 
     def format_json_set(self, expr) -> Tuple[str, tuple]:
@@ -180,7 +178,7 @@ class ClickHouseJSONFunctionMixin:
         on a Map-typed JSON extraction as an approximation.
         """
         all_pairs = [(expr.path, expr.value)]
-        if hasattr(expr, "path_value_pairs") and expr.path_value_pairs:
+        if expr.path_value_pairs:
             all_pairs.extend(expr.path_value_pairs)
 
         ph = self.get_parameter_placeholder()
@@ -195,9 +193,8 @@ class ClickHouseJSONFunctionMixin:
 
         map_expr = f"map({', '.join(parts)})"
         sql = f"assumeNotNull(mapUpdate(JSONExtract({expr.json_column}, 'Map(String, String)'), {map_expr}))"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(params)
 
     def format_json_remove(self, expr) -> Tuple[str, tuple]:
@@ -207,28 +204,25 @@ class ClickHouseJSONFunctionMixin:
         on a Map-typed JSON extraction as an approximation.
         """
         all_paths = [expr.path]
-        if hasattr(expr, "paths") and expr.paths:
+        if expr.paths:
             all_paths.extend(expr.paths)
         ph = self.get_parameter_placeholder()
         placeholders = ", ".join([ph for _ in all_paths])
         sql = f"mapRemove(JSONExtract({expr.json_column}, 'Map(String, String)'), {placeholders})"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(all_paths)
 
     def format_json_type(self, expr) -> Tuple[str, tuple]:
         sql = f"JSONType({expr.json_val})"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
     def format_json_valid(self, expr) -> Tuple[str, tuple]:
         sql = f"JSON_VALID({expr.json_val})"
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
     def format_json_search(self, expr) -> Tuple[str, tuple]:
@@ -237,18 +231,17 @@ class ClickHouseJSONFunctionMixin:
         ClickHouse has no direct JSON_SEARCH equivalent. This uses
         JSONExtractString + LIKE as a basic text search approximation.
         """
-        one_or_all = "'all'" if getattr(expr, "all", False) else "'one'"
+        one_or_all = "'all'" if expr.all else "'one'"
         ph = self.get_parameter_placeholder()
-        path = getattr(expr, "path", None)
+        path = expr.path
         if path:
             sql = f"JSONExtractString({expr.json_column}, {ph}) LIKE {ph} AND {one_or_all} = 'one'"
             params = (path, expr.search_str)
         else:
             sql = f"JSONExtractString({expr.json_column}) LIKE {ph} AND {one_or_all} = 'one'"
             params = (expr.search_str,)
-        alias = getattr(expr, "alias", None)
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, params
 
     def format_json_table_expression(self, expr) -> Tuple[str, tuple]:

@@ -90,8 +90,9 @@ class TestJSONFunctionProtocol:
     def test_format_json_extract_multiple_paths(self):
         """Test JSONExtract with multiple paths."""
         dialect = ClickHouseDialect(version=(26, 7, 3))
-        expr = ClickHouseJSONExtractExpression(dialect, "data", "$.name")
-        expr.paths = ["$.age", "$.city"]
+        expr = ClickHouseJSONExtractExpression(
+            dialect, "data", "$.name", paths=["$.age", "$.city"]
+        )
 
         sql, params = expr.to_sql()
 

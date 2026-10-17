@@ -30,7 +30,8 @@ if TYPE_CHECKING:
 class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_EXTRACT expression.
 
-    Extracts a value from a JSON document using a path.
+    Extracts a value from a JSON document using a path, or from several
+    paths when ``paths`` names more of them.
 
     Example:
         >>> expr = ClickHouseJSONExtractExpression(dialect, 'data', '$.name')
@@ -42,11 +43,13 @@ class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue)
         json_column: str,
         path: str,
         *,
+        paths: Optional[List[str]] = None,
         alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.path = path
+        self.paths = paths or []
         self.alias = alias
 
     @property

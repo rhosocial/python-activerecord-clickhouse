@@ -1,5 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py
+from enum import Enum
 from typing import Any, Dict, Tuple
+
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 
 class ClickHouseDDLColumnMixin:
@@ -58,14 +61,14 @@ class ClickHouseDDLColumnMixin:
     def format_add_column_action(self, action) -> Tuple[str, tuple]:
         column_sql, column_params = self.format_column_definition(action.column)
         parts = []
-        if getattr(action, "if_not_exists", None) is True:
+        if action.if_not_exists is True:
             parts.append("ADD COLUMN IF NOT EXISTS")
         else:
             parts.append("ADD COLUMN")
         parts.append(column_sql)
-        after = getattr(action, "after", None)
-        if after:
-            parts.append(f"AFTER {self.format_identifier(after)}")
+        # The core AddColumn carries no position field: ClickHouse's
+        # ``AFTER <column>`` has no declared slot to arrive through, so the
+        # clause is not rendered here rather than probed for.
         return " ".join(parts), column_params
 
     def format_alter_column_action(self, action) -> Tuple[str, tuple]:
@@ -101,14 +104,20 @@ class ClickHouseDDLColumnMixin:
         Note that ClickHouse does require a literal default expression here, so
         the value is inlined rather than parameterised.
         """
-        operation = getattr(action.operation, "value", None) or str(action.operation)
+        # ``operation`` accepts the enum or its raw spelling; which one it
+        # is is a type question, so it is asked with isinstance rather than
+        # probed for a ``value`` attribute (the core formatter reads it the
+        # same way).
+        operation = (
+            action.operation.value if isinstance(action.operation, Enum) else str(action.operation)
+        )
         col_name = self.format_identifier(action.column_name)
 
         if operation == "DROP DEFAULT":
             return f"MODIFY COLUMN {col_name} REMOVE DEFAULT", ()
 
         if operation == "SET DEFAULT":
-            new_value = getattr(action, "new_value", None)
+            new_value = action.new_value
             if isinstance(new_value, str):
                 escaped = self._escape_sql_string(new_value)
                 return f"ALTER COLUMN {col_name} DEFAULT '{escaped}'", ()
@@ -118,7 +127,7 @@ class ClickHouseDDLColumnMixin:
                 raise ValueError("SET DEFAULT requires a default value")
             if isinstance(new_value, (int, float)):
                 return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
-            if hasattr(new_value, "to_sql"):
+            if isinstance(new_value, BaseExpression):
                 value_sql, value_params = new_value.to_sql()
                 return f"ALTER COLUMN {col_name} DEFAULT {value_sql}", tuple(value_params)
             return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
