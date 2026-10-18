@@ -36,10 +36,10 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.core import Column
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AddTableConstraint,
-    AlterConstraint,
-    DropTableConstraint,
-    ValidateConstraint,
+    AddTableConstraintAction,
+    AlterConstraintAction,
+    DropTableConstraintAction,
+    ValidateConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ColumnCheckConstraint,
@@ -436,7 +436,7 @@ class TestDropConstraintRenders:
 
     def test_drop_constraint_renders(self):
         d = _dialect()
-        sql, params = DropTableConstraint(d, "ck").to_sql()
+        sql, params = DropTableConstraintAction(d, "ck").to_sql()
         assert sql == "DROP CONSTRAINT `ck`"
         assert params == ()
 
@@ -460,9 +460,9 @@ class TestDropConstraintRenders:
         """
         d = _dialect()
         assert d.supports_drop_constraint_if_exists() is True
-        assert DropTableConstraint(d, "ck").to_sql()[0] == "DROP CONSTRAINT `ck`"
+        assert DropTableConstraintAction(d, "ck").to_sql()[0] == "DROP CONSTRAINT `ck`"
         assert (
-            DropTableConstraint(d, "ck", if_exists=True).to_sql()[0]
+            DropTableConstraintAction(d, "ck", if_exists=True).to_sql()[0]
             == "DROP CONSTRAINT IF EXISTS `ck`"
         )
 
@@ -471,10 +471,10 @@ class TestAlterSideRefusals:
     """The lifecycle verbs ClickHouse's grammar does not contain.
 
     All are refused by name before any SQL is produced, which is what the
-    ``False`` switches are for. ``AlterConstraint`` takes ``constraint_kind=``
+    ``False`` switches are for. ``AlterConstraintAction`` takes ``constraint_kind=``
     (the branch class) rather than the deleted ``constraint_type=`` tag.
 
-    The branch class and not the SQL spelling, on this core: ``AlterConstraint``
+    The branch class and not the SQL spelling, on this core: ``AlterConstraintAction``
     resolves a string ``constraint_kind`` by comparing it against
     ``branch.__name__.replace("Table", "").upper()``, which is
     ``"CHECKCONSTRAINT"``, so ``"CHECK"`` does not match and raises
@@ -485,23 +485,23 @@ class TestAlterSideRefusals:
     def test_validate_constraint_refused(self):
         d = _dialect()
         with pytest.raises(UnsupportedFeatureError):
-            ValidateConstraint(d, "ck").to_sql()
+            ValidateConstraintAction(d, "ck").to_sql()
 
     def test_alter_constraint_enforced_refused(self):
         d = _dialect()
-        action = AlterConstraint(d, "ck", enforced=True, constraint_kind=TableCheckConstraint)
+        action = AlterConstraintAction(d, "ck", enforced=True, constraint_kind=TableCheckConstraint)
         with pytest.raises(UnsupportedFeatureError):
             action.to_sql()
 
     def test_alter_constraint_not_enforced_refused(self):
         d = _dialect()
-        action = AlterConstraint(d, "ck", not_enforced=True, constraint_kind=TableCheckConstraint)
+        action = AlterConstraintAction(d, "ck", not_enforced=True, constraint_kind=TableCheckConstraint)
         with pytest.raises(UnsupportedFeatureError):
             action.to_sql()
 
     def test_add_constraint_not_valid_refused(self):
         d = _dialect()
-        action = AddTableConstraint(d, _check(d, validation=ConstraintValidation.NOVALIDATE))
+        action = AddTableConstraintAction(d, _check(d, validation=ConstraintValidation.NOVALIDATE))
         with pytest.raises(UnsupportedFeatureError):
             action.to_sql()
 
@@ -530,7 +530,7 @@ class TestAddConstraintRenders:
     def test_add_constraint_renders_check(self):
         d = _dialect()
         assert d.supports_add_constraint() is True
-        sql, params = AddTableConstraint(d, _check(d)).to_sql()
+        sql, params = AddTableConstraintAction(d, _check(d)).to_sql()
         assert sql == "ADD CONSTRAINT `ck` CHECK (`a` = `b`)"
         assert params == ()
 
@@ -548,4 +548,4 @@ class TestAddConstraintRenders:
         d = _dialect()
         constraint = TableConstraint(d, branch=TableUniqueConstraint(d, ["a"]))
         with pytest.raises(UnsupportedFeatureError):
-            AddTableConstraint(d, constraint).to_sql()
+            AddTableConstraintAction(d, constraint).to_sql()

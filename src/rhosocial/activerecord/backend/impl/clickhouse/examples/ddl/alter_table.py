@@ -84,9 +84,11 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import AlterTableStatement  # noqa: E402
-from rhosocial.activerecord.backend.expression.statements.ddl_alter import AddColumn  # noqa: E402
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
+    AddColumnAction,
+)
 
-add_col_action = AddColumn(
+add_col_action = AddColumnAction(
     dialect=dialect,
     column=ColumnDefinition(
         name="email",
@@ -107,7 +109,7 @@ print(f"Params: {params}")
 backend.execute(sql, params)
 print("Column email added successfully")
 
-add_age_action = AddColumn(
+add_age_action = AddColumnAction(
     dialect=dialect,
     column=ColumnDefinition(
         "age",

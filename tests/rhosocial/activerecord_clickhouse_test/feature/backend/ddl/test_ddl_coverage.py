@@ -19,7 +19,7 @@ not support them and the corresponding dialect mixins fail fast with
 import pytest
 
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AlterColumn,
+    AlterColumnAction,
     AlterTableStatement,
     ColumnAlterOperation,
 )
@@ -94,18 +94,18 @@ class TestAlterColumnDefault:
     """
 
     def test_set_default_string(self, dialect):
-        action = AlterColumn(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC")
+        action = AlterColumnAction(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC")
         sql, params = AlterTableStatement(dialect, Table(dialect, "t"), [action]).to_sql()
         assert "ALTER COLUMN `col` DEFAULT 'ABC'" in sql
         assert params == ()
 
     def test_set_default_integer(self, dialect):
-        action = AlterColumn(dialect, "num", ColumnAlterOperation.SET_DEFAULT, new_value=5)
+        action = AlterColumnAction(dialect, "num", ColumnAlterOperation.SET_DEFAULT, new_value=5)
         sql, _ = AlterTableStatement(dialect, Table(dialect, "t"), [action]).to_sql()
         assert "ALTER COLUMN `num` DEFAULT 5" in sql
 
     def test_drop_default_uses_modify_remove(self, dialect):
-        action = AlterColumn(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)
+        action = AlterColumnAction(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)
         sql, params = AlterTableStatement(dialect, Table(dialect, "t"), [action]).to_sql()
         assert "MODIFY COLUMN `col` REMOVE DEFAULT" in sql
         assert params == ()
@@ -113,10 +113,12 @@ class TestAlterColumnDefault:
     def test_no_set_or_drop_default_keyword_is_rendered(self, dialect):
         """The two spellings the server rejects must not appear in the output."""
         set_sql, _ = AlterTableStatement(
-            dialect, Table(dialect, "t"), [AlterColumn(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value=1)]
+            dialect,
+            Table(dialect, "t"),
+            [AlterColumnAction(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value=1)],
         ).to_sql()
         drop_sql, _ = AlterTableStatement(
-            dialect, Table(dialect, "t"), [AlterColumn(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)]
+            dialect, Table(dialect, "t"), [AlterColumnAction(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)]
         ).to_sql()
         assert "SET DEFAULT" not in set_sql
         assert "DROP DEFAULT" not in drop_sql
@@ -138,14 +140,14 @@ class TestAlterColumnDefault:
             d = backend.dialect
             backend.execute(*AlterTableStatement(
                 d, Table(d, "ar_alter_default"),
-                [AlterColumn(d, "id", ColumnAlterOperation.SET_DEFAULT, new_value=7)],
+                [AlterColumnAction(d, "id", ColumnAlterOperation.SET_DEFAULT, new_value=7)],
             ).to_sql())
             create = backend.execute("SHOW CREATE TABLE ar_alter_default").data[0]["statement"]
             assert "DEFAULT 7" in create
 
             backend.execute(*AlterTableStatement(
                 d, Table(d, "ar_alter_default"),
-                [AlterColumn(d, "id", ColumnAlterOperation.DROP_DEFAULT)],
+                [AlterColumnAction(d, "id", ColumnAlterOperation.DROP_DEFAULT)],
             ).to_sql())
             create = backend.execute("SHOW CREATE TABLE ar_alter_default").data[0]["statement"]
             assert "DEFAULT" not in create

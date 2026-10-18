@@ -120,13 +120,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RepeatMixin,
     RpadMixin,
     TrimMixin,
-    # Value literals: the typed value nodes (expression/values) render
-    # through this pair. ClickHouse's own spellings (unhex / bare quoted
-    # UUID text) sit ahead of the base's tier-1 defaults and its explicit
-    # tier-2 NotImplementedError -- this order is what resolves
-    # format_binary_value and format_uuid_value. INTERVAL stays
-    # unimplemented on purpose; see mixins/typed_value.py.
-    TypedValueMixin,
     # Column types: the generic half, which ClickHouseColumnTypeMixin below
     # overrides.
     ColumnTypeMixin,
@@ -200,20 +193,28 @@ from .mixins import (
     ClickHouseDDLColumnMixin,
     ClickHouseFunctionMixin,
     ClickHouseColumnTypeMixin,
-    ClickHouseTypedValueMixin,
     # TRIM differs and is overridden by ClickHouseTrimMixin (above) for the
     # reason documented there: the direction is the function name, and the
     # no-characters ANSI form the default renders is a syntax error here.
     ClickHouseTrimMixin,
+    ClickHouseLiteralValueMixin,
 )
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+        ModifyColumnAction as ModifyColumn,
+    )
 
 
 class ClickHouseDialect(
+    # Ahead of SQLDialectBase, unlike every other mixin in this list. Those
+    # add methods the base does not have, so their position is a readability
+    # choice; this one overrides ``format_literal`` -- ClickHouse's two
+    # tier-2 spellings, unhex for bytes and the bare quoted text for UUID --
+    # and a mixin placed after the class it overrides never wins.
+    ClickHouseLiteralValueMixin,
     SQLDialectBase,
     RelationSourceMixin,
     # The object tree: each *NameMixin renders one object kind and inherits
@@ -326,13 +327,6 @@ class ClickHouseDialect(
     ClickHouseModifyColumnMixin,
     ClickHouseJsonDualityViewMixin,
     ClickHouseTypeSupportMixin,
-    # Value literals: this backend's tier-2 spellings ahead of the core's
-    # TypedValueMixin, exactly as in the import list -- the pair resolves
-    # format_binary_value / format_uuid_value, and every other kind falls
-    # through to the base's tier-1 defaults (which the measured server
-    # accepts verbatim; see mixins/typed_value.py).
-    ClickHouseTypedValueMixin,
-    TypedValueMixin,
     UserDefinedTypeMixin,
     DomainMixin,
     ClickHouseOptimizerHintMixin,
@@ -579,9 +573,11 @@ class ClickHouseDialect(
 
     def alter_column_type_action(self, old_col, new_col) -> "ModifyColumn":
         """Render a column type change as MODIFY COLUMN <new definition>."""
-        from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+        from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+            ModifyColumnAction,
+        )
 
-        return ModifyColumn(self, column=new_col)
+        return ModifyColumnAction(self, column=new_col)
 
     def supports_alter_column_properties(self) -> bool:
         """No ``ALTER COLUMN SET/DROP DEFAULT`` / ``SET/DROP NOT NULL`` in ClickHouse."""

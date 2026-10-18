@@ -3,8 +3,8 @@ from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-        ModifyColumn,
-        ChangeColumn,
+        ChangeColumnAction as ChangeColumn,
+        ModifyColumnAction as ModifyColumn,
     )
 
 

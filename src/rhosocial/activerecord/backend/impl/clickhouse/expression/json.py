@@ -63,6 +63,12 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValue):
 
     Creates a JSON object from key-value pairs.
 
+    The members arrive as ``data`` -- a dict, or an iterable of
+    ``(key, value)`` pairs -- and never as ``**kwargs``: the artifact carries
+    its parameters by name (§4.11.4), and a ``**kwargs`` parameter cannot be
+    matched by name, so the class refuses that shape rather than building a
+    node the wire format cannot carry.
+
     Example:
         >>> expr = ClickHouseJSONObjectExpression(dialect, {'name': 'Alice', 'age': 30})
         OR
@@ -75,17 +81,11 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValue):
         data: Any = None,
         *,
         alias: Optional[str] = None,
-        **kwargs: Any,
     ):
         super().__init__(dialect)
         self.data = data  # keep raw for get_params() introspection
-        self.kwargs: Dict[str, Any] = dict(kwargs)
-        if data is not None and kwargs:
-            pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
-        elif data is not None:
+        if data is not None:
             pairs = self._convert_to_pairs(data)
-        elif kwargs:
-            pairs = self._convert_to_pairs(kwargs)
         else:
             pairs = []
         self.pairs = pairs

@@ -101,15 +101,15 @@ from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # no
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
     AlterTableStatement,
-    AddColumn,
-    ModifyColumn,
+    AddColumnAction,
+    ModifyColumnAction,
 )
 
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add a new column with a default value
-add_status = AddColumn(
+add_status = AddColumnAction(
     dialect,
     ColumnDefinition(
         dialect,
@@ -126,7 +126,7 @@ print(f"ALTER (add column): {sql}")
 backend.execute(sql, params)
 
 # Modify an existing column's data type: Decimal(10, 2) -> Float64
-modify_value = ModifyColumn(
+modify_value = ModifyColumnAction(
     dialect,
     ColumnDefinition(dialect, "value", ClickHouseFloat64Type(dialect)),
 )

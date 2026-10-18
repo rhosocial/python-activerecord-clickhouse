@@ -66,7 +66,7 @@ class ClickHouseDDLColumnMixin:
         else:
             parts.append("ADD COLUMN")
         parts.append(column_sql)
-        # The core AddColumn carries no position field: ClickHouse's
+        # The core AddColumnAction carries no position field: ClickHouse's
         # ``AFTER <column>`` has no declared slot to arrive through, so the
         # clause is not rendered here rather than probed for.
         return " ".join(parts), column_params

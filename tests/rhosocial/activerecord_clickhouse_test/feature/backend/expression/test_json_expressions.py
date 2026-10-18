@@ -67,11 +67,19 @@ class TestClickHouseJSONObjectExpression:
         assert "name" in params
         assert "age" in params
 
-    def test_json_object_with_kwargs(self):
-        """Test JSON object creation with keyword arguments."""
+    def test_json_object_with_a_dict(self):
+        """Test JSON object creation from a mapping.
+
+        The members arrive as ``data``; the ``**kwargs`` channel this test
+        used was removed because an artifact matches its parameters by name
+        (§4.11.4) and a ``**kwargs`` parameter cannot be, so the class refuses
+        that shape. The dict form renders the same ``map(...)`` either way.
+        """
         dialect = ClickHouseDialect(version=(26, 7, 1))
 
-        expr = ClickHouseJSONObjectExpression(dialect, name="John", age=30).as_("obj")
+        expr = ClickHouseJSONObjectExpression(
+            dialect, {"name": "John", "age": 30}
+        ).as_("obj")
         sql, params = expr.to_sql()
 
         assert "map" in sql

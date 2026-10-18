@@ -6,16 +6,16 @@ equivalent:
 
 * ``AFTER <column>`` — place the new column immediately after ``column``.
 
-It lives on ``ClickHouseAddColumn`` (deriving the generic ``AddColumn``) and
+It lives on ``ClickHouseAddColumn`` (deriving the generic ``AddColumnAction``) and
 is rendered by the ClickHouse ``format_add_column_action`` override.
 ClickHouse does **not** share it with any other backend.
 """
 
 from typing import Optional, TYPE_CHECKING
 
-from rhosocial.activerecord.backend.expression.statements import (
-    AddColumn,
-    ColumnDefinition,
+from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    AddColumnAction,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -27,7 +27,7 @@ __all__ = [
 ]
 
 
-class ClickHouseAddColumn(AddColumn):
+class ClickHouseAddColumn(AddColumnAction):
     """A ClickHouse ``ADD COLUMN`` action extending the generic one.
 
     Adds the ClickHouse-only ``after`` positional clause.

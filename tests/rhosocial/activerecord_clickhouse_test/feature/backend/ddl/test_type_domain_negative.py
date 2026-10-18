@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     DropTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression import DdlLiteral
+from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
     AlterDomainStatement,
@@ -204,7 +204,10 @@ def test_type_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -
 
 
 def test_domain_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -> None:
-    condition = DomainValueExpression(dialect) > DdlLiteral(dialect, 0)
+    # A domain CHECK is a DDL position: the literal states ``inline=True``
+    # itself, per node -- the caller's call, and no lift pass exists to make
+    # it for them (the old ``DdlLiteral`` class-level spelling is gone).
+    condition = DomainValueExpression(dialect) > Literal(dialect, 0, inline=True)
     check = DomainCheckConstraint(dialect, condition, name="positive")
     action = DropDomainDefaultAction(dialect)
     positive = Domain(dialect, "positive")
