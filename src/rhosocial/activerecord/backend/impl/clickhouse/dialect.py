@@ -351,6 +351,12 @@ class ClickHouseDialect(
     # spells ``*``. C3 gives the earlier name in this list priority, so this must
     # stay ahead of ``ExpressionMixin`` or the override would never be reached.
     ClickHouseWildcardMixin,
+    # Before ExpressionMixin for the same reason: this carries ClickHouse's
+    # ``lengthUTF8`` answer for ``CHAR_LENGTH`` (the engine's LENGTH counts
+    # bytes), and ExpressionMixin inherits the core's FunctionCallMixin
+    # whose ``LENGTH`` default it replaces. Listed after it, the override
+    # would be dead code -- which is what it was until the MRO was checked.
+    ClickHouseFunctionMixin,
     ExpressionMixin,
     ClickHouseDateTimeMixin,
     DateTimeMixin,
@@ -362,7 +368,6 @@ class ClickHouseDialect(
     TransactionControlMixin,
     ClickHouseSetOperationMixin,
     SetOperationMixin,
-    ClickHouseFunctionMixin,
     # Column types. The ClickHouse half first: it overrides the eighteen-entry
     # table, and C3 gives the earlier name priority. Nothing else in this list
     # can answer it, so the pair may move as a unit without disturbing the order

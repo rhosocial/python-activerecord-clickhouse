@@ -100,16 +100,14 @@ class ClickHouseDMLOperationMixin:
         if isinstance(expr.source, DefaultValuesSource):
             parts.append("DEFAULT VALUES")
         elif isinstance(expr.source, ValuesSource):
-            all_rows_sql = []
-            for row in expr.source.values_list:
-                row_sql, row_params = [], []
-                for val in row:
-                    s, p = val.to_sql()
-                    row_sql.append(s)
-                    row_params.extend(p)
-                all_rows_sql.append(f"({', '.join(row_sql)})")
-                all_params.extend(row_params)
-            parts.append("VALUES " + ", ".join(all_rows_sql))
+            # A cell is either an expression or a bare host value, and the
+            # core owns that decision in one place -- re-rendering the rows
+            # here (the old loop called ``val.to_sql()`` unconditionally, so
+            # a bare scalar cell crashed) would fork it. ClickHouse's VALUES
+            # spelling is the base's, so the whole branch is the delegation.
+            source_sql, source_params = self.format_insert_values_source(expr.source)
+            parts.append(source_sql)
+            all_params.extend(source_params)
         elif isinstance(expr.source, SelectSource):
             s_sql, s_params = expr.source.select_query.to_sql()
             parts.append(s_sql)

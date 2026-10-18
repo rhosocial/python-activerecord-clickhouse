@@ -1,5 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/function.py
-from typing import Dict
+from typing import Dict, Tuple, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 
 class ClickHouseFunctionMixin:
@@ -62,3 +65,27 @@ class ClickHouseFunctionMixin:
             return False
 
         return True
+
+    def format_char_length_function(self, expr: "BaseExpression") -> Tuple[str, tuple]:
+        """Render ``lengthUTF8(operand)`` -- the character count.
+
+        ClickHouse's ``LENGTH`` answers in **bytes**, so the core's default
+        spelling answers a different question than the node asks. Measured
+        on the scenario server ``tests/config/clickhouse_scenarios.yaml``
+        names ``clickhouse_http`` (ClickHouse 26.7.3.19, HTTP on
+        ``127.0.0.1:18682``)::
+
+            SELECT length('héllo')      -- 6: five characters, six UTF-8 bytes
+            SELECT lengthUTF8('héllo')  -- 5: the character count
+            SELECT CHAR_LENGTH('héllo') -- 5: accepted as an alias on this
+                                        --   version; lengthUTF8 is the
+                                        --   spelling whose availability
+                                        --   spans every version this
+                                        --   backend declares
+
+        ``expr.unit`` is deliberately not read, the same choice the core's
+        default makes: it records which length semantics the caller asked
+        for, and this entry point writes the one spelling that carries the
+        character answer.
+        """
+        return self._format_scalar_function("lengthUTF8", expr)

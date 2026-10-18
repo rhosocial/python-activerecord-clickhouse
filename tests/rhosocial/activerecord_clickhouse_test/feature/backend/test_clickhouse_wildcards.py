@@ -13,11 +13,22 @@ measured, only ClickHouse accepts it, so it is this backend's own node
 (:class:`ClickHouseRowCountDistinctWildcard`) and this backend's own
 ``format_row_count_wildcard`` override.
 
-**Evidence level: documented, not re-measured.**  The ``COUNT(DISTINCT *)``
-spelling is a documented ClickHouse extension and the verdict the survey
-records for this backend; no ClickHouse instance is reachable from this
-worktree, so what the assertions below verify is the *rendering contract* --
-which node renders which words -- rather than the server's acceptance.
+**Evidence level: re-measured on the scenario server.**
+``tests/config/clickhouse_scenarios.yaml`` names ``clickhouse_http``
+(**ClickHouse 26.7.3.19**, HTTP on ``127.0.0.1:18682``, database
+``test_db``)::
+
+    CREATE TABLE probe_distinct_star (a Int32, b Int32)
+        ENGINE = MergeTree ORDER BY (a, b)
+    INSERT INTO probe_distinct_star VALUES (1, 1), (1, 1), (1, 2), (2, 2)
+    SELECT count() FROM probe_distinct_star            -- 4
+    SELECT count(DISTINCT *) FROM probe_distinct_star  -- 3, answered as
+                                                       --   countDistinct(a, b)
+
+so the spelling is accepted and the semantics are what this file says: the
+distinct combinations of every column's value where ``COUNT(*)`` counts the
+rows. The assertions below verify the *rendering contract* -- which node
+renders which words.
 """
 
 import pytest
@@ -87,22 +98,34 @@ class TestRowCountPosition:
         assert wc.to_sql() == ("DISTINCT *", ())
 
     def test_the_distinct_spelling_reaches_the_aggregate(self, dialect):
-        """The full statement, through the flag the aggregate carries.
+        """The full statement, through the operand the aggregate carries.
 
-        Core's shared ``format_function_call`` answers a row-count wildcard with
-        the asterisk and takes the ``DISTINCT`` from the call's own
-        ``is_distinct``; so the complete spelling is reached through the
-        factory's keyword rather than through the argument alone.  That core
-        short-circuit is recorded against the PostgreSQL and Snowflake
-        row-count wildcards too.
+        Core ruled that ``DISTINCT`` is not a modifier the row-count wildcard
+        can take: ``count(dialect, "*", is_distinct=True)`` is refused at
+        construction, because the bare asterisk counts rows and rows have no
+        duplicates. The extension therefore reaches the statement as a
+        different *operand* -- this backend's own node -- and the classed
+        ``COUNT`` entry point consults it rather than answering every
+        row-count wildcard with the bare asterisk.
         """
-        assert count(dialect, "*", is_distinct=True).to_sql() == (
-            "COUNT(DISTINCT *)",
-            (),
+        from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+            ClickHouseRowCountDistinctWildcard,
         )
+
         assert count(
-            dialect, "*", is_distinct=True, alias="n"
+            dialect, ClickHouseRowCountDistinctWildcard(dialect)
+        ).to_sql() == ("COUNT(DISTINCT *)", ())
+        assert count(
+            dialect, ClickHouseRowCountDistinctWildcard(dialect), alias="n"
         ).to_sql() == ("COUNT(DISTINCT *) AS `n`", ())
+
+    def test_the_modifier_path_is_refused_at_construction(self, dialect):
+        """The pre-classing path -- ``DISTINCT`` as a keyword on the plain
+        row-count wildcard -- is refused by the core, and this backend does
+        not reopen it: the engine's extension is a different operand, not a
+        modifier on the count."""
+        with pytest.raises(ValueError, match="no duplicates"):
+            count(dialect, "*", is_distinct=True)
 
     def test_the_node_is_a_row_count_wildcard(self, dialect):
         """It extends core's node, so it is admissible wherever that one is."""
@@ -151,7 +174,16 @@ class TestTheCountContractIsUnchanged:
         assert count(dialect, Column(dialect, "a")).to_sql() == ("COUNT(`a`)", ())
 
     def test_a_plain_function_call_can_hold_the_node(self, dialect):
-        """The node renders wherever a value is expected, not only via ``count``."""
+        """The node renders wherever a value is expected, not only via ``count``.
+
+        The plain ``FunctionCall`` is the user-defined-function escape hatch
+        (core keeps the classed nodes for the standard functions), and the
+        shared call formatter answers a row-count wildcard with the bare
+        asterisk -- so this is not the spelling's entry point: the classed
+        ``COUNT`` above is, and the distinct answer reaches a statement only
+        through it. What this pins is that the UDF path stays honest about
+        what core renders rather than growing a backend special case.
+        """
         from rhosocial.activerecord.backend.impl.clickhouse.expression import (
             ClickHouseRowCountDistinctWildcard,
         )
