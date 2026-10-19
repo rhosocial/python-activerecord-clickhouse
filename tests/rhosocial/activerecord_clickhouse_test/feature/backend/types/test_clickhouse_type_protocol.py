@@ -1855,7 +1855,6 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
     def test_a_collection_is_not_the_generic_geometry_type(self):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
             ClickHouseGeometryCollectionType,
-            ClickHouseGeometryType,
         )
 
         dialect = ClickHouseDialect()
@@ -2058,7 +2057,10 @@ class TestParseRoundTripSweep:
         return registry
 
     def test_every_rendered_type_parses_back_coherently(self, registry):
-        from rhosocial.activerecord.testsuite.utils.parse_contract import (
+        # The sweep is vendored beside the matrix (the testsuite deleted its
+        # shared harness with round-trip coverage moving to each backend);
+        # make_instance is the same function the matrix registers with.
+        from expression_roundtrip_harness import (
             parse_roundtrip_failures,
         )
 
