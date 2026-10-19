@@ -1,4 +1,4 @@
-# tests/rhosocial/activerecord_clickhouse_test/feature/backend/test_clickhouse_literal_values.py
+# tests/rhosocial/activerecord_clickhouse_test/feature/backend/expression/test_clickhouse_literal_values.py
 """ClickHouse's tier-2 literal spellings, pinned to live measurements.
 
 ``Literal`` is the one node that carries a value and the one decision that
@@ -11,9 +11,11 @@ Every literal asserted here was measured against the instance
 ``tests/config/clickhouse_scenarios.yaml`` names ``clickhouse_http``:
 **ClickHouse 26.7.3.19 (official build)**, HTTP on ``127.0.0.1:18682``,
 database ``test_db``. The statements and readbacks behind each verdict are
-recorded in ``mixins/literal.py``; this module pins the rendered text and
-re-verifies both tier-2 spellings against the live server (CREATE TABLE with
-the literal as a DEFAULT, INSERT, read back, compare).
+recorded in ``mixins/literal.py``; this module pins the rendered text only.
+The live end-to-end verification (CREATE TABLE with the literal as a DEFAULT,
+INSERT, read back, compare) moved to the integration area it belongs to --
+``../ddl/test_literal_default_readbacks.py`` -- per the org rules
+(expression-dialect §12): expression tests stay construction → render.
 
 The tier-1 kinds (NULL, booleans, numbers, strings, dates) render through
 the base's portable spellings and were measured accepted verbatim as
@@ -132,108 +134,3 @@ class TestTierTwoSpellings:
         mixin placed after the class it overrides never wins."""
         mro = ClickHouseDialect.__mro__
         assert mro.index(ClickHouseLiteralValueMixin) < mro.index(SQLDialectBase)
-
-
-class TestLiveDatabaseRoundTrips:
-    """The two tier-2 spellings, verified end to end on the scenario server:
-    CREATE TABLE with the literal as a DEFAULT, INSERT a row, read the
-    stored value back and compare."""
-
-    def _drop(self, backend, name):
-        backend.execute(f"DROP TABLE IF EXISTS {name}")
-
-    def test_binary_default_roundtrip(self, clickhouse_backend):
-        from rhosocial.activerecord.backend.expression.objects import Table
-        from rhosocial.activerecord.backend.expression.statements import (
-            ColumnConstraint,
-            ColumnDefaultConstraint,
-            ColumnDefinition,
-            CreateTableStatement,
-        )
-        from rhosocial.activerecord.backend.expression.types import (
-            IntegerType,
-            VarCharType,
-        )
-
-        backend = clickhouse_backend
-        dialect = backend.dialect
-        name = "probe_literal_bin"
-        self._drop(backend, name)
-        try:
-            # The bare bytes scalar: the DEFAULT clause normalises it into
-            # an inline Literal, which is the path under test.
-            create = CreateTableStatement(
-                dialect,
-                Table(dialect, name),
-                [
-                    ColumnDefinition(dialect, "id", IntegerType(dialect)),
-                    ColumnDefinition(
-                        dialect,
-                        "s",
-                        VarCharType(dialect=dialect),
-                        constraints=[
-                            ColumnConstraint(
-                                dialect,
-                                branch=ColumnDefaultConstraint(dialect, b"\x01\x02"),
-                            )
-                        ],
-                    ),
-                ],
-                storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
-            )
-            sql, params = create.to_sql()
-            assert params == ()
-            assert "unhex('0102')" in sql
-            backend.execute(sql, params)
-            backend.execute(f"INSERT INTO {name} (id) VALUES (1)")
-            result = backend.execute(f"SELECT hex(s) FROM {name}")
-            assert [row["hex(s)"] for row in result.data] == ["0102"]
-        finally:
-            self._drop(backend, name)
-
-    def test_uuid_default_roundtrip(self, clickhouse_backend):
-        from rhosocial.activerecord.backend.expression.objects import Table
-        from rhosocial.activerecord.backend.expression.statements import (
-            ColumnConstraint,
-            ColumnDefaultConstraint,
-            ColumnDefinition,
-            CreateTableStatement,
-        )
-        from rhosocial.activerecord.backend.expression.types import (
-            IntegerType,
-            UUIDType,
-        )
-
-        backend = clickhouse_backend
-        dialect = backend.dialect
-        name = "probe_literal_uuid"
-        self._drop(backend, name)
-        try:
-            create = CreateTableStatement(
-                dialect,
-                Table(dialect, name),
-                [
-                    ColumnDefinition(dialect, "id", IntegerType(dialect)),
-                    ColumnDefinition(
-                        dialect,
-                        "u",
-                        UUIDType(dialect),
-                        constraints=[
-                            ColumnConstraint(
-                                dialect,
-                                branch=ColumnDefaultConstraint(dialect, _UUID),
-                            )
-                        ],
-                    ),
-                ],
-                storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
-            )
-            sql, params = create.to_sql()
-            assert params == ()
-            assert f"'{_UUID_TEXT}'" in sql
-            backend.execute(sql, params)
-            backend.execute(f"INSERT INTO {name} (id) VALUES (1)")
-            result = backend.execute(f"SELECT toString(u) FROM {name}")
-            assert [row["toString(u)"] for row in result.data] == [_UUID_TEXT]
-        finally:
-            self._drop(backend, name)
