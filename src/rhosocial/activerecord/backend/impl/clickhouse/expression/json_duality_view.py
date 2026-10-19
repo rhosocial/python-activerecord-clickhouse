@@ -46,8 +46,17 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class DualityViewDMLTag(Enum):
-    """DML permission tags for JSON_DUALITY_OBJECT."""
+class DualityViewDMLTag(str, Enum):
+    """DML permission tags for ``JSON_DUALITY_OBJECT``.
+
+    A ``str`` enum whose ``__str__`` is ``str.__str__``: a member *is* the word
+    it carries, so an artifact names the tag as a plain JSON string. Without the
+    pin ``Enum.__str__`` wins and spells the member
+    ``DualityViewDMLTag.INSERT``, which no reader of the artifact can resolve
+    back to the member (§11.3).
+    """
+
+    __str__ = str.__str__
 
     INSERT = "INSERT"
     UPDATE = "UPDATE"
@@ -101,7 +110,7 @@ class DualityObjectSpec:
     join_condition: Optional[str] = None
 
 
-class CreateJsonDualityViewStatement(BaseExpression):
+class ClickHouseCreateJsonDualityViewStatement(BaseExpression):
     """``CREATE JSON RELATIONAL DUALITY VIEW`` — a statement ClickHouse does not have.
 
     Kept as a fail-fast switch, not as a renderer: ``to_sql()`` raises
@@ -130,10 +139,10 @@ class CreateJsonDualityViewStatement(BaseExpression):
 
     @property
     def format_method(self) -> str:
-        return "format_create_json_duality_view_statement"
+        return "format_clickhouse_create_json_duality_view_statement"
 
 
-class DropJsonDualityViewStatement(BaseExpression):
+class ClickHouseDropJsonDualityViewStatement(BaseExpression):
     """DROP VIEW expression for JSON Duality Views.
 
     Uses standard DROP VIEW syntax since ClickHouse has no special DROP for duality views.
@@ -151,4 +160,4 @@ class DropJsonDualityViewStatement(BaseExpression):
 
     @property
     def format_method(self) -> str:
-        return "format_drop_json_duality_view_statement"
+        return "format_clickhouse_drop_json_duality_view_statement"

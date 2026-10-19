@@ -9,49 +9,47 @@ from typing import Any, Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
-        CreateJsonDualityViewStatement,
-        DropJsonDualityViewStatement,
+        ClickHouseCreateJsonDualityViewStatement,
+        ClickHouseDropJsonDualityViewStatement,
     )
 
 @runtime_checkable
 class ClickHouseJsonDualityViewSupport(Protocol):
-    """ClickHouse JSON Duality View protocol (ClickHouse 9.7+).
+    """ClickHouse JSON Duality View protocol -- a switch that answers no.
 
-    Feature Source: ClickHouse 9.7.0 (2026-04-21)
-
-    JSON Duality Views provide a document-relational duality layer:
-    - CREATE JSON RELATIONAL DUALITY VIEW with JSON_DUALITY_OBJECT
-    - WITH(INSERT,UPDATE,DELETE) annotations per object level
-    - DML via single JSON `data` column
-    - Optimistic locking via _metadata.etag on UPDATE
-
-    Official Documentation:
-    - JSON Duality Views: https://dev.clickhouse.com/doc/refman/9.7/en/json-duality-views.html
-
-    Version Requirements:
-    - JSON Duality Views: ClickHouse 9.7.0+
+    The protocol exists so a caller can *ask*; the answer is always no.
+    ClickHouse has no duality views at any version, and there is nothing to
+    name a version for: ``CREATE`` enumerates the objects it can make on
+    refusal, and a duality view is not on the list -- the three measurements
+    are recorded in ``expression/json_duality_view.py``. What the server has
+    for reacting to a row is ``CREATE FUNCTION ... AS`` plus a MATERIALIZED
+    VIEW; for relational JSON, the ``JSON`` type with ``JSONExtract*``.
     """
 
     def supports_json_duality_view(self) -> bool:
-        """Whether JSON Duality Views are supported (ClickHouse 9.7+)."""
+        """Whether JSON Duality Views are supported -- always ``False`` here."""
         ...
 
     def supports_json_duality_view_dml(self) -> bool:
-        """Whether DML on JSON Duality Views is supported (ClickHouse 9.7+)."""
+        """Whether DML on JSON Duality Views is supported -- always ``False`` here."""
         ...
 
-    def format_create_json_duality_view_statement(self, expr: "CreateJsonDualityViewStatement") -> Tuple[str, tuple]:
+    def format_clickhouse_create_json_duality_view_statement(
+        self, expr: "ClickHouseCreateJsonDualityViewStatement"
+    ) -> Tuple[str, tuple]:
         """Format CREATE JSON RELATIONAL DUALITY VIEW statement.
 
         Args:
-            expr: CreateJsonDualityViewStatement instance
+            expr: ClickHouseCreateJsonDualityViewStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
         """
         ...
 
-    def format_drop_json_duality_view_statement(self, expr: "DropJsonDualityViewStatement") -> Tuple[str, tuple]:
+    def format_clickhouse_drop_json_duality_view_statement(
+        self, expr: "ClickHouseDropJsonDualityViewStatement"
+    ) -> Tuple[str, tuple]:
         """Format DROP VIEW statement for a JSON Duality View."""
         ...
 

@@ -43,8 +43,15 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 
 
-class OptimizerHintType(Enum):
-    """Types of ClickHouse optimizer hints."""
+class OptimizerHintType(str, Enum):
+    """Types of ClickHouse optimizer hints.
+
+    A ``str`` enum whose ``__str__`` is ``str.__str__``: a member *is* the word
+    it carries, so an artifact names the hint type as a plain JSON string
+    (§11.3).
+    """
+
+    __str__ = str.__str__
 
     SET_VAR = "SET_VAR"
 

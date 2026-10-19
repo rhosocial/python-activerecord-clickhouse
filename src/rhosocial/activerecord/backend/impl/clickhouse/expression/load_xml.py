@@ -47,7 +47,7 @@ class LoadXMLConflictMode(str, Enum):
     IGNORE = "IGNORE"
 
 
-class ClickHouseLoadXMLEXpression(BaseExpression):
+class ClickHouseLoadXMLStatement(BaseExpression):
     """Represent the ClickHouse ``LOAD XML`` statement.
 
     Attributes:
@@ -111,4 +111,4 @@ class ClickHouseLoadXMLEXpression(BaseExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_load_xml_statement"
+        return "format_clickhouse_load_xml_statement"

@@ -1,4 +1,4 @@
-# tests/rhosocial/activerecord_clickhouse_test/feature/backend/test_expression_roundtrip_all.py
+# tests/rhosocial/activerecord_clickhouse_test/feature/backend/expression/test_expression_roundtrip_all.py
 """
 Serialization coverage for every expression class ClickHouse can render.
 
@@ -107,6 +107,7 @@ import datetime
 import decimal
 import enum
 import inspect
+import math
 import uuid
 from typing import Dict
 
@@ -675,6 +676,15 @@ def register_specials():
         "predicates.ILikePredicate",
         lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
     )
+    # COMPARISON. Core normalised ``op`` through ``normalize_comparison_operator``
+    # after this matrix was reconciled, and the guess hands ``Any`` the literal
+    # ``"x"`` -- not a comparison word, so the constructor refuses and the class
+    # drops to a quiet skip. A real operator word builds it, and the node then
+    # renders through the same entry every other predicate uses.
+    register_special_constructor(
+        "predicates.ComparisonPredicate",
+        lambda d: ComparisonPredicate(d, "=", Column(d, "a"), Literal(d, 1)),
+    )
 
     # -- DML -----------------------------------------------------------------
     register_special_constructor(
@@ -911,8 +921,8 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "alter_column.ClickHouseAddColumn",
-        lambda d: alter_column.ClickHouseAddColumn(d, _integer_column(d)),
+        "alter_column.ClickHouseAddColumnAction",
+        lambda d: alter_column.ClickHouseAddColumnAction(d, _integer_column(d)),
     )
     register_special_constructor(
         "rename_table.ClickHouseRenameTableExpression",
@@ -1146,15 +1156,19 @@ LEGITIMATE_NON_RENDERS = {
     # groups below report, and it says so in the same spelling. The type root is
     # the other kind: every concrete type declares its own generic ``name`` for
     # ``format_data_type`` to dispatch on, and this one declares none, so there is
-    # no name to look up at all. TypeError rather than UnsupportedFeatureError,
-    # because there the class is incomplete rather than the dialect being unable.
+    # no name to look up at all. It now says so in the dispatch's own spelling --
+    # "does not support the generic type None (no format_data_type_None)" -- the
+    # same message every other undeclared name produces, so the pin follows the
+    # class from its own refusal to the generic one. TypeError rather than
+    # UnsupportedFeatureError, because there the class is incomplete rather than
+    # the dialect being unable.
     "rhosocial.activerecord.backend.expression.sources.base.TableSource": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_table_source"),
     ),
     "rhosocial.activerecord.backend.expression.types._base.DataType": (
         TypeError,
-        "does not declare a valid generic type name",
+        "does not support the generic type None (no format_data_type_None)",
     ),
 
     # ---- core features ClickHouse does not declare a protocol for ---------
@@ -1493,9 +1507,6 @@ LEGITIMATE_NON_ROUNDTRIPS: Dict[str, Dict[str, object]] = {
     #    serialized word raw. The JSON and XML channels each hand back the
     #    word; the restore is value-faithful and type-lossy.
     "rhosocial.activerecord.backend.expression.graph.GraphEdge": {
-        "channels": {"json": ("word",), "xml": ("word",)},
-    },
-    "rhosocial.activerecord.backend.expression.query_parts.ForUpdateClause": {
         "channels": {"json": ("word",), "xml": ("word",)},
     },
     "rhosocial.activerecord.backend.expression.statements.ddl_database.AlterDatabaseStatement": {
@@ -1873,7 +1884,7 @@ class TestClickHouseShape:
 
 
 class TestLiteralValueKinds:
-    """The one ``Literal`` class carries fourteen value kinds, named flatly.
+    """The one ``Literal`` class carries sixteen value kinds, named flatly.
 
     Core ``679d9817`` made the artifact plain JSON and folded the value classes
     into a single ``Literal`` whose kind comes from the host value -- so the
@@ -1884,6 +1895,13 @@ class TestLiteralValueKinds:
     language-neutral spellings spec 4.8 asks for -- and every kind comes back
     as the host type it left as, through all three channels.
 
+    ``debde516`` added the two non-finite floats as kinds of their own
+    (``nan_value``, ``infinity_value``) rather than letting them ride on
+    ``float_value``, which is why the set is sixteen and not fourteen: NaN is not
+    equal to itself and JSON has no NaN literal, so a round-trip that stored it
+    as a number could not tell "read back" from "read back wrong". Both travel as
+    their spelling, and ``infinity_value`` carries its sign in the text.
+
     The cases are written out per kind rather than generated because each is a
     statement about what the wire must carry, and a generated case makes no
     statement. Rendering is deliberately not asserted here: whether a kind
@@ -1893,13 +1911,15 @@ class TestLiteralValueKinds:
 
     #: (wire kind, host value, artifact scalar, restored host type), in
     #: :class:`LiteralKind` declaration order -- the order ``of()`` tries them,
-    #: which is why ``boolean_value`` precedes ``integer_value`` and
-    #: ``timestamp_value`` precedes ``date_value``.
+    #: which is why ``boolean_value`` precedes ``integer_value``, ``nan_value``
+    #: precedes ``decimal_value`` and ``timestamp_value`` precedes ``date_value``.
     _CASES = (
         ("null_value", None, None, type(None)),
         ("boolean_value", True, True, bool),
         ("integer_value", 7, 7, int),
         ("float_value", 0.5, 0.5, float),
+        ("nan_value", float("nan"), "nan", float),
+        ("infinity_value", float("inf"), "+inf", float),
         ("decimal_value", decimal.Decimal("1.25"), "1.25", decimal.Decimal),
         ("string_value", "hi", "hi", str),
         ("binary_value", b"\x01\x02", "AQI=", bytes),
@@ -1922,8 +1942,8 @@ class TestLiteralValueKinds:
         ("uuid_value", uuid.UUID(int=7), "00000000-0000-0000-0000-000000000007", uuid.UUID),
     )
 
-    def test_the_kind_set_is_exactly_these_fourteen(self):
-        """A fifteenth kind must be added here deliberately, not discovered.
+    def test_the_kind_set_is_exactly_these_sixteen(self):
+        """A seventeenth kind must be added here deliberately, not discovered.
 
         The closed set is the contract: the wire names every value kind there
         is, and a reader builds its allow-list from it. A kind that appears in
@@ -1954,7 +1974,36 @@ class TestLiteralValueKinds:
             assert type(restored.value) is host_type, (
                 f"{wire}/{channel}: came back as {type(restored.value).__name__}"
             )
+            # NaN is the one host value that is not equal to itself, so ``==``
+            # would fail on a perfectly faithful round-trip. Both non-finite
+            # kinds are compared by their spelling, which is what the wire
+            # actually carries.
+            if isinstance(host, float) and math.isnan(host):
+                assert isinstance(restored.value, float) and math.isnan(
+                    restored.value
+                ), f"{wire}/{channel}: {restored.value!r}"
+                continue
             assert restored.value == host, wire
+
+    @pytest.mark.parametrize("host", [float("-inf")], ids=["negative_infinity"])
+    def test_negative_infinity_carries_its_sign_in_the_text(
+        self, clickhouse_matrix_dialect, host
+    ):
+        """One wire kind, two spellings: the sign is the payload.
+
+        ``infinity_value`` is a single kind for both directions, so the text is
+        what tells them apart -- ``+inf`` and ``-inf``. Pinning only the
+        positive direction would leave ``-inf`` free to come back as ``+inf``.
+        """
+        d = clickhouse_matrix_dialect
+        instance = Literal(d, host)
+        assert serialize(instance) == {
+            "kind": "infinity_value",
+            "params": {"value": "-inf", "inline": False},
+        }
+        for channel, build in _channel_builders(instance, d):
+            restored = build()
+            assert restored.value == host, f"negative infinity/{channel}"
 
 
 class TestObjectKindChecks:

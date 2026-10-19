@@ -9,7 +9,7 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
-        ClickHouseLoadXMLEXpression,
+        ClickHouseLoadXMLStatement,
     )
 
 @runtime_checkable
@@ -26,6 +26,6 @@ class ClickHouseLoadXMLSupport(Protocol):
         """Whether LOAD XML is supported."""
         ...
 
-    def format_load_xml_statement(self, expr: "ClickHouseLoadXMLEXpression") -> Tuple[str, tuple]:
+    def format_clickhouse_load_xml_statement(self, expr: "ClickHouseLoadXMLStatement") -> Tuple[str, tuple]:
         """Format a LOAD XML statement."""
         ...

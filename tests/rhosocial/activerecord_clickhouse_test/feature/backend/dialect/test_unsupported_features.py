@@ -57,7 +57,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
     FlushOption,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
-    CreateJsonDualityViewStatement,
+    ClickHouseCreateJsonDualityViewStatement,
     DualityObjectSpec,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
@@ -65,7 +65,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import
     JSONTableColumn,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
-    ClickHouseLoadXMLEXpression,
+    ClickHouseLoadXMLStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.maintenance import (
     ClickHouseAnalyzeTableExpression,
@@ -216,7 +216,7 @@ class TestLoadXmlStub:
 
     def test_format_load_xml_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseLoadXMLEXpression(dialect, "/tmp/data.xml", "tbl").to_sql()
+            ClickHouseLoadXMLStatement(dialect, "/tmp/data.xml", "tbl").to_sql()
 
 
 class TestAdminCommandStub:
@@ -247,7 +247,9 @@ class TestJsonDualityViewStub:
 
     def test_format_create_json_duality_view_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            CreateJsonDualityViewStatement(dialect, "v", DualityObjectSpec()).to_sql()
+            ClickHouseCreateJsonDualityViewStatement(
+                dialect, "v", DualityObjectSpec()
+            ).to_sql()
 
 
 class TestFullTextStub:

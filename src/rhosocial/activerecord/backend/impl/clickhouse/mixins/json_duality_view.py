@@ -18,13 +18,13 @@ class ClickHouseJsonDualityViewMixin:
     def supports_json_duality_view_dml(self) -> bool:
         return False
 
-    def format_create_json_duality_view_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_create_json_duality_view_statement(self, expr: Any) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "JSON Duality Views",
             suggestion="ClickHouse has no JSON Duality Views; use JSON type + JSONExtract* functions.",
         )
 
-    def format_drop_json_duality_view_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_drop_json_duality_view_statement(self, expr: Any) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "JSON Duality Views",
             suggestion="ClickHouse has no JSON Duality Views.",

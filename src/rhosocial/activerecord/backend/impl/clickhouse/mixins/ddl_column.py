@@ -66,10 +66,32 @@ class ClickHouseDDLColumnMixin:
         else:
             parts.append("ADD COLUMN")
         parts.append(column_sql)
-        # The core AddColumnAction carries no position field: ClickHouse's
-        # ``AFTER <column>`` has no declared slot to arrive through, so the
-        # clause is not rendered here rather than probed for.
+        # The core AddColumnAction carries no position field, so there is
+        # nothing here to place. ClickHouse's ``AFTER <column>`` arrives through
+        # ``ClickHouseAddColumnAction.after``, which has its own entry below.
         return " ".join(parts), column_params
+
+    def format_clickhouse_add_column_action(self, action) -> Tuple[str, tuple]:
+        """``ADD COLUMN ... AFTER <column>`` — the ClickHouse position clause.
+
+        ClickHouse places a new column with ``AFTER <name>`` (also ``FIRST``);
+        no other backend has the clause, which is why it lives on the derived
+        node and gets its own entry rather than being probed for on the core
+        action. ``after=None`` renders exactly what the core entry renders, so
+        the clause is a position the caller asked for and nothing else.
+
+        Documented on
+        ``https://clickhouse.com/docs/sql-reference/statements/alter/column``;
+        the spelling is the server's, quoted identifiers included: the name is
+        rendered through ``format_column_reference`` so a reserved word arrives
+        quoted.
+        """
+        sql, params = self.format_add_column_action(action)
+        if action.after is not None:
+            after_sql, after_params = self.format_column(action.after)
+            sql = f"{sql} AFTER {after_sql}"
+            params = params + after_params
+        return sql, params
 
     def format_alter_column_action(self, action) -> Tuple[str, tuple]:
         """Format ALTER TABLE ... ALTER/MODIFY COLUMN for a default change.

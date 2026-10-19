@@ -70,14 +70,14 @@ from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # 
     AlterTableStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (  # noqa: E402
-    ClickHouseAddColumn,
+    ClickHouseAddColumnAction,
 )
 
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column between `name` and `email` — shifts email to position 4
-add_col = ClickHouseAddColumn(dialect, ColumnDefinition(dialect, "age", ClickHouseUInt32Type(dialect)),
+add_col = ClickHouseAddColumnAction(dialect, ColumnDefinition(dialect, "age", ClickHouseUInt32Type(dialect)),
                               after="name")
 alter_expr = AlterTableStatement(dialect, "users", [add_col])
 sql, params = alter_expr.to_sql()

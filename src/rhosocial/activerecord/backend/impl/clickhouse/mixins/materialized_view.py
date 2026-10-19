@@ -303,7 +303,7 @@ class ClickHouseMaterializedViewMixin:
     # Helpers
     # ------------------------------------------------------------------
 
-    def format_click_house_refresh_schedule(
+    def format_clickhouse_refresh_schedule(
         self, schedule: "ClickHouseRefreshSchedule"
     ) -> Tuple[str, tuple]:
         """Render the ``REFRESH`` clause of a refreshable materialized view.

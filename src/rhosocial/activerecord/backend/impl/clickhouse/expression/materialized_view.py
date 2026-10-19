@@ -48,7 +48,6 @@ Reference:
 https://clickhouse.com/docs/sql-reference/statements/create/view
 """
 from collections.abc import Sequence as AbcSequence
-from enum import Enum
 from typing import Any, Dict, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
@@ -61,36 +60,17 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = [
     "ClickHouseCreateMaterializedViewExpression",
     "ClickHouseDropMaterializedViewExpression",
-    "ClickHouseIntervalUnit",
     "ClickHouseModifyMaterializedViewRefreshExpression",
     "ClickHouseRefreshMaterializedViewExpression",
     "ClickHouseRefreshSchedule",
 ]
 
 
-class ClickHouseIntervalUnit(str, Enum):
-    """Units accepted in a ClickHouse refresh interval.
-
-    A ``str`` enum whose ``__str__`` is ``str.__str__`` -- a member *is* the
-    word it carries, so an artifact names the unit as a plain JSON string.
-    """
-
-    __str__ = str.__str__
-
-    SECOND = "SECOND"
-    MINUTE = "MINUTE"
-    HOUR = "HOUR"
-    DAY = "DAY"
-    WEEK = "WEEK"
-    MONTH = "MONTH"
-    YEAR = "YEAR"
-
-
 class ClickHouseRefreshSchedule(BaseExpression):
     """The ``REFRESH`` clause of a refreshable materialized view.
 
     A clause, and therefore an expression node: it renders (through
-    ``format_click_house_refresh_schedule``) and it travels -- an artifact
+    ``format_clickhouse_refresh_schedule``) and it travels -- an artifact
     carries it as a nested ``{kind, params}`` node, which is why it is a node
     rather than a dataclass. A dataclass parameter has no artifact form: the
     codec writes nodes, scalars and containers of those two, and anything else
@@ -119,7 +99,7 @@ class ClickHouseRefreshSchedule(BaseExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_click_house_refresh_schedule"
+        return "format_clickhouse_refresh_schedule"
 
     def __init__(
         self,

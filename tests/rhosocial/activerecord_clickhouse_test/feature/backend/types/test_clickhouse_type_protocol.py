@@ -1201,14 +1201,14 @@ class TestFormatDispatch:
         from rhosocial.activerecord.backend.expression.types import CustomType
         dialect = ClickHouseDialect()
         with pytest.raises(TypeError, match="does not support the generic type 'custom'"):
-            CustomType(dialect, "SomeTypeWeDoNotKnow").to_sql()
+            CustomType(dialect, raw="SomeTypeWeDoNotKnow").to_sql()
 
     def test_format_unknown_type_error_names_the_substitute(self):
         """The message has to say what to use, not just that nothing is there."""
         from rhosocial.activerecord.backend.expression.types import CustomType
         dialect = ClickHouseDialect()
         with pytest.raises(TypeError, match="ClickHouseStringType"):
-            CustomType(dialect, "SomeTypeWeDoNotKnow").to_sql()
+            CustomType(dialect, raw="SomeTypeWeDoNotKnow").to_sql()
 
 
 # ── ``unsigned`` is refused, not dropped ─────────────────────────────
@@ -2021,18 +2021,32 @@ class TestParseRoundTripSweep:
 
     @pytest.fixture(scope="class")
     def registry(self):
-        """The round-trip module's registry, loaded from the parent
+        """The round-trip module's registry, loaded from the expression area.
 
-        directory. Executing it also registers its special constructors,
-        which the sweep's ``make_instance`` consults -- the same
-        registrations the full suite performs at collection time.
+        Executing it also registers its special constructors, which the sweep's
+        ``make_instance`` consults -- the same registrations the full suite
+        performs at collection time. The matrix moved under
+        ``feature/backend/expression/`` when this file's neighbours were
+        gathered there (the literal spellings sit beside it), so the path is
+        spelled as ``parent.parent / "expression"`` rather than a file name in
+        this directory's parent.
         """
         import importlib.util
+        import sys
         from pathlib import Path
 
-        path = Path(__file__).resolve().parent.parent / (
-            "test_expression_roundtrip_all.py"
+        path = (
+            Path(__file__).resolve().parent.parent
+            / "expression"
+            / "test_expression_roundtrip_all.py"
         )
+        # The matrix imports its harness by bare name, which works under pytest
+        # because collection puts the test file's own directory on sys.path.
+        # Loading it by file spec from here does not, so the directory is put on
+        # the path explicitly -- the same effect, without depending on which
+        # directory pytest happens to be collecting.
+        if str(path.parent) not in sys.path:
+            sys.path.insert(0, str(path.parent))
         spec = importlib.util.spec_from_file_location(
             "clickhouse_rt_registry",
             path,
