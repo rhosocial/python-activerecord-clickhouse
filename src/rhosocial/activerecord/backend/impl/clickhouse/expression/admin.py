@@ -30,8 +30,18 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class FlushOption(Enum):
-    """FLUSH statement options."""
+class FlushOption(str, Enum):
+    """FLUSH statement options.
+
+    A ``str`` enum: a member *is* the word it carries, so an artifact can name
+    the option without a vocabulary table, and the constructor normalises the
+    serialized word back to the member. ``__str__`` is pinned to ``str.__str__``
+    because ``Enum.__str__`` would otherwise win and spell members as
+    ``FlushOption.TABLES`` -- on the XML channel that spelling is what travels,
+    and no reader accepts it.
+    """
+
+    __str__ = str.__str__
 
     TABLES = "TABLES"
     LOGS = "LOGS"
@@ -53,8 +63,10 @@ class FlushOption(Enum):
     SLAVE = "SLAVE"
 
 
-class ResetOption(Enum):
-    """RESET statement options."""
+class ResetOption(str, Enum):
+    """RESET statement options. A ``str`` enum -- see :class:`FlushOption`."""
+
+    __str__ = str.__str__
 
     MASTER = "MASTER"
     REPLICA = "REPLICA"
@@ -62,15 +74,19 @@ class ResetOption(Enum):
     PERSIST = "PERSIST"
 
 
-class KillTarget(Enum):
-    """KILL target selector."""
+class KillTarget(str, Enum):
+    """KILL target selector. A ``str`` enum -- see :class:`FlushOption`."""
+
+    __str__ = str.__str__
 
     CONNECTION = "CONNECTION"
     QUERY = "QUERY"
 
 
-class HandlerReadMode(Enum):
-    """HANDLER READ modes."""
+class HandlerReadMode(str, Enum):
+    """HANDLER READ modes. A ``str`` enum -- see :class:`FlushOption`."""
+
+    __str__ = str.__str__
 
     FIRST = "FIRST"
     NEXT = "NEXT"
@@ -89,7 +105,11 @@ class ClickHouseFlushExpression(BaseExpression):
         no_write_to_binlog: bool = False,
     ):
         super().__init__(dialect)
-        self.options: List[FlushOption] = list(options)
+        # Normalise, don't just store: a member passes through, and the word an
+        # artifact carries comes back as its member. A plain store would make
+        # the restored instance hold a bare ``str`` where the original held the
+        # enum, and the round trip would fail on the type.
+        self.options: List[FlushOption] = [FlushOption(o) for o in options]
         self.no_write_to_binlog: bool = no_write_to_binlog
 
     def validate(self, strict: bool = True) -> None:
@@ -112,7 +132,7 @@ class ClickHouseResetExpression(BaseExpression):
         option: ResetOption,
     ):
         super().__init__(dialect)
-        self.option: ResetOption = option
+        self.option: ResetOption = ResetOption(option)
 
     @property
     def format_method(self) -> str:
@@ -318,7 +338,7 @@ class ClickHouseHandlerReadExpression(BaseExpression):
     ):
         super().__init__(dialect)
         self.table = table
-        self.mode: HandlerReadMode = mode
+        self.mode: HandlerReadMode = HandlerReadMode(mode)
         self.index = index
         self.key_value = key_value
         self.where = where
@@ -372,7 +392,7 @@ class ClickHouseKillExpression(BaseExpression):
     ):
         super().__init__(dialect)
         self.processlist_id: int = processlist_id
-        self.target: KillTarget = target
+        self.target: KillTarget = KillTarget(target)
 
     @property
     def format_method(self) -> str:

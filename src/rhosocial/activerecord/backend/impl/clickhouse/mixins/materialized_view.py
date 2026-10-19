@@ -153,7 +153,10 @@ class ClickHouseMaterializedViewMixin:
             parts.append("POPULATE")
 
         if expr.refresh is not None:
-            parts.append(self._format_refresh_clause(expr.refresh))
+            # The schedule is a node of its own; the dialect spells it through
+            # its ``format_method``, the same dispatch every other clause goes
+            # through.
+            parts.append(expr.refresh.to_sql()[0])
 
         if expr.empty:
             parts.append("EMPTY")
@@ -291,15 +294,26 @@ class ClickHouseMaterializedViewMixin:
         if expr.if_exists:
             parts.append("IF EXISTS")
         parts.append(view.to_sql()[0])
-        clause = self._format_refresh_clause(expr.schedule)
-        # ALTER TABLE ... MODIFY REFRESH requires the schedule keyword; the
-        # SYSTEM form spells it the same way.
-        parts.append(f"MODIFY {clause}")
+        # The schedule is a node of its own; its formatter carries the REFRESH
+        # spelling, and MODIFY prefixes the keyword the statement needs.
+        parts.append(f"MODIFY {expr.schedule.to_sql()[0]}")
         return " ".join(parts), ()
 
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
+
+    def format_click_house_refresh_schedule(
+        self, schedule: "ClickHouseRefreshSchedule"
+    ) -> Tuple[str, tuple]:
+        """Render the ``REFRESH`` clause of a refreshable materialized view.
+
+        The schedule is an expression node (``format_method`` names this
+        method), so both ``CREATE MATERIALIZED VIEW ... REFRESH ...`` and
+        ``ALTER TABLE ... MODIFY REFRESH`` reach the one spelling through the
+        node's own ``to_sql()``.
+        """
+        return self._format_refresh_clause(schedule), ()
 
     def _format_refresh_clause(self, schedule: "ClickHouseRefreshSchedule") -> str:
         """Render a ``REFRESH ...`` clause body (without the leading keyword)."""

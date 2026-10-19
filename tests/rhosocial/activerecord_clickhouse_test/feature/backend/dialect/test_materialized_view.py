@@ -18,12 +18,11 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Column, QueryStatement
-from rhosocial.activerecord.backend.expression.objects import Table
-from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.objects import (
     MaterializedView,
     Table,
 )
+from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
     CreateMaterializedViewStatement,
     DropMaterializedViewStatement,
@@ -227,7 +226,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(every="1 DAY"),
+            refresh=ClickHouseRefreshSchedule(dialect, every="1 DAY"),
         )
         sql, _ = expr.to_sql()
         assert "REFRESH EVERY 1 DAY" in sql
@@ -239,7 +238,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(every="1 MONTH", offset="5 DAY 2 HOUR"),
+            refresh=ClickHouseRefreshSchedule(dialect, every="1 MONTH", offset="5 DAY 2 HOUR"),
         )
         assert "REFRESH EVERY 1 MONTH OFFSET 5 DAY 2 HOUR" in expr.to_sql()[0]
 
@@ -249,7 +248,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(after="30 MINUTE"),
+            refresh=ClickHouseRefreshSchedule(dialect, after="30 MINUTE"),
         )
         assert "REFRESH AFTER 30 MINUTE" in expr.to_sql()[0]
 
@@ -259,7 +258,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(
+            refresh=ClickHouseRefreshSchedule(dialect, 
                 every="1 HOUR", randomize_for="1 HOUR", settings={"refresh_retries": 5}
             ),
         )
@@ -273,7 +272,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(depends_on=[MaterializedView(dialect, "upstream_mv")]),
+            refresh=ClickHouseRefreshSchedule(dialect, depends_on=[MaterializedView(dialect, "upstream_mv")]),
         )
         assert "DEPENDS ON `upstream_mv`" in expr.to_sql()[0]
 
@@ -283,7 +282,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(
+            refresh=ClickHouseRefreshSchedule(dialect, 
                 depends_on=[
                     MaterializedView(dialect, "a", catalog_name="db1"),
                     MaterializedView(dialect, "b", catalog_name="db2"),
@@ -294,20 +293,20 @@ class TestRefreshableMaterializedView:
 
     def test_depends_on_rejects_bare_strings(self, dialect):
         with pytest.raises(TypeError, match="MaterializedView objects"):
-            ClickHouseRefreshSchedule(
+            ClickHouseRefreshSchedule(dialect, 
                 every="1 HOUR", depends_on=["upstream_mv"]
             ).validate()
 
     def test_append_and_append_incremental(self, dialect):
         base = dict(dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, to_table=Table(dialect, "t"))
         append = ClickHouseCreateMaterializedViewExpression(
-            **base, refresh=ClickHouseRefreshSchedule(every="1 HOUR", append=True)
+            **base, refresh=ClickHouseRefreshSchedule(dialect, every="1 HOUR", append=True)
         )
         assert "APPEND" in append.to_sql()[0]
         assert "APPEND INCREMENTAL" not in append.to_sql()[0]
         incremental = ClickHouseCreateMaterializedViewExpression(
             **base,
-            refresh=ClickHouseRefreshSchedule(
+            refresh=ClickHouseRefreshSchedule(dialect, 
                 every="1 HOUR", append=True, incremental=True
             ),
         )
@@ -319,7 +318,7 @@ class TestRefreshableMaterializedView:
             MaterializedView(dialect, "mv"),
             QUERY,
             to_table=Table(dialect, "t"),
-            refresh=ClickHouseRefreshSchedule(every="1 DAY"),
+            refresh=ClickHouseRefreshSchedule(dialect, every="1 DAY"),
             empty=True,
         )
         assert "EMPTY" in expr.to_sql()[0]
@@ -332,16 +331,16 @@ class TestRefreshableMaterializedView:
                 MaterializedView(dialect, "mv"),
                 QUERY,
                 to_table=Table(dialect, "t"),
-                refresh=ClickHouseRefreshSchedule(),
+                refresh=ClickHouseRefreshSchedule(dialect, ),
             )
 
     def test_offset_requires_every(self, dialect):
         with pytest.raises(ValueError, match="OFFSET is only valid with EVERY"):
-            ClickHouseRefreshSchedule(after="1 HOUR", offset="1 HOUR").validate()
+            ClickHouseRefreshSchedule(dialect, after="1 HOUR", offset="1 HOUR").validate()
 
     def test_incremental_requires_append(self, dialect):
         with pytest.raises(ValueError, match="INCREMENTAL requires APPEND"):
-            ClickHouseRefreshSchedule(every="1 HOUR", incremental=True).validate()
+            ClickHouseRefreshSchedule(dialect, every="1 HOUR", incremental=True).validate()
 
     def test_populate_conflicts_with_refresh(self, dialect):
         """POPULATE and REFRESH are mutually exclusive per the docs."""
@@ -352,7 +351,7 @@ class TestRefreshableMaterializedView:
                 QUERY,
                 to_table=Table(dialect, "t"),
                 populate=True,
-                refresh=ClickHouseRefreshSchedule(every="1 HOUR"),
+                refresh=ClickHouseRefreshSchedule(dialect, every="1 HOUR"),
             )
 
     def test_empty_requires_refresh(self, dialect):
@@ -404,7 +403,7 @@ class TestRefreshAndDrop:
 
     def test_modify_refresh_schedule(self, dialect):
         expr = ClickHouseModifyMaterializedViewRefreshExpression(
-            dialect, MaterializedView(dialect, "mv_ref"), ClickHouseRefreshSchedule(every="30 MINUTE")
+            dialect, MaterializedView(dialect, "mv_ref"), ClickHouseRefreshSchedule(dialect, every="30 MINUTE")
         )
         assert expr.to_sql()[0] == (
             "ALTER TABLE `mv_ref` MODIFY REFRESH EVERY 30 MINUTE"
@@ -413,7 +412,7 @@ class TestRefreshAndDrop:
     def test_modify_refresh_requires_schedule(self, dialect):
         with pytest.raises(ValueError, match="at least one of EVERY"):
             ClickHouseModifyMaterializedViewRefreshExpression(
-                dialect, MaterializedView(dialect, "mv_ref"), ClickHouseRefreshSchedule()
+                dialect, MaterializedView(dialect, "mv_ref"), ClickHouseRefreshSchedule(dialect, )
             )
 
     def test_generic_refresh_routes_here(self, dialect):

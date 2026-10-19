@@ -48,9 +48,8 @@ Reference:
 https://clickhouse.com/docs/sql-reference/statements/create/view
 """
 from collections.abc import Sequence as AbcSequence
-from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, Optional, Sequence, TYPE_CHECKING
+from typing import Any, Dict, Optional, Sequence, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.objects import MaterializedView, Table
@@ -69,8 +68,14 @@ __all__ = [
 ]
 
 
-class ClickHouseIntervalUnit(Enum):
-    """Units accepted in a ClickHouse refresh interval."""
+class ClickHouseIntervalUnit(str, Enum):
+    """Units accepted in a ClickHouse refresh interval.
+
+    A ``str`` enum whose ``__str__`` is ``str.__str__`` -- a member *is* the
+    word it carries, so an artifact names the unit as a plain JSON string.
+    """
+
+    __str__ = str.__str__
 
     SECOND = "SECOND"
     MINUTE = "MINUTE"
@@ -81,11 +86,19 @@ class ClickHouseIntervalUnit(Enum):
     YEAR = "YEAR"
 
 
-@dataclass
-class ClickHouseRefreshSchedule:
+class ClickHouseRefreshSchedule(BaseExpression):
     """The ``REFRESH`` clause of a refreshable materialized view.
 
+    A clause, and therefore an expression node: it renders (through
+    ``format_click_house_refresh_schedule``) and it travels -- an artifact
+    carries it as a nested ``{kind, params}`` node, which is why it is a node
+    rather than a dataclass. A dataclass parameter has no artifact form: the
+    codec writes nodes, scalars and containers of those two, and anything else
+    is refused, so a schedule buried in an expression's parameters made the
+    whole expression unserializable.
+
     Args:
+        dialect: the ClickHouse dialect instance the clause renders through.
         every: ``EVERY interval`` — a sequence of ``<number> <unit>`` parts.
         after: ``AFTER interval`` — fires relative to the previous completion.
         offset: ``OFFSET interval``, only valid together with ``every``.
@@ -98,17 +111,40 @@ class ClickHouseRefreshSchedule:
             the previous run.
 
     At least one of ``every`` / ``after`` / ``depends_on`` is required: the
-    server rejects a bare ``REFRESH``.
+    server rejects a bare ``REFRESH``. Validation runs when the schedule is
+    carried by a statement (see the owning expressions' ``validate``) and via
+    :meth:`validate` itself.
     """
 
-    every: Optional[str] = None
-    after: Optional[str] = None
-    offset: Optional[str] = None
-    randomize_for: Optional[str] = None
-    depends_on: Sequence[MaterializedView] = field(default_factory=tuple)
-    settings: Optional[Dict[str, Any]] = None
-    append: bool = False
-    incremental: bool = False
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_click_house_refresh_schedule"
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        every: Optional[str] = None,
+        after: Optional[str] = None,
+        offset: Optional[str] = None,
+        randomize_for: Optional[str] = None,
+        depends_on: Sequence[MaterializedView] = (),
+        settings: Optional[Dict[str, Any]] = None,
+        append: bool = False,
+        incremental: bool = False,
+    ):
+        super().__init__(dialect)
+        self.every = every
+        self.after = after
+        self.offset = offset
+        self.randomize_for = randomize_for
+        # A tuple on the way in, a tuple on the way out: the artifact carries a
+        # sequence as an array, and the constructor normalises it back, so the
+        # restored clause holds what the original held.
+        self.depends_on: Tuple[MaterializedView, ...] = tuple(depends_on)
+        self.settings = settings
+        self.append = append
+        self.incremental = incremental
 
     def validate(self) -> None:
         """Validate the schedule the way the server does.

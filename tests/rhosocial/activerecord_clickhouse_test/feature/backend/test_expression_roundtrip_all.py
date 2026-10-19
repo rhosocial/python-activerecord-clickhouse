@@ -103,7 +103,11 @@ No database is involved. The matrix drives the dialect, which is where SQL
 generation happens; nothing here opens a connection.
 """
 
+import datetime
+import decimal
+import enum
 import inspect
+import uuid
 from typing import Dict
 
 import pytest
@@ -118,7 +122,17 @@ from rhosocial.activerecord.backend.expression.advanced_functions import (
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.core import Column, Literal
 from rhosocial.activerecord.backend.expression.datetime import (
+    ExtractFieldExpression,
     TemporalOptionsExpression,
+    _ExtractBase,
+)
+from rhosocial.activerecord.backend.expression.functions.string import (
+    ChrFunction,
+    LeftFunction,
+    OverlayExpression,
+    RightFunction,
+    SpaceFunction,
+    SubstringExpression,
 )
 from rhosocial.activerecord.backend.expression.objects import (
     Database,
@@ -138,11 +152,9 @@ from rhosocial.activerecord.backend.expression.predicates import (
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
 from rhosocial.activerecord.backend.expression.query_sources import SetOperation
 from rhosocial.activerecord.backend.expression.serialization import (
-    auto_register_builtins,
     deserialize,
     deserialize_json,
     deserialize_xml,
-    registered_expression_classes,
     serialize,
     serialize_json,
     serialize_xml,
@@ -169,7 +181,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     DropDatabaseStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AddTableConstraint,
+    AddTableConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableCloneStatement,
@@ -190,6 +202,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseModifyMaterializedViewRefreshExpression,
     ClickHouseRefreshSchedule,
+    admin as admin_module,
     alter_column,
     column as chexpr_column,
     dml as chexpr_dml,
@@ -202,7 +215,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     types as chexpr_types,
 )
-from rhosocial.activerecord.testsuite.utils.expression import (
+from expression_roundtrip_harness import (
     collect_expression_classes,
     make_instance,
     register_all,
@@ -240,10 +253,143 @@ def assert_params_equal(a, b, path="params"):
         return
     if isinstance(a, (list, tuple)):
         assert len(a) == len(b), f"{path}: lengths differ"
-        for i, (x, y) in enumerate(zip(a, b)):
+        for i, (x, y) in enumerate(zip(a, b, strict=True)):
             assert_params_equal(x, y, f"{path}[{i}]")
         return
     assert a == b, f"{path}: {a!r} != {b!r}"
+
+
+def _channel_builders(instance, dialect):
+    """One lazy builder per encoding channel.
+
+    Lazy on purpose: an eager tuple evaluated all three round-trips up front,
+    so a refusal on the first channel stopped the others from ever being
+    attempted -- and a pin that names one channel must leave the other two
+    demonstrably working, not merely unexamined.
+    """
+    return (
+        ("dict", lambda: deserialize(serialize(instance), dialect)),
+        ("json", lambda: deserialize_json(serialize_json(instance), dialect)),
+        ("xml", lambda: deserialize_xml(serialize_xml(instance), dialect)),
+    )
+
+
+def _roundtrip_pin(fqn: str, channel: str):
+    """The pin for one class on one channel, or ``None`` when it travels free."""
+    entry = LEGITIMATE_NON_ROUNDTRIPS.get(fqn)
+    if entry is None:
+        return None
+    return entry["channels"].get(channel)
+
+
+def _assert_pinned_channel(fqn, channel, build, instance, pin):
+    """Assert one pinned channel, in the shape its entry names.
+
+    ``raises`` -- the channel refuses outright. ``word`` / ``enum-str`` -- the
+    restore succeeds but is type-lossy, asserted both ways: the strict params
+    comparison must fail (so the pin stays load-bearing; a core fix makes the
+    entry stale and this assertion demands its removal), and the normalised
+    comparison must hold (so the loss is exactly the member/word spelling and
+    nothing else moved).
+    """
+    if pin[0] == "raises":
+        _, expected_type, fragment = pin
+        try:
+            build()
+        except Exception as exc:
+            assert isinstance(exc, expected_type), (
+                f"{fqn}: the {channel} channel was pinned as refusing with "
+                f"{expected_type.__name__}, but it raised "
+                f"{type(exc).__name__}: {exc}"
+            )
+            assert fragment in str(exc), (
+                f"{fqn}: expected the {channel} refusal to mention "
+                f"{fragment!r}, but it said: {exc}"
+            )
+        else:
+            raise AssertionError(
+                f"{fqn}: the {channel} channel is pinned in "
+                f"LEGITIMATE_NON_ROUNDTRIPS but the round-trip now succeeds. "
+                f"The reason it was pinned is gone -- remove the entry rather "
+                f"than leave a lie in the table."
+            )
+        return
+    mode = pin[0]
+    restored = build()
+    try:
+        assert_params_equal(restored.get_params(), instance.get_params(), fqn)
+    except AssertionError:
+        pass  # expected: the type loss is the pin's whole subject
+    else:
+        raise AssertionError(
+            f"{fqn}: the {channel} channel is pinned as type-lossy in "
+            f"LEGITIMATE_NON_ROUNDTRIPS but the round-trip is now exact; "
+            f"remove the stale entry."
+        )
+    _enum_word_params_equal(
+        restored.get_params(), instance.get_params(), mode, f"{fqn}.{channel}"
+    )
+
+
+def _sql_params_equal(a, b) -> bool:
+    """Bind-parameter sequences compared as sequences.
+
+    The artifact carries a tuple as an array (§4.8: JSON draws no distinction,
+    the kind does, and a constructor normalises on the way back), so a
+    round-tripped render may hand back a list where the original handed a
+    tuple. ``Subquery`` is the case in the tree: its ``query_params`` arrive
+    as a list on restore and its formatter passes them through. The values are
+    the contract; the container is not. Order still matters -- this is a
+    sequence comparison, not a set comparison.
+    """
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        return len(a) == len(b) and all(
+            _sql_params_equal(x, y) for x, y in zip(a, b, strict=True)
+        )
+    return a == b
+
+
+def _enum_word_params_equal(a, b, mode: str, path: str = "params") -> None:
+    """``assert_params_equal``, with a ``(str, Enum)`` member read as its word.
+
+    The two modes are the two spellings an artifact can hand back for a
+    member:
+
+    * ``"word"`` -- the member's own value, which is what the JSON channel
+      writes and what the XML channel writes when the enum sets
+      ``__str__ = str.__str__``;
+    * ``"enum-str"`` -- ``str(member)`` under the default ``Enum.__str__``,
+      the ``"EnumClass.MEMBER"`` spelling an enum without that assignment
+      produces on the XML channel.
+
+    Asserts rather than returns, mirroring :func:`assert_params_equal`; a
+    difference beyond the member/word spelling fails here by name.
+    """
+
+    def _norm(x):
+        if isinstance(x, enum.Enum):
+            return str(x) if mode == "enum-str" else x.value
+        return x
+
+    if isinstance(a, BaseExpression) and isinstance(b, BaseExpression):
+        _enum_word_params_equal(
+            a.get_params(), b.get_params(), mode, path + ".<expr>"
+        )
+        return
+    # No strict type check here, on purpose: the type difference between a
+    # member and the word that replaced it is exactly what this comparison
+    # exists to accept. Everything else still fails by name below.
+    if isinstance(a, dict):
+        assert set(a) == set(b), f"{path}: keys differ {set(a) ^ set(b)}"
+        for k in a:
+            _enum_word_params_equal(a[k], b[k], mode, f"{path}.{k}")
+        return
+    if isinstance(a, (list, tuple)):
+        assert len(a) == len(b), f"{path}: lengths differ"
+        for i, (x, y) in enumerate(zip(a, b, strict=True)):
+            _enum_word_params_equal(x, y, mode, f"{path}[{i}]")
+        return
+    assert _norm(a) == _norm(b), f"{path}: {a!r} != {b!r}"
 
 
 def _collect_matrix_classes() -> Dict[str, type]:
@@ -257,12 +403,12 @@ def _collect_matrix_classes() -> Dict[str, type]:
     backend -- classes that were then rendered with the ClickHouse dialect, which
     is not a meaningful thing to assert.
 
-    Several modules export aliases of one class (``ddl_alter`` spells
-    ``AlterConstraint`` and ``ValidateConstraint`` two ways each). The same
-    object collected twice would be tested twice and reported twice, so the first
-    name wins and identity does the deduplication.
+    Several modules export aliases of one class (``ddl_alter`` used to spell
+    ``AlterConstraintAction`` and ``ValidateConstraintAction`` two ways
+    each). The same object collected twice would be tested twice and
+    reported twice, so the first name wins and identity does the
+    deduplication.
     """
-    auto_register_builtins()
     found: Dict[str, type] = {}
     for package in COVERED_PACKAGES:
         found.update(collect_expression_classes(package))
@@ -279,11 +425,15 @@ def _collect_matrix_classes() -> Dict[str, type]:
 
 REGISTERED = _collect_matrix_classes()
 
-# Deserialization resolves a class by name through the serialization class
-# index. Core's builtins register themselves; the ClickHouse package's classes
-# do not, so they
-# are registered here or every round-trip of a backend class raises
-# ``ExpressionDeserializationError`` before it can compare anything.
+# Deserialization resolves a kind to its class through the framework's
+# default registry. Core's own packages auto-populate it; the ClickHouse
+# package's classes do not, so they are registered here or every round-trip
+# of a backend class refuses by kind before it can compare anything. That
+# is the whole registration surface: core 679d9817 made an artifact plain
+# JSON, the registry owns the kind -> class table and nothing else, and the
+# enum / dataclass vocabulary tables are gone -- a str enum is a JSON
+# scalar, and every other conversion lives in the constructor that
+# receives it. Core's artifact-contract test pins the absence.
 register_all(REGISTERED)
 
 
@@ -365,18 +515,19 @@ def register_specials():
         "statements.ddl_table.ColumnDefinition", _integer_column
     )
     register_special_constructor(
-        "statements.ddl_alter.AddColumn", lambda d: ddl_alter.AddColumn(d, _integer_column(d))
+        "statements.ddl_alter.AddColumnAction",
+        lambda d: ddl_alter.AddColumnAction(d, _integer_column(d)),
     )
     register_special_constructor(
-        "statements.ddl_alter.ModifyColumn",
-        lambda d: ddl_alter.ModifyColumn(d, _integer_column(d)),
+        "statements.ddl_alter.ModifyColumnAction",
+        lambda d: ddl_alter.ModifyColumnAction(d, _integer_column(d)),
     )
     # ``old_name`` comes first here, so the guess's positional order is wrong:
     # it built the column definition into ``old_name`` and the string into
     # ``column``, and the failure surfaced as an AttributeError at render time.
     register_special_constructor(
-        "statements.ddl_alter.ChangeColumn",
-        lambda d: ddl_alter.ChangeColumn(d, "old", _integer_column(d)),
+        "statements.ddl_alter.ChangeColumnAction",
+        lambda d: ddl_alter.ChangeColumnAction(d, "old", _integer_column(d)),
     )
     register_special_constructor(
         "statements.ddl_comment.CommentOnStatement",
@@ -457,6 +608,15 @@ def register_specials():
             d, branch=ddl_table.ColumnNotNullConstraint(d), name="c"
         ),
     )
+    # TABLE CHECK. The guesser's condition carries a binding ``Literal``, and a
+    # DDL position refuses bind parameters outright now (there is no lift
+    # pass any more -- the caller states ``inline=True`` where a position
+    # cannot bind). Two columns compose the same predicate with nothing that
+    # binds in it.
+    register_special_constructor(
+        "statements.ddl_table.TableCheckConstraint",
+        lambda d: ddl_table.TableCheckConstraint(d, _column_predicate(d)),
+    )
     # REFERENCES needs at least one referenced column, or the clause is not a
     # clause; the guess supplies an empty list.
     register_special_constructor(
@@ -468,14 +628,40 @@ def register_specials():
     # AttributeError. A PRIMARY KEY table branch is the cheapest one this
     # dialect renders in that position.
     register_special_constructor(
-        "statements.ddl_alter.AddTableConstraint",
-        lambda d: AddTableConstraint(
+        "statements.ddl_alter.AddTableConstraintAction",
+        lambda d: AddTableConstraintAction(
             d,
             ddl_table.TableConstraint(
                 d, branch=ddl_table.TablePrimaryKeyConstraint(d, ["a"])
             ),
         ),
     )
+    # -- declared-result annotations: the source must be aliasable ------------
+    # ``format_declared_result`` reads the alias of both the annotation and
+    # the node it annotates, and the rewritten ``Literal`` is deliberately
+    # not aliasable -- the guesser's Literal source reaches the formatter and
+    # dies on ``source.alias``. A Column source is what the node is for: a
+    # statement whose result type the caller declares, rendered unchanged
+    # with the knowledge attached.
+    from rhosocial.activerecord.backend.expression import declared as declared_module
+
+    for _name in (
+        "TextAnnotation",
+        "NumberAnnotation",
+        "IntegerAnnotation",
+        "BooleanAnnotation",
+        "TemporalAnnotation",
+        "BinaryAnnotation",
+        "UUIDAnnotation",
+        "JSONAnnotation",
+        "XMLAnnotation",
+        "ArrayAnnotation",
+    ):
+        register_special_constructor(
+            f"declared.{_name}",
+            lambda d, _n=_name: getattr(declared_module, _n)(d, _operand(d, "c")),
+        )
+
     # -- predicates whose operands are value nodes ---------------------------
     # The generic guess hands the operand slot a bare string, which the
     # formatter then calls ``.to_sql()`` on. Both constructors spell operands
@@ -521,11 +707,13 @@ def register_specials():
     )
 
     # -- types ---------------------------------------------------------------
+    # ArrayType's element type is keyword-only now, so the guesser -- and the
+    # positional call this used to be -- both miss it.
     register_special_constructor(
         "types.array.ArrayType", lambda d: __import__(
             "rhosocial.activerecord.backend.expression.types.array",
             fromlist=["ArrayType"],
-        ).ArrayType(d, VarCharType(d, 10))
+        ).ArrayType(d, element_type=VarCharType(d, 10))
     )
     register_special_constructor(
         "types.ClickHouseDecimalType",
@@ -563,6 +751,77 @@ def register_specials():
         "types.ClickHouseSimpleAggregateFunctionType",
         lambda d: chexpr_types.ClickHouseSimpleAggregateFunctionType(
             d, function_name="max", arg_types=[IntegerType(d)]
+        ),
+    )
+
+    # -- datetime extracts: the field must name a DateTimeField --------------
+    # Both the private shape base and the field-named extraction validate the
+    # field word at construction; the guesser's "x" is not one of the six.
+    # "YEAR" is, and renders EXTRACT(YEAR FROM `ts`).
+    register_special_constructor(
+        "datetime._ExtractBase",
+        lambda d: _ExtractBase(d, "YEAR", _operand(d, "ts")),
+    )
+    register_special_constructor(
+        "datetime.ExtractFieldExpression",
+        lambda d: ExtractFieldExpression(d, "YEAR", _operand(d, "ts")),
+    )
+
+    # -- string functions whose parameters the guesser fills with bare names --
+    # Every operand slot is annotated ``SQLValue`` -- a string annotation
+    # naming the base every value class shares -- and the guesser falls
+    # through to its bare-name fallback, so construction refuses. Real
+    # operands construct, and the renderings go through the shared scalar
+    # defaults ClickHouse agrees with (CHR, LEFT, RIGHT, SPACE are the
+    # standard spellings this engine accepts; SUBSTRING and OVERLAY render
+    # through their own entry points).
+    register_special_constructor(
+        "functions.string.ChrFunction",
+        lambda d: ChrFunction(d, Literal(d, 65)),
+    )
+    register_special_constructor(
+        "functions.string.LeftFunction",
+        lambda d: LeftFunction(d, _operand(d, "name"), Literal(d, 1)),
+    )
+    register_special_constructor(
+        "functions.string.RightFunction",
+        lambda d: RightFunction(d, _operand(d, "name"), Literal(d, 1)),
+    )
+    register_special_constructor(
+        "functions.string.SpaceFunction",
+        lambda d: SpaceFunction(d, Literal(d, 3)),
+    )
+    register_special_constructor(
+        "functions.string.SubstringExpression",
+        lambda d: SubstringExpression(
+            d, _operand(d, "name"), Literal(d, 1), Literal(d, 2)
+        ),
+    )
+    register_special_constructor(
+        "functions.string.OverlayExpression",
+        lambda d: OverlayExpression(
+            d,
+            _operand(d, "name"),
+            _operand(d, "replacement"),
+            Literal(d, 1),
+            Literal(d, 2),
+        ),
+    )
+
+    # -- admin selectors: the enums validate their words at construction now --
+    # The guesser fills a required enum-annotated parameter with "x", which
+    # the constructor refuses once it normalises (the word must name a
+    # member). Real members construct, and the renderings refuse on their own
+    # -- this dialect spells no RESET / HANDLER at all -- which the pinned
+    # renders above assert.
+    register_special_constructor(
+        "admin.ClickHouseResetExpression",
+        lambda d: admin_module.ClickHouseResetExpression(d, admin_module.ResetOption.MASTER),
+    )
+    register_special_constructor(
+        "admin.ClickHouseHandlerReadExpression",
+        lambda d: admin_module.ClickHouseHandlerReadExpression(
+            d, Table(d, "t"), admin_module.HandlerReadMode.FIRST
         ),
     )
 
@@ -632,7 +891,9 @@ def register_specials():
         lambda d: materialized_view.ClickHouseModifyMaterializedViewRefreshExpression(
             d,
             MaterializedView(d, "mv"),
-            materialized_view.ClickHouseRefreshSchedule(every="1 HOUR"),
+            # The schedule is an expression node now, so it binds to the
+            # dialect it renders through -- first argument, like every node.
+            materialized_view.ClickHouseRefreshSchedule(d, every="1 HOUR"),
         ),
     )
 
@@ -662,13 +923,13 @@ def register_specials():
     # constructing. Handed a real name it builds -- and then the dialect
     # refuses it, which is what the existing LEGITIMATE_NON_RENDERS pin below
     # asserts. A constructor rather than a skip, so the pin has something to
-    # assert against.
+    # assert against. ``raw`` is keyword-only now, so the name is spelled.
     def _custom_type(dialect):
         from rhosocial.activerecord.backend.expression.types.custom import (
             CustomType,
         )
 
-        return CustomType(dialect, "String")
+        return CustomType(dialect, raw="String")
 
     register_special_constructor("types.custom.CustomType", _custom_type)
 
@@ -705,18 +966,15 @@ UNCONSTRUCTIBLE = (
     # ALTER CONSTRAINT. ``name`` and ``constraint_type`` sit behind defaulted
     # positionals and are keyword-only, so the introspective constructor skips
     # them and the class refuses an incomplete action.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraint",
-    # VALIDATE CONSTRAINT. Same shape as AlterConstraint: the required ``name``
-    # is keyword-only behind a defaulted positional.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.ValidateConstraint",
+    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraintAction",
+    # VALIDATE CONSTRAINT used to sit here with the same shape as
+    # AlterConstraint. Core moved ``constraint_name`` into the positional
+    # required slot, so the guesser's "x" builds it now -- and the built
+    # instance is what the graph of pinned renders asserts against.
     # ADD DOMAIN CHECK. Widens a SQLPredicate into a DomainCheckConstraint and
-    # needs one; the guess supplies a bare comparison whose literal would have to
-    # render as a bind parameter, which DDL cannot carry.
+    # needs one; the guess supplies a bare comparison whose literal would have
+    # to render as a bind parameter, which DDL cannot carry.
     "rhosocial.activerecord.backend.expression.statements.ddl_domain.AddDomainCheckAction",
-    # ENUM type. Its ``values`` list is keyword-only behind a defaulted
-    # positional, so the introspective constructor skips it and the type declares
-    # no members.
-    "rhosocial.activerecord.backend.expression.types.enum_.EnumType",
     # The three UUID nodes refuse in __init__, not in to_sql(): ClickHouse
     # spells no UUID SQL, so the answer is the same for every argument and no
     # registered constructor can change it. Measured with a valid ``which`` --
@@ -737,6 +995,11 @@ UNCONSTRUCTIBLE = (
 # SQL/XML formatter at all -- so they are pinned by name in LEGITIMATE_NON_RENDERS
 # below instead, which is the stronger position: the gap is recorded against the
 # formatter it is actually about.
+#
+# ENUM TYPE used to be an entry here too, with a keyword-only ``values`` list the
+# constructor skipped. Core moved the members into the constructor's reach, so it
+# builds now -- and renders into the type map's refusal, which is the
+# LEGITIMATE_NON_RENDERS pin the constructed instance makes assertable.
 
 
 #: Classes that construct but cannot render, for a reason belonging to their own
@@ -802,6 +1065,14 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
         NotImplementedError,
         _NO_FORMATTER,
+    ),
+    # The declared-result shape base. It names ``format_declared_result`` and
+    # the dialect has one, but the base carries none of the surface state the
+    # formatter reads (``alias`` lives on the DeclaredValueType half); the ten
+    # concrete annotations each render through the source they annotate.
+    "rhosocial.activerecord.backend.expression.declared._Annotation": (
+        AttributeError,
+        "no attribute 'alias'",
     ),
     "rhosocial.activerecord.backend.expression.introspection.IntrospectionExpression": (
         NotImplementedError,
@@ -1021,9 +1292,14 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_vertex_table"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.EdgeTable": (
+    # The edge-table definition of CREATE PROPERTY GRAPH, the same declared
+    # gap as the graph rows around it: the DDL half of SQL/PGQ lives in
+    # mixins this dialect does not compose. (The clause core used to call
+    # ``EdgeTable`` is ``EdgeTableDefinition`` now -- one name, two contracts,
+    # and the relation object kept the old one.)
+    "rhosocial.activerecord.backend.expression.graph.EdgeTableDefinition": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_edge_table"),
+        _no_dialect_formatter("format_edge_table_definition"),
     ),
     "rhosocial.activerecord.backend.expression.graph.ColumnsClause": (
         UnsupportedFeatureError,
@@ -1068,6 +1344,16 @@ LEGITIMATE_NON_RENDERS = {
         TypeError,
         "does not support the generic type 'interval'",
     ),
+    # ENUM. ClickHouse's own enum types are sized and signed
+    # (ClickHouseEnum8Type / ClickHouseEnum16Type, registered above); the
+    # generic name has no formatter here, so the type map reports the
+    # substitute. It constructs -- the members are in the constructor's
+    # reach now -- and the constructed instance is what makes this pin
+    # assertable.
+    "rhosocial.activerecord.backend.expression.types.enum_.EnumType": (
+        TypeError,
+        "does not support the generic type 'enum'",
+    ),
     "rhosocial.activerecord.backend.expression.types.datetime_.TimeTzType": (
         TypeError,
         "does not support the generic type 'timetz'",
@@ -1084,6 +1370,157 @@ LEGITIMATE_NON_RENDERS = {
         TypeError,
         "does not support the generic type 'xml'",
     ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Classes whose own tree refuses their round-trip
+# ---------------------------------------------------------------------------
+#
+# A fourth verdict, needed by core ``679d9817``: the artifact is plain JSON
+# now, and the contract (组织规则 §10) puts one conversion in one place --
+# "构造函数接受该参数的序列化形式并归一成宿主类型；反序列化器只按名字传参".
+# Every entry below is a class whose *own* tree breaks that contract, so the
+# restore is refused or comes back as something the original never was. The
+# reason belongs to the tree that defines the class, not to this backend.
+#
+# Each entry pins the failing channels, and each channel pins one of three
+# shapes:
+#
+# * ``("raises", Exc, fragment)`` -- the channel refuses outright.
+# * ``("word",)`` -- the restore succeeds but is type-lossy: a
+#   ``(str, Enum)`` member comes back as its plain word (the JSON channel
+#   writes a member's underlying string; the XML channel writes
+#   ``str(member)``, which equals the word when the enum sets
+#   ``__str__ = str.__str__``). The constructor stores it raw instead of
+#   normalising, so the restored params differ in type and agree in value.
+#   Asserted both ways: strictly different (so the pin stays load-bearing --
+#   a core fix makes this entry stale) and equal under member-≡-word
+#   normalisation (so the loss is exactly the spelling, nothing else moved).
+# * ``("enum-str",)`` -- the same, but the enum lacks ``__str__ =
+#   str.__str__``, so the XML channel writes ``"EnumClass.MEMBER"``: neither
+#   the member nor its word. Asserted equal under member-≡-``Enum.__str__``
+#   normalisation, which pins the corrupted spelling itself -- the moment
+#   core spells the enum properly, this entry goes.
+#
+# A channel an entry does not name must still round-trip; that is asserted per
+# class, so a pin can never quietly swallow a whole class.
+LEGITIMATE_NON_ROUNDTRIPS: Dict[str, Dict[str, object]] = {
+    # -- the datetime family: DateTimeField / IntervalUnit are (str, Enum)
+    #    without ``__str__ = str.__str__``, so the XML channel writes
+    #    ``"DateTimeField.YEAR"``, which the constructor's own normaliser
+    #    refuses. (JSON survives -- it writes the member's underlying string;
+    #    dict survives -- it passes the member through untouched.)
+    "rhosocial.activerecord.backend.expression.datetime._ExtractBase": {
+        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.DatePartExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.ExtractExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.ExtractFieldExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.DateTruncExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.IntervalExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.DateTimeAddExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.DateTimeDiffExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
+    },
+    "rhosocial.activerecord.backend.expression.datetime.DateTimeSubtractExpression": {
+        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
+    },
+    # -- ``mode`` is declared ``CreateTableCloneMode`` with a member default;
+    #    the JSON and XML channels write the word (``"CLONE"``), and the
+    #    constructor demands the member -- the ``isinstance`` half of the
+    #    contract without the normalise half.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.CreateTableCloneStatement": {
+        "channels": {
+            "json": ("raises", TypeError, "mode must be a CreateTableCloneMode"),
+            "xml": ("raises", TypeError, "mode must be a CreateTableCloneMode"),
+        },
+    },
+    # -- ``options`` is a ``ViewOptions`` *instance*, a plain class in a
+    #    parameter slot: the codec writes nodes, scalars, and containers of
+    #    those two, and a bare ``options or ViewOptions()`` puts one in every
+    #    CREATE VIEW. Serialization refuses before any round-trip can start.
+    "rhosocial.activerecord.backend.expression.statements.ddl_view.CreateViewStatement": {
+        "channels": {
+            "dict": ("raises", TypeError, "ViewOptions is not one of the value kinds"),
+            "json": ("raises", TypeError, "ViewOptions is not one of the value kinds"),
+            "xml": ("raises", TypeError, "ViewOptions is not one of the value kinds"),
+        },
+    },
+    # -- ``ColumnsClause`` carries ``GraphColumn`` instances, another plain
+    #    class in a parameter slot (GraphTableExpression holds the clause, so
+    #    the refusal propagates to it too; ColumnsClause itself is only built
+    #    with a Literal child here and travels fine).
+    "rhosocial.activerecord.backend.expression.graph.GraphTableExpression": {
+        "channels": {
+            "dict": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
+            "json": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
+            "xml": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
+        },
+    },
+    # -- ``storage_type`` defaults to a ``GeneratedColumnType`` member, a
+    #    plain (non-str) enum the artifact cannot name.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnGeneratedConstraint": {
+        "channels": {
+            "dict": ("raises", TypeError, "GeneratedColumnType is not one of the value kinds"),
+            "json": ("raises", TypeError, "GeneratedColumnType is not one of the value kinds"),
+            "xml": ("raises", TypeError, "GeneratedColumnType is not one of the value kinds"),
+        },
+    },
+    # -- ``on_delete`` / ``on_update`` default to ``ReferentialAction``
+    #    members, a plain (non-str) enum the artifact cannot name.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ForeignKeyConstraint": {
+        "channels": {
+            "dict": ("raises", TypeError, "ReferentialAction is not one of the value kinds"),
+            "json": ("raises", TypeError, "ReferentialAction is not one of the value kinds"),
+            "xml": ("raises", TypeError, "ReferentialAction is not one of the value kinds"),
+        },
+    },
+    # -- the word-form family: ``(str, Enum)`` members spelled properly
+    #    (``__str__ = str.__str__``), carried by constructors that store the
+    #    serialized word raw. The JSON and XML channels each hand back the
+    #    word; the restore is value-faithful and type-lossy.
+    "rhosocial.activerecord.backend.expression.graph.GraphEdge": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.query_parts.ForUpdateClause": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.ddl_database.AlterDatabaseStatement": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.dml.MergeAction": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.dml.MergeStatement": {
+        # The loss sits one level down, in the ``MergeAction`` child.
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    # -- ``XMLParseDocumentType`` / ``XMLSerializeDocumentType`` are
+    #    ``(str, Enum)`` without ``__str__ = str.__str__``: JSON writes the
+    #    word, XML writes ``"XMLParseDocumentType.DOCUMENT"`` -- neither the
+    #    member nor its word -- and the constructor stores either raw.
+    "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": {
+        "channels": {"json": ("word",), "xml": ("enum-str",)},
+    },
+    "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": {
+        "channels": {"json": ("word",), "xml": ("enum-str",)},
+    },
 }
 
 
@@ -1167,7 +1604,7 @@ UNMODELLED_FORMATTERS = {
     "mixed in)": (
         "format_graph_table_expression",
         "format_vertex_table",
-        "format_edge_table",
+        "format_edge_table_definition",
         "format_graph_columns_clause",
         "format_table_properties_clause",
         "format_create_property_graph_statement",
@@ -1282,18 +1719,19 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
         )
         return "non-render"
 
-    for channel, decoded in (
-        ("dict", deserialize(serialize(instance), dialect)),
-        ("json", deserialize_json(serialize_json(instance), dialect)),
-        ("xml", deserialize_xml(serialize_xml(instance), dialect)),
-    ):
+    for channel, build in _channel_builders(instance, dialect):
+        pin = _roundtrip_pin(fqn, channel)
+        if pin is not None:
+            _assert_pinned_channel(fqn, channel, build, instance, pin)
+            continue
+        decoded = build()
         decoded_sql, decoded_params = decoded.to_sql()
         assert decoded_sql == expected_sql, (
             f"{fqn}: {channel} round-trip changed the SQL.\n"
             f"  original: {expected_sql!r}\n"
             f"  {channel}: {decoded_sql!r}"
         )
-        assert decoded_params == expected_params, (
+        assert _sql_params_equal(decoded_params, expected_params), (
             f"{fqn}: {channel} round-trip changed the bind parameters.\n"
             f"  original: {expected_params!r}\n"
             f"  {channel}: {decoded_params!r}"
@@ -1338,27 +1776,19 @@ class TestExpressionRoundtripAll:
         self, expr_case, clickhouse_matrix_dialect
     ):
         fqn, instance = expr_case
-        original = instance.get_params()
 
-        assert_params_equal(
-            deserialize(serialize(instance), clickhouse_matrix_dialect).get_params(),
-            original,
-            fqn,
-        )
-        assert_params_equal(
-            deserialize_json(
-                serialize_json(instance), clickhouse_matrix_dialect
-            ).get_params(),
-            original,
-            fqn,
-        )
-        assert_params_equal(
-            deserialize_xml(
-                serialize_xml(instance), clickhouse_matrix_dialect
-            ).get_params(),
-            original,
-            fqn,
-        )
+        for channel, build in _channel_builders(instance, clickhouse_matrix_dialect):
+            pin = _roundtrip_pin(fqn, channel)
+            if pin is not None:
+                # The refusal is asserted per channel right here, so the pin
+                # cannot go stale without this test failing.
+                _assert_pinned_channel(fqn, channel, build, instance, pin)
+                continue
+            assert_params_equal(
+                build().get_params(),
+                instance.get_params(),
+                f"{fqn}.{channel}",
+            )
 
     def test_to_sql_roundtrip_classified(self, expr_case, clickhouse_matrix_dialect):
         """A render must survive the round-trip; a non-render must be classified."""
@@ -1442,6 +1872,91 @@ class TestClickHouseShape:
         ).to_sql() == ("`analytics`.users", ())
 
 
+class TestLiteralValueKinds:
+    """The one ``Literal`` class carries fourteen value kinds, named flatly.
+
+    Core ``679d9817`` made the artifact plain JSON and folded the value classes
+    into a single ``Literal`` whose kind comes from the host value -- so the
+    matrix's per-class rows now cover the *class*, and this test covers the
+    *kinds*: each one travels as one flat JSON scalar under its own wire name,
+    with no marker, no wrapper and no second table. Binary is base64 text, an
+    interval is its ISO 8601 spelling, a decimal its exact text -- the
+    language-neutral spellings spec 4.8 asks for -- and every kind comes back
+    as the host type it left as, through all three channels.
+
+    The cases are written out per kind rather than generated because each is a
+    statement about what the wire must carry, and a generated case makes no
+    statement. Rendering is deliberately not asserted here: whether a kind
+    binds or spells inline, and what text this dialect writes, is the
+    literal-values file's question -- this is the artifact's.
+    """
+
+    #: (wire kind, host value, artifact scalar, restored host type), in
+    #: :class:`LiteralKind` declaration order -- the order ``of()`` tries them,
+    #: which is why ``boolean_value`` precedes ``integer_value`` and
+    #: ``timestamp_value`` precedes ``date_value``.
+    _CASES = (
+        ("null_value", None, None, type(None)),
+        ("boolean_value", True, True, bool),
+        ("integer_value", 7, 7, int),
+        ("float_value", 0.5, 0.5, float),
+        ("decimal_value", decimal.Decimal("1.25"), "1.25", decimal.Decimal),
+        ("string_value", "hi", "hi", str),
+        ("binary_value", b"\x01\x02", "AQI=", bytes),
+        (
+            "timestamp_value",
+            datetime.datetime(2020, 1, 2, 3, 4, 5),
+            "2020-01-02 03:04:05",
+            datetime.datetime,
+        ),
+        ("date_value", datetime.date(2020, 1, 2), "2020-01-02", datetime.date),
+        ("time_value", datetime.time(3, 4, 5), "03:04:05", datetime.time),
+        (
+            "interval_value",
+            datetime.timedelta(days=1, hours=2),
+            "P1DT2H",
+            datetime.timedelta,
+        ),
+        ("list_value", [1, "a"], [1, "a"], list),
+        ("tuple_value", (1, "a"), [1, "a"], tuple),
+        ("uuid_value", uuid.UUID(int=7), "00000000-0000-0000-0000-000000000007", uuid.UUID),
+    )
+
+    def test_the_kind_set_is_exactly_these_fourteen(self):
+        """A fifteenth kind must be added here deliberately, not discovered.
+
+        The closed set is the contract: the wire names every value kind there
+        is, and a reader builds its allow-list from it. A kind that appears in
+        :class:`LiteralKind` without a case here has no stated artifact shape.
+        """
+        from rhosocial.activerecord.backend.expression.values import LiteralKind
+
+        assert tuple(kind.wire for kind in LiteralKind) == tuple(
+            wire for wire, *_ in self._CASES
+        )
+
+    @pytest.mark.parametrize(
+        ("wire", "host", "flat", "host_type"),
+        _CASES,
+        ids=[wire for wire, *_ in _CASES],
+    )
+    def test_each_kind_travels_as_one_flat_scalar(
+        self, clickhouse_matrix_dialect, wire, host, flat, host_type
+    ):
+        d = clickhouse_matrix_dialect
+        instance = Literal(d, host)
+        assert serialize(instance) == {
+            "kind": wire,
+            "params": {"value": flat, "inline": False},
+        }, wire
+        for channel, build in _channel_builders(instance, d):
+            restored = build()
+            assert type(restored.value) is host_type, (
+                f"{wire}/{channel}: came back as {type(restored.value).__name__}"
+            )
+            assert restored.value == host, wire
+
+
 class TestObjectKindChecks:
     """A statement handed the wrong object kind must be refused while rendering.
 
@@ -1515,15 +2030,15 @@ class TestObjectKindChecks:
         and nothing about the SQL would look wrong.
         """
         d = self._dialect()
-        schedule = ClickHouseRefreshSchedule(every="1 HOUR")
+        schedule = ClickHouseRefreshSchedule(d, every="1 HOUR")
         expr = ClickHouseModifyMaterializedViewRefreshExpression(
             d, MaterializedView(d, "mv"), schedule
         )
-        # Mutated *after* construction on purpose. The schedule is a plain
-        # mutable dataclass and its own ``validate()`` runs in the constructor, so
-        # the only way a wrong kind reaches the renderer is a later assignment.
-        # The formatter is where the value is consumed, so that is where it is
-        # checked -- a constructor check would already have been bypassed.
+        # Mutated *after* construction on purpose. The schedule validates in
+        # its own constructor path, so the only way a wrong kind reaches the
+        # renderer is a later assignment. The formatter is where the value is
+        # consumed, so that is where it is checked -- a constructor check
+        # would already have been bypassed.
         schedule.depends_on = (Table(d, "t"),)
         with pytest.raises(TypeError, match="depends_on must hold MaterializedView"):
             expr.to_sql()
@@ -1615,7 +2130,6 @@ class TestMatrixIntegrity:
         a constructor and the entry is stale; a class that fails to build without
         being named would become a silent skip. Both fail here.
         """
-        auto_register_builtins()
         actual = tuple(
             sorted(
                 fqn
@@ -1651,6 +2165,46 @@ class TestMatrixIntegrity:
             f"LEGITIMATE_NON_RENDERS names classes that were not registered: "
             f"{sorted(unknown)}"
         )
+
+    def test_legitimate_non_roundtrips_are_real_classes(self):
+        """Every pinned round-trip entry names a collected class, a real
+        channel, and a shape the assertions know how to check."""
+        unknown = set(LEGITIMATE_NON_ROUNDTRIPS) - set(REGISTERED)
+        assert not unknown, (
+            f"LEGITIMATE_NON_ROUNDTRIPS names classes that were not "
+            f"registered: {sorted(unknown)}"
+        )
+        for fqn, entry in LEGITIMATE_NON_ROUNDTRIPS.items():
+            bad = set(entry["channels"]) - {"dict", "json", "xml"}
+            assert not bad, f"{fqn}: pins unknown channels {sorted(bad)}"
+            for channel, pin in entry["channels"].items():
+                assert pin[0] in ("raises", "word", "enum-str"), (
+                    f"{fqn}/{channel}: unknown pin shape {pin[0]!r}"
+                )
+
+    def test_pinned_non_roundtrip_refuses_as_pinned(self, clickhouse_matrix_dialect):
+        """Each pinned round-trip entry still refuses exactly as it claims.
+
+        Three directions, per entry: every pinned channel fails in its pinned
+        shape; every channel the pin does NOT name still round-trips (so a
+        pin can never quietly swallow a whole class); and the class still
+        constructs, so what is pinned is the restore and not the constructor.
+        """
+        for fqn, entry in LEGITIMATE_NON_ROUNDTRIPS.items():
+            instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            assert instance is not None, (
+                f"{fqn} is pinned as a round-trip refusal but could not be "
+                f"constructed ({source})"
+            )
+            for channel, build in _channel_builders(instance, clickhouse_matrix_dialect):
+                pin = entry["channels"].get(channel)
+                if pin is not None:
+                    _assert_pinned_channel(fqn, channel, build, instance, pin)
+                else:
+                    restored = build()
+                    assert_params_equal(
+                        restored.get_params(), instance.get_params(), f"{fqn}.{channel}"
+                    )
 
     def test_pinned_non_render_really_does_not_render(self, clickhouse_matrix_dialect):
         """Each pinned entry still raises what it claims, for the stated reason.
@@ -1733,7 +2287,6 @@ class TestMatrixIntegrity:
         rather than the registry because the registry also holds whatever
         backends other test modules happened to import.
         """
-        auto_register_builtins()
         expected = set(_collect_matrix_classes())
         assert expected == set(REGISTERED), (
             "the set of expression classes the covered packages define changed "
@@ -1755,19 +2308,34 @@ class TestMatrixIntegrity:
     def test_every_covered_class_is_registered_for_deserialization(self):
         """A class in the matrix can be found again when deserializing.
 
-        Deserialization looks the class up by name, so a class the matrix
-        renders but the registry cannot resolve would round-trip into the wrong
-        thing or nothing at all.
+        Deserialization resolves a kind to its class through the framework's
+        default registry, so a class the matrix renders but the registry
+        cannot resolve would round-trip into the wrong thing or nothing at
+        all. The kind is the only identity the artifact carries, so the check
+        resolves each class's own kind and compares what comes back.
         """
-        auto_register_builtins()
-        unresolved = sorted(set(REGISTERED) - set(registered_expression_classes()))
+        from rhosocial.activerecord.backend.expression.registry import kind_of
+        from rhosocial.activerecord.backend.expression.serialization import (
+            default_registry,
+        )
+
+        registry = default_registry()
+        unresolved = []
+        for fqn, cls in REGISTERED.items():
+            try:
+                resolved = registry.resolve_node(kind_of(cls))
+            except Exception:
+                unresolved.append(fqn)
+                continue
+            if resolved is not cls:
+                unresolved.append(fqn)
+        unresolved.sort()
         assert not unresolved, (
             f"the matrix covers classes the registry cannot resolve: {unresolved}"
         )
 
     def test_coverage_report(self, clickhouse_matrix_dialect):
         """Surface what the matrix covers, so coverage stays transparent."""
-        auto_register_builtins()
         branches: Dict[str, int] = {}
         constructible = 0
         for fqn in sorted(REGISTERED):
