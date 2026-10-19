@@ -953,7 +953,12 @@ def register_specials():
     )
     register_special_constructor(
         "alter_column.ClickHouseAddColumnAction",
-        lambda d: alter_column.ClickHouseAddColumnAction(d, _integer_column(d)),
+        # ``after`` is given a value on purpose: it is a declared constructor
+        # parameter, so the artifact has to carry it. The render half -- that
+        # the clause reaches the SQL -- is test_add_column_action.py's job.
+        lambda d: alter_column.ClickHouseAddColumnAction(
+            d, _integer_column(d), after="name"
+        ),
     )
     register_special_constructor(
         "rename_table.ClickHouseRenameTableExpression",

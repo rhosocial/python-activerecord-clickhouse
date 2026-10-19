@@ -80,17 +80,14 @@ class ClickHouseDDLColumnMixin:
         action. ``after=None`` renders exactly what the core entry renders, so
         the clause is a position the caller asked for and nothing else.
 
-        Documented on
-        ``https://clickhouse.com/docs/sql-reference/statements/alter/column``;
-        the spelling is the server's, quoted identifiers included: the name is
-        rendered through ``format_column_reference`` so a reserved word arrives
-        quoted.
+        The name is a bare identifier, not a value: ``format_identifier`` quotes
+        it (backticks) and warns on a reserved word rather than emitting SQL the
+        server would refuse. Documented on
+        ``https://clickhouse.com/docs/sql-reference/statements/alter/column``.
         """
         sql, params = self.format_add_column_action(action)
         if action.after is not None:
-            after_sql, after_params = self.format_column(action.after)
-            sql = f"{sql} AFTER {after_sql}"
-            params = params + after_params
+            sql = f"{sql} AFTER {self.format_identifier(action.after)}"
         return sql, params
 
     def format_alter_column_action(self, action) -> Tuple[str, tuple]:
