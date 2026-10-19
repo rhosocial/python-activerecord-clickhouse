@@ -101,6 +101,37 @@ pytest imported first.
 
 No database is involved. The matrix drives the dialect, which is where SQL
 generation happens; nothing here opens a connection.
+
+The baseline this table was last reconciled against
+===================================================
+
+Core ``debde516`` (following ``679d9817``, which made a node's kind its identity
+and its payload plain JSON). Every number in the tables below is a statement
+about that tree: :func:`test_unmodelled_formatter_list_is_exact`,
+:func:`test_unconstructible_list_is_exact`,
+:func:`test_pinned_non_render_really_does_not_render` and
+:func:`test_pinned_non_roundtrip_refuses_as_pinned` all fail when core moves
+underneath, which is the point -- they are what make a core change visible here
+instead of on the backend that has to answer for it. Where core moved between
+the two baselines, this file says which direction:
+
+* ``debde516`` gave NaN and the infinities value kinds of their own, so the
+  closed set :class:`TestLiteralValueKinds` pins is sixteen, not fourteen
+  (see :attr:`TestLiteralValueKinds._CASES`).
+* ``ComparisonPredicate`` began normalising its operator, so the introspective
+  constructor's placeholder stopped satisfying it and the class took a
+  registered constructor rather than an UNCONSTRUCTIBLE exemption.
+* ``CustomType``'s ``raw`` became keyword-only, and the type root's refusal now
+  carries the generic dispatch's own spelling.
+* ``ForUpdateClause`` began normalising the word it stores, so its entry left
+  :data:`LEGITIMATE_NON_ROUNDTRIPS` rather than the table holding a reason that
+  no longer exists.
+
+Coverage at that baseline: 515 registered, 510 constructible, 5 pinned
+unconstructible, 61 pinned non-render; rendered 327, unsupported 121,
+unmodelled 32, non-render 30.
+:func:`TestMatrixIntegrity.test_coverage_report` prints the current figures on
+every run.
 """
 
 import datetime
