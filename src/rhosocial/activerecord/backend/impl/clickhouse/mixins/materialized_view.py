@@ -84,7 +84,8 @@ class ClickHouseMaterializedViewMixin:
 
         Args:
             expr: ClickHouse create expression (or a generic one, whose
-                unsupported clauses are rejected).
+                unsupported clauses are rejected and whose ClickHouse clauses
+                it cannot declare).
 
         Returns:
             Tuple of (SQL string, params tuple from the defining query).
@@ -96,7 +97,11 @@ class ClickHouseMaterializedViewMixin:
                 check, and every object renders its own name, so without this a
                 View or a Table would produce a well-formed CREATE MATERIALIZED
                 VIEW naming something else.
-            UnsupportedFeatureError: for clauses ClickHouse does not have.
+            UnsupportedFeatureError: for clauses ClickHouse does not have. The
+                WITH DATA / WITH NO DATA duo is gated the way core gates it:
+                only a requested spelling is refused (by name); with neither
+                requested the statement renders the dialect's default form,
+                without the clause.
         """
         if not isinstance(expr.view, MaterializedView):
             raise TypeError(
@@ -105,67 +110,86 @@ class ClickHouseMaterializedViewMixin:
             )
         from ..expression.materialized_view import ClickHouseCreateMaterializedViewExpression
 
-        if not isinstance(expr, ClickHouseCreateMaterializedViewExpression):
+        if isinstance(expr, ClickHouseCreateMaterializedViewExpression):
+            # The ClickHouse node: every clause below is a declared field on it,
+            # and its constructor has already validated the shape ClickHouse
+            # requires (TO or ENGINE, POPULATE without REFRESH, ...).
+            to_table = expr.to_table
+            engine = expr.engine
+        else:
             # The generic statement: its clauses are the ones ClickHouse cannot
-            # express, and it carries neither TO nor ENGINE, which ClickHouse
-            # requires -- so nothing of it renders.
+            # express, and each is refused by the name of its spelling -- the
+            # WITH DATA / WITH NO DATA duo included, and only when a spelling
+            # is requested. With neither requested there is nothing to refuse,
+            # and the statement renders ClickHouse's default form.
             self._reject_unsupported_clauses(expr, "CREATE MATERIALIZED VIEW")
-            raise UnsupportedFeatureError(
-                self.name,
-                "CREATE MATERIALIZED VIEW",
-                "ClickHouse requires a TO target table or an ENGINE; use "
-                "ClickHouseCreateMaterializedViewExpression.",
-            )
+            # TO and ENGINE are not fields of the generic node; a caller that
+            # carries them attaches them on the instance, and they are read
+            # here exactly as the ClickHouse node's own fields are.
+            to_table = getattr(expr, "to_table", None)
+            engine = getattr(expr, "engine", None)
+            if to_table is None and engine is None:
+                # Nothing anchors the view: ClickHouse requires a TO target
+                # table or an ENGINE, and the generic node provides neither.
+                raise UnsupportedFeatureError(
+                    self.name,
+                    "CREATE MATERIALIZED VIEW",
+                    "ClickHouse requires a TO target table or an ENGINE; use "
+                    "ClickHouseCreateMaterializedViewExpression.",
+                )
 
-        # The ClickHouse node: every clause below is a declared field on it,
-        # and its constructor has already validated the shape ClickHouse
-        # requires (TO or ENGINE, POPULATE without REFRESH, ...).
-        to_table = expr.to_table
         if to_table is not None and not isinstance(to_table, Table):
             raise TypeError(
                 f"CreateMaterializedViewStatement.to_table must be a Table, "
                 f"got {type(to_table).__name__}"
             )
 
+        # The clauses of the ClickHouse spelling are declared on this backend's
+        # own node only, so a generic statement reaching the render below
+        # carries none of them; ``getattr`` keeps one render path for both.
         parts = ["CREATE"]
-        if expr.or_replace:
+        if getattr(expr, "or_replace", False):
             parts.append("OR REPLACE")
         parts.append("MATERIALIZED VIEW")
-        if expr.if_not_exists:
+        if getattr(expr, "if_not_exists", False):
             parts.append("IF NOT EXISTS")
         parts.append(expr.view.to_sql()[0])
 
-        if expr.on_cluster:
-            parts.append(f"ON CLUSTER {self.format_identifier(str(expr.on_cluster))}")
+        on_cluster = getattr(expr, "on_cluster", None)
+        if on_cluster:
+            parts.append(f"ON CLUSTER {self.format_identifier(str(on_cluster))}")
 
         if to_table:
             # The target table carries its own database. Reusing the view's here
             # would aim the materialized view at another database's table.
             target = to_table.to_sql()[0]
-            if expr.to_columns:
-                target = f"{target} ({', '.join(str(c) for c in expr.to_columns)})"
+            to_columns = getattr(expr, "to_columns", None)
+            if to_columns:
+                target = f"{target} ({', '.join(str(c) for c in to_columns)})"
             parts.append(f"TO {target}")
 
-        if expr.engine:
-            parts.append(f"ENGINE = {expr.engine}")
+        if engine:
+            parts.append(f"ENGINE = {engine}")
 
-        if expr.populate:
+        if getattr(expr, "populate", False):
             parts.append("POPULATE")
 
-        if expr.refresh is not None:
+        refresh = getattr(expr, "refresh", None)
+        if refresh is not None:
             # The schedule is a node of its own; the dialect spells it through
             # its ``format_method``, the same dispatch every other clause goes
             # through.
-            parts.append(expr.refresh.to_sql()[0])
+            parts.append(refresh.to_sql()[0])
 
-        if expr.empty:
+        if getattr(expr, "empty", False):
             parts.append("EMPTY")
 
         query_sql, query_params = self._materialized_view_query_sql(expr)
         parts.append(f"AS {query_sql}")
 
-        if expr.comment is not None:
-            parts.append(f"COMMENT '{self._escape_sql_string(str(expr.comment))}'")
+        comment = getattr(expr, "comment", None)
+        if comment is not None:
+            parts.append(f"COMMENT '{self._escape_sql_string(str(comment))}'")
 
         return " ".join(parts), query_params
 
