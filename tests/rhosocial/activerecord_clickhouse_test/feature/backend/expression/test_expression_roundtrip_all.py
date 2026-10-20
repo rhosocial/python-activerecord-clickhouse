@@ -1457,38 +1457,13 @@ LEGITIMATE_NON_RENDERS = {
 # A channel an entry does not name must still round-trip; that is asserted per
 # class, so a pin can never quietly swallow a whole class.
 LEGITIMATE_NON_ROUNDTRIPS: Dict[str, Dict[str, object]] = {
-    # -- the datetime family: DateTimeField / IntervalUnit are (str, Enum)
-    #    without ``__str__ = str.__str__``, so the XML channel writes
-    #    ``"DateTimeField.YEAR"``, which the constructor's own normaliser
-    #    refuses. (JSON survives -- it writes the member's underlying string;
-    #    dict survives -- it passes the member through untouched.)
-    "rhosocial.activerecord.backend.expression.datetime._ExtractBase": {
-        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.DatePartExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.ExtractExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.ExtractFieldExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.DateTruncExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported datetime field")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.IntervalExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.DateTimeAddExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.DateTimeDiffExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
-    },
-    "rhosocial.activerecord.backend.expression.datetime.DateTimeSubtractExpression": {
-        "channels": {"xml": ("raises", ValueError, "unsupported interval unit")},
-    },
+    # -- the datetime family: ``DateTimeField`` / ``IntervalUnit`` were
+    #    ``(str, Enum)`` without ``__str__ = str.__str__``, so the XML
+    #    channel wrote ``"DateTimeField.YEAR"`` and the constructor's own
+    #    normaliser refused it. Core gave the nine families the missing
+    #    ``__str__``, so the XML channel now writes "year" / "day" and all
+    #    three channels round-trip exactly. No rows left here; the block
+    #    stays to say which family this used to be about.
     # -- ``mode`` is declared ``CreateTableCloneMode`` with a member default;
     #    the JSON and XML channels write the word (``"CLONE"``), and the
     #    constructor demands the member -- the ``isinstance`` half of the
@@ -1521,23 +1496,20 @@ LEGITIMATE_NON_ROUNDTRIPS: Dict[str, Dict[str, object]] = {
             "xml": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
         },
     },
-    # -- ``storage_type`` defaults to a ``GeneratedColumnType`` member, a
-    #    plain (non-str) enum the artifact cannot name.
+    # -- ``storage_type`` defaults to a ``GeneratedColumnType`` member. It was
+    #    a plain (non-str) enum the artifact refused outright; core made it a
+    #    str enum, so the writer carries it and the dict channel passes the
+    #    member through untouched. JSON and XML hand back the word, which the
+    #    constructor stores raw -- value-faithful, type-lossy.
     "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnGeneratedConstraint": {
-        "channels": {
-            "dict": ("raises", TypeError, "GeneratedColumnType is not one of the value kinds"),
-            "json": ("raises", TypeError, "GeneratedColumnType is not one of the value kinds"),
-            "xml": ("raises", TypeError, "GeneratedColumnType is not one of the value kinds"),
-        },
+        "channels": {"json": ("word",), "xml": ("word",)},
     },
     # -- ``on_delete`` / ``on_update`` default to ``ReferentialAction``
-    #    members, a plain (non-str) enum the artifact cannot name.
+    #    members. Same shape as ``storage_type`` above: core made the enum a
+    #    str enum, the writer carries it, the dict channel keeps the member,
+    #    and JSON / XML come back with the word.
     "rhosocial.activerecord.backend.expression.statements.ddl_table.ForeignKeyConstraint": {
-        "channels": {
-            "dict": ("raises", TypeError, "ReferentialAction is not one of the value kinds"),
-            "json": ("raises", TypeError, "ReferentialAction is not one of the value kinds"),
-            "xml": ("raises", TypeError, "ReferentialAction is not one of the value kinds"),
-        },
+        "channels": {"json": ("word",), "xml": ("word",)},
     },
     # -- the word-form family: ``(str, Enum)`` members spelled properly
     #    (``__str__ = str.__str__``), carried by constructors that store the
@@ -1560,14 +1532,14 @@ LEGITIMATE_NON_ROUNDTRIPS: Dict[str, Dict[str, object]] = {
         "channels": {"json": ("word",), "xml": ("word",)},
     },
     # -- ``XMLParseDocumentType`` / ``XMLSerializeDocumentType`` are
-    #    ``(str, Enum)`` without ``__str__ = str.__str__``: JSON writes the
-    #    word, XML writes ``"XMLParseDocumentType.DOCUMENT"`` -- neither the
-    #    member nor its word -- and the constructor stores either raw.
+    #    ``(str, Enum)`` and now set ``__str__ = str.__str__`` too, so both
+    #    JSON and XML write the word ("DOCUMENT") and the constructor stores
+    #    it raw: value-faithful, type-lossy on both channels.
     "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": {
-        "channels": {"json": ("word",), "xml": ("enum-str",)},
+        "channels": {"json": ("word",), "xml": ("word",)},
     },
     "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": {
-        "channels": {"json": ("word",), "xml": ("enum-str",)},
+        "channels": {"json": ("word",), "xml": ("word",)},
     },
 }
 
