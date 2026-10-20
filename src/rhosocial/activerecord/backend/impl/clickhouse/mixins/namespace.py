@@ -40,7 +40,7 @@ moved after it, ``CREATE TABLE analytics.users`` renders as ``users`` and no
 test on earth catches it, because the statement is still well-formed.
 """
 
-from typing import Any, List, Tuple, TYPE_CHECKING
+from typing import List, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.objects import MaterializedView, View
 
@@ -137,25 +137,36 @@ class ClickHouseNamespaceMixin:
             suggestion=f"{self.name} can only drop views and materialized views.",
         )
 
-    def engine_kind_condition(
-        self,
-        *,
-        include_views: bool,
-        offset: int,
-    ) -> Tuple[str, List[Any]]:
-        """Render the ``system.tables`` engine filter that selects views or tables.
+    def engine_kind_predicate(self, *, include_views: bool):
+        """The ``system.tables`` engine test that selects views or tables.
+
+        The closed set travels as a bound list, exactly as it did when the
+        fragment was text: the engines are values, and this backend's
+        ``<engine> IN (%s, %s, ...)`` and ``NOT IN`` are what ``InPredicate``
+        and its negation render. Nothing here counts placeholders -- the
+        predicate's parameters are the ones it holds, and the enclosing
+        statement concatenates them in projection order.
 
         Args:
             include_views: ``True`` selects the view engines, ``False`` selects
                 everything that is not one of them.
-            offset: Index of the first bind placeholder in the statement, so the
-                returned values land in the right parameter positions.
 
         Returns:
-            ``(sql_fragment, params)`` where the fragment reads
-            ``engine IN (...)`` or ``engine NOT IN (...)``.
+            An ``InPredicate`` (``engine IN (...)``) or its negation
+            (``engine NOT IN (...)``), ready to join into a conjunction.
         """
-        p = self.get_parameter_placeholder
-        holes = ", ".join(p(offset + i) for i in range(len(self.VIEW_ENGINES)))
-        operator = "IN" if include_views else "NOT IN"
-        return f"engine {operator} ({holes})", list(self.VIEW_ENGINES)
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            InPredicate,
+            Literal,
+            LogicalPredicate,
+        )
+
+        membership = InPredicate(
+            self,
+            Column(self, "engine"),
+            Literal(self, self.VIEW_ENGINES),
+        )
+        if include_views:
+            return membership
+        return LogicalPredicate(self, "NOT", membership)

@@ -18,8 +18,13 @@ class ClickHouseConcurrencyMixin:
     def _fetch_concurrency_hint(self) -> None:
         """Fetch max concurrent queries from ClickHouse and compute concurrency hint."""
         try:
+            from ...expression.status import ClickHouseSettingQuery
+
+            sql, params = ClickHouseSettingQuery(
+                self.dialect, "max_concurrent_queries"
+            ).to_sql()
             cursor = self._connection.cursor()
-            cursor.execute("SELECT value FROM system.settings WHERE name = 'max_concurrent_queries'")
+            cursor.execute(sql, params)
             row = cursor.fetchone()
             cursor.close()
 
@@ -56,8 +61,13 @@ class AsyncClickHouseConcurrencyMixin:
     async def _fetch_concurrency_hint(self) -> None:
         """Fetch max_concurrent_queries from ClickHouse server and compute concurrency hint."""
         try:
+            from ...expression.status import ClickHouseSettingQuery
+
+            sql, params = ClickHouseSettingQuery(
+                self.dialect, "max_concurrent_queries"
+            ).to_sql()
             cursor = await self._connection.cursor(dictionary=True)
-            await cursor.execute("SELECT value FROM system.settings WHERE name = 'max_concurrent_queries'")
+            await cursor.execute(sql, params)
             row = await cursor.fetchone()
             await cursor.close()
 

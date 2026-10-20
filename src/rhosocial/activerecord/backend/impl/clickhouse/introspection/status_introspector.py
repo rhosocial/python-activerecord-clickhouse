@@ -77,6 +77,25 @@ from rhosocial.activerecord.backend.introspection.status import (
     SyncAbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
 )
+from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+    ClickHouseAsynchronousMetricsQuery,
+    ClickHouseConnectionGaugesQuery,
+    ClickHouseCurrentUserQuery,
+    ClickHouseDatabaseTotalSizeQuery,
+    ClickHouseDiskListQuery,
+    ClickHouseEventsQuery,
+    ClickHouseGrantListQuery,
+    ClickHouseMetricsQuery,
+    ClickHouseProcessListQuery,
+    ClickHouseReplicaListQuery,
+    ClickHouseRoleGrantListQuery,
+    ClickHouseServerSettingQuery,
+    ClickHouseServerSettingsQuery,
+    ClickHouseSettingsQuery,
+    ClickHouseTableCountQuery,
+    ClickHouseUserListQuery,
+    ClickHouseVersionQuery,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -641,9 +660,15 @@ class ClickHouseStatusIntrospectorMixin:
             return items
         return [item for item in items if item.category == category]
 
-    @staticmethod
-    def _placeholders(count: int, backend: Any) -> str:
-        return ", ".join([backend.dialect.p()] * count)
+    def _render(self, node) -> Tuple[str, tuple]:
+        """Render a status query node to ``(sql, params)``.
+
+        Every read below goes through the dialect this way: the node is built
+        from its parameters, the dialect writes the statement, and the
+        introspector only executes it. There is no place left where a caller
+        counts placeholders or concatenates a WHERE tail.
+        """
+        return node.to_sql()
 
     # ------------------------------------------------------------------ #
     # Overview assembly
@@ -674,10 +699,10 @@ class ClickHouseStatusIntrospectorMixin:
         """
         replication_summary = None
         try:
-            result = self._backend.execute(
-                "SELECT database, table, is_leader, is_readonly, total_replicas "
-                "FROM system.replicas LIMIT 20"
+            sql, params = self._render(
+                ClickHouseReplicaListQuery(self._backend.dialect, limit=20)
             )
+            result = self._backend.execute(sql, params)
             replication_summary = result.data
         except Exception:
             pass
@@ -750,7 +775,8 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         cannot mistake a guess for a server-reported version.
         """
         try:
-            result = self._backend.execute("SELECT version()")
+            sql, params = self._render(ClickHouseVersionQuery(self._backend.dialect))
+            result = self._backend.execute(sql, params)
             if result.data and result.data[0]:
                 return str(next(iter(result.data[0].values())))
         except Exception:
@@ -782,27 +808,24 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         read-only flag are the row's own columns.
         """
         items: List[StatusItem] = []
+        dialect = self._backend.dialect
 
-        settings_rows = self._rows(
-            "SELECT name, value, description, default, readonly, changed, type "
-            "FROM system.settings WHERE name IN ("
-            + self._placeholders(len(CLICKHOUSE_CONFIG_SETTINGS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_CONFIG_SETTINGS),
+        settings_sql, settings_params = self._render(
+            ClickHouseSettingsQuery(dialect, [name for name, _ in CLICKHOUSE_CONFIG_SETTINGS])
         )
+        settings_rows = self._rows(settings_sql, settings_params)
         items.extend(
             self._build_setting_items(
                 settings_rows, CLICKHOUSE_CONFIG_SETTINGS, "system.settings", "readonly"
             )
         )
 
-        server_rows = self._rows(
-            "SELECT name, value, description, default, changed, type, changeable_without_restart "
-            "FROM system.server_settings WHERE name IN ("
-            + self._placeholders(len(CLICKHOUSE_SERVER_SETTINGS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_SERVER_SETTINGS),
+        server_sql, server_params = self._render(
+            ClickHouseServerSettingsQuery(
+                dialect, [name for name, _ in CLICKHOUSE_SERVER_SETTINGS]
+            )
         )
+        server_rows = self._rows(server_sql, server_params)
         items.extend(
             self._build_setting_items(
                 server_rows,
@@ -833,29 +856,26 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
           has been running merges, inserts and mutations.
         """
         items: List[StatusItem] = []
+        dialect = self._backend.dialect
 
-        gauge_rows = self._rows(
-            "SELECT metric, value, description FROM system.metrics WHERE metric IN ("
-            + self._placeholders(len(CLICKHOUSE_GAUGE_METRICS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_GAUGE_METRICS),
+        gauge_sql, gauge_params = self._render(
+            ClickHouseMetricsQuery(dialect, [name for name, _ in CLICKHOUSE_GAUGE_METRICS])
         )
+        gauge_rows = self._rows(gauge_sql, gauge_params)
         items.extend(self._build_gauge_items(gauge_rows, CLICKHOUSE_GAUGE_METRICS, "system.metrics"))
 
-        event_rows = self._rows(
-            "SELECT event, value, description FROM system.events WHERE event IN ("
-            + self._placeholders(len(CLICKHOUSE_COUNTER_EVENTS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_COUNTER_EVENTS),
+        event_sql, event_params = self._render(
+            ClickHouseEventsQuery(dialect, [name for name, _ in CLICKHOUSE_COUNTER_EVENTS])
         )
+        event_rows = self._rows(event_sql, event_params)
         items.extend(self._build_event_items(event_rows, CLICKHOUSE_COUNTER_EVENTS, "system.events"))
 
-        async_rows = self._rows(
-            "SELECT metric, value, description FROM system.asynchronous_metrics WHERE metric IN ("
-            + self._placeholders(len(CLICKHOUSE_ASYNC_METRICS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_ASYNC_METRICS),
+        async_sql, async_params = self._render(
+            ClickHouseAsynchronousMetricsQuery(
+                dialect, [name for name, _ in CLICKHOUSE_ASYNC_METRICS]
+            )
         )
+        async_rows = self._rows(async_sql, async_params)
         items.extend(
             self._build_async_metric_items(async_rows, CLICKHOUSE_ASYNC_METRICS, "system.asynchronous_metrics")
         )
@@ -871,19 +891,17 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         gauges in :data:`OPEN_CONNECTION_METRICS`, because ClickHouse has no
         single ``Threads_connected`` to report.
         """
-        gauge_rows = self._rows(
-            "SELECT metric, value FROM system.metrics WHERE metric IN ("
-            + self._placeholders(len(OPEN_CONNECTION_METRICS), self._backend)
-            + ")",
-            OPEN_CONNECTION_METRICS,
+        dialect = self._backend.dialect
+        gauge_sql, gauge_params = self._render(
+            ClickHouseConnectionGaugesQuery(dialect, list(OPEN_CONNECTION_METRICS))
         )
+        gauge_rows = self._rows(gauge_sql, gauge_params)
         gauges = {row.get("metric"): row.get("value") for row in gauge_rows}
 
-        server_rows = self._rows(
-            "SELECT name, value FROM system.server_settings "
-            f"WHERE name = {self._backend.dialect.p()}",
-            ("max_connections",),
+        server_sql, server_params = self._render(
+            ClickHouseServerSettingQuery(dialect, "max_connections")
         )
+        server_rows = self._rows(server_sql, server_params)
         max_connections = server_rows[0].get("value") if server_rows else None
 
         def _num(name: str) -> Optional[int]:
@@ -914,20 +932,19 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         """Get storage information from ``system.tables`` / ``system.disks``."""
         total_size = None
         try:
-            result = self._backend.execute(
-                "SELECT sum(total_bytes) AS total_size FROM system.tables "
-                f"WHERE database = {self._backend.dialect.p()}",
-                (self._backend.config.database,),
+            sql, params = self._render(
+                ClickHouseDatabaseTotalSizeQuery(
+                    self._backend.dialect, self._backend.config.database
+                )
             )
+            result = self._backend.execute(sql, params)
             if result and result.data:
                 total_size = result.data[0].get("total_size")
         except Exception:
             pass
 
-        disks = self._rows(
-            "SELECT name, path, type, total_space, free_space, unreserved_space, keep_free_space, "
-            "is_encrypted, is_read_only, is_remote, is_broken FROM system.disks"
-        )
+        disk_sql, disk_params = self._render(ClickHouseDiskListQuery(self._backend.dialect))
+        disks = self._rows(disk_sql, disk_params)
         default_disk = next((d for d in disks if d.get("name") == "default"), None)
 
         return StorageInfo(
@@ -962,14 +979,10 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         view_counts: Dict[str, int] = {}
 
         try:
-            placeholders = self._placeholders(len(db_names), self._backend)
-            result = self._backend.execute(
-                "SELECT table_schema, table_type, COUNT(*) as count "
-                "FROM information_schema.TABLES "
-                f"WHERE table_schema IN ({placeholders}) "
-                "GROUP BY table_schema, table_type",
-                tuple(db_names),
+            sql, params = self._render(
+                ClickHouseTableCountQuery(self._backend.dialect, db_names)
             )
+            result = self._backend.execute(sql, params)
             if result and result.data:
                 for row in result.data:
                     schema = row.get("table_schema") or row.get("TABLE_SCHEMA")
@@ -1003,16 +1016,15 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         """
         users = []
 
-        user_rows = self._rows(
-            "SELECT name, id, auth_type, default_database, host_ip, host_names FROM system.users"
-        )
+        user_sql, user_params = self._render(ClickHouseUserListQuery(self._backend.dialect))
+        user_rows = self._rows(user_sql, user_params)
         if not user_rows:
             return users
 
-        grant_rows = self._rows(
-            "SELECT user_name, access_type, database, table, grant_option FROM system.grants "
-            "WHERE database IS NULL AND table IS NULL"
+        grant_sql, grant_params = self._render(
+            ClickHouseGrantListQuery(self._backend.dialect)
         )
+        grant_rows = self._rows(grant_sql, grant_params)
         grants_by_user: Dict[str, List[str]] = {}
         for row in grant_rows:
             name = row.get("user_name")
@@ -1020,7 +1032,10 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
             if name and access_type:
                 grants_by_user.setdefault(name, []).append(str(access_type))
 
-        role_rows = self._rows("SELECT user_name, role_name, granted_role_is_default FROM system.role_grants")
+        role_sql, role_params = self._render(
+            ClickHouseRoleGrantListQuery(self._backend.dialect)
+        )
+        role_rows = self._rows(role_sql, role_params)
         roles_by_user: Dict[str, List[str]] = {}
         for row in role_rows:
             name = row.get("user_name")
@@ -1058,7 +1073,8 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
 
         # Get current user
         try:
-            result = self._backend.execute("SELECT currentUser()", ())
+            sql, params = self._render(ClickHouseCurrentUserQuery(self._backend.dialect))
+            result = self._backend.execute(sql, params)
             if result and result.data:
                 current_user = next(iter(result.data[0].values()))
                 if current_user:
@@ -1080,10 +1096,8 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
     def list_processes(self) -> List[ProcessInfo]:
         """List current running processes/queries via ``system.processes``."""
         processes = []
-        rows = self._rows(
-            "SELECT query_id, user, address, current_database, elapsed, query "
-            "FROM system.processes"
-        )
+        sql, params = self._render(ClickHouseProcessListQuery(self._backend.dialect))
+        rows = self._rows(sql, params)
         for row in rows:
             processes.append(
                 ProcessInfo(
@@ -1150,7 +1164,8 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
     async def _get_version_string(self) -> str:
         """Get ClickHouse version string — see the sync twin for the fallback rule."""
         try:
-            result = await self._backend.execute("SELECT version()")
+            sql, params = self._render(ClickHouseVersionQuery(self._backend.dialect))
+            result = await self._backend.execute(sql, params)
             if result.data and result.data[0]:
                 return str(next(iter(result.data[0].values())))
         except Exception:
@@ -1179,27 +1194,24 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         See the synchronous twin for why the name set follows the server.
         """
         items: List[StatusItem] = []
+        dialect = self._backend.dialect
 
-        settings_rows = await self._rows(
-            "SELECT name, value, description, default, readonly, changed, type "
-            "FROM system.settings WHERE name IN ("
-            + self._placeholders(len(CLICKHOUSE_CONFIG_SETTINGS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_CONFIG_SETTINGS),
+        settings_sql, settings_params = self._render(
+            ClickHouseSettingsQuery(dialect, [name for name, _ in CLICKHOUSE_CONFIG_SETTINGS])
         )
+        settings_rows = await self._rows(settings_sql, settings_params)
         items.extend(
             self._build_setting_items(
                 settings_rows, CLICKHOUSE_CONFIG_SETTINGS, "system.settings", "readonly"
             )
         )
 
-        server_rows = await self._rows(
-            "SELECT name, value, description, default, changed, type, changeable_without_restart "
-            "FROM system.server_settings WHERE name IN ("
-            + self._placeholders(len(CLICKHOUSE_SERVER_SETTINGS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_SERVER_SETTINGS),
+        server_sql, server_params = self._render(
+            ClickHouseServerSettingsQuery(
+                dialect, [name for name, _ in CLICKHOUSE_SERVER_SETTINGS]
+            )
         )
+        server_rows = await self._rows(server_sql, server_params)
         items.extend(
             self._build_setting_items(
                 server_rows,
@@ -1223,29 +1235,26 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         history-dependent.
         """
         items: List[StatusItem] = []
+        dialect = self._backend.dialect
 
-        gauge_rows = await self._rows(
-            "SELECT metric, value, description FROM system.metrics WHERE metric IN ("
-            + self._placeholders(len(CLICKHOUSE_GAUGE_METRICS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_GAUGE_METRICS),
+        gauge_sql, gauge_params = self._render(
+            ClickHouseMetricsQuery(dialect, [name for name, _ in CLICKHOUSE_GAUGE_METRICS])
         )
+        gauge_rows = await self._rows(gauge_sql, gauge_params)
         items.extend(self._build_gauge_items(gauge_rows, CLICKHOUSE_GAUGE_METRICS, "system.metrics"))
 
-        event_rows = await self._rows(
-            "SELECT event, value, description FROM system.events WHERE event IN ("
-            + self._placeholders(len(CLICKHOUSE_COUNTER_EVENTS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_COUNTER_EVENTS),
+        event_sql, event_params = self._render(
+            ClickHouseEventsQuery(dialect, [name for name, _ in CLICKHOUSE_COUNTER_EVENTS])
         )
+        event_rows = await self._rows(event_sql, event_params)
         items.extend(self._build_event_items(event_rows, CLICKHOUSE_COUNTER_EVENTS, "system.events"))
 
-        async_rows = await self._rows(
-            "SELECT metric, value, description FROM system.asynchronous_metrics WHERE metric IN ("
-            + self._placeholders(len(CLICKHOUSE_ASYNC_METRICS), self._backend)
-            + ")",
-            tuple(name for name, _ in CLICKHOUSE_ASYNC_METRICS),
+        async_sql, async_params = self._render(
+            ClickHouseAsynchronousMetricsQuery(
+                dialect, [name for name, _ in CLICKHOUSE_ASYNC_METRICS]
+            )
         )
+        async_rows = await self._rows(async_sql, async_params)
         items.extend(
             self._build_async_metric_items(async_rows, CLICKHOUSE_ASYNC_METRICS, "system.asynchronous_metrics")
         )
@@ -1261,19 +1270,17 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         gauges in :data:`OPEN_CONNECTION_METRICS`, because ClickHouse has no
         single ``Threads_connected`` to report.
         """
-        gauge_rows = await self._rows(
-            "SELECT metric, value FROM system.metrics WHERE metric IN ("
-            + self._placeholders(len(OPEN_CONNECTION_METRICS), self._backend)
-            + ")",
-            OPEN_CONNECTION_METRICS,
+        dialect = self._backend.dialect
+        gauge_sql, gauge_params = self._render(
+            ClickHouseConnectionGaugesQuery(dialect, list(OPEN_CONNECTION_METRICS))
         )
+        gauge_rows = await self._rows(gauge_sql, gauge_params)
         gauges = {row.get("metric"): row.get("value") for row in gauge_rows}
 
-        server_rows = await self._rows(
-            "SELECT name, value FROM system.server_settings "
-            f"WHERE name = {self._backend.dialect.p()}",
-            ("max_connections",),
+        server_sql, server_params = self._render(
+            ClickHouseServerSettingQuery(dialect, "max_connections")
         )
+        server_rows = await self._rows(server_sql, server_params)
         max_connections = server_rows[0].get("value") if server_rows else None
 
         def _num(name: str) -> Optional[int]:
@@ -1304,20 +1311,19 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         """Get storage information from ``system.tables`` / ``system.disks``."""
         total_size = None
         try:
-            result = await self._backend.execute(
-                "SELECT sum(total_bytes) AS total_size FROM system.tables "
-                f"WHERE database = {self._backend.dialect.p()}",
-                (self._backend.config.database,),
+            sql, params = self._render(
+                ClickHouseDatabaseTotalSizeQuery(
+                    self._backend.dialect, self._backend.config.database
+                )
             )
+            result = await self._backend.execute(sql, params)
             if result and result.data:
                 total_size = result.data[0].get("total_size")
         except Exception:
             pass
 
-        disks = await self._rows(
-            "SELECT name, path, type, total_space, free_space, unreserved_space, keep_free_space, "
-            "is_encrypted, is_read_only, is_remote, is_broken FROM system.disks"
-        )
+        disk_sql, disk_params = self._render(ClickHouseDiskListQuery(self._backend.dialect))
+        disks = await self._rows(disk_sql, disk_params)
         default_disk = next((d for d in disks if d.get("name") == "default"), None)
 
         return StorageInfo(
@@ -1346,14 +1352,10 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         view_counts: Dict[str, int] = {}
 
         try:
-            placeholders = self._placeholders(len(db_names), self._backend)
-            result = await self._backend.execute(
-                "SELECT table_schema, table_type, COUNT(*) as count "
-                "FROM information_schema.TABLES "
-                f"WHERE table_schema IN ({placeholders}) "
-                "GROUP BY table_schema, table_type",
-                tuple(db_names),
+            sql, params = self._render(
+                ClickHouseTableCountQuery(self._backend.dialect, db_names)
             )
+            result = await self._backend.execute(sql, params)
             if result and result.data:
                 for row in result.data:
                     schema = row.get("table_schema") or row.get("TABLE_SCHEMA")
@@ -1387,16 +1389,15 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         """
         users = []
 
-        user_rows = await self._rows(
-            "SELECT name, id, auth_type, default_database, host_ip, host_names FROM system.users"
-        )
+        user_sql, user_params = self._render(ClickHouseUserListQuery(self._backend.dialect))
+        user_rows = await self._rows(user_sql, user_params)
         if not user_rows:
             return users
 
-        grant_rows = await self._rows(
-            "SELECT user_name, access_type, database, table, grant_option FROM system.grants "
-            "WHERE database IS NULL AND table IS NULL"
+        grant_sql, grant_params = self._render(
+            ClickHouseGrantListQuery(self._backend.dialect)
         )
+        grant_rows = await self._rows(grant_sql, grant_params)
         grants_by_user: Dict[str, List[str]] = {}
         for row in grant_rows:
             name = row.get("user_name")
@@ -1404,7 +1405,10 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
             if name and access_type:
                 grants_by_user.setdefault(name, []).append(str(access_type))
 
-        role_rows = await self._rows("SELECT user_name, role_name, granted_role_is_default FROM system.role_grants")
+        role_sql, role_params = self._render(
+            ClickHouseRoleGrantListQuery(self._backend.dialect)
+        )
+        role_rows = await self._rows(role_sql, role_params)
         roles_by_user: Dict[str, List[str]] = {}
         for row in role_rows:
             name = row.get("user_name")
@@ -1442,7 +1446,8 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
 
         # Get current user
         try:
-            result = await self._backend.execute("SELECT currentUser()", ())
+            sql, params = self._render(ClickHouseCurrentUserQuery(self._backend.dialect))
+            result = await self._backend.execute(sql, params)
             if result and result.data:
                 current_user = next(iter(result.data[0].values()))
                 if current_user:
@@ -1464,10 +1469,8 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
     async def list_processes(self) -> List[ProcessInfo]:
         """List current running processes/queries via ``system.processes``."""
         processes = []
-        rows = await self._rows(
-            "SELECT query_id, user, address, current_database, elapsed, query "
-            "FROM system.processes"
-        )
+        sql, params = self._render(ClickHouseProcessListQuery(self._backend.dialect))
+        rows = await self._rows(sql, params)
         for row in rows:
             processes.append(
                 ProcessInfo(

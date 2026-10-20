@@ -1,5 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/__init__.py
 from .introspection import ClickHouseIntrospectionMixin
+from .status import ClickHouseStatusQueryMixin
 from .transaction import ClickHouseTransactionMixin
 from .backend_mixin import ClickHouseBackendMixin
 from .trigger import ClickHouseTriggerMixin
@@ -58,6 +59,7 @@ from .literal import ClickHouseLiteralValueMixin
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
+    "ClickHouseStatusQueryMixin",
     "ClickHouseTransactionMixin",
     "ClickHouseBackendMixin",
     "ClickHouseTriggerMixin",

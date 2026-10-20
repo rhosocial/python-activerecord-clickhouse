@@ -46,7 +46,6 @@ from rhosocial.activerecord.backend.options import (
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
-from rhosocial.activerecord.backend.expression.objects import Table
 from ..config import ClickHouseConnectionConfig
 from ..dialect import ClickHouseDialect
 from ..transaction import ClickHouseTransactionManager
@@ -292,20 +291,21 @@ class ClickHouseBackend(
         ClickHouse cannot report how many rows an UPDATE/DELETE mutation
         affected, so we translate the same predicate into a ``SELECT count()``
         and use its result as the affected-row count.
+
+        The predicate goes in as the node it already is. The concatenated form
+        rendered it, then stripped the leading ``WHERE`` word back off the text,
+        which put the query's structure in a string twice over.
         """
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+            ClickHouseRowCountQuery,
+        )
+
         if where is None:
             return 0
-        table_sql, _ = Table(
-            self.dialect, table, catalog_name=schema_name
+        sql, params = ClickHouseRowCountQuery(
+            self.dialect, table, where, schema_name=schema_name
         ).to_sql()
-        if hasattr(where, "to_sql"):
-            where_sql, where_params = where.to_sql()
-            if where_sql.lstrip().upper().startswith("WHERE"):
-                where_sql = where_sql.lstrip()[len("WHERE"):]
-        else:
-            where_sql, where_params = str(where), ()
-        count_sql = f"SELECT count() FROM {table_sql} WHERE {where_sql}"
-        result = self.execute(count_sql, where_params)
+        result = self.execute(sql, params)
         if result.data and result.data[0]:
             return int(next(iter(result.data[0].values())))
         return 0
@@ -458,8 +458,13 @@ class ClickHouseBackend(
         else:
             # Verify the connection is still alive via a lightweight query.
             try:
+                from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+                    ClickHouseConnectionProbeQuery,
+                )
+
+                probe_sql, probe_params = ClickHouseConnectionProbeQuery(self.dialect).to_sql()
                 cursor = self._connection.cursor()
-                cursor.execute("SELECT 1")
+                cursor.execute(probe_sql, probe_params)
                 cursor.fetchone()
                 cursor.close()
             except (BrokenPipeError, OSError, ClickHouseError):
@@ -524,7 +529,12 @@ class ClickHouseBackend(
         cursor = None
         try:
             cursor = self._get_cursor()
-            cursor.execute("SELECT version()")
+            from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+                ClickHouseVersionQuery,
+            )
+
+            version_sql, version_params = ClickHouseVersionQuery(self.dialect).to_sql()
+            cursor.execute(version_sql, version_params)
             version_row = cursor.fetchone()
             version_str = version_row[0] if version_row else "26.0.0"
 
@@ -567,10 +577,15 @@ class ClickHouseBackend(
                 else:
                     return False
 
-            # Verify connection with SELECT 1
+            # Verify connection with the liveness probe
             try:
+                from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+                    ClickHouseConnectionProbeQuery,
+                )
+
+                probe_sql, probe_params = ClickHouseConnectionProbeQuery(self.dialect).to_sql()
                 cursor = self._connection.cursor()
-                cursor.execute("SELECT 1")
+                cursor.execute(probe_sql, probe_params)
                 cursor.fetchone()
                 cursor.close()
                 return True
