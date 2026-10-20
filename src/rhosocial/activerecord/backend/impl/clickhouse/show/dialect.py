@@ -8,8 +8,7 @@ It implements the format_show_* methods that are called by the expression classe
 The mixin is added to ClickHouseDialect to provide SHOW command support.
 All methods follow the pattern:
 - Accept an expression parameter
-- Extract parameters from expression.get_params()
-- Generate SQL string and parameter tuple
+- Read the node's declared fields and render them
 - Return (sql, params) tuple
 
 Nine of these are ClickHouse statements and produce SQL:
@@ -42,7 +41,6 @@ rendering has to respect that rather than MySQL's shape:
 from typing import Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.objects import Table, View
 
 if TYPE_CHECKING:
     from ..expression.show import (
@@ -104,18 +102,16 @@ class ClickHouseShowDialectMixin:
         -- a ClickHouse database -- becomes the object's ``catalog_name`` and is
         rendered by the same code that renders every other qualified name.
         """
-        params = expr.get_params()
-        table = Table(
-            self, params["table"], catalog_name=params.get("schema")
-        ).to_sql()[0]
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        table = Table(self, expr.table, catalog_name=expr.schema).to_sql()[0]
         return f"SHOW CREATE TABLE {table}", ()
 
     def format_show_create_view(self, expr: "ShowCreateViewExpression") -> Tuple[str, tuple]:
         """Format SHOW CREATE VIEW statement."""
-        params = expr.get_params()
-        view = View(
-            self, params["view_name"], catalog_name=params.get("schema")
-        ).to_sql()[0]
+        from rhosocial.activerecord.backend.expression.objects import View
+
+        view = View(self, expr.view_name, catalog_name=expr.schema).to_sql()[0]
         return f"SHOW CREATE VIEW {view}", ()
 
     def format_show_create_trigger(self, expr: "ShowCreateTriggerExpression") -> Tuple[str, tuple]:
@@ -145,22 +141,16 @@ class ClickHouseShowDialectMixin:
         ``EXTENDED`` is also accepted and documented but has no effect, so it is
         not rendered.
         """
-        params = expr.get_params()
-        table = params["table"]
-        schema = params.get("schema")
-        full = params.get("full", False)
-        like_pattern = params.get("like_pattern")
-
         parts = ["SHOW"]
-        if full:
+        if expr.full:
             parts.append("FULL")
         parts.append("COLUMNS FROM")
-        parts.append(self._qualified_table(table, schema))
+        parts.append(self._qualified_table(expr.table, expr.schema))
 
-        sql_params = ()
-        if like_pattern:
+        sql_params: tuple = ()
+        if expr.like_pattern:
             parts.append(f"LIKE {self.p()}")
-            sql_params = (like_pattern,)
+            sql_params = (expr.like_pattern,)
 
         return " ".join(parts), sql_params
 
@@ -173,41 +163,30 @@ class ClickHouseShowDialectMixin:
         ``PRIMARY`` / ``MINMAX`` / ``BLOOM_FILTER`` / ``SET`` / ... rather than
         ``BTREE``. See ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        params = expr.get_params()
-        table = params["table"]
-        schema = params.get("schema")
-        return f"SHOW INDEX FROM {self._qualified_table(table, schema)}", ()
+        return f"SHOW INDEX FROM {self._qualified_table(expr.table, expr.schema)}", ()
 
     # ========== SHOW TABLES/DATABASES ==========
 
     def format_show_tables(self, expr: "ShowTablesExpression") -> Tuple[str, tuple]:
         """Format SHOW [FULL] TABLES statement."""
-        params = expr.get_params()
-        schema = params.get("schema")
-        full = params.get("full", False)
-        like_pattern = params.get("like_pattern")
-
         parts = ["SHOW"]
-        if full:
+        if expr.full:
             parts.append("FULL")
         parts.append("TABLES")
-        if schema:
-            parts.append(f"FROM {self.format_identifier(schema)}")
+        if expr.schema:
+            parts.append(f"FROM {self.format_identifier(expr.schema)}")
 
-        sql_params = ()
-        if like_pattern:
+        sql_params: tuple = ()
+        if expr.like_pattern:
             parts.append(f"LIKE {self.p()}")
-            sql_params = (like_pattern,)
+            sql_params = (expr.like_pattern,)
 
         return " ".join(parts), sql_params
 
     def format_show_databases(self, expr: "ShowDatabasesExpression") -> Tuple[str, tuple]:
         """Format SHOW DATABASES statement."""
-        params = expr.get_params()
-        like_pattern = params.get("like_pattern")
-
-        if like_pattern:
-            return f"SHOW DATABASES LIKE {self.p()}", (like_pattern,)
+        if expr.like_pattern:
+            return f"SHOW DATABASES LIKE {self.p()}", (expr.like_pattern,)
         return "SHOW DATABASES", ()
 
     def format_show_table_status(self, expr: "ShowTableStatusExpression") -> Tuple[str, tuple]:
@@ -359,11 +338,9 @@ class ClickHouseShowDialectMixin:
         statement. ``SHOW GRANTS FOR CURRENT USER`` is also a ``SYNTAX_ERROR``
         here; omitting ``FOR`` is how the current user's grants are read.
         """
-        params = expr.get_params()
-        user = params.get("user")
-        if not user:
+        if not expr.user:
             return "SHOW GRANTS", ()
-        return f"SHOW GRANTS FOR {self.format_identifier(user)}", ()
+        return f"SHOW GRANTS FOR {self.format_identifier(expr.user)}", ()
 
     def format_show_plugins(self, expr: "ShowPluginsExpression") -> Tuple[str, tuple]:
         """Format SHOW PLUGINS statement.

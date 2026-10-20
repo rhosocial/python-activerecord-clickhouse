@@ -339,13 +339,13 @@ class TestShowDialectRendersWhatTheServerAccepts:
             ShowColumnsExpression,
         )
 
-        expr = ShowColumnsExpression(dialect, "t")
-        if kw.get("schema"):
-            expr.schema(kw["schema"])
-        if kw.get("full"):
-            expr.full()
-        if kw.get("like"):
-            expr.like(kw["like"])
+        expr = ShowColumnsExpression(
+            dialect,
+            "t",
+            schema=kw.get("schema"),
+            full=bool(kw.get("full")),
+            like_pattern=kw.get("like"),
+        )
         return expr.to_sql()
 
     def test_columns_sql(self, dialect):
@@ -360,7 +360,7 @@ class TestShowDialectRendersWhatTheServerAccepts:
             ShowIndexExpression,
         )
 
-        expr = ShowIndexExpression(dialect, "t").schema("db")
+        expr = ShowIndexExpression(dialect, "t", schema="db")
         assert expr.to_sql() == ("SHOW INDEX FROM `db`.`t`", ())
 
     def test_processlist_sql_never_emits_full(self, dialect):
@@ -369,7 +369,11 @@ class TestShowDialectRendersWhatTheServerAccepts:
             ShowProcessListExpression,
         )
 
-        assert ShowProcessListExpression(dialect).full().to_sql() == ("SHOW PROCESSLIST", ())
+        assert ShowProcessListExpression(dialect).to_sql() == ("SHOW PROCESSLIST", ())
+        assert ShowProcessListExpression(dialect, full=True).to_sql() == (
+            "SHOW PROCESSLIST",
+            (),
+        )
 
     def test_engines_sql(self, dialect):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
@@ -385,10 +389,10 @@ class TestShowDialectRendersWhatTheServerAccepts:
         )
 
         assert ShowGrantsExpression(dialect).to_sql() == ("SHOW GRANTS", ())
-        assert ShowGrantsExpression(dialect).for_user("root").to_sql() == (
+        assert ShowGrantsExpression(dialect, user="root").to_sql() == (
             "SHOW GRANTS FOR `root`", (),
         )
-        assert ShowGrantsExpression(dialect).for_user("root", "localhost").to_sql() == (
+        assert ShowGrantsExpression(dialect, user="root", host="localhost").to_sql() == (
             "SHOW GRANTS FOR `root`", (),
         )
 

@@ -334,9 +334,7 @@ class ClickHouseShowFunctionality:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = ShowCreateTableExpression(self.dialect, table)
-        if schema:
-            expr.schema(schema)
+        expr = ShowCreateTableExpression(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_table_result(result, table)
@@ -353,9 +351,7 @@ class ClickHouseShowFunctionality:
         Returns:
             ShowCreateViewResult with view details, or None if view doesn't exist.
         """
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
+        expr = ShowCreateViewExpression(self.dialect, view_name, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_view_result(result, view_name)
@@ -375,13 +371,9 @@ class ClickHouseShowFunctionality:
         and reads ClickHouse's own output columns. See
         ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        expr = ShowColumnsExpression(self.dialect, table)
-        if schema:
-            expr.schema(schema)
-        if full:
-            expr.full()
-        if like:
-            expr.like(like)
+        expr = ShowColumnsExpression(
+            self.dialect, table, full=full, like_pattern=like, schema=schema
+        )
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_columns_result(result)
@@ -395,9 +387,7 @@ class ClickHouseShowFunctionality:
         output columns — the primary key columns plus one row per data skipping
         index. See ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        expr = ShowIndexExpression(self.dialect, table)
-        if schema:
-            expr.schema(schema)
+        expr = ShowIndexExpression(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_indexes_result(result)
@@ -420,13 +410,9 @@ class ClickHouseShowFunctionality:
         Returns:
             List of ShowTableResult objects.
         """
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.full()
+        expr = ShowTablesExpression(
+            self.dialect, schema=schema, like_pattern=like, full=full
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -443,9 +429,7 @@ class ClickHouseShowFunctionality:
         Returns:
             List of ShowDatabaseResult objects.
         """
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowDatabasesExpression(self.dialect, like_pattern=like)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -529,9 +513,7 @@ class ClickHouseShowFunctionality:
         symmetry and ignored: the statement has no ``FULL`` variant and already
         reports the full query text in ``query``.
         """
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.full()
+        expr = ShowProcessListExpression(self.dialect, full=full)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_processlist_result(result)
@@ -620,9 +602,7 @@ class ClickHouseShowFunctionality:
         The statement returns a single column whose name follows the output
         format, so the parser reads the column's value rather than a named key.
         """
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
+        expr = ShowGrantsExpression(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_grants_result(result)
