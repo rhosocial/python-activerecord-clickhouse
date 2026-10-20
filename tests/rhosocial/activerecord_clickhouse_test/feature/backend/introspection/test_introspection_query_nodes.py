@@ -85,7 +85,9 @@ class TestIntrospectionQueriesAreTrees:
 
     def test_column_info_derives_nullability_from_the_type_name(self, dialect):
         sql, params = ColumnInfoExpression(dialect, "users", schema="default").to_sql()
-        assert "IF(`type` LIKE 'Nullable(%', 'YES', 'NO') AS `IS_NULLABLE`" in sql
+        # Doubled `%`: this statement bypasses Backend.execute, so it bypasses
+        # the escape that adds the second `%` for the driver's interpolation.
+        assert "IF(`type` LIKE 'Nullable(%%', 'YES', 'NO') AS `IS_NULLABLE`" in sql
         assert params == ("default", "users")
         assert sql.endswith("ORDER BY `position`")
 

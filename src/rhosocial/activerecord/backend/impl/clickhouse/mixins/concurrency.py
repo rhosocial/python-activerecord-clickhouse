@@ -18,7 +18,7 @@ class ClickHouseConcurrencyMixin:
     def _fetch_concurrency_hint(self) -> None:
         """Fetch max concurrent queries from ClickHouse and compute concurrency hint."""
         try:
-            from ...expression.status import ClickHouseSettingQuery
+            from ..expression.status import ClickHouseSettingQuery
 
             sql, params = ClickHouseSettingQuery(
                 self.dialect, "max_concurrent_queries"
@@ -61,7 +61,7 @@ class AsyncClickHouseConcurrencyMixin:
     async def _fetch_concurrency_hint(self) -> None:
         """Fetch max_concurrent_queries from ClickHouse server and compute concurrency hint."""
         try:
-            from ...expression.status import ClickHouseSettingQuery
+            from ..expression.status import ClickHouseSettingQuery
 
             sql, params = ClickHouseSettingQuery(
                 self.dialect, "max_concurrent_queries"

@@ -266,10 +266,16 @@ class ClickHouseIntrospectionMixin:
 
         ``IS_NULLABLE`` is derived from the type name: ClickHouse encodes
         nullability in the type (``Nullable(String)``), not in a column flag, so
-        the projection tests the rendered type for that prefix. The ``%`` is a
-        single character in the pattern and the backend escapes it for the
-        driver when it executes the statement -- writing ``%%`` here would be
-        escaping for a layer this one does not talk to.
+        the projection tests the rendered type for that prefix.
+
+        The ``%`` in that pattern is written doubled, and the doubling is
+        load-bearing. The introspector executor executes this statement through
+        a cursor directly rather than through ``Backend.execute``, so the
+        backend's ``_escape_literal_percent`` -- which every other statement
+        gains on the way to the driver -- does not run here. A single ``%``
+        reaches clickhouse-connect's ``%`` interpolation and is read as the
+        start of a format specifier: measured in CI,
+        ``ValueError: unsupported format character "'" (0x27) at index 134``.
         """
         from rhosocial.activerecord.backend.expression import (
             FunctionCall,
@@ -296,7 +302,16 @@ class ClickHouseIntrospectionMixin:
                         self,
                         LikeOperator.LIKE,
                         self._column("type"),
-                        Literal(self, "Nullable(%", inline=True),
+                        # Doubled on purpose. This statement is executed by the
+                        # introspector executor, which calls ``cursor.execute``
+                        # directly -- it does not pass through
+                        # ``Backend.execute``, so the backend's
+                        # ``_escape_literal_percent`` never runs on it and the
+                        # driver's ``%`` interpolation would read a lone ``%`` as
+                        # the start of a format specifier and raise
+                        # ``ValueError: unsupported format character "'"``.
+                        # Measured in CI on 3.10 / ClickHouse 25.8.
+                        Literal(self, "Nullable(%%", inline=True),
                     ),
                     Literal(self, "YES", inline=True),
                     Literal(self, "NO", inline=True),
