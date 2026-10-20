@@ -177,6 +177,7 @@ from rhosocial.activerecord.backend.expression.objects import (
 )
 from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation
 from rhosocial.activerecord.backend.expression.predicates import (
+    LikeOperator,
     ComparisonPredicate,
     ILikePredicate,
     LikePredicate,
@@ -701,7 +702,7 @@ def register_specials():
     # rather than a string, because a bare string is not a value node.
     register_special_constructor(
         "predicates.LikePredicate",
-        lambda d: LikePredicate(d, "LIKE", Column(d, "a"), Literal(d, "%x%")),
+        lambda d: LikePredicate(d, LikeOperator.LIKE, Column(d, "a"), Literal(d, "%x%")),
     )
     register_special_constructor(
         "predicates.ILikePredicate",
