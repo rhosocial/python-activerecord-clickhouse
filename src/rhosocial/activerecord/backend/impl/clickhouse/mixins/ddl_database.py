@@ -111,6 +111,16 @@ class ClickHouseDatabaseMixin:
     ) -> Tuple[str, tuple]:
         """Format ``ALTER DATABASE``.
 
+        ClickHouse's ALTER DATABASE takes a list of ALTER commands, and
+        ``MODIFY SETTING`` / ``MODIFY COMMENT`` are the two this branch
+        spells -- see :meth:`supports_alter_database`.  It has no
+        ``RENAME TO``: the server's own answer to that spelling is a syntax
+        error ("Expected one of: ON, a list of ALTER commands, ALTER command,
+        MODIFY SETTING, MODIFY COMMENT"), and a database is renamed with
+        ``RENAME DATABASE <old> TO <new>``, which is a different statement.
+        So the action is refused by name rather than emitted in a form the
+        server rejects.
+
         Raises:
             TypeError: ``expr.database`` is not a Database. Anything else would
                 have its own name rendered as the altered database's.
@@ -125,32 +135,31 @@ class ClickHouseDatabaseMixin:
         from rhosocial.activerecord.backend.expression.statements.ddl_database import (
             AlterDatabaseAction,
         )
-        parts = ["ALTER DATABASE"]
-        parts.append(expr.database.to_sql()[0])
-        # ``RENAME TO`` is the one action core's enum names and ClickHouse spells
-        # the same way. ``MODIFY COMMENT`` was read off this branch by name and
-        # core's AlterDatabaseAction has no such member, so every ALTER DATABASE
-        # raised AttributeError before reaching any of this; an action ClickHouse
-        # has no form for is reported rather than silently dropped.
-        # ``action`` accepts the enum or its raw spelling; which one it is is a
-        # type question, so it is asked with isinstance rather than probed for a
-        # ``value`` attribute.
+        # ``MODIFY COMMENT`` was read off this branch by name and core's
+        # AlterDatabaseAction has no such member, so every ALTER DATABASE
+        # raised AttributeError before reaching any of this; an action
+        # ClickHouse has no form for is reported rather than silently
+        # dropped.  ``action`` accepts the enum or its raw spelling; which one
+        # it is is a type question, so it is asked with isinstance rather than
+        # probed field by field.
         action = expr.action.value if isinstance(expr.action, Enum) else expr.action
         if expr.action == AlterDatabaseAction.RENAME_TO:
-            target = expr.target
-            if not target:
-                raise UnsupportedFeatureError(
-                    self.name, "ALTER DATABASE ... RENAME TO",
-                    suggestion="RENAME TO requires the new database name.",
-                )
-            parts.append(f"RENAME TO {self.format_identifier(str(target))}")
-        else:
             raise UnsupportedFeatureError(
                 self.name,
-                f"ALTER DATABASE {action}",
-                suggestion="ClickHouse supports ALTER DATABASE ... RENAME TO.",
+                "ALTER DATABASE ... RENAME TO",
+                suggestion=(
+                    "ClickHouse has no ALTER DATABASE ... RENAME TO; rename the "
+                    "database with RENAME DATABASE <old> TO <new>."
+                ),
             )
-        return " ".join(parts), ()
+        raise UnsupportedFeatureError(
+            self.name,
+            f"ALTER DATABASE {action}",
+            suggestion=(
+                "ClickHouse's ALTER DATABASE takes MODIFY SETTING / MODIFY "
+                "COMMENT."
+            ),
+        )
 
 
 __all__ = ['ClickHouseDatabaseMixin']

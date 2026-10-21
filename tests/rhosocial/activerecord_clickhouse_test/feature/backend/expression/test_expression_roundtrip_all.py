@@ -2128,12 +2128,24 @@ class TestObjectKindChecks:
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
-    def test_alter_database_renders_rename_to(self):
+    def test_alter_database_refuses_rename_to(self):
+        """ClickHouse has no ``ALTER DATABASE ... RENAME TO``.
+
+        The server's own answer to that spelling is a syntax error -- "Expected
+        one of: ON, a list of ALTER commands, ALTER command, MODIFY SETTING,
+        MODIFY COMMENT" -- and a database is renamed with ``RENAME DATABASE
+        <old> TO <new>``, which is a different statement.  So the action is
+        refused by name, and the refusal names the spelling that does work.
+        """
         d = self._dialect()
         expr = AlterDatabaseStatement(
             d, Database(d, "db"), action=AlterDatabaseAction.RENAME_TO, target="renamed"
         )
-        assert expr.to_sql()[0] == "ALTER DATABASE `db` RENAME TO `renamed`"
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        message = str(excinfo.value)
+        assert "ALTER DATABASE ... RENAME TO" in message, message
+        assert "RENAME DATABASE" in message, message
 
     def test_truncate_refuses_a_view(self):
         d = self._dialect()
