@@ -137,32 +137,74 @@ class TestClickHouseSQLGeneration:
         assert sql == "LIMIT %s"
         assert params == [10]
 
-    def test_storage_options_clickhouse_syntax(self, dialect):
-        """ENGINE/ORDER BY values must NOT be quoted."""
-        from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-        result, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {
-            "ENGINE": "MergeTree()",
-            "ORDER BY": "id",
-            "PARTITION BY": "toYYYYMM(created_at)",
-        }))
-        assert "ENGINE = MergeTree()" in result
-        assert "ORDER BY = id" in result or "ORDER BY id" in result
-        assert "'MergeTree()'" not in result  # no quotes
+    def test_storage_options_slot_is_refused_by_name(self, dialect):
+        """The generic ``WITH (...)`` slot has no ClickHouse spelling.
+
+        ClickHouse's storage clauses are declared on
+        ``ClickHouseCreateTableOptions``; a caller that reaches for the generic
+        slot is told so instead of getting a silently different statement.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.statements import (
+            ColumnDefinition,
+            CreateTableStatement,
+            StorageOptionsExpression,
+        )
+        from rhosocial.activerecord.backend.expression.types import IntegerType
+
+        expr = CreateTableStatement(
+            dialect,
+            Table(dialect, "t"),
+            [ColumnDefinition(dialect, "id", IntegerType(dialect))],
+            storage_options=StorageOptionsExpression(dialect, {"ENGINE": "MergeTree"}),
+        )
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
 
     def test_table_engine_clauses(self, dialect):
         """ClickHouse table-engine-specific clause formatting."""
-        result, params = dialect.format_table_engine_clauses({
-            "ENGINE": "MergeTree()",
-            "ORDER BY": ["id", "created_at"],
-            "PARTITION BY": "toYYYYMM(created_at)",
-            "TTL": "created_at + INTERVAL 30 DAY",
-            "SETTINGS": "index_granularity = 8192",
-        })
-        assert "ENGINE = MergeTree()" in result
-        assert "ORDER BY (id, created_at)" in result
-        assert "PARTITION BY toYYYYMM(created_at)" in result
+        from rhosocial.activerecord.backend.expression.core import Column
+        from rhosocial.activerecord.backend.expression.operators import RawSQL
+        from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+            ClickHouseEngineSpec,
+            ClickHouseSetting,
+            ClickHouseStorageOptionKind,
+            ClickHouseTableStorageOption,
+        )
+
+        kind = ClickHouseStorageOptionKind
+        clauses = [
+            ClickHouseTableStorageOption(
+                dialect, kind.ENGINE, value=ClickHouseEngineSpec(dialect, "MergeTree")
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                kind.ORDER_BY,
+                value=[Column(dialect, "id"), Column(dialect, "created_at")],
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                kind.TTL,
+                value=RawSQL(dialect, "created_at + INTERVAL 30 DAY"),
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                kind.SETTINGS,
+                value=[ClickHouseSetting(dialect, "index_granularity", 8192)],
+            ),
+        ]
+        rendered = []
+        for clause in sorted(clauses, key=lambda item: item.option.rank):
+            clause_sql, _ = clause.to_sql()
+            rendered.append(clause_sql)
+        result = " ".join(rendered)
+
+        assert "ENGINE = MergeTree" in result
+        assert "ORDER BY (`id`, `created_at`)" in result
         assert "TTL created_at + INTERVAL 30 DAY" in result
         assert "SETTINGS index_granularity = 8192" in result
+        # ENGINE/ORDER BY values must NOT be quoted as strings.
+        assert "'MergeTree'" not in result
 
     def test_unsupported_insert_options_raise(self, dialect):
         """INSERT IGNORE / REPLACE capability flags are False for ClickHouse."""

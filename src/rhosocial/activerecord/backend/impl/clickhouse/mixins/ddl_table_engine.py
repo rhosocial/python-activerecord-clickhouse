@@ -16,7 +16,10 @@ so they are provided as backend-local support mixins:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List, Tuple
+
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 
 class ClickHouseTableEngineSupport:
@@ -56,60 +59,99 @@ class ClickHouseTableEngineSupport:
 
 
 class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
-    """ClickHouse table engine / storage clause rendering.
+    """ClickHouse table storage clause rendering.
 
-    Renders the ClickHouse-specific table clauses appended after the column
-    list in ``CREATE TABLE``: ``ENGINE``, ``ORDER BY``, ``PARTITION BY``,
-    ``PRIMARY KEY``, ``SAMPLE BY``, ``TTL`` and ``SETTINGS``.
+    Renders the clauses ClickHouse appends to ``CREATE TABLE`` after the
+    column list: ``ENGINE``, ``PRIMARY KEY``, ``PARTITION BY``, ``ORDER BY``,
+    ``SAMPLE BY``, ``TTL`` and ``SETTINGS``.
 
-    Usage: pass these clauses through the ``CreateTableStatement``
-    ``dialect_options`` or ``storage_options`` mapping.
+    Each clause is one :class:`ClickHouseTableStorageOption` node. The nodes
+    are declared on ``ClickHouseCreateTableOptions``; the statement renderer
+    orders them by :attr:`ClickHouseStorageOptionKind.rank` and joins them.
     """
 
-    def format_table_engine_clauses(self, storage_options: Optional[Dict[str, Any]]) -> Tuple[str, tuple]:
-        """Format ClickHouse storage clauses from a storage-options mapping.
+    def format_clickhouse_engine_spec(self, expr: Any) -> Tuple[str, tuple]:
+        """Render an engine name and its parameters.
 
-        Accepted keys (case-insensitive):
-
-        - ``ENGINE`` / ``engine``            — ``ENGINE = MergeTree()``
-        - ``ORDER BY`` / ``order_by``        — ``ORDER BY (col1, col2)``
-        - ``PARTITION BY`` / ``partition_by``— ``PARTITION BY (expr)``
-        - ``PRIMARY KEY`` / ``primary_key``  — ``PRIMARY KEY (col)``
-        - ``SAMPLE BY`` / ``sample_by``      — ``SAMPLE BY (expr)``
-        - ``TTL`` / ``ttl``                  — ``TTL expr``
-        - ``SETTINGS`` / ``settings``        — ``SETTINGS k = v, ...``
-
-        Values are inserted verbatim (not quoted).
+        ``ENGINE = MergeTree`` has no parameters; ``ReplacingMergeTree(version)``
+        renders the parameter node in the parentheses.
         """
-        if not storage_options:
-            return "", ()
-        parts: List[str] = []
-        for raw_key, value in storage_options.items():
-            key = str(raw_key).upper().replace("_", " ")
-            if key == "ENGINE":
-                parts.append(f"ENGINE = {value}")
-            elif key == "ORDER BY":
-                parts.append(f"ORDER BY {self.format_clause_list(value)}")
-            elif key == "PARTITION BY":
-                parts.append(f"PARTITION BY {self.format_clause_list(value)}")
-            elif key == "PRIMARY KEY":
-                parts.append(f"PRIMARY KEY {self.format_clause_list(value)}")
-            elif key == "SAMPLE BY":
-                parts.append(f"SAMPLE BY {self.format_clause_list(value)}")
-            elif key == "TTL":
-                parts.append(f"TTL {value}")
-            elif key == "SETTINGS":
-                parts.append(f"SETTINGS {value}")
-            else:
-                parts.append(f"{key} = {value}")
-        return " ".join(parts), ()
+        if not expr.parameters:
+            return expr.engine, ()
+        params: List[Any] = []
+        rendered: List[str] = []
+        for parameter in expr.parameters:
+            parameter_sql, parameter_params = parameter.to_sql()
+            rendered.append(parameter_sql)
+            params.extend(parameter_params)
+        return f"{expr.engine}({', '.join(rendered)})", tuple(params)
 
-    @staticmethod
-    def format_clause_list(value: Any) -> str:
-        """Format a column/expression list, accepting str, list, or tuple."""
-        if isinstance(value, (list, tuple)):
-            return "(" + ", ".join(str(v) for v in value) + ")"
-        return str(value)
+    def format_clickhouse_setting(self, expr: Any) -> Tuple[str, tuple]:
+        """Render one ``name = value`` pair of a ``SETTINGS`` clause.
+
+        A scalar goes through :meth:`format_literal`, so the caller's text is
+        never pasted into the statement; a node renders itself.
+        """
+        value = expr.value
+        if isinstance(value, BaseExpression):
+            value_sql, params = value.to_sql()
+            return f"{expr.name} = {value_sql}", params
+        return f"{expr.name} = {self.format_literal(value)}", ()
+
+    def format_clickhouse_table_storage_option(self, expr: Any) -> Tuple[str, tuple]:
+        """Render one ClickHouse table storage clause.
+
+        The clause's spelling is decided here, not by the caller: the caller
+        chooses the option and supplies a typed payload, the renderer owns
+        the keyword.
+        """
+        from ..expression.storage_option import (
+            ClickHouseStorageOptionKind,
+            ClickHouseTableStorageOption,
+        )
+
+        option = expr.option
+        if option is ClickHouseStorageOptionKind.ENGINE:
+            engine_sql, engine_params = self.format_clickhouse_engine_spec(expr.value)
+            return f"ENGINE = {engine_sql}", engine_params
+
+        if option is ClickHouseStorageOptionKind.SETTINGS:
+            params: List[Any] = []
+            rendered: List[str] = []
+            for item in expr.value:
+                item_sql, item_params = self.format_clickhouse_setting(item)
+                rendered.append(item_sql)
+                params.extend(item_params)
+            return f"SETTINGS {', '.join(rendered)}", tuple(params)
+
+        if option in ClickHouseTableStorageOption.EXPRESSION_MEMBERS:
+            value_sql, value_params = expr.value.to_sql()
+            return f"{option.keyword} {value_sql}", value_params
+
+        # Remaining members: PRIMARY KEY / PARTITION BY / ORDER BY.
+        params = []
+        rendered = []
+        for item in expr.value:
+            item_sql, item_params = item.to_sql()
+            rendered.append(item_sql)
+            params.extend(item_params)
+        body = rendered[0] if len(rendered) == 1 else f"({', '.join(rendered)})"
+        return f"{option.keyword} {body}", tuple(params)
+
+    def format_clickhouse_create_table_options(self, expr: Any) -> Tuple[str, tuple]:
+        """Render the ClickHouse ``CREATE`` header qualifier.
+
+        ClickHouse places ``OR REPLACE`` between ``CREATE`` and ``TABLE``, the
+        position the generic renderer reserves for this entry. ``ON CLUSTER``
+        is **not** a header qualifier -- it follows the table name -- so the
+        statement renderer reads it off the node and places it there.
+        """
+        parts: List[str] = []
+        if expr.or_replace:
+            if not self.supports_create_or_replace_table():
+                raise UnsupportedFeatureError(self.name, "CREATE OR REPLACE TABLE")
+            parts.append("OR REPLACE")
+        return " ".join(parts), ()
 
 
 class ClickHouseQueryClauseMixin(ClickHouseTableEngineSupport):

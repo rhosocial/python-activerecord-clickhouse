@@ -12,7 +12,6 @@ if TYPE_CHECKING:
         CreateTableCloneStatement,
         CreateTableStatement,
         CreateTableLikeStatement,
-        StorageOptionsExpression,
         IndexDefinition,
         TableConstraint,
     )
@@ -103,6 +102,13 @@ class ClickHouseTableMixin:
                 self.name, "table INHERITS",
                 "ClickHouse does not support table inheritance.",
             )
+        if expr.storage_options is not None:
+            raise UnsupportedFeatureError(
+                self.name, "STORAGE OPTIONS",
+                "ClickHouse has no generic storage-options clause. Declare the "
+                "clauses on ClickHouseCreateTableOptions(table_storage_options=...) "
+                "instead.",
+            )
         all_params: List[Any] = []
 
         options_part = ""
@@ -120,6 +126,13 @@ class ClickHouseTableMixin:
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
         parts.append(expr.table.to_sql()[0])
+
+        # ``ON CLUSTER`` follows the table name, before the column list -- it is
+        # not a header qualifier and cannot come from
+        # ``format_clickhouse_create_table_options``.
+        on_cluster = getattr(expr.table_options, "on_cluster", None)
+        if on_cluster is not None:
+            parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
 
         column_parts = []
         for col_def in expr.columns:
@@ -139,11 +152,12 @@ class ClickHouseTableMixin:
 
         parts.append(f"({', '.join(column_parts)})")
 
-        if expr.storage_options:
-            storage_sql, storage_params = self._format_table_storage_options(expr.storage_options)
-            if storage_sql:
-                parts.append(storage_sql)
-                all_params.extend(storage_params)
+        storage_sql, storage_params = self._format_table_storage_clauses(
+            expr.table_options
+        )
+        if storage_sql:
+            parts.append(storage_sql)
+            all_params.extend(storage_params)
 
         if expr.table_options is not None and expr.table_options.comment is not None:
             comment_sql, _ = self.format_table_comment_clause(expr.table_options.comment)
@@ -157,11 +171,23 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(all_params)
 
-    def _format_table_storage_options(self, storage_options: Any) -> Tuple[str, tuple]:
-        """Render storage options from either a mapping or a StorageOptionsExpression."""
-        if isinstance(storage_options, dict):
-            return self.format_table_engine_clauses(storage_options)
-        return storage_options.to_sql()
+    def _format_table_storage_clauses(self, table_options: Any) -> Tuple[str, tuple]:
+        """Render the storage clause run a ClickHouse options node declares.
+
+        The order is the grammar's, not the caller's: clauses are sorted by
+        :attr:`ClickHouseStorageOptionKind.rank` before rendering, so a caller
+        that declares them out of order still gets ClickHouse's order.
+        """
+        clauses = getattr(table_options, "table_storage_options", ())
+        if not clauses:
+            return "", ()
+        params: List[Any] = []
+        rendered: List[str] = []
+        for clause in sorted(clauses, key=lambda item: item.option.rank):
+            clause_sql, clause_params = clause.to_sql()
+            rendered.append(clause_sql)
+            params.extend(clause_params)
+        return " ".join(rendered), tuple(params)
 
     def format_create_table_like_statement(
         self, expr: "CreateTableLikeStatement"
@@ -510,16 +536,6 @@ class ClickHouseTableMixin:
         granularity = idx_def.granularity if isinstance(idx_def, ClickHouseIndexDefinition) else 1
         parts.append(f"GRANULARITY {granularity}")
         return " ".join(parts), ()
-
-    def format_storage_options(self, expr: "StorageOptionsExpression") -> Tuple[str, tuple]:
-        """Format ClickHouse table storage options.
-
-        Delegates to ``format_table_engine_clauses`` using the expression's
-        options mapping.  Values are rendered verbatim (not quoted) because
-        ClickHouse storage option values are SQL fragments (engine names,
-        column lists, etc.).
-        """
-        return self.format_table_engine_clauses(expr.options)
 
     def supports_if_not_exists_table(self) -> bool:
         """Whether CREATE TABLE IF NOT EXISTS is supported."""

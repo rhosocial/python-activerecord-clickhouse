@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py
 from enum import Enum
-from typing import Any, Dict, Tuple
+from typing import Tuple
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -153,20 +153,3 @@ class ClickHouseDDLColumnMixin:
 
         return super().format_alter_column_action(action)
 
-    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
-        """
-        Format storage options for ClickHouse.
-
-        Args:
-            storage_options: Dict with keys like 'ENGINE', 'ORDER BY', 'PARTITION BY'
-
-        Returns:
-            Formatted storage options string (e.g., "ENGINE = MergeTree() ORDER BY id")
-        """
-        parts = []
-        for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key} = {value}")
-            else:
-                parts.append(f"{key} = {value}")
-        return ' '.join(parts)

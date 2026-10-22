@@ -117,8 +117,20 @@ class ClickHouseTableSupport(
         """Format an inline data-skipping INDEX definition within CREATE TABLE."""
         ...
 
-    def format_storage_options(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ClickHouse table storage options (ENGINE, CHARSET, etc.)."""
+    def format_clickhouse_create_table_options(self, expr: Any) -> Tuple[str, tuple]:
+        """Format the ClickHouse ``CREATE`` header qualifier (``OR REPLACE``)."""
+        ...
+
+    def format_clickhouse_engine_spec(self, expr: Any) -> Tuple[str, tuple]:
+        """Format an engine name and its parameters (``ReplacingMergeTree(version)``)."""
+        ...
+
+    def format_clickhouse_setting(self, expr: Any) -> Tuple[str, tuple]:
+        """Format one ``name = value`` pair of a ``SETTINGS`` clause."""
+        ...
+
+    def format_clickhouse_table_storage_option(self, expr: Any) -> Tuple[str, tuple]:
+        """Format one ClickHouse table storage clause (``ENGINE``, ``ORDER BY``, …)."""
         ...
 
     def supports_ilike(self) -> bool:

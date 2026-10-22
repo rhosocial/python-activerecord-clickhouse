@@ -244,6 +244,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     partition,
     rename_table,
     routine,
+    storage_option,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     types as chexpr_types,
@@ -965,6 +966,22 @@ def register_specials():
         "rename_table.ClickHouseRenameTableExpression",
         lambda d: rename_table.ClickHouseRenameTableExpression(d, [("a", "b")]),
     )
+
+    # -- ClickHouse CREATE TABLE storage clauses ------------------------------
+    # ``option`` is a discriminator enum and ``value`` is keyword-only, so the
+    # guess supplies neither: it hands a string where the enum is expected and
+    # never reaches the payload. ENGINE is built because every ClickHouse table
+    # declares one, and it is the member whose payload is itself a node, so the
+    # artifact carries a nested expression rather than a bare scalar.
+    register_special_constructor(
+        "storage_option.ClickHouseTableStorageOption",
+        lambda d: storage_option.ClickHouseTableStorageOption(
+            d,
+            storage_option.ClickHouseStorageOptionKind.ENGINE,
+            value=storage_option.ClickHouseEngineSpec(d, "MergeTree"),
+        ),
+    )
+
     # CUSTOM. Its ``raw`` slot exists to carry the SQL type name and defaults
     # to the empty string, which the filler skips and the class refuses while
     # constructing. Handed a real name it builds -- and then the dialect

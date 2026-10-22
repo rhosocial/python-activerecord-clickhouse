@@ -27,6 +27,7 @@ the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 
 from .alter_column import ClickHouseAddColumnAction
 from .column import ClickHouseColumnDefinition, ClickHouseColumnOptions
+from .create_table_options import ClickHouseCreateTableOptions
 from .database import (
     ClickHouseCreateDatabaseExpression,
     ClickHouseDropDatabaseExpression,
@@ -69,6 +70,12 @@ from .spatial import (
     ClickHouseSTGeomFromWKBExpression,
     ClickHouseSTWithinExpression,
     ClickHouseSpatialLiteralExpression,
+)
+from .storage_option import (
+    ClickHouseEngineSpec,
+    ClickHouseSetting,
+    ClickHouseStorageOptionKind,
+    ClickHouseTableStorageOption,
 )
 
 # DataType subclasses for DDL
@@ -115,6 +122,12 @@ __all__ = [
     "ClickHouseAddColumnAction",
     "ClickHouseColumnDefinition",
     "ClickHouseColumnOptions",
+    # CREATE TABLE storage clauses
+    "ClickHouseCreateTableOptions",
+    "ClickHouseStorageOptionKind",
+    "ClickHouseTableStorageOption",
+    "ClickHouseEngineSpec",
+    "ClickHouseSetting",
     # Database / DML expressions
     "ClickHouseCreateDatabaseExpression",
     "ClickHouseDropDatabaseExpression",
