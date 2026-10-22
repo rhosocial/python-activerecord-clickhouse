@@ -1,6 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py
 from typing import Any, List, Tuple, TYPE_CHECKING
-import re
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -26,11 +25,6 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
 class ClickHouseTableMixin:
     """ClickHouse table DDL implementation."""
 
-    @staticmethod
-    def _validate_data_type(data_type: str) -> bool:
-        """Validate data type string, allowing single quotes for ClickHouse ENUM types."""
-        return bool(re.fullmatch(r"[A-Za-z0-9\s\(\),\']+", data_type))
-
     def supports_create_table_like(self) -> bool:
         """ClickHouse expresses a structure copy with ``AS <source>``, not ``LIKE``.
 
@@ -40,6 +34,15 @@ class ClickHouseTableMixin:
         """
         return True
 
+
+    def supports_create_table_as_bind_parameters(self) -> bool:
+        """ClickHouse accepts bind parameters in a CTAS body.
+
+        Measured on 26.7.3: ``CREATE TABLE t AS SELECT %s FROM s`` is
+        accepted and the table is created. ClickHouse's "parameters" are
+        interpolated client-side, so the value is baked into the text.
+        """
+        return True
     def supports_create_table_clone(self) -> bool:
         """ClickHouse has ``CREATE TABLE target CLONE AS source``."""
         return True
@@ -479,7 +482,7 @@ class ClickHouseTableMixin:
             raise UnsupportedFeatureError(
                 self.name, "DEFERRABLE / INITIALLY table constraint"
             )
-        enforcement = self._format_constraint_enforcement(t_const)
+        enforcement = self.format_constraint_enforcement(t_const)
         if enforcement:
             parts.append(enforcement)
 

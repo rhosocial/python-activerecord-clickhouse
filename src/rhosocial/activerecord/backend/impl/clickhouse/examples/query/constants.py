@@ -34,22 +34,17 @@ dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 # SECTION: SELECT CURRENT_TIMESTAMP
 # ============================================================
 # Use factory functions for SQL statement-level constants.
-# current_timestamp(dialect) generates CURRENT_TIMESTAMP (no parentheses)
+# F.current_timestamp(dialect) generates CURRENT_TIMESTAMP (no parentheses)
 # which is the SQL:2003 standard niladic form, valid in both DDL DEFAULT
 # and SELECT contexts. ClickHouse also accepts CURRENT_TIMESTAMP() with parentheses.
 
 from rhosocial.activerecord.backend.expression import QueryStatement  # noqa: E402
 from rhosocial.activerecord.backend.expression.core import FunctionCall  # noqa: E402
-from rhosocial.activerecord.backend.expression.functions.datetime import (  # noqa: E402
-    current_timestamp,
-    now,
-    current_date,
-    current_time,
-)
+from rhosocial.activerecord.backend.expression import functions as F  # noqa: E402
 
 query_ts = QueryStatement(
     dialect=dialect,
-    select=[current_timestamp(dialect)],
+    select=[F.current_timestamp(dialect)],
 )
 sql, params = query_ts.to_sql()
 print(f"CURRENT_TIMESTAMP SQL: {sql}")
@@ -61,7 +56,7 @@ print(f"Result: {result.data}")
 # ============================================================
 query_now = QueryStatement(
     dialect=dialect,
-    select=[now(dialect)],
+    select=[F.now(dialect)],
 )
 sql, params = query_now.to_sql()
 print(f"NOW() SQL: {sql}")
@@ -74,8 +69,8 @@ print(f"Result: {result.data}")
 query_date = QueryStatement(
     dialect=dialect,
     select=[
-        current_date(dialect),
-        current_time(dialect),
+        F.current_date(dialect),
+        F.current_time(dialect),
     ],
 )
 sql, params = query_date.to_sql()
@@ -91,8 +86,8 @@ from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
 query_multi = QueryStatement(
     dialect=dialect,
     select=[
-        now(dialect).as_("current_time"),
-        current_date(dialect).as_("current_date"),
+        F.now(dialect).as_("current_time"),
+        F.current_date(dialect).as_("current_date"),
         FunctionCall(dialect, "DATABASE").as_("db_name"),
         FunctionCall(dialect, "VERSION").as_("db_version"),
     ],
@@ -110,7 +105,7 @@ print(f"Result: {result.data}")
 query_format = QueryStatement(
     dialect=dialect,
     select=[
-        FunctionCall(dialect, "formatDateTime", now(dialect), Literal(dialect, "%Y-%m-%d")).as_("formatted_date"),
+        FunctionCall(dialect, "formatDateTime", F.now(dialect), Literal(dialect, "%Y-%m-%d")).as_("formatted_date"),
     ],
 )
 sql, params = query_format.to_sql()

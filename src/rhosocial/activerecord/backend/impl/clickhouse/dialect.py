@@ -210,6 +210,14 @@ if TYPE_CHECKING:
 
 
 class ClickHouseDialect(
+    # The bases below come in bundles: a backend mixin, then the core bundle
+    # it stands in for. The backend's answer has to come first -- a mixin
+    # placed after the class it overrides never wins -- so a new mixin goes
+    # immediately before the core mixin it overrides, and the pairing is read
+    # off the list. Two positions sit outside that pairing and are called out
+    # where they occur: a mixin that overrides a method ``SQLDialectBase``
+    # defines has to precede the base, and a mixin that subclasses a core
+    # mixin has to precede it too (C3: a subclass precedes its base).
     # Ahead of SQLDialectBase, unlike every other mixin in this list. Those
     # add methods the base does not have, so their position is a readability
     # choice; this one overrides ``format_literal`` -- ClickHouse's two
@@ -217,6 +225,12 @@ class ClickHouseDialect(
     # and a mixin placed after the class it overrides never wins.
     ClickHouseLiteralValueMixin,
     SQLDialectBase,
+    # ClickHouse's own answer to the row-source capabilities core's
+    # RelationSourceMixin supplies. It precedes that mixin because a mixin
+    # placed after the class it overrides never wins -- and this one was
+    # after it, so the override was dead code and core's default answered
+    # for ClickHouse.
+    ClickHouseTableStatementMixin,
     RelationSourceMixin,
     # The object tree: each *NameMixin renders one object kind and inherits
     # NamespaceMixin for the namespace levels, so they precede it. The object
@@ -332,7 +346,6 @@ class ClickHouseDialect(
     UserDefinedTypeMixin,
     DomainMixin,
     ClickHouseOptimizerHintMixin,
-    ClickHouseTableStatementMixin,
     ClickHouseMaintenanceMixin,
     ClickHouseRoutineMixin,
     ClickHouseLoadXMLLMixin,
@@ -502,8 +515,7 @@ class ClickHouseDialect(
 
         return ClickHouseSchemaDiffer()
 
-    @staticmethod
-    def _escape_sql_string(value: str) -> str:
+    def escape_sql_string(self, value: str) -> str:
         """Escape string for ClickHouse.
 
         ClickHouse by default treats backslash as an escape character.

@@ -88,4 +88,8 @@ class ClickHouseFunctionMixin:
         for, and this entry point writes the one spelling that carries the
         character answer.
         """
-        return self._format_scalar_function("lengthUTF8", expr)
+        operand_sql, operand_params = expr.operand.to_sql()
+        sql = f"lengthUTF8({operand_sql})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, tuple(operand_params)

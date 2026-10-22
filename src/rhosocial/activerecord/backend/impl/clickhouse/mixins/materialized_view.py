@@ -45,6 +45,15 @@ class ClickHouseMaterializedViewMixin:
         """ClickHouse supports incremental and refreshable materialized views."""
         return True
 
+
+    def supports_materialized_view_bind_parameters(self) -> bool:
+        """ClickHouse accepts bind parameters in a materialized view body.
+
+        Measured on 26.7.3: a materialized view whose definition binds is
+        accepted, because ClickHouse's "parameters" are interpolated
+        client-side and the value is baked into the stored definition.
+        """
+        return True
     def supports_refresh_materialized_view(self) -> bool:
         """Refreshable MVs are refreshed through ``SYSTEM REFRESH VIEW``."""
         return True
@@ -189,7 +198,7 @@ class ClickHouseMaterializedViewMixin:
 
         comment = getattr(expr, "comment", None)
         if comment is not None:
-            parts.append(f"COMMENT '{self._escape_sql_string(str(comment))}'")
+            parts.append(f"COMMENT '{self.escape_sql_string(str(comment))}'")
 
         return " ".join(parts), query_params
 
@@ -374,7 +383,10 @@ class ClickHouseMaterializedViewMixin:
             raise ValueError("CREATE MATERIALIZED VIEW requires a defining query")
         if isinstance(expr.query, str):
             return expr.query, ()
-        return expr.query.to_sql()
+        query_sql, query_params = expr.query.to_sql()
+        if query_params and not self.supports_materialized_view_bind_parameters():
+            self._refuse_ddl_bind_parameters("CREATE MATERIALIZED VIEW with bound parameters")
+        return query_sql, query_params
 
     def _reject_unsupported_clauses(
         self, expr: "CreateMaterializedViewStatement", feature: str

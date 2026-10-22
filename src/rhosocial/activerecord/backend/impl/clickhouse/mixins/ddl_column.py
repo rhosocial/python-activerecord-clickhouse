@@ -138,7 +138,7 @@ class ClickHouseDDLColumnMixin:
         if operation == "SET DEFAULT":
             new_value = action.new_value
             if isinstance(new_value, str):
-                escaped = self._escape_sql_string(new_value)
+                escaped = self.escape_sql_string(new_value)
                 return f"ALTER COLUMN {col_name} DEFAULT '{escaped}'", ()
             if isinstance(new_value, bool):
                 return f"ALTER COLUMN {col_name} DEFAULT {1 if new_value else 0}", ()

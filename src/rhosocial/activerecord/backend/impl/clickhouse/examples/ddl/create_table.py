@@ -21,7 +21,7 @@ from rhosocial.activerecord.backend.expression import (
     DropTableStatement,
     CreateTableStatement,
 )
-from rhosocial.activerecord.backend.expression.functions.datetime import current_timestamp
+from rhosocial.activerecord.backend.expression import functions as F
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
@@ -89,7 +89,7 @@ columns = [
         name="created_at",
         data_type="DateTime",
         constraints=[
-            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, current_timestamp(dialect))),
+            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
         ],
     ),
 ]
@@ -143,5 +143,5 @@ backend.disconnect()
 # 1. Use ColumnDefinition with ClickHouse column types (UInt32, String, etc.)
 # 2. ClickHouse table engines are supplied through the table-engine layer
 # 3. IndexDefinition creates inline indexes within CREATE TABLE
-# 4. Use current_timestamp(dialect) for SQL niladic functions (no parentheses)
+# 4. Use F.current_timestamp(dialect) for SQL niladic functions (no parentheses)
 # 5. Use introspector.get_columns() to verify table structure

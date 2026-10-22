@@ -147,11 +147,19 @@ class TestEnumAdapter:
 
 
 class TestTableMixin:
-    def test_validate_data_type(self):
-        assert ClickHouseTableMixin._validate_data_type("UInt32") is True
-        assert ClickHouseTableMixin._validate_data_type("Decimal(10, 2)") is True
-        assert ClickHouseTableMixin._validate_data_type("Enum8('a')") is True
-        assert ClickHouseTableMixin._validate_data_type("bad sql; DROP") is False
+    def test_a_type_name_is_a_name(self):
+        """ClickHouse has no character filter of its own: a name is a name.
+
+        The grammar is the framework's rule for what a name may be, and the
+        server decides whether the type exists.
+        """
+        from rhosocial.activerecord.backend.expression.type_name import (
+            is_valid_type_name,
+        )
+
+        assert is_valid_type_name("UInt32")
+        assert is_valid_type_name("Decimal(10, 2)")
+        assert not is_valid_type_name("bad sql; DROP")
 
     def test_supports_flags(self):
         m = ClickHouseTableMixin()

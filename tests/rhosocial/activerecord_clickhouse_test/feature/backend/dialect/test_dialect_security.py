@@ -59,18 +59,44 @@ def test_clickhouse_format_column_definition_comment_string_escaping(dialect):
     assert "Comment with ''single quote''" in sql
 
 
-def test_clickhouse_escape_sql_string(dialect):
-    """Test ClickHouse inherits _escape_sql_string."""
-    result = dialect._escape_sql_string("Table's comment")
+def test_clickhouseescape_sql_string(dialect):
+    """Test ClickHouse inherits escape_sql_string."""
+    result = dialect.escape_sql_string("Table's comment")
     assert result == "Table''s comment"
 
 
-def test_clickhouse_validate_data_type(dialect):
-    """Test ClickHouse inherits _validate_data_type."""
-    assert dialect._validate_data_type("VARCHAR(255)")
-    assert dialect._validate_data_type("INT")
-    assert dialect._validate_data_type("BIGINT")
-    assert not dialect._validate_data_type("INT; DROP TABLE users--")
+def test_clickhousea_type_position_refuses_a_payload(dialect):
+    """A type name is a name, and the grammar is what says so.
+
+    The backend has no character filter of its own any more: the type
+    position is guarded by the grammar, which is the framework's rule for
+    what a name may be, and the server decides whether the type exists.
+    """
+    from rhosocial.activerecord.backend.expression import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        AlterColumnAction,
+    )
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+    )
+    from rhosocial.activerecord.backend.expression.xml import (
+        XMLSerializeExpression,
+    )
+
+    # A name is a name: the position takes it.
+    XMLSerializeExpression(dialect, Literal(dialect, "x"), "TEXT")
+    AlterColumnAction(dialect, "c", "SET DATA TYPE", new_value="TEXT")
+
+    # A value that is not a name is refused, and refused before the
+    # statement is ever rendered.
+    with pytest.raises(InvalidTypeNameError):
+        XMLSerializeExpression(
+            dialect, Literal(dialect, "x"), "TEXT; DROP TABLE users--"
+        )
+    with pytest.raises(InvalidTypeNameError):
+        AlterColumnAction(
+            dialect, "c", "SET DATA TYPE", new_value="TEXT; DROP TABLE users--"
+        )
 
 
 def test_clickhouse_format_column_definition_data_type_validation(dialect):
@@ -170,22 +196,22 @@ def test_clickhouse_format_cast_expression_rejects_injection(dialect):
 
 
 class TestClickHouseEscapeSqlStringBackslash:
-    """Tests for ClickHouse _escape_sql_string with backslash escaping."""
+    """Tests for ClickHouse escape_sql_string with backslash escaping."""
 
-    def test_escape_sql_string_backslash_escaped(self, dialect):
+    def testescape_sql_string_backslash_escaped(self, dialect):
         """Test backslash is properly escaped in ClickHouse."""
-        result = dialect._escape_sql_string("test\\value")
+        result = dialect.escape_sql_string("test\\value")
         assert "\\\\" in result
 
-    def test_escape_sql_string_backslash_and_quote(self, dialect):
+    def testescape_sql_string_backslash_and_quote(self, dialect):
         """Test both backslash and single quote are escaped."""
-        result = dialect._escape_sql_string("test\\'value")
+        result = dialect.escape_sql_string("test\\'value")
         assert "\\\\" in result
         assert "''" in result
 
-    def test_escape_sql_string_preserves_others(self, dialect):
+    def testescape_sql_string_preserves_others(self, dialect):
         """Test other characters are preserved."""
-        result = dialect._escape_sql_string('test"double"value')
+        result = dialect.escape_sql_string('test"double"value')
         assert 'test"double"value' in result
 
 

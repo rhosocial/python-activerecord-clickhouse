@@ -60,7 +60,7 @@ class ClickHouseJSONFunctionMixin:
         else:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()
 
-        escaped_path = self._escape_sql_string(expr.path)
+        escaped_path = self.escape_sql_string(expr.path)
         is_simple = (
             expr.path.startswith("$")
             and "{" not in expr.path
@@ -72,14 +72,14 @@ class ClickHouseJSONFunctionMixin:
         if expr.operation == "->":
             if is_simple:
                 parts = [p for p in expr.path.lstrip("$.").split(".") if p]
-                args = "".join(f", '{self._escape_sql_string(p)}'" for p in parts)
+                args = "".join(f", '{self.escape_sql_string(p)}'" for p in parts)
                 sql = f"JSONExtractRaw({col_sql}{args})"
             else:
                 sql = f"JSON_VALUE({col_sql}, '{escaped_path}')"
         elif expr.operation == "->>":
             if is_simple:
                 parts = [p for p in expr.path.lstrip("$.").split(".") if p]
-                args = "".join(f", '{self._escape_sql_string(p)}'" for p in parts)
+                args = "".join(f", '{self.escape_sql_string(p)}'" for p in parts)
                 sql = f"JSONExtractString({col_sql}{args})"
             else:
                 sql = f"JSON_VALUE({col_sql}, '{escaped_path}')"
