@@ -22,7 +22,7 @@ Usage:
 
 from ..expression.show import (
     ShowExpression,
-    ShowCreateTableExpression,
+    ShowCreateTableStatement,
     ShowCreateViewExpression,
     ShowColumnsExpression,
     ShowIndexExpression,
@@ -49,7 +49,7 @@ from .backend_mixin import ClickHouseShowMixin, AsyncClickHouseShowMixin
 __all__ = [
     # Expression classes
     "ShowExpression",
-    "ShowCreateTableExpression",
+    "ShowCreateTableStatement",
     "ShowCreateViewExpression",
     "ShowColumnsExpression",
     "ShowIndexExpression",

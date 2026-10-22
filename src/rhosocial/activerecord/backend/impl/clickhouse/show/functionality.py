@@ -52,7 +52,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 from ..expression.show import (
     ShowColumnsExpression,
-    ShowCreateTableExpression,
+    ShowCreateTableStatement,
     ShowCreateViewExpression,
     ShowDatabasesExpression,
     ShowEnginesExpression,
@@ -334,7 +334,7 @@ class ClickHouseShowFunctionality:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = ShowCreateTableExpression(self.dialect, table, schema=schema)
+        expr = ShowCreateTableStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_table_result(result, table)

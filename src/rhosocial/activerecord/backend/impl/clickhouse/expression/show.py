@@ -63,7 +63,7 @@ class ShowExpression(BaseExpression):
         raise NotImplementedError("Subclasses must implement to_sql() method")
 
 
-class ShowCreateTableExpression(ShowExpression):
+class ShowCreateTableStatement(ShowExpression):
     """Expression for SHOW CREATE TABLE command."""
 
     def __init__(
