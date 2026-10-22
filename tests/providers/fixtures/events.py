@@ -33,13 +33,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import ClickHouse
 
 from . import _common
 
-# Standard ClickHouse table options.
-_DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "MergeTree",
-    "ORDER BY": "id",
-    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-}
-
 
 def to_sql(expr: CreateTableStatement):
     return _common.to_clickhouse_ddl_sql(expr)
@@ -69,7 +62,7 @@ def create_event_tests_table(dialect, table_name: str = "event_tests") -> Create
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -95,7 +88,7 @@ def create_event_tracking_models_table(dialect, table_name: str = "event_trackin
             ColumnDefinition(dialect, "last_viewed_at", ClickHouseDateTime64Type(dialect, precision=6),
                 constraints=[ColumnConstraint(dialect, branch=ColumnNullableConstraint(dialect))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 

@@ -20,9 +20,18 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ColumnPrimaryKeyConstraint,
 )
 
+from .ddl_table_engine import ClickHouseTableEngineMixin
 
-class ClickHouseTableMixin:
-    """ClickHouse table DDL implementation."""
+
+class ClickHouseTableMixin(ClickHouseTableEngineMixin):
+    """ClickHouse table DDL implementation.
+
+    The storage clause renderers (``ENGINE``, ``ORDER BY``, ``SETTINGS`` and
+    their nodes) are the tail of ``CREATE TABLE``, so they live in
+    :class:`ClickHouseTableEngineMixin` and this class inherits them: the
+    table DDL protocol describes one surface, and the conformance suite pairs
+    it with one mixin.
+    """
 
     def supports_create_table_like(self) -> bool:
         """ClickHouse expresses a structure copy with ``AS <source>``, not ``LIKE``.

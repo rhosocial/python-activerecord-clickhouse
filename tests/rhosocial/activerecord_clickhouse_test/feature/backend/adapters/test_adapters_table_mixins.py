@@ -168,13 +168,24 @@ class TestTableMixin:
         assert m.supports_storage_engine_option() is True
         assert m.supports_charset_option() is True
 
-    def test_format_storage_options(self, dialect):
-        from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-        # dialect exposes format_storage_options via MRO (ClickHouseTableMixin)
-        result, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()", "ORDER BY": "id"}))
-        assert "ENGINE = MergeTree()" in result
-        assert "ORDER BY id" in result
-        assert "'MergeTree()'" not in result
+    def test_storage_options_are_declared_as_nodes(self, dialect):
+        """One node renders one clause; the generic slot has no ClickHouse answer."""
+        from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+            ClickHouseEngineSpec,
+            ClickHouseStorageOptionKind,
+            ClickHouseTableStorageOption,
+        )
+
+        assert not hasattr(ClickHouseTableMixin, "format_storage_options")
+        clause = ClickHouseTableStorageOption(
+            dialect,
+            ClickHouseStorageOptionKind.ENGINE,
+            value=ClickHouseEngineSpec(dialect, "MergeTree"),
+        )
+        sql, params = dialect.format_clickhouse_table_storage_option(clause)
+        assert sql == "ENGINE = MergeTree"
+        assert params == ()
+        assert "'" not in sql
 
     def test_format_index_definition(self, dialect):
         from types import SimpleNamespace

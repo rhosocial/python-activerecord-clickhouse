@@ -26,6 +26,33 @@ _UUID = uuidlib.UUID("01234567-89ab-cdef-0123-456789abcdef")
 _UUID_TEXT = "01234567-89ab-cdef-0123-456789abcdef"
 
 
+def _table_options(dialect):
+    """The clause run these probes need: ``MergeTree`` sorted by ``id``."""
+    from rhosocial.activerecord.backend.expression import Column
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseCreateTableOptions,
+        ClickHouseEngineSpec,
+        ClickHouseStorageOptionKind,
+        ClickHouseTableStorageOption,
+    )
+
+    return ClickHouseCreateTableOptions(
+        dialect,
+        table_storage_options=[
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.ENGINE,
+                value=ClickHouseEngineSpec(dialect, "MergeTree"),
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.ORDER_BY,
+                value=[Column(dialect, "id")],
+            ),
+        ],
+    )
+
+
 class TestLiteralDefaultReadbacks:
     """CREATE TABLE with the literal as a DEFAULT, INSERT, read back, compare."""
 
@@ -69,7 +96,7 @@ class TestLiteralDefaultReadbacks:
                         ],
                     ),
                 ],
-                storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
+                table_options=_table_options(dialect),
             )
             sql, params = create.to_sql()
             assert params == ()
@@ -116,7 +143,7 @@ class TestLiteralDefaultReadbacks:
                         ],
                     ),
                 ],
-                storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
+                table_options=_table_options(dialect),
             )
             sql, params = create.to_sql()
             assert params == ()

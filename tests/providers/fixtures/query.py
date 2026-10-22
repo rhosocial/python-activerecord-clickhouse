@@ -48,13 +48,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 
 from . import _common
 
-# Standard ClickHouse table options.
-_DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "MergeTree",
-    "ORDER BY": "id",
-    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-}
-
 _CASCADE = ReferentialAction.CASCADE
 
 
@@ -90,7 +83,7 @@ def create_users_table(dialect, table_name: str = "users") -> CreateTableStateme
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -119,7 +112,7 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableStateme
         ],
         indexes=[IndexDefinition(dialect, name="idx_user_id", columns=["user_id"]),
                  IndexDefinition(dialect, name="idx_status", columns=["status"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -147,7 +140,7 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableS
         ],
         indexes=[IndexDefinition(dialect, name="idx_user_id", columns=["user_id"]),
                  IndexDefinition(dialect, name="idx_post_id", columns=["post_id"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -177,7 +170,7 @@ def create_orders_table(dialect, table_name: str = "orders") -> CreateTableState
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
         indexes=[IndexDefinition(dialect, name="idx_user_id", columns=["user_id"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -209,7 +202,7 @@ def create_order_items_table(dialect, table_name: str = "order_items") -> Create
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
         indexes=[IndexDefinition(dialect, name="idx_order_id", columns=["order_id"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -232,7 +225,7 @@ def create_profiles_table(dialect, table_name: str = "profiles") -> CreateTableS
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -263,7 +256,7 @@ def create_json_users_table(dialect, table_name: str = "json_users") -> CreateTa
             ColumnDefinition(dialect, "subscription", JsonType(dialect)),
             ColumnDefinition(dialect, "preferences", JsonType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -289,7 +282,7 @@ def create_nodes_table(dialect, table_name: str = "nodes") -> CreateTableStateme
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -310,7 +303,7 @@ def create_searchable_items_table(dialect, table_name: str = "searchable_items")
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -354,7 +347,7 @@ def create_extended_orders_table(dialect, table_name: str = "extended_orders") -
                  IndexDefinition(dialect, name="idx_status", columns=["status"]),
                  IndexDefinition(dialect, name="idx_priority", columns=["priority"]),
                  IndexDefinition(dialect, name="idx_region", columns=["region"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -385,7 +378,7 @@ def create_extended_order_items_table(dialect, table_name: str = "extended_order
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
         indexes=[IndexDefinition(dialect, name="idx_order_id", columns=["order_id"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 

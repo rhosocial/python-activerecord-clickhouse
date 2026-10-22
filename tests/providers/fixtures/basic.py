@@ -53,13 +53,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 
 from . import _common
 
-# Standard ClickHouse table options.
-_DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "MergeTree",
-    "ORDER BY": "id",
-    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-}
-
 
 def to_sql(expr: CreateTableStatement):
     """Route a CreateTableStatement through the canonical ClickHouse DDL post-processor."""
@@ -92,7 +85,7 @@ def create_users_table(dialect, table_name: str = "users") -> CreateTableStateme
             ColumnDefinition(dialect, "created_at", TextType(dialect)),
             ColumnDefinition(dialect, "updated_at", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -130,7 +123,7 @@ def create_type_cases_table(dialect, table_name: str = "type_cases") -> CreateTa
             ColumnDefinition(dialect, "array_val", TextType(dialect)),
             ColumnDefinition(dialect, "is_active", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -167,7 +160,7 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
             ColumnDefinition(dialect, "json_field", JsonType(dialect)),
             ColumnDefinition(dialect, "nullable_field", ClickHouseNullableType(dialect, inner_type=ClickHouseStringType(dialect))),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -200,7 +193,7 @@ def create_validated_field_users_table(dialect, table_name: str = "validated_fie
                 constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
                              ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -222,7 +215,7 @@ def create_validated_users_table(dialect, table_name: str = "validated_users") -
                 constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "age", ClickHouseNullableType(dialect, inner_type=IntegerType(dialect))),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -248,7 +241,7 @@ def create_pydantic_validated_models_table(dialect, table_name: str = "pydantic_
             ColumnDefinition(dialect, "normalized_name", VarCharType(dialect, length=50)),
             ColumnDefinition(dialect, "created_token", VarCharType(dialect, length=255)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -271,7 +264,7 @@ def create_bulk_users_table(dialect, table_name: str = "bulk_users") -> CreateTa
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=255),
                 constraints=[ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, ""))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -299,7 +292,7 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableStateme
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
         indexes=[IndexDefinition(dialect, name="idx_author", columns=["author"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -331,7 +324,7 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableS
             IndexDefinition(dialect, name="idx_post_ref", columns=["post_ref"]),
             IndexDefinition(dialect, name="idx_author", columns=["author"]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -353,7 +346,7 @@ def create_column_mapping_items_table(dialect, table_name: str = "column_mapping
                 constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "remarks", IntegerType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -376,7 +369,7 @@ def create_mixed_annotation_items_table(dialect, table_name: str = "mixed_annota
             ColumnDefinition(dialect, "description", TextType(dialect)),
             ColumnDefinition(dialect, "status", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -404,7 +397,7 @@ def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tes
             ColumnDefinition(dialect, "custom_bool", VarCharType(dialect, length=3)),
             ColumnDefinition(dialect, "optional_custom_bool", ClickHouseNullableType(dialect, inner_type=VarCharType(dialect, length=3))),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -432,11 +425,7 @@ def create_composite_pk_order_items_table(dialect, table_name: str = "order_item
             TableConstraint(dialect,
                 branch=TablePrimaryKeyConstraint(dialect, columns=["order_id", "product_id"])),
         ],
-        storage_options={
-            "ENGINE": "MergeTree",
-            "ORDER BY": ("order_id", "product_id"),
-            "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-        },
+        table_options=_common.default_table_options(dialect, order_by=("order_id", "product_id")),
     )
 
 
@@ -464,11 +453,7 @@ def create_store_inventory_table(dialect, table_name: str = "store_inventory") -
             TableConstraint(dialect,
                 branch=TablePrimaryKeyConstraint(dialect, columns=["store_id", "product_id", "batch_id"])),
         ],
-        storage_options={
-            "ENGINE": "MergeTree",
-            "ORDER BY": ("store_id", "product_id", "batch_id"),
-            "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-        },
+        table_options=_common.default_table_options(dialect, order_by=("store_id", "product_id", "batch_id")),
     )
 
 
@@ -489,7 +474,7 @@ def create_orders_table(dialect, table_name: str = "orders") -> CreateTableState
             ColumnDefinition(dialect, "created_at", TextType(dialect)),
             ColumnDefinition(dialect, "updated_at", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -512,7 +497,7 @@ def create_product_table(dialect, table_name: str = "product") -> CreateTableSta
             ColumnDefinition(dialect, "quantity", IntegerType(dialect),
                 constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 

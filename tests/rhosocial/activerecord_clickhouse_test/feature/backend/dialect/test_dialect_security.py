@@ -488,38 +488,103 @@ class TestClickHouseCreateTableCommentEscaping:
 
 
 # ============================================================
-# format_storage_options — ClickHouse native ENGINE / ORDER BY / TTL syntax
+# storage clauses — ClickHouse's ENGINE / ORDER BY / SETTINGS nodes
 # ============================================================
 
 
-def test_storage_options_normal_key_and_value(dialect):
-    """ClickHouse storage option key/value are joined with ' = ' and not quoted."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()"}))
-    assert "ENGINE = MergeTree()" in sql
+def _clause(dialect, option, value):
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseTableStorageOption,
+    )
+
+    return ClickHouseTableStorageOption(dialect, option, value=value)
 
 
-def test_storage_options_multiple_keys(dialect):
-    """Multiple storage options are space separated."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()", "ORDER BY": "id"}))
-    assert "ENGINE = MergeTree()" in sql
-    assert "ORDER BY id" in sql
+def test_storage_clause_engine_is_emitted_unquoted(dialect):
+    """An engine name is vocabulary, not a string: no quotes, no escaping."""
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseEngineSpec,
+        ClickHouseStorageOptionKind,
+    )
 
-
-def test_storage_options_int_value(dialect):
-    """Integer value is rendered without quotes."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"PARTITION_BY": 1000}))
-    assert "PARTITION BY 1000" in sql
-
-
-def test_storage_options_string_value_preserved(dialect):
-    """ClickHouse storage option values are NOT quoted (engine/expression names)."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()"}))
-    assert "ENGINE = MergeTree()" == sql
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.ENGINE,
+            ClickHouseEngineSpec(dialect, "MergeTree"),
+        )
+    )
+    assert sql == "ENGINE = MergeTree"
+    assert params == ()
     assert "'" not in sql
+
+
+def test_storage_clause_order_by_places_each_expression(dialect):
+    """A sort key is expression nodes; a single one is not parenthesised."""
+    from rhosocial.activerecord.backend.expression import Column
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseStorageOptionKind,
+    )
+
+    single = _clause(
+        dialect,
+        ClickHouseStorageOptionKind.ORDER_BY,
+        [Column(dialect, "id")],
+    )
+    assert dialect.format_clickhouse_table_storage_option(single) == ("ORDER BY `id`", ())
+
+    composite = _clause(
+        dialect,
+        ClickHouseStorageOptionKind.ORDER_BY,
+        [Column(dialect, "a"), Column(dialect, "b")],
+    )
+    assert dialect.format_clickhouse_table_storage_option(composite) == (
+        "ORDER BY (`a`, `b`)",
+        (),
+    )
+
+
+def test_storage_clause_setting_int_value_is_unquoted(dialect):
+    """An integer setting reaches the SQL as a number, not as text."""
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseSetting,
+        ClickHouseStorageOptionKind,
+    )
+
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.SETTINGS,
+            [ClickHouseSetting(dialect, "index_granularity", 8192)],
+        )
+    )
+    assert sql == "SETTINGS index_granularity = 8192"
+    assert params == ()
+
+
+def test_storage_clause_setting_string_value_is_a_literal(dialect):
+    """A string setting is formatted as a literal -- the caller's text is never pasted.
+
+    What holds for every other value in the tree holds here too: the caller
+    supplies data, the dialect decides how it is spelled. A quote in the value
+    is doubled by ``format_literal``, so it stays inside the literal instead of
+    ending it.
+    """
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseSetting,
+        ClickHouseStorageOptionKind,
+    )
+
+    payload = "x'; DROP TABLE users--"
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.SETTINGS,
+            [ClickHouseSetting(dialect, "storage_policy", payload)],
+        )
+    )
+    assert sql == "SETTINGS storage_policy = 'x''; DROP TABLE users--'"
+    assert sql.count("'") == 4
 
 
 # ============================================================

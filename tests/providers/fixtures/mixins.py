@@ -35,13 +35,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import ClickHouse
 
 from . import _common
 
-# Standard ClickHouse table options.
-_DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "MergeTree",
-    "ORDER BY": "id",
-    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-}
-
 
 def to_sql(expr: CreateTableStatement):
     return _common.to_clickhouse_ddl_sql(expr)
@@ -74,7 +67,7 @@ def create_combined_articles_table(dialect, table_name: str = "combined_articles
             ColumnDefinition(dialect, "deleted_at", ClickHouseDateTime64Type(dialect, precision=6),
                 constraints=[ColumnConstraint(dialect, branch=ColumnNullableConstraint(dialect))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -98,7 +91,7 @@ def create_tasks_table(dialect, table_name: str = "tasks") -> CreateTableStateme
             ColumnDefinition(dialect, "deleted_at", TextType(dialect),
                 constraints=[ColumnConstraint(dialect, branch=ColumnNullableConstraint(dialect))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -121,7 +114,7 @@ def create_timestamped_posts_table(dialect, table_name: str = "timestamped_posts
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -146,7 +139,7 @@ def create_versioned_products_table(dialect, table_name: str = "versioned_produc
                 constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
                              ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
