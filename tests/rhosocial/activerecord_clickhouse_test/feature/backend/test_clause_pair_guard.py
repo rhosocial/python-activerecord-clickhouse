@@ -100,7 +100,7 @@ from rhosocial.activerecord.backend.expression.statements.dql import (
 )
 from rhosocial.activerecord.backend.expression.transaction import (
     BeginTransactionStatement,
-    SetTransactionExpression,
+    SetTransactionStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
@@ -637,8 +637,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionStatement, SetTransactionExpression],
-        ids=["BeginTransactionStatement", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionStatement],
+        ids=["BeginTransactionStatement", "SetTransactionStatement"],
     )
     @pytest.mark.parametrize(
         "parameter,spelling", [("wait", "WAIT"), ("no_wait", "NO WAIT")]
@@ -655,8 +655,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionStatement, SetTransactionExpression],
-        ids=["BeginTransactionStatement", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionStatement],
+        ids=["BeginTransactionStatement", "SetTransactionStatement"],
     )
     def test_neither_spelling_still_refuses_the_whole_statement(
         self, expression_class
@@ -668,8 +668,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionStatement, SetTransactionExpression],
-        ids=["BeginTransactionStatement", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionStatement],
+        ids=["BeginTransactionStatement", "SetTransactionStatement"],
     )
     def test_both_spellings_are_api_misuse(self, expression_class):
         d = _dialect()
