@@ -32,6 +32,7 @@ from rhosocial.activerecord.backend.introspection.base import (
     SyncAbstractIntrospector,
     AsyncAbstractIntrospector,
 )
+from rhosocial.activerecord.backend.introspection.cache import IntrospectionCache
 from rhosocial.activerecord.backend.introspection.executor import (
     SyncIntrospectorExecutor,
     AsyncIntrospectorExecutor,
@@ -301,8 +302,13 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
         variables  = backend.introspector.show.variables(like="max_%")
     """
 
-    def __init__(self, backend: Any, executor: SyncIntrospectorExecutor) -> None:
-        super().__init__(backend, executor)
+    def __init__(
+        self,
+        backend: Any,
+        executor: SyncIntrospectorExecutor,
+        cache: Optional[IntrospectionCache] = None,
+    ) -> None:
+        super().__init__(backend, executor, cache)
         self._show_instance: Optional[SyncShowIntrospector] = None
         self._status_instance: Optional[SyncClickHouseStatusIntrospector] = None
 
@@ -325,8 +331,8 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
     # ------------------------------------------------------------------ #
 
     def get_table_info(self, table: str, schema: Optional[str] = None) -> Optional[IntrospectionTableInfo]:
-        key = self.make_cache_key(IntrospectionScope.TABLE, table, schema=schema)
-        cached = self.get_cached(key)
+        key = self._cache.key(IntrospectionScope.TABLE, table, schema=schema)
+        cached = self._cache.get(key)
         if cached is not None:
             return cached
 
@@ -340,7 +346,7 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
         info.indexes = self.list_indexes(table, schema)
         # ClickHouse has no foreign keys; keep the default empty list.
         info.foreign_keys = []
-        self.set_cached(key, info)
+        self._cache.set(key, info)
         return info
 
 
@@ -358,8 +364,13 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         variables  = await backend.introspector.show.variables(like="max_%")
     """
 
-    def __init__(self, backend: Any, executor: AsyncIntrospectorExecutor) -> None:
-        super().__init__(backend, executor)
+    def __init__(
+        self,
+        backend: Any,
+        executor: AsyncIntrospectorExecutor,
+        cache: Optional[IntrospectionCache] = None,
+    ) -> None:
+        super().__init__(backend, executor, cache)
         self._show_instance: Optional[AsyncShowIntrospector] = None
         self._status_instance: Optional[AsyncClickHouseStatusIntrospector] = None
 
@@ -382,8 +393,8 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     # ------------------------------------------------------------------ #
 
     async def get_table_info(self, table: str, schema: Optional[str] = None) -> Optional[IntrospectionTableInfo]:
-        key = self.make_cache_key(IntrospectionScope.TABLE, table, schema=schema)
-        cached = self.get_cached(key)
+        key = self._cache.key(IntrospectionScope.TABLE, table, schema=schema)
+        cached = self._cache.get(key)
         if cached is not None:
             return cached
 
@@ -396,5 +407,5 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         info.columns = await self.list_columns(table, schema)
         info.indexes = await self.list_indexes(table, schema)
         info.foreign_keys = await self.list_foreign_keys(table, schema)
-        self.set_cached(key, info)
+        self._cache.set(key, info)
         return info
