@@ -11,7 +11,7 @@ This module provides expression classes for ClickHouse spatial functions:
 - ClickHouseSTWithinExpression
 - ClickHouseSTContainsExpression
 - ClickHouseSpatialLiteralExpression
-- ClickHouseCreateSpatialIndexExpression
+- ClickHouseCreateSpatialIndexStatement
 """
 
 from typing import TYPE_CHECKING, Optional
@@ -51,7 +51,7 @@ class ClickHouseSpatialLiteralExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_spatial_literal"
+        return "format_spatial_literal_expression"
 
 
 class ClickHouseSTGeomFromTextExpression(AliasableMixin, SQLValue):
@@ -79,7 +79,7 @@ class ClickHouseSTGeomFromTextExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_geom_from_text"
+        return "format_st_geom_from_text_expression"
 
 
 class ClickHouseSTGeomFromWKBExpression(AliasableMixin, SQLValue):
@@ -107,7 +107,7 @@ class ClickHouseSTGeomFromWKBExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_geom_from_wkb"
+        return "format_st_geom_from_wkb_expression"
 
 
 class ClickHouseSTAsTextExpression(AliasableMixin, SQLValue):
@@ -133,7 +133,7 @@ class ClickHouseSTAsTextExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_as_text"
+        return "format_st_as_text_expression"
 
 
 class ClickHouseSTAsGeoJSONExpression(AliasableMixin, SQLValue):
@@ -159,7 +159,7 @@ class ClickHouseSTAsGeoJSONExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_as_geojson"
+        return "format_st_as_geo_json_expression"
 
 
 class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -187,7 +187,7 @@ class ClickHouseSTDistanceExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_distance"
+        return "format_st_distance_expression"
 
 
 class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -215,7 +215,7 @@ class ClickHouseSTWithinExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_within"
+        return "format_st_within_expression"
 
 
 class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -243,14 +243,14 @@ class ClickHouseSTContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_st_contains"
+        return "format_st_contains_expression"
 
 
-class ClickHouseCreateSpatialIndexExpression(SQLValue):
+class ClickHouseCreateSpatialIndexStatement(SQLValue):
     """ClickHouse CREATE SPATIAL INDEX expression.
 
     Example:
-        >>> expr = ClickHouseCreateSpatialIndexExpression(dialect, 'idx', 'table', 'column')
+        >>> expr = ClickHouseCreateSpatialIndexStatement(dialect, 'idx', 'table', 'column')
     """
 
     def __init__(
@@ -268,7 +268,7 @@ class ClickHouseCreateSpatialIndexExpression(SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_create_spatial_index"
+        return "format_create_spatial_index_statement"
 
 
 __all__ = [
@@ -280,5 +280,5 @@ __all__ = [
     "ClickHouseSTDistanceExpression",
     "ClickHouseSTWithinExpression",
     "ClickHouseSTContainsExpression",
-    "ClickHouseCreateSpatialIndexExpression",
+    "ClickHouseCreateSpatialIndexStatement",
 ]

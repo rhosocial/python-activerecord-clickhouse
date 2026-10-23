@@ -34,7 +34,7 @@ class ClickHouseMatchAgainstExpression(
 
     Generates MATCH(col1, col2, ...) AGAINST(search_string [IN mode]) syntax.
 
-    This dialect never renders it: ``ClickHouseFullTextSearchMixin.format_match_against``
+    This dialect never renders it: ``ClickHouseFullTextSearchMixin.format_match_against_expression``
     raises ``UnsupportedFeatureError``. ClickHouse has no ``MATCH ... AGAINST``
     and no ``FULLTEXT`` index type — declaring one answers ``Unknown Index type
     'fulltext'`` and lists what the server does have (``hypothesis, text,
@@ -84,7 +84,7 @@ class ClickHouseMatchAgainstExpression(
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_match_against"
+        return "format_match_against_expression"
 
 
 __all__ = [

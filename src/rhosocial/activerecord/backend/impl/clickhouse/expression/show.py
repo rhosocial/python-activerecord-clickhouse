@@ -77,10 +77,10 @@ class ShowCreateTableStatement(ShowExpression):
         self.table: str = table
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_table(self)
+        return self._dialect.format_show_create_table_statement(self)
 
 
-class ShowCreateViewExpression(ShowExpression):
+class ShowCreateViewStatement(ShowExpression):
     """Expression for SHOW CREATE VIEW command."""
 
     def __init__(
@@ -94,10 +94,10 @@ class ShowCreateViewExpression(ShowExpression):
         self.view_name: str = view_name
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_view(self)
+        return self._dialect.format_show_create_view_statement(self)
 
 
-class ShowColumnsExpression(ShowExpression):
+class ShowColumnsStatement(ShowExpression):
     """Expression for SHOW [FULL] COLUMNS command.
 
     ClickHouse has this statement; the table is mandatory (bare ``SHOW COLUMNS``
@@ -120,10 +120,10 @@ class ShowColumnsExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_columns(self)
+        return self._dialect.format_show_columns_statement(self)
 
 
-class ShowIndexExpression(ShowExpression):
+class ShowIndexStatement(ShowExpression):
     """Expression for SHOW INDEX command.
 
     ClickHouse has this statement "mostly for compatibility with MySQL". As with
@@ -141,10 +141,10 @@ class ShowIndexExpression(ShowExpression):
         self.table: str = table
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_index(self)
+        return self._dialect.format_show_index_statement(self)
 
 
-class ShowTablesExpression(ShowExpression):
+class ShowTablesStatement(ShowExpression):
     """Expression for SHOW [FULL] TABLES command."""
 
     def __init__(
@@ -160,10 +160,10 @@ class ShowTablesExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_tables(self)
+        return self._dialect.format_show_tables_statement(self)
 
 
-class ShowDatabasesExpression(ShowExpression):
+class ShowDatabasesStatement(ShowExpression):
     """Expression for SHOW DATABASES command."""
 
     def __init__(
@@ -176,10 +176,10 @@ class ShowDatabasesExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_databases(self)
+        return self._dialect.format_show_databases_statement(self)
 
 
-class ShowTableStatusExpression(ShowExpression):
+class ShowTableStatusStatement(ShowExpression):
     """Expression for SHOW TABLE STATUS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -196,10 +196,10 @@ class ShowTableStatusExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_table_status(self)
+        return self._dialect.format_show_table_status_statement(self)
 
 
-class ShowTriggersExpression(ShowExpression):
+class ShowTriggersStatement(ShowExpression):
     """Expression for SHOW TRIGGERS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -216,10 +216,10 @@ class ShowTriggersExpression(ShowExpression):
         self.table: Optional[str] = table
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_triggers(self)
+        return self._dialect.format_show_triggers_statement(self)
 
 
-class ShowCreateTriggerExpression(ShowExpression):
+class ShowCreateTriggerStatement(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -236,10 +236,10 @@ class ShowCreateTriggerExpression(ShowExpression):
         self.trigger: str = trigger
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_trigger(self)
+        return self._dialect.format_show_create_trigger_statement(self)
 
 
-class ShowVariablesExpression(ShowExpression):
+class ShowVariablesStatement(ShowExpression):
     """Expression for SHOW VARIABLES command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -258,10 +258,10 @@ class ShowVariablesExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_variables(self)
+        return self._dialect.format_show_variables_statement(self)
 
 
-class ShowStatusExpression(ShowExpression):
+class ShowStatusStatement(ShowExpression):
     """Expression for SHOW STATUS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -280,10 +280,10 @@ class ShowStatusExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_status(self)
+        return self._dialect.format_show_status_statement(self)
 
 
-class ShowProcessListExpression(ShowExpression):
+class ShowProcessListStatement(ShowExpression):
     """Expression for SHOW PROCESSLIST command.
 
     ClickHouse has this statement; it is ``SELECT * FROM system.processes``.
@@ -302,10 +302,10 @@ class ShowProcessListExpression(ShowExpression):
         self.full: bool = full
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_processlist(self)
+        return self._dialect.format_show_process_list_statement(self)
 
 
-class ShowWarningsExpression(ShowExpression):
+class ShowWarningsStatement(ShowExpression):
     """Expression for SHOW WARNINGS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -321,10 +321,10 @@ class ShowWarningsExpression(ShowExpression):
         self.limit: Optional[int] = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_warnings(self)
+        return self._dialect.format_show_warnings_statement(self)
 
 
-class ShowErrorsExpression(ShowExpression):
+class ShowErrorsStatement(ShowExpression):
     """Expression for SHOW ERRORS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -340,20 +340,20 @@ class ShowErrorsExpression(ShowExpression):
         self.limit: Optional[int] = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_errors(self)
+        return self._dialect.format_show_errors_statement(self)
 
 
-class ShowEnginesExpression(ShowExpression):
+class ShowEnginesStatement(ShowExpression):
     """Expression for SHOW ENGINES command.
 
     ClickHouse has this statement; it is ``SELECT * FROM system.table_engines``.
     """
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_engines(self)
+        return self._dialect.format_show_engines_statement(self)
 
 
-class ShowCharsetExpression(ShowExpression):
+class ShowCharsetStatement(ShowExpression):
     """Expression for SHOW CHARACTER SET command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -369,10 +369,10 @@ class ShowCharsetExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_charset(self)
+        return self._dialect.format_show_charset_statement(self)
 
 
-class ShowCollationExpression(ShowExpression):
+class ShowCollationStatement(ShowExpression):
     """Expression for SHOW COLLATION command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
@@ -388,10 +388,10 @@ class ShowCollationExpression(ShowExpression):
         self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_collation(self)
+        return self._dialect.format_show_collation_statement(self)
 
 
-class ShowGrantsExpression(ShowExpression):
+class ShowGrantsStatement(ShowExpression):
     """Expression for SHOW GRANTS command.
 
     ClickHouse has this statement. Its ``FOR`` clause takes access-entity names
@@ -413,14 +413,14 @@ class ShowGrantsExpression(ShowExpression):
         self.host: Optional[str] = host
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_grants(self)
+        return self._dialect.format_show_grants_statement(self)
 
 
-class ShowPluginsExpression(ShowExpression):
+class ShowPluginsStatement(ShowExpression):
     """Expression for SHOW PLUGINS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_plugins(self)
+        return self._dialect.format_show_plugins_statement(self)

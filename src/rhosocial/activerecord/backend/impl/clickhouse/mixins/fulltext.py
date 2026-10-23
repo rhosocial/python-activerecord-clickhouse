@@ -36,7 +36,7 @@ class ClickHouseFullTextSearchMixin:
             "hasAllTokens / hasAnyTokens. tokenbf_v1 still works but is deprecated from 26.2.",
         )
 
-    def format_match_against(self, expr) -> Tuple[str, tuple]:
+    def format_match_against_expression(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "MATCH ... AGAINST",
             suggestion="ClickHouse does not support MATCH ... AGAINST; use a text inverted index "

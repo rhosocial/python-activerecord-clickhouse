@@ -22,12 +22,12 @@ No database is involved; a dialect instance is the only input.
 import pytest
 
 from rhosocial.activerecord.backend.expression.introspection import (
-    ColumnInfoExpression,
-    DatabaseInfoExpression,
-    IndexInfoExpression,
-    TableListExpression,
-    ViewInfoExpression,
-    ViewListExpression,
+    ColumnInfoQueryStatement,
+    DatabaseInfoQueryStatement,
+    IndexInfoQueryStatement,
+    TableListQueryStatement,
+    ViewInfoQueryStatement,
+    ViewListQueryStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
@@ -49,14 +49,14 @@ class TestIntrospectionQueriesAreTrees:
     """Each ``format_*_query`` builds a statement and hands it to the dialect."""
 
     def test_database_info_reads_system_databases_by_name(self, dialect):
-        sql, params = DatabaseInfoExpression(dialect, schema="analytics").to_sql()
+        sql, params = DatabaseInfoQueryStatement(dialect, schema="analytics").to_sql()
         assert "FROM `system`.`databases`" in sql
         assert "`engine` AS `DEFAULT_CHARACTER_SET_NAME`" in sql
         assert "CAST('' AS String) AS `DEFAULT_COLLATION_NAME`" in sql
         assert params == ("analytics",)
 
     def test_table_list_keeps_the_projection_order_and_aliases(self, dialect):
-        sql, params = TableListExpression(dialect, schema="default").to_sql()
+        sql, params = TableListQueryStatement(dialect, schema="default").to_sql()
         assert sql.index("`name` AS `TABLE_NAME`") < sql.index("`engine` AS `TABLE_TYPE`")
         assert sql.index("`engine` AS `TABLE_TYPE`") < sql.index("`comment` AS `TABLE_COMMENT`")
         assert sql.index("`metadata_modification_time` AS `MODIFICATION_TIME`") > sql.index(
@@ -65,7 +65,7 @@ class TestIntrospectionQueriesAreTrees:
         assert params == ("default",)
 
     def test_table_list_excludes_views_with_the_declared_engine_set(self, dialect):
-        sql, params = TableListExpression(
+        sql, params = TableListQueryStatement(
             dialect, schema="default", include_views=False
         ).to_sql()
         assert "NOT (`engine` IN (" in sql
@@ -79,12 +79,12 @@ class TestIntrospectionQueriesAreTrees:
 
     def test_table_list_excludes_the_system_database_inline(self, dialect):
         """``'system'`` is a fixed word of the query, so it never becomes a parameter."""
-        sql, params = TableListExpression(dialect, schema="default").to_sql()
+        sql, params = TableListQueryStatement(dialect, schema="default").to_sql()
         assert "`database` <> 'system'" in sql
         assert "system" not in params
 
     def test_column_info_derives_nullability_from_the_type_name(self, dialect):
-        sql, params = ColumnInfoExpression(dialect, "users", schema="default").to_sql()
+        sql, params = ColumnInfoQueryStatement(dialect, "users", schema="default").to_sql()
         # Doubled `%`: this statement bypasses Backend.execute, so it bypasses
         # the escape that adds the second `%` for the driver's interpolation.
         assert "IF(`type` LIKE 'Nullable(%%', 'YES', 'NO') AS `IS_NULLABLE`" in sql
@@ -92,7 +92,7 @@ class TestIntrospectionQueriesAreTrees:
         assert sql.endswith("ORDER BY `position`")
 
     def test_index_info_reports_clickhouses_own_columns(self, dialect):
-        sql, params = IndexInfoExpression(dialect, "users", schema="default").to_sql()
+        sql, params = IndexInfoQueryStatement(dialect, "users", schema="default").to_sql()
         assert "FROM `system`.`data_skipping_indices`" in sql
         assert "CAST(NULL AS Nullable(String)) AS `SUB_PART`" in sql
         assert params == ("default", "users")
@@ -100,7 +100,7 @@ class TestIntrospectionQueriesAreTrees:
     def test_view_list_binds_the_engine_set_and_inlines_the_system_exclusion(
         self, dialect
     ):
-        sql, params = ViewListExpression(dialect, schema="default").to_sql()
+        sql, params = ViewListQueryStatement(dialect, schema="default").to_sql()
         assert "`engine` IN (" in sql
         assert "`database` <> 'system'" in sql
         assert params == (
@@ -112,7 +112,7 @@ class TestIntrospectionQueriesAreTrees:
         )
 
     def test_view_info_filters_by_name_then_engine(self, dialect):
-        sql, params = ViewInfoExpression(dialect, "v", schema="default").to_sql()
+        sql, params = ViewInfoQueryStatement(dialect, "v", schema="default").to_sql()
         assert "`name` = %s" in sql
         assert params == ("default", "v", "View", "MaterializedView", "LiveView", "WindowView")
 

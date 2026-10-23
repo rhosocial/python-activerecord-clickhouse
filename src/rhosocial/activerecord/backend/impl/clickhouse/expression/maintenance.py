@@ -73,7 +73,7 @@ class RepairTableOption(str, Enum):
     USE_FRM = "USE_FRM"
 
 
-class ClickHouseTableMaintenanceExpression(BaseExpression):
+class ClickHouseTableMaintenanceStatement(BaseExpression):
     """Base class for whole-table maintenance statements.
 
     Attributes:
@@ -132,13 +132,13 @@ class ClickHouseTableMaintenanceExpression(BaseExpression):
         return "format_table_maintenance_statement"
 
 
-class ClickHouseAnalyzeTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseAnalyzeTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``ANALYZE TABLE``."""
 
     operation: str = "ANALYZE"
 
 
-class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``CHECK TABLE`` with optional modes."""
 
     operation: str = "CHECK"
@@ -160,7 +160,7 @@ class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceExpression):
         ]
 
 
-class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``CHECKSUM TABLE`` with optional mode."""
 
     operation: str = "CHECKSUM"
@@ -182,13 +182,13 @@ class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
         )
 
 
-class ClickHouseOptimizeTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseOptimizeTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``OPTIMIZE TABLE``."""
 
     operation: str = "OPTIMIZE"
 
 
-class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``REPAIR TABLE`` with optional modes."""
 
     operation: str = "REPAIR"

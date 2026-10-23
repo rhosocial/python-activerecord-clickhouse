@@ -13,7 +13,7 @@ if TYPE_CHECKING:  # pragma: no cover
         OnConflictClause,
     )
     from rhosocial.activerecord.backend.impl.clickhouse.expression.load_data import (
-        ClickHouseLoadDataExpression,
+        ClickHouseLoadDataStatement,
     )
 
 
@@ -54,14 +54,14 @@ class ClickHouseDMLOperationSupport(Protocol):
         """
         ...
 
-    def format_load_data_statement(self, expr: "ClickHouseLoadDataExpression") -> Tuple[str, tuple]:
+    def format_load_data_statement(self, expr: "ClickHouseLoadDataStatement") -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
 
         Raises:
             UnsupportedFeatureError: ClickHouse does not support LOAD DATA INFILE.
 
         Args:
-            expr: ClickHouseLoadDataExpression instance
+            expr: ClickHouseLoadDataStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

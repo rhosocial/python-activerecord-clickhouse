@@ -94,7 +94,7 @@ class HandlerReadMode(str, Enum):
     LAST = "LAST"
 
 
-class ClickHouseFlushExpression(BaseExpression):
+class ClickHouseFlushStatement(BaseExpression):
     """Represent ``FLUSH`` with one or more options."""
 
     def __init__(
@@ -123,7 +123,7 @@ class ClickHouseFlushExpression(BaseExpression):
         return "format_flush_statement"
 
 
-class ClickHouseResetExpression(BaseExpression):
+class ClickHouseResetStatement(BaseExpression):
     """Represent ``RESET`` with one option."""
 
     def __init__(
@@ -139,7 +139,7 @@ class ClickHouseResetExpression(BaseExpression):
         return "format_reset_statement"
 
 
-class ClickHouseCacheIndexExpression(BaseExpression):
+class ClickHouseCacheIndexStatement(BaseExpression):
     """Represent ``CACHE INDEX ... IN key_cache``."""
 
     def __init__(
@@ -158,7 +158,7 @@ class ClickHouseCacheIndexExpression(BaseExpression):
         return "format_cache_index_statement"
 
 
-class ClickHouseLoadIndexIntoCacheExpression(BaseExpression):
+class ClickHouseLoadIndexIntoCacheStatement(BaseExpression):
     """Represent ``LOAD INDEX INTO CACHE``."""
 
     def __init__(
@@ -174,7 +174,7 @@ class ClickHouseLoadIndexIntoCacheExpression(BaseExpression):
         return "format_load_index_into_cache_statement"
 
 
-class ClickHouseInstallComponentExpression(BaseExpression):
+class ClickHouseInstallComponentStatement(BaseExpression):
     """Represent ``INSTALL COMPONENT 'name' [, 'name' ...]``."""
 
     def __init__(
@@ -190,7 +190,7 @@ class ClickHouseInstallComponentExpression(BaseExpression):
         return "format_install_component_statement"
 
 
-class ClickHouseUninstallComponentExpression(BaseExpression):
+class ClickHouseUninstallComponentStatement(BaseExpression):
     """Represent ``UNINSTALL COMPONENT 'name' [, 'name' ...]``."""
 
     def __init__(
@@ -206,7 +206,7 @@ class ClickHouseUninstallComponentExpression(BaseExpression):
         return "format_uninstall_component_statement"
 
 
-class ClickHouseInstallPluginExpression(BaseExpression):
+class ClickHouseInstallPluginStatement(BaseExpression):
     """Represent ``INSTALL PLUGIN name SONAME 'library.so'``."""
 
     def __init__(
@@ -224,7 +224,7 @@ class ClickHouseInstallPluginExpression(BaseExpression):
         return "format_install_plugin_statement"
 
 
-class ClickHouseUninstallPluginExpression(BaseExpression):
+class ClickHouseUninstallPluginStatement(BaseExpression):
     """Represent ``UNINSTALL PLUGIN name``."""
 
     def __init__(
@@ -240,7 +240,7 @@ class ClickHouseUninstallPluginExpression(BaseExpression):
         return "format_uninstall_plugin_statement"
 
 
-class ClickHouseCloneExpression(BaseExpression):
+class ClickHouseCloneStatement(BaseExpression):
     """Represent ``CLONE INSTANCE FROM ...``.
 
     Attributes:
@@ -274,7 +274,7 @@ class ClickHouseCloneExpression(BaseExpression):
         return "format_clone_statement"
 
 
-class ClickHouseRestartExpression(BaseExpression):
+class ClickHouseRestartStatement(BaseExpression):
     """Represent the ``RESTART`` server statement."""
 
     def __init__(
@@ -288,7 +288,7 @@ class ClickHouseRestartExpression(BaseExpression):
         return "format_restart_statement"
 
 
-class ClickHouseBinlogExpression(BaseExpression):
+class ClickHouseBinlogStatement(BaseExpression):
     """Represent ``BINLOG 'base64_encoded_event'``."""
 
     def __init__(
@@ -304,7 +304,7 @@ class ClickHouseBinlogExpression(BaseExpression):
         return "format_binlog_statement"
 
 
-class ClickHouseHandlerOpenExpression(BaseExpression):
+class ClickHouseHandlerOpenStatement(BaseExpression):
     """Represent ``HANDLER table OPEN [AS alias]``."""
 
     def __init__(
@@ -322,7 +322,7 @@ class ClickHouseHandlerOpenExpression(BaseExpression):
         return "format_handler_open_statement"
 
 
-class ClickHouseHandlerReadExpression(BaseExpression):
+class ClickHouseHandlerReadStatement(BaseExpression):
     """Represent ``HANDLER table READ {FIRST | NEXT}`` and variants."""
 
     def __init__(
@@ -349,7 +349,7 @@ class ClickHouseHandlerReadExpression(BaseExpression):
         return "format_handler_read_statement"
 
 
-class ClickHouseHandlerCloseExpression(BaseExpression):
+class ClickHouseHandlerCloseStatement(BaseExpression):
     """Represent ``HANDLER table CLOSE``."""
 
     def __init__(
@@ -365,7 +365,7 @@ class ClickHouseHandlerCloseExpression(BaseExpression):
         return "format_handler_close_statement"
 
 
-class ClickHouseDoExpression(BaseExpression):
+class ClickHouseDoStatement(BaseExpression):
     """Represent ``DO expr [, expr ...]``."""
 
     def __init__(
@@ -381,7 +381,7 @@ class ClickHouseDoExpression(BaseExpression):
         return "format_do_statement"
 
 
-class ClickHouseKillExpression(BaseExpression):
+class ClickHouseKillStatement(BaseExpression):
     """Represent ``KILL [CONNECTION | QUERY] processlist_id``."""
 
     def __init__(
@@ -399,7 +399,7 @@ class ClickHouseKillExpression(BaseExpression):
         return "format_kill_statement"
 
 
-class ClickHouseShutdownExpression(BaseExpression):
+class ClickHouseShutdownStatement(BaseExpression):
     """Represent the ``SHUTDOWN`` statement."""
 
     def __init__(
@@ -413,7 +413,7 @@ class ClickHouseShutdownExpression(BaseExpression):
         return "format_shutdown_statement"
 
 
-class ClickHouseHelpExpression(BaseExpression):
+class ClickHouseHelpStatement(BaseExpression):
     """Represent ``HELP 'topic'``."""
 
     def __init__(
@@ -440,7 +440,7 @@ class AccountSpec:
         return f"AccountSpec(user={self.user!r}, host={self.host!r})"
 
 
-class ClickHouseCreateUserExpression(BaseExpression):
+class ClickHouseCreateUserStatement(BaseExpression):
     """Represent ``CREATE USER [IF NOT EXISTS] 'user'@'host' [IDENTIFIED BY ...]``."""
 
     def __init__(
@@ -461,7 +461,7 @@ class ClickHouseCreateUserExpression(BaseExpression):
         return "format_create_user_statement"
 
 
-class ClickHouseDropUserExpression(BaseExpression):
+class ClickHouseDropUserStatement(BaseExpression):
     """Represent ``DROP USER [IF EXISTS] 'user'@'host' [, ...]``."""
 
     def __init__(
@@ -496,7 +496,7 @@ class GrantPrivilege:
         return f"GrantPrivilege(privilege={self.privilege!r}, columns={self.columns!r})"
 
 
-class ClickHouseGrantExpression(BaseExpression):
+class ClickHouseGrantStatement(BaseExpression):
     """Represent ``GRANT priv_list ON object TO account_list``."""
 
     def __init__(
@@ -519,7 +519,7 @@ class ClickHouseGrantExpression(BaseExpression):
         return "format_grant_statement"
 
 
-class ClickHouseRevokeExpression(BaseExpression):
+class ClickHouseRevokeStatement(BaseExpression):
     """Represent ``REVOKE priv_list ON object FROM account_list``."""
 
     def __init__(

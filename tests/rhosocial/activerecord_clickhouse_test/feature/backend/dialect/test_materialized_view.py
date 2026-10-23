@@ -30,10 +30,10 @@ from rhosocial.activerecord.backend.expression.statements.ddl_view import (
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.materialized_view import (
-    ClickHouseCreateMaterializedViewExpression,
-    ClickHouseDropMaterializedViewExpression,
-    ClickHouseModifyMaterializedViewRefreshExpression,
-    ClickHouseRefreshMaterializedViewExpression,
+    ClickHouseCreateMaterializedViewStatement,
+    ClickHouseDropMaterializedViewStatement,
+    ClickHouseModifyMaterializedViewRefreshStatement,
+    ClickHouseRefreshMaterializedViewStatement,
     ClickHouseRefreshSchedule,
 )
 
@@ -75,7 +75,7 @@ class TestCapabilities:
 class TestIncrementalMaterializedView:
     def test_engine_form(self, dialect):
         """Without TO an ENGINE is mandatory — that is ClickHouse's rule."""
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv_agg"), QUERY, engine="MergeTree ORDER BY grp"
         )
         sql, params = expr.to_sql()
@@ -87,13 +87,13 @@ class TestIncrementalMaterializedView:
         assert params == ()
 
     def test_to_table_form(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv_to"), QUERY, to_table=Table(dialect, "target_table")
         )
         assert "TO `target_table`" in expr.to_sql()[0]
 
     def test_to_table_with_columns(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv_to"),
             QUERY,
@@ -103,13 +103,13 @@ class TestIncrementalMaterializedView:
         assert "TO `target` (grp, s)" in expr.to_sql()[0]
 
     def test_populate(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv"), QUERY, to_table=Table(dialect, "target"), populate=True
         )
         assert "POPULATE" in expr.to_sql()[0]
 
     def test_database_qualified(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv_agg", catalog_name="analytics"),
             QUERY,
@@ -124,7 +124,7 @@ class TestIncrementalMaterializedView:
         table of the same name in a different database -- silently, because the
         SQL stayed well-formed.
         """
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv", catalog_name="analytics"),
             QUERY,
@@ -136,7 +136,7 @@ class TestIncrementalMaterializedView:
 
     def test_to_target_may_lack_a_database(self, dialect):
         """A target with no catalog_name falls back to the connection default."""
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv", catalog_name="analytics"),
             QUERY,
@@ -145,7 +145,7 @@ class TestIncrementalMaterializedView:
         assert "TO `rollup`" in expr.to_sql()[0]
 
     def test_on_cluster_and_comment(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -159,18 +159,18 @@ class TestIncrementalMaterializedView:
         assert "COMMENT 'nightly rollup'" in sql
 
     def test_or_replace_and_if_not_exists(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv"), QUERY, to_table=Table(dialect, "t"), or_replace=True
         )
         assert expr.to_sql()[0].startswith("CREATE OR REPLACE MATERIALIZED VIEW")
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv"), QUERY, to_table=Table(dialect, "t"), if_not_exists=True
         )
         assert "IF NOT EXISTS" in expr.to_sql()[0]
 
     def test_or_replace_and_if_not_exists_are_exclusive(self, dialect):
         with pytest.raises(ValueError, match="OR REPLACE"):
-            ClickHouseCreateMaterializedViewExpression(
+            ClickHouseCreateMaterializedViewStatement(
                 dialect,
                 MaterializedView(dialect, "mv"),
                 QUERY,
@@ -182,21 +182,21 @@ class TestIncrementalMaterializedView:
     def test_engine_or_to_is_mandatory(self, dialect):
         """The server rejects a materialized view with neither."""
         with pytest.raises(ValueError, match="TO target table or an"):
-            ClickHouseCreateMaterializedViewExpression(dialect, MaterializedView(dialect, "mv"), QUERY)
+            ClickHouseCreateMaterializedViewStatement(dialect, MaterializedView(dialect, "mv"), QUERY)
 
     def test_bare_string_view_is_rejected(self, dialect):
         """A string cannot say which object it names, nor which database."""
         with pytest.raises(TypeError, match="MaterializedView object"):
-            ClickHouseCreateMaterializedViewExpression(dialect, "mv", QUERY, engine="E")
+            ClickHouseCreateMaterializedViewStatement(dialect, "mv", QUERY, engine="E")
 
     def test_bare_string_target_is_rejected(self, dialect):
         with pytest.raises(TypeError, match="Table object"):
-            ClickHouseCreateMaterializedViewExpression(
+            ClickHouseCreateMaterializedViewStatement(
                 dialect, MaterializedView(dialect, "mv"), QUERY, to_table="target"
             )
 
     def test_clause_order(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -212,7 +212,7 @@ class TestIncrementalMaterializedView:
         assert sql.index(" AS ") < sql.index("COMMENT")
 
     def test_expression_query_accepted(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv"), _generic_query(dialect), to_table=Table(dialect, "t")
         )
         sql, _ = expr.to_sql()
@@ -221,7 +221,7 @@ class TestIncrementalMaterializedView:
 
 class TestRefreshableMaterializedView:
     def test_every(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -233,7 +233,7 @@ class TestRefreshableMaterializedView:
         assert expr.is_refreshable is True
 
     def test_every_with_offset(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -243,7 +243,7 @@ class TestRefreshableMaterializedView:
         assert "REFRESH EVERY 1 MONTH OFFSET 5 DAY 2 HOUR" in expr.to_sql()[0]
 
     def test_after(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -253,7 +253,7 @@ class TestRefreshableMaterializedView:
         assert "REFRESH AFTER 30 MINUTE" in expr.to_sql()[0]
 
     def test_randomize_for_and_settings(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -267,7 +267,7 @@ class TestRefreshableMaterializedView:
         assert "SETTINGS refresh_retries = 5" in sql
 
     def test_depends_on(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -277,7 +277,7 @@ class TestRefreshableMaterializedView:
         assert "DEPENDS ON `upstream_mv`" in expr.to_sql()[0]
 
     def test_depends_on_keeps_each_own_database(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -299,12 +299,12 @@ class TestRefreshableMaterializedView:
 
     def test_append_and_append_incremental(self, dialect):
         base = dict(dialect=dialect, view=MaterializedView(dialect, "mv"), query=QUERY, to_table=Table(dialect, "t"))
-        append = ClickHouseCreateMaterializedViewExpression(
+        append = ClickHouseCreateMaterializedViewStatement(
             **base, refresh=ClickHouseRefreshSchedule(dialect, every="1 HOUR", append=True)
         )
         assert "APPEND" in append.to_sql()[0]
         assert "APPEND INCREMENTAL" not in append.to_sql()[0]
-        incremental = ClickHouseCreateMaterializedViewExpression(
+        incremental = ClickHouseCreateMaterializedViewStatement(
             **base,
             refresh=ClickHouseRefreshSchedule(dialect, 
                 every="1 HOUR", append=True, incremental=True
@@ -313,7 +313,7 @@ class TestRefreshableMaterializedView:
         assert "APPEND INCREMENTAL" in incremental.to_sql()[0]
 
     def test_empty_skips_first_refresh(self, dialect):
-        expr = ClickHouseCreateMaterializedViewExpression(
+        expr = ClickHouseCreateMaterializedViewStatement(
             dialect,
             MaterializedView(dialect, "mv"),
             QUERY,
@@ -326,7 +326,7 @@ class TestRefreshableMaterializedView:
     def test_bare_refresh_rejected(self, dialect):
         """The server rejects REFRESH without EVERY/AFTER/DEPENDS ON."""
         with pytest.raises(ValueError, match="at least one of EVERY"):
-            ClickHouseCreateMaterializedViewExpression(
+            ClickHouseCreateMaterializedViewStatement(
                 dialect,
                 MaterializedView(dialect, "mv"),
                 QUERY,
@@ -345,7 +345,7 @@ class TestRefreshableMaterializedView:
     def test_populate_conflicts_with_refresh(self, dialect):
         """POPULATE and REFRESH are mutually exclusive per the docs."""
         with pytest.raises(ValueError, match="POPULATE cannot be combined"):
-            ClickHouseCreateMaterializedViewExpression(
+            ClickHouseCreateMaterializedViewStatement(
                 dialect,
                 MaterializedView(dialect, "mv"),
                 QUERY,
@@ -356,7 +356,7 @@ class TestRefreshableMaterializedView:
 
     def test_empty_requires_refresh(self, dialect):
         with pytest.raises(ValueError, match="EMPTY is only meaningful"):
-            ClickHouseCreateMaterializedViewExpression(
+            ClickHouseCreateMaterializedViewStatement(
                 dialect, MaterializedView(dialect, "mv"), QUERY, to_table=Table(dialect, "t"), empty=True
             )
 
@@ -364,7 +364,7 @@ class TestRefreshableMaterializedView:
 class TestRefreshAndDrop:
     def test_drop_uses_drop_view(self, dialect):
         """ClickHouse removes materialized views with DROP VIEW."""
-        expr = ClickHouseDropMaterializedViewExpression(dialect, MaterializedView(dialect, "mv_agg"))
+        expr = ClickHouseDropMaterializedViewStatement(dialect, MaterializedView(dialect, "mv_agg"))
         assert expr.to_sql()[0] == "DROP VIEW IF EXISTS `mv_agg`"
 
     def test_drop_keyword_follows_the_object_kind(self, dialect):
@@ -374,27 +374,27 @@ class TestRefreshAndDrop:
             dialect.drop_object_keyword(Table(dialect, "t"))
 
     def test_drop_without_if_exists(self, dialect):
-        expr = ClickHouseDropMaterializedViewExpression(
+        expr = ClickHouseDropMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv_agg"), if_exists=False
         )
         assert expr.to_sql()[0] == "DROP VIEW `mv_agg`"
 
     def test_drop_database_qualified(self, dialect):
-        expr = ClickHouseDropMaterializedViewExpression(
+        expr = ClickHouseDropMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv", catalog_name="analytics")
         )
         assert "`analytics`.`mv`" in expr.to_sql()[0]
 
     def test_drop_rejects_a_bare_string(self, dialect):
         with pytest.raises(TypeError, match="MaterializedView object"):
-            ClickHouseDropMaterializedViewExpression(dialect, "mv")
+            ClickHouseDropMaterializedViewStatement(dialect, "mv")
 
     def test_system_refresh_view(self, dialect):
-        expr = ClickHouseRefreshMaterializedViewExpression(dialect, MaterializedView(dialect, "mv_ref"))
+        expr = ClickHouseRefreshMaterializedViewStatement(dialect, MaterializedView(dialect, "mv_ref"))
         assert expr.to_sql()[0] == "SYSTEM REFRESH VIEW `mv_ref`"
 
     def test_system_refresh_and_wait(self, dialect):
-        expr = ClickHouseRefreshMaterializedViewExpression(
+        expr = ClickHouseRefreshMaterializedViewStatement(
             dialect, MaterializedView(dialect, "mv_ref"), wait=True
         )
         assert expr.to_sql()[0] == (
@@ -402,7 +402,7 @@ class TestRefreshAndDrop:
         )
 
     def test_modify_refresh_schedule(self, dialect):
-        expr = ClickHouseModifyMaterializedViewRefreshExpression(
+        expr = ClickHouseModifyMaterializedViewRefreshStatement(
             dialect, MaterializedView(dialect, "mv_ref"), ClickHouseRefreshSchedule(dialect, every="30 MINUTE")
         )
         assert expr.to_sql()[0] == (
@@ -411,7 +411,7 @@ class TestRefreshAndDrop:
 
     def test_modify_refresh_requires_schedule(self, dialect):
         with pytest.raises(ValueError, match="at least one of EVERY"):
-            ClickHouseModifyMaterializedViewRefreshExpression(
+            ClickHouseModifyMaterializedViewRefreshStatement(
                 dialect, MaterializedView(dialect, "mv_ref"), ClickHouseRefreshSchedule(dialect, )
             )
 

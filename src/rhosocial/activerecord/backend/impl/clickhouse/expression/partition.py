@@ -62,9 +62,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 __all__ = [
-    "ClickHouseDropPartitionExpression",
-    "ClickHouseDetachPartitionExpression",
-    "ClickHouseAttachPartitionExpression",
+    "ClickHouseDropPartitionStatement",
+    "ClickHouseDetachPartitionStatement",
+    "ClickHouseAttachPartitionStatement",
 ]
 
 
@@ -156,7 +156,7 @@ class _ClickHousePartitionIdExpression(BaseExpression):
         )
 
 
-class ClickHouseDropPartitionExpression(_ClickHousePartitionIdExpression):
+class ClickHouseDropPartitionStatement(_ClickHousePartitionIdExpression):
     """``ALTER TABLE ... DROP PARTITION ID`` — deletes a partition's data.
 
     The partition's parts are tagged inactive and deleted in the background
@@ -170,12 +170,12 @@ class ClickHouseDropPartitionExpression(_ClickHousePartitionIdExpression):
         return "format_drop_partition_statement"
 
 
-class ClickHouseDetachPartitionExpression(_ClickHousePartitionIdExpression):
+class ClickHouseDetachPartitionStatement(_ClickHousePartitionIdExpression):
     """``ALTER TABLE ... DETACH PARTITION ID`` — moves a partition aside.
 
     Unlike ``DROP``, the data survives in the table's ``detached/`` directory,
     so it can be inspected on disk and put back with
-    :class:`ClickHouseAttachPartitionExpression`. The server forgets the
+    :class:`ClickHouseAttachPartitionStatement`. The server forgets the
     partition until it is attached again.
     """
 
@@ -186,12 +186,12 @@ class ClickHouseDetachPartitionExpression(_ClickHousePartitionIdExpression):
         return "format_detach_partition_statement"
 
 
-class ClickHouseAttachPartitionExpression(_ClickHousePartitionIdExpression):
+class ClickHouseAttachPartitionStatement(_ClickHousePartitionIdExpression):
     """``ALTER TABLE ... ATTACH PARTITION ID`` — re-adds a detached partition.
 
     Reads the partition back from the ``detached/`` directory and returns its
     rows to the table; the inverse of
-    :class:`ClickHouseDetachPartitionExpression`.
+    :class:`ClickHouseDetachPartitionStatement`.
     """
 
     verb = "ATTACH"

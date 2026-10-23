@@ -68,7 +68,7 @@ class TestClickHouseCapabilities:
 
         The SQL-standard form cannot express them (ENGINE/TO mandatory, no
         WITH [NO] DATA, DROP VIEW), so the generic expression is rejected and
-        ClickHouseCreateMaterializedViewExpression is the entry point.
+        ClickHouseCreateMaterializedViewStatement is the entry point.
         """
         assert dialect.supports_materialized_view() is True
         assert dialect.supports_refresh_materialized_view() is True

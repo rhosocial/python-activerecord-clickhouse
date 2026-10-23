@@ -429,14 +429,14 @@ class TestClickHouseExpressionDialectSeparation:
     """
 
     EXPRESSION_DIALECT_PAIRS = [
-        ("ClickHouseJSONExtractExpression", "format_json_extract"),
-        ("ClickHouseJSONObjectExpression", "format_json_object"),
-        ("ClickHouseJSONArrayExpression", "format_json_array"),
-        ("ClickHouseJSONContainsExpression", "format_json_contains"),
-        ("ClickHouseDropPartitionExpression", "format_drop_partition_statement"),
-        ("ClickHouseDetachPartitionExpression", "format_detach_partition_statement"),
-        ("ClickHouseAttachPartitionExpression", "format_attach_partition_statement"),
-        ("ClickHouseRenameTableExpression", "format_rename_table_statement"),
+        ("ClickHouseJSONExtractExpression", "format_json_extract_expression"),
+        ("ClickHouseJSONObjectExpression", "format_json_object_expression"),
+        ("ClickHouseJSONArrayExpression", "format_json_array_expression"),
+        ("ClickHouseJSONContainsExpression", "format_json_contains_expression"),
+        ("ClickHouseDropPartitionStatement", "format_drop_partition_statement"),
+        ("ClickHouseDetachPartitionStatement", "format_detach_partition_statement"),
+        ("ClickHouseAttachPartitionStatement", "format_attach_partition_statement"),
+        ("ClickHouseRenameTableStatement", "format_rename_table_statement"),
     ]
 
     @pytest.mark.parametrize("expr_name,format_method", EXPRESSION_DIALECT_PAIRS)

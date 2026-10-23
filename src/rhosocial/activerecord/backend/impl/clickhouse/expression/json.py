@@ -55,7 +55,7 @@ class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue)
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_extract"
+        return "format_json_extract_expression"
 
 
 class ClickHouseJSONObjectExpression(AliasableMixin, SQLValue):
@@ -100,7 +100,7 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_object"
+        return "format_json_object_expression"
 
 
 class ClickHouseJSONArrayExpression(AliasableMixin, SQLValue):
@@ -146,7 +146,7 @@ class ClickHouseJSONArrayExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_array"
+        return "format_json_array_expression"
 
 
 class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -176,7 +176,7 @@ class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_contains"
+        return "format_json_contains_expression"
 
 
 class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValue):
@@ -202,7 +202,7 @@ class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_unquote"
+        return "format_json_unquote_expression"
 
 
 class ClickHouseJSONSetExpression(AliasableMixin, SQLValue):
@@ -234,7 +234,7 @@ class ClickHouseJSONSetExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_set"
+        return "format_json_set_expression"
 
 
 class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValue):
@@ -264,7 +264,7 @@ class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_remove"
+        return "format_json_remove_expression"
 
 
 class ClickHouseJSONTypeExpression(AliasableMixin, SQLValue):
@@ -290,7 +290,7 @@ class ClickHouseJSONTypeExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_type"
+        return "format_json_type_expression"
 
 
 class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValue):
@@ -316,7 +316,7 @@ class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_valid"
+        return "format_json_valid_expression"
 
 
 class ClickHouseJSONSearchExpression(AliasableMixin, SQLValue):
@@ -348,7 +348,7 @@ class ClickHouseJSONSearchExpression(AliasableMixin, SQLValue):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_search"
+        return "format_json_search_expression"
 
 
 __all__ = [

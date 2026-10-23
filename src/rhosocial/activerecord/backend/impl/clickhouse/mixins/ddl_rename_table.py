@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.rename_table import (
-        ClickHouseRenameTableExpression,
+        ClickHouseRenameTableStatement,
     )
 
 
@@ -23,7 +23,7 @@ class ClickHouseRenameTableMixin:
 
     def format_rename_table_statement(
         self,
-        expr: "ClickHouseRenameTableExpression",
+        expr: "ClickHouseRenameTableStatement",
     ) -> Tuple[str, tuple]:
         """Format a ClickHouse ``RENAME TABLE ...`` statement."""
         expr.validate(strict=self.strict_validation)

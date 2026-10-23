@@ -9,28 +9,28 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
-        ClickHouseBinlogExpression,
-        ClickHouseCacheIndexExpression,
-        ClickHouseCloneExpression,
-        ClickHouseCreateUserExpression,
-        ClickHouseDoExpression,
-        ClickHouseDropUserExpression,
-        ClickHouseFlushExpression,
-        ClickHouseGrantExpression,
-        ClickHouseHandlerCloseExpression,
-        ClickHouseHandlerOpenExpression,
-        ClickHouseHandlerReadExpression,
-        ClickHouseHelpExpression,
-        ClickHouseInstallComponentExpression,
-        ClickHouseInstallPluginExpression,
-        ClickHouseKillExpression,
-        ClickHouseLoadIndexIntoCacheExpression,
-        ClickHouseResetExpression,
-        ClickHouseRestartExpression,
-        ClickHouseRevokeExpression,
-        ClickHouseShutdownExpression,
-        ClickHouseUninstallComponentExpression,
-        ClickHouseUninstallPluginExpression,
+        ClickHouseBinlogStatement,
+        ClickHouseCacheIndexStatement,
+        ClickHouseCloneStatement,
+        ClickHouseCreateUserStatement,
+        ClickHouseDoStatement,
+        ClickHouseDropUserStatement,
+        ClickHouseFlushStatement,
+        ClickHouseGrantStatement,
+        ClickHouseHandlerCloseStatement,
+        ClickHouseHandlerOpenStatement,
+        ClickHouseHandlerReadStatement,
+        ClickHouseHelpStatement,
+        ClickHouseInstallComponentStatement,
+        ClickHouseInstallPluginStatement,
+        ClickHouseKillStatement,
+        ClickHouseLoadIndexIntoCacheStatement,
+        ClickHouseResetStatement,
+        ClickHouseRestartStatement,
+        ClickHouseRevokeStatement,
+        ClickHouseShutdownStatement,
+        ClickHouseUninstallComponentStatement,
+        ClickHouseUninstallPluginStatement,
     )
 
 @runtime_checkable
@@ -51,129 +51,129 @@ class ClickHouseAdminCommandSupport(Protocol):
     def supports_flush(self) -> bool:
         ...
 
-    def format_flush_statement(self, expr: "ClickHouseFlushExpression") -> Tuple[str, tuple]:
+    def format_flush_statement(self, expr: "ClickHouseFlushStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_reset(self) -> bool:
         ...
 
-    def format_reset_statement(self, expr: "ClickHouseResetExpression") -> Tuple[str, tuple]:
+    def format_reset_statement(self, expr: "ClickHouseResetStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_cache_index(self) -> bool:
         ...
 
-    def format_cache_index_statement(self, expr: "ClickHouseCacheIndexExpression") -> Tuple[str, tuple]:
+    def format_cache_index_statement(self, expr: "ClickHouseCacheIndexStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_load_index_into_cache(self) -> bool:
         ...
 
     def format_load_index_into_cache_statement(
-        self, expr: "ClickHouseLoadIndexIntoCacheExpression"
+        self, expr: "ClickHouseLoadIndexIntoCacheStatement"
     ) -> Tuple[str, tuple]:
         ...
 
     def supports_install_component(self) -> bool:
         ...
 
-    def format_install_component_statement(self, expr: "ClickHouseInstallComponentExpression") -> Tuple[str, tuple]:
+    def format_install_component_statement(self, expr: "ClickHouseInstallComponentStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_uninstall_component(self) -> bool:
         ...
 
     def format_uninstall_component_statement(
-        self, expr: "ClickHouseUninstallComponentExpression"
+        self, expr: "ClickHouseUninstallComponentStatement"
     ) -> Tuple[str, tuple]:
         ...
 
     def supports_install_plugin(self) -> bool:
         ...
 
-    def format_install_plugin_statement(self, expr: "ClickHouseInstallPluginExpression") -> Tuple[str, tuple]:
+    def format_install_plugin_statement(self, expr: "ClickHouseInstallPluginStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_uninstall_plugin(self) -> bool:
         ...
 
-    def format_uninstall_plugin_statement(self, expr: "ClickHouseUninstallPluginExpression") -> Tuple[str, tuple]:
+    def format_uninstall_plugin_statement(self, expr: "ClickHouseUninstallPluginStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_clone(self) -> bool:
         ...
 
-    def format_clone_statement(self, expr: "ClickHouseCloneExpression") -> Tuple[str, tuple]:
+    def format_clone_statement(self, expr: "ClickHouseCloneStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_restart(self) -> bool:
         ...
 
-    def format_restart_statement(self, expr: "ClickHouseRestartExpression") -> Tuple[str, tuple]:
+    def format_restart_statement(self, expr: "ClickHouseRestartStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_binlog(self) -> bool:
         ...
 
-    def format_binlog_statement(self, expr: "ClickHouseBinlogExpression") -> Tuple[str, tuple]:
+    def format_binlog_statement(self, expr: "ClickHouseBinlogStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_handler(self) -> bool:
         ...
 
-    def format_handler_open_statement(self, expr: "ClickHouseHandlerOpenExpression") -> Tuple[str, tuple]:
+    def format_handler_open_statement(self, expr: "ClickHouseHandlerOpenStatement") -> Tuple[str, tuple]:
         ...
 
-    def format_handler_read_statement(self, expr: "ClickHouseHandlerReadExpression") -> Tuple[str, tuple]:
+    def format_handler_read_statement(self, expr: "ClickHouseHandlerReadStatement") -> Tuple[str, tuple]:
         ...
 
-    def format_handler_close_statement(self, expr: "ClickHouseHandlerCloseExpression") -> Tuple[str, tuple]:
+    def format_handler_close_statement(self, expr: "ClickHouseHandlerCloseStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_do(self) -> bool:
         ...
 
-    def format_do_statement(self, expr: "ClickHouseDoExpression") -> Tuple[str, tuple]:
+    def format_do_statement(self, expr: "ClickHouseDoStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_kill(self) -> bool:
         ...
 
-    def format_kill_statement(self, expr: "ClickHouseKillExpression") -> Tuple[str, tuple]:
+    def format_kill_statement(self, expr: "ClickHouseKillStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_shutdown(self) -> bool:
         ...
 
-    def format_shutdown_statement(self, expr: "ClickHouseShutdownExpression") -> Tuple[str, tuple]:
+    def format_shutdown_statement(self, expr: "ClickHouseShutdownStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_help(self) -> bool:
         ...
 
-    def format_help_statement(self, expr: "ClickHouseHelpExpression") -> Tuple[str, tuple]:
+    def format_help_statement(self, expr: "ClickHouseHelpStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_create_user(self) -> bool:
         ...
 
-    def format_create_user_statement(self, expr: "ClickHouseCreateUserExpression") -> Tuple[str, tuple]:
+    def format_create_user_statement(self, expr: "ClickHouseCreateUserStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_drop_user(self) -> bool:
         ...
 
-    def format_drop_user_statement(self, expr: "ClickHouseDropUserExpression") -> Tuple[str, tuple]:
+    def format_drop_user_statement(self, expr: "ClickHouseDropUserStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_grant(self) -> bool:
         ...
 
-    def format_grant_statement(self, expr: "ClickHouseGrantExpression") -> Tuple[str, tuple]:
+    def format_grant_statement(self, expr: "ClickHouseGrantStatement") -> Tuple[str, tuple]:
         ...
 
     def supports_revoke(self) -> bool:
         ...
 
-    def format_revoke_statement(self, expr: "ClickHouseRevokeExpression") -> Tuple[str, tuple]:
+    def format_revoke_statement(self, expr: "ClickHouseRevokeStatement") -> Tuple[str, tuple]:
         ...

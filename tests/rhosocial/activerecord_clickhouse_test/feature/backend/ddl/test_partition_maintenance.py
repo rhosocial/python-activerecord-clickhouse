@@ -25,9 +25,9 @@ from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
     PartitionStrategy,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
-    ClickHouseAttachPartitionExpression,
-    ClickHouseDetachPartitionExpression,
-    ClickHouseDropPartitionExpression,
+    ClickHouseAttachPartitionStatement,
+    ClickHouseDetachPartitionStatement,
+    ClickHouseDropPartitionStatement,
 )
 
 TABLE = "ar_clickhouse_partition_events"
@@ -102,7 +102,7 @@ class TestPartitionMaintenanceClausesExecute:
 
     def test_detach_then_attach_round_trips(self, partitioned_backend):
         dialect = partitioned_backend.dialect
-        detach_sql, detach_params = ClickHouseDetachPartitionExpression(
+        detach_sql, detach_params = ClickHouseDetachPartitionStatement(
             dialect, TABLE, "202601"
         ).to_sql()
         assert detach_sql == f"ALTER TABLE `{TABLE}` DETACH PARTITION ID '202601'"
@@ -110,7 +110,7 @@ class TestPartitionMaintenanceClausesExecute:
         assert _partition_ids(partitioned_backend) == ["202602"]
         assert _row_count(partitioned_backend) == 1
 
-        attach_sql, attach_params = ClickHouseAttachPartitionExpression(
+        attach_sql, attach_params = ClickHouseAttachPartitionStatement(
             dialect, TABLE, "202601"
         ).to_sql()
         assert attach_sql == f"ALTER TABLE `{TABLE}` ATTACH PARTITION ID '202601'"
@@ -119,7 +119,7 @@ class TestPartitionMaintenanceClausesExecute:
         assert _row_count(partitioned_backend) == 3
 
     def test_drop_removes_the_partition(self, partitioned_backend):
-        sql, params = ClickHouseDropPartitionExpression(
+        sql, params = ClickHouseDropPartitionStatement(
             partitioned_backend.dialect, TABLE, "202601"
         ).to_sql()
         partitioned_backend.execute(sql, params)

@@ -9,8 +9,8 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.table_statement import (
-        ClickHouseTableExpression,
-        ClickHouseValuesExpression,
+        ClickHouseTableStatement,
+        ClickHouseValuesStatement,
     )
 
 @runtime_checkable
@@ -32,10 +32,10 @@ class ClickHouseTableStatementSupport(Protocol):
         """Whether VALUES as a table value constructor is supported."""
         ...
 
-    def format_table_statement(self, expr: "ClickHouseTableExpression") -> Tuple[str, tuple]:
+    def format_table_statement(self, expr: "ClickHouseTableStatement") -> Tuple[str, tuple]:
         """Format a TABLE statement."""
         ...
 
-    def format_values_statement(self, expr: "ClickHouseValuesExpression") -> Tuple[str, tuple]:
+    def format_values_statement(self, expr: "ClickHouseValuesStatement") -> Tuple[str, tuple]:
         """Format a VALUES table value constructor."""
         ...

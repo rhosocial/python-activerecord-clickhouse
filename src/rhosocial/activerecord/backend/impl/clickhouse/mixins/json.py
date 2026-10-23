@@ -98,7 +98,7 @@ class ClickHouseJSONFunctionMixin:
             return self.version >= self._JSON_FUNCTION_VERSIONS[function_name]
         return self.version >= (26, 0, 0)
 
-    def format_json_extract(self, expr) -> Tuple[str, tuple]:
+    def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSONExtract function."""
         all_paths = [expr.path]
         if expr.paths:
@@ -110,13 +110,13 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(all_paths)
 
-    def format_json_unquote(self, expr) -> Tuple[str, tuple]:
+    def format_json_unquote_expression(self, expr) -> Tuple[str, tuple]:
         sql = f"JSONExtractString({expr.json_val})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_json_object(self, expr) -> Tuple[str, tuple]:
+    def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
         """Format map function (ClickHouse equivalent of JSON_OBJECT)."""
         pairs = expr.pairs
         if not pairs:
@@ -140,7 +140,7 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(params)
 
-    def format_json_array(self, expr) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr) -> Tuple[str, tuple]:
         """Format ClickHouse array literal (equivalent to JSON_ARRAY)."""
         values = expr.values
         if not values:
@@ -152,7 +152,7 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(values)
 
-    def format_json_contains(self, expr) -> Tuple[str, tuple]:
+    def format_json_contains_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS approximation for ClickHouse.
 
         ClickHouse has no direct JSON_CONTAINS equivalent. This uses
@@ -171,7 +171,7 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    def format_json_set(self, expr) -> Tuple[str, tuple]:
+    def format_json_set_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SET approximation for ClickHouse.
 
         ClickHouse has no direct JSON_SET equivalent. This uses mapUpdate
@@ -197,7 +197,7 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(params)
 
-    def format_json_remove(self, expr) -> Tuple[str, tuple]:
+    def format_json_remove_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_REMOVE approximation for ClickHouse.
 
         ClickHouse has no direct JSON_REMOVE equivalent. This uses mapRemove
@@ -213,19 +213,19 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(all_paths)
 
-    def format_json_type(self, expr) -> Tuple[str, tuple]:
+    def format_json_type_expression(self, expr) -> Tuple[str, tuple]:
         sql = f"JSONType({expr.json_val})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_json_valid(self, expr) -> Tuple[str, tuple]:
+    def format_json_valid_expression(self, expr) -> Tuple[str, tuple]:
         sql = f"JSON_VALID({expr.json_val})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_json_search(self, expr) -> Tuple[str, tuple]:
+    def format_json_search_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SEARCH approximation for ClickHouse.
 
         ClickHouse has no direct JSON_SEARCH equivalent. This uses

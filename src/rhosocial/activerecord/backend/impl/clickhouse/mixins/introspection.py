@@ -4,14 +4,14 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
     from rhosocial.activerecord.backend.expression.introspection import (
-        DatabaseInfoExpression,
-        TableListExpression,
-        ColumnInfoExpression,
-        IndexInfoExpression,
-        ForeignKeyExpression,
-        ViewListExpression,
-        ViewInfoExpression,
-        TriggerListExpression,
+        DatabaseInfoQueryStatement,
+        TableListQueryStatement,
+        ColumnInfoQueryStatement,
+        IndexInfoQueryStatement,
+        ForeignKeyQueryStatement,
+        ViewListQueryStatement,
+        ViewInfoQueryStatement,
+        TriggerListQueryStatement,
     )
 
 
@@ -196,7 +196,7 @@ class ClickHouseIntrospectionMixin:
 
     # ========== Query Formatting ==========
 
-    def format_database_info_query(self, expr: "DatabaseInfoExpression") -> Tuple[str, tuple]:
+    def format_database_info_query_statement(self, expr: "DatabaseInfoQueryStatement") -> Tuple[str, tuple]:
         """Format database information query against ClickHouse system.databases.
 
         The engine is the only database-level "charset" ClickHouse reports, and
@@ -219,7 +219,7 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_table_list_query(self, expr: "TableListExpression") -> Tuple[str, tuple]:
+    def format_table_list_query_statement(self, expr: "TableListQueryStatement") -> Tuple[str, tuple]:
         """Format table list query against ClickHouse system.tables."""
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
@@ -261,7 +261,7 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_column_info_query(self, expr: "ColumnInfoExpression") -> Tuple[str, tuple]:
+    def format_column_info_query_statement(self, expr: "ColumnInfoQueryStatement") -> Tuple[str, tuple]:
         """Format column information query against ClickHouse system.columns.
 
         ``IS_NULLABLE`` is derived from the type name: ClickHouse encodes
@@ -337,7 +337,7 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_index_info_query(self, expr: "IndexInfoExpression") -> Tuple[str, tuple]:
+    def format_index_info_query_statement(self, expr: "IndexInfoQueryStatement") -> Tuple[str, tuple]:
         """Format index information query against ClickHouse system.data_skipping_indices.
 
         ClickHouse's only index rows are the primary key (reported through
@@ -376,7 +376,7 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_foreign_key_query(self, expr: "ForeignKeyExpression") -> Tuple[str, tuple]:
+    def format_foreign_key_query_statement(self, expr: "ForeignKeyQueryStatement") -> Tuple[str, tuple]:
         """ClickHouse has no foreign keys; raise UnsupportedFeatureError."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -385,7 +385,7 @@ class ClickHouseIntrospectionMixin:
             "ClickHouse does not support foreign keys."
         )
 
-    def format_view_list_query(self, expr: "ViewListExpression") -> Tuple[str, tuple]:
+    def format_view_list_query_statement(self, expr: "ViewListQueryStatement") -> Tuple[str, tuple]:
         """Format view list query against ClickHouse system.tables (View engines)."""
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
@@ -416,7 +416,7 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_view_info_query(self, expr: "ViewInfoExpression") -> Tuple[str, tuple]:
+    def format_view_info_query_statement(self, expr: "ViewInfoQueryStatement") -> Tuple[str, tuple]:
         """Format single view information query against ClickHouse system.tables."""
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
@@ -441,7 +441,7 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_trigger_list_query(self, expr: "TriggerListExpression") -> Tuple[str, tuple]:
+    def format_trigger_list_query_statement(self, expr: "TriggerListQueryStatement") -> Tuple[str, tuple]:
         """ClickHouse has no triggers; raise UnsupportedFeatureError."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 

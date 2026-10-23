@@ -39,18 +39,18 @@ class TestRenameTable:
     """Test ClickHouse RENAME TABLE statement."""
 
     def test_single_rename(self, dialect):
-        expr = clickhouse_expr.ClickHouseRenameTableExpression(dialect, [("old_name", "new_name")])
+        expr = clickhouse_expr.ClickHouseRenameTableStatement(dialect, [("old_name", "new_name")])
         sql, params = expr.to_sql()
         assert sql == "RENAME TABLE `old_name` TO `new_name`"
         assert params == ()
 
     def test_multi_rename(self, dialect):
-        expr = clickhouse_expr.ClickHouseRenameTableExpression(dialect, [("a", "b"), ("c", "d")])
+        expr = clickhouse_expr.ClickHouseRenameTableStatement(dialect, [("a", "b"), ("c", "d")])
         sql, params = expr.to_sql()
         assert sql == "RENAME TABLE `a` TO `b`, `c` TO `d`"
 
     def test_empty_raises(self, dialect):
-        expr = clickhouse_expr.ClickHouseRenameTableExpression(dialect, [])
+        expr = clickhouse_expr.ClickHouseRenameTableStatement(dialect, [])
         with pytest.raises(ValueError, match="at least one"):
             expr.to_sql()
 

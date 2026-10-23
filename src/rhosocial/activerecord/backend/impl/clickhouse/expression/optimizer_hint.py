@@ -24,7 +24,7 @@ no version floor and no setting to name a version for. Five measurements:
 
 So the expression class below is a fail-fast switch, not a renderer:
 ``supports_optimizer_hint()`` and ``supports_hypergraph_optimizer()`` are both
-``False`` and ``format_optimizer_hint`` raises ``UnsupportedFeatureError``. The
+``False`` and ``format_optimizer_hint_expression`` raises ``UnsupportedFeatureError``. The
 ClickHouse way to set something per statement is the ``SETTINGS`` clause on the
 statement itself (``https://clickhouse.com/docs/reference/statements/select``,
 "Settings in SELECT Query"), which this backend renders for the settings it
@@ -87,4 +87,4 @@ class ClickHouseOptimizerHintExpression(BaseExpression):
 
     @property
     def format_method(self) -> str:
-        return "format_optimizer_hint"
+        return "format_optimizer_hint_expression"

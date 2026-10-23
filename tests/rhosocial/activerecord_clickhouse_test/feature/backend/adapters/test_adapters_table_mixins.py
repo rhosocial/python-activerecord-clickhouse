@@ -176,7 +176,7 @@ class TestTableMixin:
             ClickHouseTableStorageOption,
         )
 
-        assert not hasattr(ClickHouseTableMixin, "format_storage_options")
+        assert not hasattr(ClickHouseTableMixin, "format_storage_options_expression")
         clause = ClickHouseTableStorageOption(
             dialect,
             ClickHouseStorageOptionKind.ENGINE,

@@ -58,10 +58,10 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 __all__ = [
-    "ClickHouseCreateMaterializedViewExpression",
-    "ClickHouseDropMaterializedViewExpression",
-    "ClickHouseModifyMaterializedViewRefreshExpression",
-    "ClickHouseRefreshMaterializedViewExpression",
+    "ClickHouseCreateMaterializedViewStatement",
+    "ClickHouseDropMaterializedViewStatement",
+    "ClickHouseModifyMaterializedViewRefreshStatement",
+    "ClickHouseRefreshMaterializedViewStatement",
     "ClickHouseRefreshSchedule",
 ]
 
@@ -154,7 +154,7 @@ class ClickHouseRefreshSchedule(BaseExpression):
                 )
 
 
-class ClickHouseCreateMaterializedViewExpression(BaseExpression):
+class ClickHouseCreateMaterializedViewStatement(BaseExpression):
     """``CREATE MATERIALIZED VIEW`` for both ClickHouse MV flavours.
 
     Args:
@@ -276,7 +276,7 @@ class ClickHouseCreateMaterializedViewExpression(BaseExpression):
         return "format_create_materialized_view_statement"
 
 
-class ClickHouseDropMaterializedViewExpression(BaseExpression):
+class ClickHouseDropMaterializedViewStatement(BaseExpression):
     """``DROP VIEW [IF EXISTS]`` — ClickHouse removes MVs with ``DROP VIEW``.
 
     The ``VIEW`` keyword is ClickHouse's, not a mis-classification: the server
@@ -315,7 +315,7 @@ class ClickHouseDropMaterializedViewExpression(BaseExpression):
         return "format_drop_materialized_view_statement"
 
 
-class ClickHouseRefreshMaterializedViewExpression(BaseExpression):
+class ClickHouseRefreshMaterializedViewStatement(BaseExpression):
     """``SYSTEM REFRESH VIEW`` — trigger a refreshable MV refresh now.
 
     ClickHouse has no ``REFRESH MATERIALIZED VIEW`` statement; an immediate
@@ -360,7 +360,7 @@ class ClickHouseRefreshMaterializedViewExpression(BaseExpression):
         return "format_refresh_materialized_view_statement"
 
 
-class ClickHouseModifyMaterializedViewRefreshExpression(BaseExpression):
+class ClickHouseModifyMaterializedViewRefreshStatement(BaseExpression):
     """``ALTER TABLE ... MODIFY REFRESH`` — change an existing schedule.
 
     The statement replaces **all** refresh parameters: whatever is omitted is

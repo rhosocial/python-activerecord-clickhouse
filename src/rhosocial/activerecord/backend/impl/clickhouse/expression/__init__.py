@@ -34,10 +34,10 @@ from .database import (
 )
 from .dml import ClickHouseInsertExpression
 from .materialized_view import (
-    ClickHouseCreateMaterializedViewExpression,
-    ClickHouseDropMaterializedViewExpression,
-    ClickHouseModifyMaterializedViewRefreshExpression,
-    ClickHouseRefreshMaterializedViewExpression,
+    ClickHouseCreateMaterializedViewStatement,
+    ClickHouseDropMaterializedViewStatement,
+    ClickHouseModifyMaterializedViewRefreshStatement,
+    ClickHouseRefreshMaterializedViewStatement,
     ClickHouseRefreshSchedule,
 )
 from .index import ClickHouseIndexDefinition
@@ -54,14 +54,14 @@ from .json import (
     ClickHouseJSONSearchExpression,
 )
 from .partition import (
-    ClickHouseDropPartitionExpression,
-    ClickHouseDetachPartitionExpression,
-    ClickHouseAttachPartitionExpression,
+    ClickHouseDropPartitionStatement,
+    ClickHouseDetachPartitionStatement,
+    ClickHouseAttachPartitionStatement,
 )
-from .rename_table import ClickHouseRenameTableExpression
+from .rename_table import ClickHouseRenameTableStatement
 from .wildcard import ClickHouseRowCountDistinctWildcard
 from .spatial import (
-    ClickHouseCreateSpatialIndexExpression,
+    ClickHouseCreateSpatialIndexStatement,
     ClickHouseSTAsGeoJSONExpression,
     ClickHouseSTAsTextExpression,
     ClickHouseSTContainsExpression,
@@ -144,7 +144,7 @@ __all__ = [
     "ClickHouseJSONValidExpression",
     "ClickHouseJSONSearchExpression",
     # Spatial expressions
-    "ClickHouseCreateSpatialIndexExpression",
+    "ClickHouseCreateSpatialIndexStatement",
     "ClickHouseSTAsGeoJSONExpression",
     "ClickHouseSTAsTextExpression",
     "ClickHouseSTContainsExpression",
@@ -154,11 +154,11 @@ __all__ = [
     "ClickHouseSTWithinExpression",
     "ClickHouseSpatialLiteralExpression",
     # Partition
-    "ClickHouseDropPartitionExpression",
-    "ClickHouseDetachPartitionExpression",
-    "ClickHouseAttachPartitionExpression",
+    "ClickHouseDropPartitionStatement",
+    "ClickHouseDetachPartitionStatement",
+    "ClickHouseAttachPartitionStatement",
     # Rename table
-    "ClickHouseRenameTableExpression",
+    "ClickHouseRenameTableStatement",
     # Row-count wildcard: the COUNT(DISTINCT *) spelling only ClickHouse has
     "ClickHouseRowCountDistinctWildcard",
     # DataType subclasses for DDL
@@ -197,10 +197,10 @@ __all__ = [
     "ClickHouseUInt8Type",
     "ClickHouseUUIDType",
     # Materialized views
-    "ClickHouseCreateMaterializedViewExpression",
-    "ClickHouseDropMaterializedViewExpression",
-    "ClickHouseRefreshMaterializedViewExpression",
-    "ClickHouseModifyMaterializedViewRefreshExpression",
+    "ClickHouseCreateMaterializedViewStatement",
+    "ClickHouseDropMaterializedViewStatement",
+    "ClickHouseRefreshMaterializedViewStatement",
+    "ClickHouseModifyMaterializedViewRefreshStatement",
     "ClickHouseRefreshSchedule",
 ]
 

@@ -51,15 +51,15 @@ from typing import Optional, Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 from ..expression.show import (
-    ShowColumnsExpression,
+    ShowColumnsStatement,
     ShowCreateTableStatement,
-    ShowCreateViewExpression,
-    ShowDatabasesExpression,
-    ShowEnginesExpression,
-    ShowGrantsExpression,
-    ShowIndexExpression,
-    ShowProcessListExpression,
-    ShowTablesExpression,
+    ShowCreateViewStatement,
+    ShowDatabasesStatement,
+    ShowEnginesStatement,
+    ShowGrantsStatement,
+    ShowIndexStatement,
+    ShowProcessListStatement,
+    ShowTablesStatement,
 )
 
 if TYPE_CHECKING:
@@ -351,7 +351,7 @@ class ClickHouseShowFunctionality:
         Returns:
             ShowCreateViewResult with view details, or None if view doesn't exist.
         """
-        expr = ShowCreateViewExpression(self.dialect, view_name, schema=schema)
+        expr = ShowCreateViewStatement(self.dialect, view_name, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_view_result(result, view_name)
@@ -371,7 +371,7 @@ class ClickHouseShowFunctionality:
         and reads ClickHouse's own output columns. See
         ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        expr = ShowColumnsExpression(
+        expr = ShowColumnsStatement(
             self.dialect, table, full=full, like_pattern=like, schema=schema
         )
         sql, params = expr.to_sql()
@@ -387,7 +387,7 @@ class ClickHouseShowFunctionality:
         output columns — the primary key columns plus one row per data skipping
         index. See ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        expr = ShowIndexExpression(self.dialect, table, schema=schema)
+        expr = ShowIndexStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_indexes_result(result)
@@ -410,7 +410,7 @@ class ClickHouseShowFunctionality:
         Returns:
             List of ShowTableResult objects.
         """
-        expr = ShowTablesExpression(
+        expr = ShowTablesStatement(
             self.dialect, schema=schema, like_pattern=like, full=full
         )
 
@@ -429,7 +429,7 @@ class ClickHouseShowFunctionality:
         Returns:
             List of ShowDatabaseResult objects.
         """
-        expr = ShowDatabasesExpression(self.dialect, like_pattern=like)
+        expr = ShowDatabasesStatement(self.dialect, like_pattern=like)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -513,7 +513,7 @@ class ClickHouseShowFunctionality:
         symmetry and ignored: the statement has no ``FULL`` variant and already
         reports the full query text in ``query``.
         """
-        expr = ShowProcessListExpression(self.dialect, full=full)
+        expr = ShowProcessListStatement(self.dialect, full=full)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_processlist_result(result)
@@ -554,7 +554,7 @@ class ClickHouseShowFunctionality:
         the eight ``supports_*`` capability flags and the engine's own
         ``description`` / ``syntax`` / ``introduced_in`` documentation columns.
         """
-        expr = ShowEnginesExpression(self.dialect)
+        expr = ShowEnginesStatement(self.dialect)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_engines_result(result)
@@ -602,7 +602,7 @@ class ClickHouseShowFunctionality:
         The statement returns a single column whose name follows the output
         format, so the parser reads the column's value rather than a named key.
         """
-        expr = ShowGrantsExpression(self.dialect, user=user, host=host)
+        expr = ShowGrantsStatement(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_grants_result(result)

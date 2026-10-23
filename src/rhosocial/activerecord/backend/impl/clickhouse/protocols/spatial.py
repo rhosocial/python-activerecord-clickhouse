@@ -65,38 +65,38 @@ class ClickHouseSpatialSupport(Protocol):
         """Whether GEOMETRYCOLLECTION is supported."""
         ...
 
-    def format_spatial_literal(self, expr) -> Tuple[str, tuple]:
+    def format_spatial_literal_expression(self, expr) -> Tuple[str, tuple]:
         """Format spatial literal from WKT."""
         ...
 
-    def format_st_geom_from_text(self, expr) -> Tuple[str, tuple]:
+    def format_st_geom_from_text_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_GeomFromText function call."""
         ...
 
-    def format_st_geom_from_wkb(self, expr) -> Tuple[str, tuple]:
+    def format_st_geom_from_wkb_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_GeomFromWKB function call."""
         ...
 
-    def format_st_as_text(self, expr) -> Tuple[str, tuple]:
+    def format_st_as_text_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_AsText function call."""
         ...
 
-    def format_st_as_geojson(self, expr) -> Tuple[str, tuple]:
+    def format_st_as_geo_json_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_AsGeoJSON function call."""
         ...
 
-    def format_st_distance(self, expr) -> Tuple[str, tuple]:
+    def format_st_distance_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_Distance function call."""
         ...
 
-    def format_st_within(self, expr) -> Tuple[str, tuple]:
+    def format_st_within_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_Within function call."""
         ...
 
-    def format_st_contains(self, expr) -> Tuple[str, tuple]:
+    def format_st_contains_expression(self, expr) -> Tuple[str, tuple]:
         """Format ST_Contains function call."""
         ...
 
-    def format_create_spatial_index(self, expr) -> Tuple[str, tuple]:
+    def format_create_spatial_index_statement(self, expr) -> Tuple[str, tuple]:
         """Format CREATE SPATIAL INDEX statement."""
         ...

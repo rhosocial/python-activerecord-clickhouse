@@ -12,9 +12,9 @@ from rhosocial.activerecord.backend.dialect.protocols import PartitionSupport
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
-        ClickHouseAttachPartitionExpression,
-        ClickHouseDetachPartitionExpression,
-        ClickHouseDropPartitionExpression,
+        ClickHouseAttachPartitionStatement,
+        ClickHouseDetachPartitionStatement,
+        ClickHouseDropPartitionStatement,
     )
 
 
@@ -81,7 +81,7 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         ...
 
     def format_drop_partition_statement(
-        self, expr: "ClickHouseDropPartitionExpression"
+        self, expr: "ClickHouseDropPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... DROP PARTITION ID '<partition_id>'``.
 
@@ -95,7 +95,7 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         ...
 
     def format_detach_partition_statement(
-        self, expr: "ClickHouseDetachPartitionExpression"
+        self, expr: "ClickHouseDetachPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... DETACH PARTITION ID '<partition_id>'``.
 
@@ -109,7 +109,7 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         ...
 
     def format_attach_partition_statement(
-        self, expr: "ClickHouseAttachPartitionExpression"
+        self, expr: "ClickHouseAttachPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... ATTACH PARTITION ID '<partition_id>'``.
 

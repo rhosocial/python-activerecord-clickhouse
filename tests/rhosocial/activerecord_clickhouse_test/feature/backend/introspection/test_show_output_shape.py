@@ -336,10 +336,10 @@ class TestShowDialectRendersWhatTheServerAccepts:
 
     def _columns(self, dialect, **kw):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowColumnsExpression,
+            ShowColumnsStatement,
         )
 
-        expr = ShowColumnsExpression(
+        expr = ShowColumnsStatement(
             dialect,
             "t",
             schema=kw.get("schema"),
@@ -357,42 +357,42 @@ class TestShowDialectRendersWhatTheServerAccepts:
     def test_index_sql_uses_one_table_reference(self, dialect):
         """``SHOW INDEX FROM t FROM db`` is a SYNTAX_ERROR; ``db.t`` is the form."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowIndexExpression,
+            ShowIndexStatement,
         )
 
-        expr = ShowIndexExpression(dialect, "t", schema="db")
+        expr = ShowIndexStatement(dialect, "t", schema="db")
         assert expr.to_sql() == ("SHOW INDEX FROM `db`.`t`", ())
 
     def test_processlist_sql_never_emits_full(self, dialect):
         """``SHOW FULL PROCESSLIST`` is a SYNTAX_ERROR on 26.7.3.19."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowProcessListExpression,
+            ShowProcessListStatement,
         )
 
-        assert ShowProcessListExpression(dialect).to_sql() == ("SHOW PROCESSLIST", ())
-        assert ShowProcessListExpression(dialect, full=True).to_sql() == (
+        assert ShowProcessListStatement(dialect).to_sql() == ("SHOW PROCESSLIST", ())
+        assert ShowProcessListStatement(dialect, full=True).to_sql() == (
             "SHOW PROCESSLIST",
             (),
         )
 
     def test_engines_sql(self, dialect):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowEnginesExpression,
+            ShowEnginesStatement,
         )
 
-        assert ShowEnginesExpression(dialect).to_sql() == ("SHOW ENGINES", ())
+        assert ShowEnginesStatement(dialect).to_sql() == ("SHOW ENGINES", ())
 
     def test_grants_sql_drops_the_mysql_host_part(self, dialect):
         """``SHOW GRANTS FOR root@localhost`` is UNKNOWN_ROLE on 26.7.3.19."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowGrantsExpression,
+            ShowGrantsStatement,
         )
 
-        assert ShowGrantsExpression(dialect).to_sql() == ("SHOW GRANTS", ())
-        assert ShowGrantsExpression(dialect, user="root").to_sql() == (
+        assert ShowGrantsStatement(dialect).to_sql() == ("SHOW GRANTS", ())
+        assert ShowGrantsStatement(dialect, user="root").to_sql() == (
             "SHOW GRANTS FOR `root`", (),
         )
-        assert ShowGrantsExpression(dialect, user="root", host="localhost").to_sql() == (
+        assert ShowGrantsStatement(dialect, user="root", host="localhost").to_sql() == (
             "SHOW GRANTS FOR `root`", (),
         )
 

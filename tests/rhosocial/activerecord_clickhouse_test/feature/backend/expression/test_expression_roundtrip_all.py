@@ -233,7 +233,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
     ClickHouseNamespaceMixin,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
-    ClickHouseModifyMaterializedViewRefreshExpression,
+    ClickHouseModifyMaterializedViewRefreshStatement,
     ClickHouseRefreshSchedule,
     admin as admin_module,
     alter_column,
@@ -858,12 +858,12 @@ def register_specials():
     # -- this dialect spells no RESET / HANDLER at all -- which the pinned
     # renders above assert.
     register_special_constructor(
-        "admin.ClickHouseResetExpression",
-        lambda d: admin_module.ClickHouseResetExpression(d, admin_module.ResetOption.MASTER),
+        "admin.ClickHouseResetStatement",
+        lambda d: admin_module.ClickHouseResetStatement(d, admin_module.ResetOption.MASTER),
     )
     register_special_constructor(
-        "admin.ClickHouseHandlerReadExpression",
-        lambda d: admin_module.ClickHouseHandlerReadExpression(
+        "admin.ClickHouseHandlerReadStatement",
+        lambda d: admin_module.ClickHouseHandlerReadStatement(
             d, Table(d, "t"), admin_module.HandlerReadMode.FIRST
         ),
     )
@@ -875,9 +875,9 @@ def register_specials():
     # three system.parts-addressed statements, each taking the table name
     # and the partition id, and each rendering through one shared base.
     for _name in (
-        "ClickHouseDropPartitionExpression",
-        "ClickHouseDetachPartitionExpression",
-        "ClickHouseAttachPartitionExpression",
+        "ClickHouseDropPartitionStatement",
+        "ClickHouseDetachPartitionStatement",
+        "ClickHouseAttachPartitionStatement",
     ):
         register_special_constructor(
             f"partition.{_name}",
@@ -891,7 +891,7 @@ def register_specials():
         "ClickHouseChecksumTableExpression",
         "ClickHouseOptimizeTableExpression",
         "ClickHouseRepairTableExpression",
-        "ClickHouseTableMaintenanceExpression",
+        "ClickHouseTableMaintenanceStatement",
     ):
         register_special_constructor(
             f"maintenance.{_name}",
@@ -902,36 +902,36 @@ def register_specials():
         lambda d: routine.ClickHouseRoutineExpression(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "routine.ClickHouseCreateProcedureExpression",
-        lambda d: routine.ClickHouseCreateProcedureExpression(d, Procedure(d, "proc")),
+        "routine.ClickHouseCreateProcedureStatement",
+        lambda d: routine.ClickHouseCreateProcedureStatement(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "routine.ClickHouseDropProcedureExpression",
-        lambda d: routine.ClickHouseDropProcedureExpression(d, Procedure(d, "proc")),
+        "routine.ClickHouseDropProcedureStatement",
+        lambda d: routine.ClickHouseDropProcedureStatement(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "routine.ClickHouseCreateFunctionExpression",
-        lambda d: routine.ClickHouseCreateFunctionExpression(
+        "routine.ClickHouseCreateFunctionStatement",
+        lambda d: routine.ClickHouseCreateFunctionStatement(
             d, Function(d, "fn"), returns="integer"
         ),
     )
     register_special_constructor(
-        "routine.ClickHouseDropFunctionExpression",
-        lambda d: routine.ClickHouseDropFunctionExpression(d, Function(d, "fn")),
+        "routine.ClickHouseDropFunctionStatement",
+        lambda d: routine.ClickHouseDropFunctionStatement(d, Function(d, "fn")),
     )
     register_special_constructor(
-        "routine.ClickHouseCallExpression",
-        lambda d: routine.ClickHouseCallExpression(d, Procedure(d, "proc")),
+        "routine.ClickHouseCallStatement",
+        lambda d: routine.ClickHouseCallStatement(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "materialized_view.ClickHouseCreateMaterializedViewExpression",
-        lambda d: materialized_view.ClickHouseCreateMaterializedViewExpression(
+        "materialized_view.ClickHouseCreateMaterializedViewStatement",
+        lambda d: materialized_view.ClickHouseCreateMaterializedViewStatement(
             d, MaterializedView(d, "mv"), "SELECT 1", to_table=Table(d, "target")
         ),
     )
     register_special_constructor(
-        "materialized_view.ClickHouseModifyMaterializedViewRefreshExpression",
-        lambda d: materialized_view.ClickHouseModifyMaterializedViewRefreshExpression(
+        "materialized_view.ClickHouseModifyMaterializedViewRefreshStatement",
+        lambda d: materialized_view.ClickHouseModifyMaterializedViewRefreshStatement(
             d,
             MaterializedView(d, "mv"),
             # The schedule is an expression node now, so it binds to the
@@ -963,8 +963,8 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "rename_table.ClickHouseRenameTableExpression",
-        lambda d: rename_table.ClickHouseRenameTableExpression(d, [("a", "b")]),
+        "rename_table.ClickHouseRenameTableStatement",
+        lambda d: rename_table.ClickHouseRenameTableStatement(d, [("a", "b")]),
     )
 
     # -- ClickHouse CREATE TABLE storage clauses ------------------------------
@@ -1184,9 +1184,9 @@ LEGITIMATE_NON_RENDERS = {
     # Introspection query bases: each concrete subclass names its own
     # ``format_*_query``. The message differs from the group above only in
     # spelling, which is why each entry pins its own fragment.
-    "rhosocial.activerecord.backend.expression.introspection.TableInfoExpression": (
+    "rhosocial.activerecord.backend.expression.introspection.TableInfoQueryStatement": (
         NotImplementedError,
-        "Subclass must implement format_table_info_query",
+        "Subclass must implement format_table_info_query_statement",
     ),
     # The ClickHouse roots, same shape as the core ones above: a base holding
     # what every subclass shares, with no formatting method of its own.
@@ -1257,7 +1257,7 @@ LEGITIMATE_NON_RENDERS = {
     ),
     "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnStatement": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_comment_statement"),
+        _no_dialect_formatter("format_comment_on_statement"),
     ),
     # ClickHouse has a database and no inner schema, so CREATE/DROP SCHEMA is
     # not in its grammar at all. These two are the direct consequence of that
@@ -1297,23 +1297,23 @@ LEGITIMATE_NON_RENDERS = {
     # which is the gap being named rather than worked around.
     "rhosocial.activerecord.backend.expression.xml.XMLAggExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlagg_expression"),
+        _no_dialect_formatter("format_xml_agg_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLAttributesExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlattributes_expression"),
+        _no_dialect_formatter("format_xml_attributes_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLCommentExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlcomment_expression"),
+        _no_dialect_formatter("format_xml_comment_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLConcatExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlconcat_expression"),
+        _no_dialect_formatter("format_xml_concat_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLElementExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlelement_expression"),
+        _no_dialect_formatter("format_xml_element_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLExistsPredicate": (
         UnsupportedFeatureError,
@@ -1321,7 +1321,7 @@ LEGITIMATE_NON_RENDERS = {
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLForestExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlforest_expression"),
+        _no_dialect_formatter("format_xml_forest_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLPIExpression": (
         UnsupportedFeatureError,
@@ -1329,23 +1329,23 @@ LEGITIMATE_NON_RENDERS = {
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlparse_expression"),
+        _no_dialect_formatter("format_xml_parse_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLQueryExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlquery_expression"),
+        _no_dialect_formatter("format_xml_query_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLRootExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlroot_expression"),
+        _no_dialect_formatter("format_xml_root_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlserialize_expression"),
+        _no_dialect_formatter("format_xml_serialize_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLTableExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmltable_expression"),
+        _no_dialect_formatter("format_xml_table_expression"),
     ),
     # SQL/PGQ. ClickHouse mixes in GraphMixin, whose MATCH formatters exist and
     # refuse with UnsupportedFeatureError; the GRAPH_TABLE and CREATE/DROP/ALTER
@@ -1622,19 +1622,19 @@ def _dispatched_formatter(exc):
 UNMODELLED_FORMATTERS = {
     "SQL/XML (ClickHouse mixes in no SQL/XML formatter at all)": (
         "format_passing_clause",
-        "format_xmlagg_expression",
-        "format_xmlattributes_expression",
-        "format_xmlcomment_expression",
-        "format_xmlconcat_expression",
-        "format_xmlelement_expression",
+        "format_xml_agg_expression",
+        "format_xml_attributes_expression",
+        "format_xml_comment_expression",
+        "format_xml_concat_expression",
+        "format_xml_element_expression",
         "format_xmlexists_predicate",
-        "format_xmlforest_expression",
+        "format_xml_forest_expression",
         "format_xmlpi_expression",
-        "format_xmlparse_expression",
-        "format_xmlquery_expression",
-        "format_xmlroot_expression",
-        "format_xmlserialize_expression",
-        "format_xmltable_expression",
+        "format_xml_parse_expression",
+        "format_xml_query_expression",
+        "format_xml_root_expression",
+        "format_xml_serialize_expression",
+        "format_xml_table_expression",
     ),
     "SQL/PGQ (ClickHouse mixes in GraphMixin, whose MATCH formatters exist "
     "and refuse; the GRAPH_TABLE half lives in GraphTableMixin, which is not "
@@ -1649,7 +1649,7 @@ UNMODELLED_FORMATTERS = {
         "format_alter_property_graph_statement",
     ),
     "COMMENT ON (the dialect mixes in no comment-DDL mixin; ClickHouse "
-    "comments ride on table and column definitions)": ("format_comment_statement",),
+    "comments ride on table and column definitions)": ("format_comment_on_statement",),
     "SCHEMA (ClickHouse has a database and no inner schema, so CREATE/DROP "
     "SCHEMA is not in its grammar at all)": (
         "format_create_schema_statement",
@@ -2106,7 +2106,7 @@ class TestObjectKindChecks:
         """
         d = self._dialect()
         schedule = ClickHouseRefreshSchedule(d, every="1 HOUR")
-        expr = ClickHouseModifyMaterializedViewRefreshExpression(
+        expr = ClickHouseModifyMaterializedViewRefreshStatement(
             d, MaterializedView(d, "mv"), schedule
         )
         # Mutated *after* construction on purpose. The schedule validates in

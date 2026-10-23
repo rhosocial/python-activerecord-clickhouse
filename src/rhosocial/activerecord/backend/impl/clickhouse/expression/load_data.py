@@ -2,7 +2,7 @@
 """
 ClickHouse-specific LOAD DATA expression.
 
-This module provides ClickHouseLoadDataExpression for ClickHouse's LOAD DATA
+This module provides ClickHouseLoadDataStatement for ClickHouse's LOAD DATA
 INFILE functionality. The statement itself is refused by the dialect's
 formatter (ClickHouse has no LOAD DATA), so the expression exists to carry the
 would-be statement's parameters as data -- and to say no when rendered.
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseLoadDataExpression(BaseExpression):
+class ClickHouseLoadDataStatement(BaseExpression):
     """ClickHouse LOAD DATA INFILE expression.
 
     Collects parameters for LOAD DATA [LOCAL] INFILE statement.

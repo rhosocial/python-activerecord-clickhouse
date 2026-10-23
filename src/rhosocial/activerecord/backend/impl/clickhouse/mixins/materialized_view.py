@@ -26,10 +26,10 @@ if TYPE_CHECKING:  # pragma: no cover
         RefreshMaterializedViewStatement,
     )
     from ..expression.materialized_view import (
-        ClickHouseCreateMaterializedViewExpression,
-        ClickHouseDropMaterializedViewExpression,
-        ClickHouseModifyMaterializedViewRefreshExpression,
-        ClickHouseRefreshMaterializedViewExpression,
+        ClickHouseCreateMaterializedViewStatement,
+        ClickHouseDropMaterializedViewStatement,
+        ClickHouseModifyMaterializedViewRefreshStatement,
+        ClickHouseRefreshMaterializedViewStatement,
         ClickHouseRefreshSchedule,
     )
 
@@ -86,7 +86,7 @@ class ClickHouseMaterializedViewMixin:
     def format_create_materialized_view_statement(
         self,
         expr: Union[
-            "ClickHouseCreateMaterializedViewExpression", "CreateMaterializedViewStatement"
+            "ClickHouseCreateMaterializedViewStatement", "CreateMaterializedViewStatement"
         ],
     ) -> Tuple[str, tuple]:
         """Format ``CREATE MATERIALIZED VIEW`` for both ClickHouse MV flavours.
@@ -117,9 +117,9 @@ class ClickHouseMaterializedViewMixin:
                 f"CreateMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(expr.view).__name__}"
             )
-        from ..expression.materialized_view import ClickHouseCreateMaterializedViewExpression
+        from ..expression.materialized_view import ClickHouseCreateMaterializedViewStatement
 
-        if isinstance(expr, ClickHouseCreateMaterializedViewExpression):
+        if isinstance(expr, ClickHouseCreateMaterializedViewStatement):
             # The ClickHouse node: every clause below is a declared field on it,
             # and its constructor has already validated the shape ClickHouse
             # requires (TO or ENGINE, POPULATE without REFRESH, ...).
@@ -144,7 +144,7 @@ class ClickHouseMaterializedViewMixin:
                     self.name,
                     "CREATE MATERIALIZED VIEW",
                     "ClickHouse requires a TO target table or an ENGINE; use "
-                    "ClickHouseCreateMaterializedViewExpression.",
+                    "ClickHouseCreateMaterializedViewStatement.",
                 )
 
         if to_table is not None and not isinstance(to_table, Table):
@@ -205,7 +205,7 @@ class ClickHouseMaterializedViewMixin:
     def format_drop_materialized_view_statement(
         self,
         expr: Union[
-            "ClickHouseDropMaterializedViewExpression", "DropMaterializedViewStatement"
+            "ClickHouseDropMaterializedViewStatement", "DropMaterializedViewStatement"
         ],
     ) -> Tuple[str, tuple]:
         """Format ``DROP VIEW [IF EXISTS]`` — ClickHouse has no ``DROP MATERIALIZED VIEW``.
@@ -227,9 +227,9 @@ class ClickHouseMaterializedViewMixin:
                 f"DropMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(view).__name__}"
             )
-        from ..expression.materialized_view import ClickHouseDropMaterializedViewExpression
+        from ..expression.materialized_view import ClickHouseDropMaterializedViewStatement
 
-        if not isinstance(expr, ClickHouseDropMaterializedViewExpression):
+        if not isinstance(expr, ClickHouseDropMaterializedViewStatement):
             # ``CASCADE`` / ``RESTRICT`` are fields of the generic statement;
             # this backend's own node does not carry them, because the engine
             # has no such clause to spell.
@@ -246,7 +246,7 @@ class ClickHouseMaterializedViewMixin:
     def format_refresh_materialized_view_statement(
         self,
         expr: Union[
-            "ClickHouseRefreshMaterializedViewExpression", "RefreshMaterializedViewStatement"
+            "ClickHouseRefreshMaterializedViewStatement", "RefreshMaterializedViewStatement"
         ],
     ) -> Tuple[str, tuple]:
         """Format ``SYSTEM REFRESH VIEW`` (optionally followed by ``SYSTEM WAIT VIEW``).
@@ -264,9 +264,9 @@ class ClickHouseMaterializedViewMixin:
                 f"RefreshMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(view).__name__}"
             )
-        from ..expression.materialized_view import ClickHouseRefreshMaterializedViewExpression
+        from ..expression.materialized_view import ClickHouseRefreshMaterializedViewStatement
 
-        if isinstance(expr, ClickHouseRefreshMaterializedViewExpression):
+        if isinstance(expr, ClickHouseRefreshMaterializedViewStatement):
             # This backend's own node: ``SYSTEM WAIT VIEW`` is its spelling of
             # "block until the refresh completes".
             wait = expr.wait
@@ -300,7 +300,7 @@ class ClickHouseMaterializedViewMixin:
         return statement, ()
 
     def format_modify_materialized_view_refresh_statement(
-        self, expr: "ClickHouseModifyMaterializedViewRefreshExpression"
+        self, expr: "ClickHouseModifyMaterializedViewRefreshStatement"
     ) -> Tuple[str, tuple]:
         """Format ``ALTER TABLE ... MODIFY REFRESH``.
 
