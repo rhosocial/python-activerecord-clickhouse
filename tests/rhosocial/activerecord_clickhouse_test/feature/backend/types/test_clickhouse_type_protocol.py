@@ -940,7 +940,7 @@ class TestSpellingGates:
     def test_clickhouse_spells_all_of_a_concepts_spellings(self):
         """``accepted`` may be an explicit tuple for a backend that spells only
         some of a concept. ClickHouse spells all of them, so the concept class is
-        passed to ``_check_spelling`` — asserted here so narrowing any one of them
+        passed to ``check_spelling`` — asserted here so narrowing any one of them
         has to be deliberate rather than a copy-paste slip."""
         dialect = ClickHouseDialect()
         # ``clob`` is not a ClickHouse word, yet it is accepted and rendered

@@ -385,7 +385,7 @@ class ClickHouseMaterializedViewMixin:
             return expr.query, ()
         query_sql, query_params = expr.query.to_sql()
         if query_params and not self.supports_materialized_view_bind_parameters():
-            self._refuse_ddl_bind_parameters("CREATE MATERIALIZED VIEW with bound parameters")
+            self.refuse_ddl_bind_parameters("CREATE MATERIALIZED VIEW with bound parameters")
         return query_sql, query_params
 
     def _reject_unsupported_clauses(

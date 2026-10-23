@@ -325,8 +325,8 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
     # ------------------------------------------------------------------ #
 
     def get_table_info(self, table: str, schema: Optional[str] = None) -> Optional[IntrospectionTableInfo]:
-        key = self._make_cache_key(IntrospectionScope.TABLE, table, schema=schema)
-        cached = self._get_cached(key)
+        key = self.make_cache_key(IntrospectionScope.TABLE, table, schema=schema)
+        cached = self.get_cached(key)
         if cached is not None:
             return cached
 
@@ -340,7 +340,7 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
         info.indexes = self.list_indexes(table, schema)
         # ClickHouse has no foreign keys; keep the default empty list.
         info.foreign_keys = []
-        self._set_cached(key, info)
+        self.set_cached(key, info)
         return info
 
 
@@ -382,8 +382,8 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     # ------------------------------------------------------------------ #
 
     async def get_table_info(self, table: str, schema: Optional[str] = None) -> Optional[IntrospectionTableInfo]:
-        key = self._make_cache_key(IntrospectionScope.TABLE, table, schema=schema)
-        cached = self._get_cached(key)
+        key = self.make_cache_key(IntrospectionScope.TABLE, table, schema=schema)
+        cached = self.get_cached(key)
         if cached is not None:
             return cached
 
@@ -396,5 +396,5 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         info.columns = await self.list_columns(table, schema)
         info.indexes = await self.list_indexes(table, schema)
         info.foreign_keys = await self.list_foreign_keys(table, schema)
-        self._set_cached(key, info)
+        self.set_cached(key, info)
         return info
