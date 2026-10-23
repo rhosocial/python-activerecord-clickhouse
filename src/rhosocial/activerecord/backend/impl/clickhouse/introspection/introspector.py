@@ -61,6 +61,14 @@ from .status_introspector import (
     SyncClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
 )
+from .types import (
+    ClickHousePartitionInfo,
+    ClickHouseTableEngineInfo,
+)
+from ..expression.introspection import (
+    ClickHouseTableEngineQuery,
+    ClickHouseTablePartitionsQuery,
+)
 
 
 class ClickHouseIntrospectorMixin(IntrospectorMixin):
@@ -287,6 +295,68 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
+    def _parse_partitions(
+        self,
+        rows: List[Dict[str, Any]],
+        table: str,
+        database: str,
+    ) -> List[ClickHousePartitionInfo]:
+        """Parse the grouped ``system.parts`` rows into partition records.
+
+        The aggregate aliases are the dataclass field names, so each row is read
+        by name and nothing is inferred from a position. ``int(... or 0)`` covers
+        the empty group a server never returns but a projection alias could still
+        report as ``NULL``: a sum over an empty set is ``NULL`` in SQL, so the
+        fallback states "no rows" rather than raising on the conversion.
+        """
+        return [
+            ClickHousePartitionInfo(
+                partition_id=row.get("partition_id", ""),
+                table_name=table,
+                database=database,
+                engine=row.get("engine") or "",
+                partition=row.get("partition"),
+                row_count=int(row.get("row_count") or 0),
+                bytes_on_disk=int(row.get("bytes_on_disk") or 0),
+                active_part_count=int(row.get("active_part_count") or 0),
+                min_modification_time=row.get("min_modification_time"),
+                max_modification_time=row.get("max_modification_time"),
+            )
+            for row in rows
+        ]
+
+    def _parse_table_engine(
+        self,
+        rows: List[Dict[str, Any]],
+        table: str,
+        database: str,
+    ) -> Optional[ClickHouseTableEngineInfo]:
+        """Parse the single ``system.tables`` row, or ``None`` when there is none.
+
+        ``total_rows`` / ``total_bytes`` are ``Nullable(UInt64)`` and are empty
+        for engines that do not track them; they stay ``None`` rather than being
+        reported as ``0``, which would be a claim the server did not make.
+        """
+        if not rows:
+            return None
+        row = rows[0]
+
+        def _number(value: Any) -> Optional[int]:
+            return None if value is None else int(value)
+
+        return ClickHouseTableEngineInfo(
+            table_name=table,
+            database=database,
+            engine=row.get("engine") or "",
+            sorting_key=row.get("sorting_key"),
+            primary_key=row.get("primary_key"),
+            partition_key=row.get("partition_key"),
+            sampling_key=row.get("sampling_key"),
+            total_rows=_number(row.get("total_rows")),
+            total_bytes=_number(row.get("total_bytes")),
+            comment=row.get("comment"),
+        )
+
 
 class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntrospector):
     """Synchronous introspector for ClickHouse backends.
@@ -349,6 +419,81 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
         self._cache.set(key, info)
         return info
 
+    # ------------------------------------------------------------------ #
+    # ClickHouse-specific reads
+    # ------------------------------------------------------------------ #
+
+    def list_partitions(
+        self,
+        table_name: str,
+        database: Optional[str] = None,
+    ) -> List[ClickHousePartitionInfo]:
+        """List a table's partitions, aggregated from its active parts.
+
+        ClickHouse calls its top-level namespace a *database*; this backend has
+        no schema layer, so ``database`` is that parameter and ``None`` means the
+        connected database. The name is not translated into anything: it is the
+        same string ``system.parts.database`` holds.
+
+        The result is cached under ``IntrospectionScope.TABLE`` with
+        ``extra="partition"`` — the table scope because a partition belongs to a
+        table, and the extra namespace because the same table also answers
+        column, index and engine questions and must not answer this one.
+
+        Args:
+            table_name: The table to read.
+            database: ClickHouse database; defaults to the connected database.
+
+        Returns:
+            One :class:`ClickHousePartitionInfo` per ``partition_id``, ordered
+            by that id. A table with no parts (empty, or an engine that has none)
+            returns an empty list — the server has nothing to report, so nothing
+            is invented.
+        """
+        target = database if database is not None else self._get_default_schema()
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="partition")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseTablePartitionsQuery(self._backend.dialect, target, table_name).to_sql()
+        result = self._parse_partitions(self._executor.execute(sql, params), table_name, target)
+        self._cache.set(key, result)
+        return result
+
+    def get_table_engine(
+        self,
+        table_name: str,
+        database: Optional[str] = None,
+    ) -> Optional[ClickHouseTableEngineInfo]:
+        """Read a table's engine and key expressions from ``system.tables``.
+
+        ``database`` follows the same rule as :meth:`list_partitions`: it is a
+        ClickHouse database name, and ``None`` means the connected database.
+
+        Cached under ``IntrospectionScope.TABLE`` with ``extra="engine"``. A
+        missing table is **not** cached: the cache's ``get`` uses ``None`` for
+        "no entry", so caching ``None`` could not be distinguished from a miss
+        anyway, and the next call re-asks the server.
+
+        Args:
+            table_name: The table to read.
+            database: ClickHouse database; defaults to the connected database.
+
+        Returns:
+            The table's :class:`ClickHouseTableEngineInfo`, or ``None`` if the
+            server has no such table.
+        """
+        target = database if database is not None else self._get_default_schema()
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="engine")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseTableEngineQuery(self._backend.dialect, target, table_name).to_sql()
+        result = self._parse_table_engine(self._executor.execute(sql, params), table_name, target)
+        if result is not None:
+            self._cache.set(key, result)
+        return result
+
 
 class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntrospector):
     """Asynchronous introspector for ClickHouse backends.
@@ -409,3 +554,51 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         info.foreign_keys = await self.list_foreign_keys(table, schema)
         self._cache.set(key, info)
         return info
+
+    # ------------------------------------------------------------------ #
+    # ClickHouse-specific reads
+    # ------------------------------------------------------------------ #
+
+    async def list_partitions(
+        self,
+        table_name: str,
+        database: Optional[str] = None,
+    ) -> List[ClickHousePartitionInfo]:
+        """List a table's partitions, aggregated from its active parts.
+
+        The asynchronous counterpart of the synchronous method: same parameters,
+        same result, same cache key. See
+        :meth:`SyncClickHouseIntrospector.list_partitions` for the naming rule
+        (``database`` is ClickHouse's own top-level namespace) and the scope.
+        """
+        target = database if database is not None else self._get_default_schema()
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="partition")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseTablePartitionsQuery(self._backend.dialect, target, table_name).to_sql()
+        result = self._parse_partitions(await self._executor.execute(sql, params), table_name, target)
+        self._cache.set(key, result)
+        return result
+
+    async def get_table_engine(
+        self,
+        table_name: str,
+        database: Optional[str] = None,
+    ) -> Optional[ClickHouseTableEngineInfo]:
+        """Read a table's engine and key expressions from ``system.tables``.
+
+        The asynchronous counterpart of the synchronous method: same parameters,
+        same result, same cache key and the same "missing table is not cached"
+        rule.
+        """
+        target = database if database is not None else self._get_default_schema()
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="engine")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseTableEngineQuery(self._backend.dialect, target, table_name).to_sql()
+        result = self._parse_table_engine(await self._executor.execute(sql, params), table_name, target)
+        if result is not None:
+            self._cache.set(key, result)
+        return result

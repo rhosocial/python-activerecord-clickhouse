@@ -15,6 +15,13 @@ Feature notes:
 """
 
 EXAMPLES_META = {
+    "introspection_partitions.py": {
+        "title": "Partitions and Table Engine (backend-specific introspection)",
+        "dialect_protocols": [],
+        "priority": 10,
+        "min_version": "25.8",
+        "max_version": "26.7",
+    },
     "transaction/basic.py": {
         "title": "Transaction Awareness (ClickHouse does not support transactions)",
         "dialect_protocols": [],

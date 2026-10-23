@@ -3,6 +3,10 @@ from typing import List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
+    from ..expression.introspection import (
+        ClickHouseTableEngineQuery,
+        ClickHouseTablePartitionsQuery,
+    )
     from rhosocial.activerecord.backend.expression.introspection import (
         DatabaseInfoQueryStatement,
         TableListQueryStatement,
@@ -160,6 +164,12 @@ class ClickHouseIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import OrderByClause
 
         return OrderByClause(self, [self._column(name) for name in columns])
+
+    def _group_by(self, *columns: str):
+        """``GROUP BY`` over the named columns, in the order given."""
+        from rhosocial.activerecord.backend.expression import GroupByHavingClause
+
+        return GroupByHavingClause(self, group_by=[self._column(name) for name in columns])
 
     def _constant(self, value, alias: str, data_type):
         """A constant projection carrying *alias* and its declared type.
@@ -449,3 +459,89 @@ class ClickHouseIntrospectionMixin:
             "ClickHouse", "trigger introspection",
             "ClickHouse does not support triggers."
         )
+
+    # ========== Backend-specific reads ==========
+
+    def format_clickhouse_table_partitions_query(
+        self, expr: "ClickHouseTablePartitionsQuery"
+    ) -> Tuple[str, tuple]:
+        """One row per partition of a table, aggregated from ``system.parts``.
+
+        The filter ``active = 1`` is what makes the aggregate mean what it says.
+        ``system.parts`` keeps a part until its replacement has been written and
+        the old one is ready to be removed, so a table that has just merged
+        reports both the sources and the result at once. Summing every row would
+        then count the same rows twice; summing the active parts counts each row
+        once, and ``COUNT(*)`` is the number of parts the partition currently
+        consists of.
+
+        ``min(partition)`` and ``min(engine)`` read the two group-invariant
+        columns: every part of a partition carries the same readable partition
+        value and the same engine, so the minimum is that value. ClickHouse's
+        own ``any`` aggregate would say this more directly, but the shared
+        function formatter upper-cases every function name and ClickHouse
+        rejects ``ANY`` (measured on 26.7.3.19: ``Function with name `ANY` does
+        not exist``), while ``MIN`` is accepted; a column outside the ``GROUP BY``
+        still has to be aggregated, so it is read this way.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression.functions.aggregate import (
+            count,
+            max_,
+            min_,
+            sum_,
+        )
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("partition_id"),
+                min_(self, self._column("partition"), alias="partition"),
+                min_(self, self._column("engine"), alias="engine"),
+                count(self, "*", alias="active_part_count"),
+                sum_(self, self._column("rows"), alias="row_count"),
+                sum_(self, self._column("bytes_on_disk"), alias="bytes_on_disk"),
+                min_(self, self._column("modification_time"), alias="min_modification_time"),
+                max_(self, self._column("modification_time"), alias="max_modification_time"),
+            ],
+            from_=self._system_relation("parts"),
+            where=self._where(
+                self._equals(self._column("database"), Literal(self, expr.database)),
+                self._equals(self._column("table"), Literal(self, expr.table)),
+                self._equals(self._column("active"), Literal(self, 1)),
+            ),
+            group_by_having=self._group_by("partition_id"),
+            order_by=self._order_by("partition_id"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_table_engine_query(
+        self, expr: "ClickHouseTableEngineQuery"
+    ) -> Tuple[str, tuple]:
+        """The storage definition of one table, from ``system.tables``.
+
+        One row is expected; a name that does not exist yields no rows, which is
+        the introspector's ``None``. The key columns come back as the server
+        stores them: an absent key is ``''``, not ``NULL``.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("engine"),
+                self._column("sorting_key"),
+                self._column("primary_key"),
+                self._column("partition_key"),
+                self._column("sampling_key"),
+                self._column("total_rows"),
+                self._column("total_bytes"),
+                self._column("comment"),
+            ],
+            from_=self._system_relation("tables"),
+            where=self._where(
+                self._equals(self._column("database"), Literal(self, expr.database)),
+                self._equals(self._column("name"), Literal(self, expr.table)),
+            ),
+        )
+        return query.to_sql()

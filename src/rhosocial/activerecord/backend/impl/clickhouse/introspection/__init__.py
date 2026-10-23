@@ -9,6 +9,9 @@ Provides:
   AsyncShowIntrospector   — asynchronous ClickHouse-specific SHOW command sub-introspector
   SyncClickHouseStatusIntrospector  — synchronous ClickHouse status introspector
   AsyncClickHouseStatusIntrospector -- asynchronous ClickHouse status introspector
+
+Also re-exports the ClickHouse-specific result types (`ClickHousePartitionInfo`,
+`ClickHouseTableEngineInfo`) the two introspectors return.
 """
 
 from .introspector import (
@@ -23,6 +26,10 @@ from .status_introspector import (
     SyncClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
 )
+from .types import (
+    ClickHousePartitionInfo,
+    ClickHouseTableEngineInfo,
+)
 
 __all__ = [
     "SyncClickHouseIntrospector",
@@ -31,4 +38,6 @@ __all__ = [
     "AsyncShowIntrospector",
     "SyncClickHouseStatusIntrospector",
     "AsyncClickHouseStatusIntrospector",
+    "ClickHousePartitionInfo",
+    "ClickHouseTableEngineInfo",
 ]

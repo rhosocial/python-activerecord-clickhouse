@@ -17,7 +17,18 @@ from .output import create_provider
 
 OUTPUT_CHOICES = ["table", "json", "csv", "tsv"]
 
-INTROSPECT_TYPES = ["tables", "views", "table", "columns", "indexes", "foreign-keys", "triggers", "database"]
+INTROSPECT_TYPES = [
+    "tables",
+    "views",
+    "table",
+    "columns",
+    "indexes",
+    "partitions",
+    "table-engine",
+    "foreign-keys",
+    "triggers",
+    "database",
+]
 
 
 def create_parser(subparsers):
@@ -37,6 +48,12 @@ def create_parser(subparsers):
 
   # Get column details for a table
   %(prog)s columns users --database mydb
+
+  # List a table's partitions (from system.parts, grouped by partition_id)
+  %(prog)s partitions events --database mydb
+
+  # Show a table's engine and key expressions (from system.tables)
+  %(prog)s table-engine events --database mydb
 
   # Output as JSON
   %(prog)s tables --database mydb -o json
@@ -71,7 +88,10 @@ def create_parser(subparsers):
     parser.add_argument(
         "type",
         choices=INTROSPECT_TYPES,
-        help="Introspection type: tables, views, table, columns, indexes, foreign-keys, triggers, database",
+        help=(
+            "Introspection type: tables, views, table, columns, indexes, "
+            "partitions, table-engine, foreign-keys, triggers, database"
+        ),
     )
     parser.add_argument(
         "name",
@@ -82,7 +102,10 @@ def create_parser(subparsers):
     parser.add_argument(
         "--schema",
         default=None,
-        help="Schema name (for databases that support schemas)",
+        help=(
+            "Schema name. On ClickHouse this is the *database*: the backend has "
+            "no schema layer, so the value names the same namespace as --database."
+        ),
     )
     parser.add_argument(
         "--include-system",
@@ -191,6 +214,28 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
 
+        elif args.type == "partitions":
+            if not args.name:
+                print("Error: Table name is required for 'partitions' introspection", file=sys.stderr)
+                sys.exit(1)
+            # ``--schema`` carries a ClickHouse database name: this backend has
+            # no schema layer, so the method's parameter is named ``database``.
+            partitions = introspector.list_partitions(args.name, database=args.schema)
+            data = _serialize_for_output(partitions)
+            provider.display_results(data, title=f"Partitions of {args.name}")
+
+        elif args.type == "table-engine":
+            if not args.name:
+                print("Error: Table name is required for 'table-engine' introspection", file=sys.stderr)
+                sys.exit(1)
+            engine = introspector.get_table_engine(args.name, database=args.schema)
+            if engine is None:
+                print(f"Error: Table '{args.name}' not found", file=sys.stderr)
+                sys.exit(1)
+            provider.display_results(
+                [_serialize_for_output(engine)], title=f"Engine of {args.name}"
+            )
+
         elif args.type == "foreign-keys":
             if not args.name:
                 print("Error: Table name is required for 'foreign-keys' introspection", file=sys.stderr)
@@ -272,6 +317,28 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             indexes = await introspector.list_indexes_async(args.name, schema=args.schema)
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
+
+        elif args.type == "partitions":
+            if not args.name:
+                print("Error: Table name is required for 'partitions' introspection", file=sys.stderr)
+                sys.exit(1)
+            # ``--schema`` carries a ClickHouse database name: this backend has
+            # no schema layer, so the method's parameter is named ``database``.
+            partitions = await introspector.list_partitions(args.name, database=args.schema)
+            data = _serialize_for_output(partitions)
+            provider.display_results(data, title=f"Partitions of {args.name}")
+
+        elif args.type == "table-engine":
+            if not args.name:
+                print("Error: Table name is required for 'table-engine' introspection", file=sys.stderr)
+                sys.exit(1)
+            engine = await introspector.get_table_engine(args.name, database=args.schema)
+            if engine is None:
+                print(f"Error: Table '{args.name}' not found", file=sys.stderr)
+                sys.exit(1)
+            provider.display_results(
+                [_serialize_for_output(engine)], title=f"Engine of {args.name}"
+            )
 
         elif args.type == "foreign-keys":
             if not args.name:
