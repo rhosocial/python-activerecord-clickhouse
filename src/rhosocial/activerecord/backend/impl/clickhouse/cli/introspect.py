@@ -34,8 +34,6 @@ INTROSPECT_TYPES = [
     "indexes",
     "partitions",
     "table-engine",
-    "foreign-keys",
-    "triggers",
     "database",
 ]
 
@@ -52,7 +50,7 @@ def create_parser(subparsers):
   # List all views
   %(prog)s views --database mydb
 
-  # Get detailed table info (columns, indexes, foreign keys)
+  # Get detailed table info (columns and indexes)
   %(prog)s table users --database mydb
 
   # Get column details for a table
@@ -99,7 +97,7 @@ def create_parser(subparsers):
         choices=INTROSPECT_TYPES,
         help=(
             "Introspection type: tables, views, table, columns, indexes, "
-            "partitions, table-engine, foreign-keys, triggers, database"
+            "partitions, table-engine, database"
         ),
     )
     parser.add_argument(
@@ -237,19 +235,6 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
                 [_serialize_for_output(engine)], title=f"Engine of {args.name}"
             )
 
-        elif args.type == "foreign-keys":
-            if not args.name:
-                print("Error: Table name is required for 'foreign-keys' introspection", file=sys.stderr)
-                sys.exit(1)
-            fks = introspector.list_foreign_keys(args.name, schema=None)
-            data = _serialize_for_output(fks)
-            provider.display_results(data, title=f"Foreign Keys of {args.name}")
-
-        elif args.type == "triggers":
-            triggers = introspector.list_triggers(table=args.name, schema=None)
-            data = _serialize_for_output(triggers)
-            provider.display_results(data, title="Triggers")
-
         elif args.type == "database":
             info = introspector.get_database_info()
             data = _serialize_for_output(info)
@@ -340,19 +325,6 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             provider.display_results(
                 [_serialize_for_output(engine)], title=f"Engine of {args.name}"
             )
-
-        elif args.type == "foreign-keys":
-            if not args.name:
-                print("Error: Table name is required for 'foreign-keys' introspection", file=sys.stderr)
-                sys.exit(1)
-            fks = await introspector.list_foreign_keys_async(args.name, schema=None)
-            data = _serialize_for_output(fks)
-            provider.display_results(data, title=f"Foreign Keys of {args.name}")
-
-        elif args.type == "triggers":
-            triggers = await introspector.list_triggers_async(table=args.name, schema=None)
-            data = _serialize_for_output(triggers)
-            provider.display_results(data, title="Triggers")
 
         elif args.type == "database":
             info = await introspector.get_database_info_async()
