@@ -1,5 +1,14 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/cli/introspect.py
-"""introspect subcommand - Database introspection."""
+"""introspect subcommand - Database introspection.
+
+There is no namespace flag here, and that is deliberate. ClickHouse has
+exactly one namespace level and calls it a *database* -- there is no
+schema under it. So ``--database``, which the connection already takes, is
+the whole answer: the run connects to a database and asks about that
+database. An earlier version accepted ``--schema`` and had to explain in
+its help text that the value named a database anyway; the flag is gone
+rather than aliased.
+"""
 
 import argparse
 import asyncio
@@ -100,14 +109,6 @@ def create_parser(subparsers):
         help="Table/view name (required for some types)",
     )
     parser.add_argument(
-        "--schema",
-        default=None,
-        help=(
-            "Schema name. On ClickHouse this is the *database*: the backend has "
-            "no schema layer, so the value names the same namespace as --database."
-        ),
-    )
-    parser.add_argument(
         "--include-system",
         action="store_true",
         help="Include system tables in output",
@@ -172,12 +173,12 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
         introspector = backend.introspector
 
         if args.type == "tables":
-            tables = introspector.list_tables(schema=args.schema, include_system=args.include_system)
+            tables = introspector.list_tables(schema=None, include_system=args.include_system)
             data = _serialize_for_output(tables)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = introspector.list_views(schema=args.schema)
+            views = introspector.list_views(schema=None)
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
 
@@ -185,7 +186,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             if not args.name:
                 print("Error: Table name is required for 'table' introspection", file=sys.stderr)
                 sys.exit(1)
-            info = introspector.get_table_info(args.name, schema=args.schema)
+            info = introspector.get_table_info(args.name, schema=None)
             if info:
                 provider.display_results(_serialize_for_output(info.columns), title=f"Columns of {args.name}")
                 if info.indexes:
@@ -202,7 +203,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             if not args.name:
                 print("Error: Table name is required for 'columns' introspection", file=sys.stderr)
                 sys.exit(1)
-            columns = introspector.list_columns(args.name, schema=args.schema)
+            columns = introspector.list_columns(args.name, schema=None)
             data = _serialize_for_output(columns)
             provider.display_results(data, title=f"Columns of {args.name}")
 
@@ -210,7 +211,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             if not args.name:
                 print("Error: Table name is required for 'indexes' introspection", file=sys.stderr)
                 sys.exit(1)
-            indexes = introspector.list_indexes(args.name, schema=args.schema)
+            indexes = introspector.list_indexes(args.name, schema=None)
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
 
@@ -220,7 +221,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
                 sys.exit(1)
             # ``--schema`` carries a ClickHouse database name: this backend has
             # no schema layer, so the method's parameter is named ``database``.
-            partitions = introspector.list_partitions(args.name, database=args.schema)
+            partitions = introspector.list_partitions(args.name, database=None)
             data = _serialize_for_output(partitions)
             provider.display_results(data, title=f"Partitions of {args.name}")
 
@@ -228,7 +229,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             if not args.name:
                 print("Error: Table name is required for 'table-engine' introspection", file=sys.stderr)
                 sys.exit(1)
-            engine = introspector.get_table_engine(args.name, database=args.schema)
+            engine = introspector.get_table_engine(args.name, database=None)
             if engine is None:
                 print(f"Error: Table '{args.name}' not found", file=sys.stderr)
                 sys.exit(1)
@@ -240,12 +241,12 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             if not args.name:
                 print("Error: Table name is required for 'foreign-keys' introspection", file=sys.stderr)
                 sys.exit(1)
-            fks = introspector.list_foreign_keys(args.name, schema=args.schema)
+            fks = introspector.list_foreign_keys(args.name, schema=None)
             data = _serialize_for_output(fks)
             provider.display_results(data, title=f"Foreign Keys of {args.name}")
 
         elif args.type == "triggers":
-            triggers = introspector.list_triggers(table=args.name, schema=args.schema)
+            triggers = introspector.list_triggers(table=args.name, schema=None)
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
 
@@ -276,12 +277,12 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
         introspector = backend.introspector
 
         if args.type == "tables":
-            tables = await introspector.list_tables_async(schema=args.schema, include_system=args.include_system)
+            tables = await introspector.list_tables_async(schema=None, include_system=args.include_system)
             data = _serialize_for_output(tables)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = await introspector.list_views_async(schema=args.schema)
+            views = await introspector.list_views_async(schema=None)
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
 
@@ -289,7 +290,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'table' introspection", file=sys.stderr)
                 sys.exit(1)
-            info = await introspector.get_table_info_async(args.name, schema=args.schema)
+            info = await introspector.get_table_info_async(args.name, schema=None)
             if info:
                 provider.display_results(_serialize_for_output(info.columns), title=f"Columns of {args.name}")
                 if info.indexes:
@@ -306,7 +307,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'columns' introspection", file=sys.stderr)
                 sys.exit(1)
-            columns = await introspector.list_columns_async(args.name, schema=args.schema)
+            columns = await introspector.list_columns_async(args.name, schema=None)
             data = _serialize_for_output(columns)
             provider.display_results(data, title=f"Columns of {args.name}")
 
@@ -314,7 +315,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'indexes' introspection", file=sys.stderr)
                 sys.exit(1)
-            indexes = await introspector.list_indexes_async(args.name, schema=args.schema)
+            indexes = await introspector.list_indexes_async(args.name, schema=None)
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
 
@@ -324,7 +325,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
                 sys.exit(1)
             # ``--schema`` carries a ClickHouse database name: this backend has
             # no schema layer, so the method's parameter is named ``database``.
-            partitions = await introspector.list_partitions(args.name, database=args.schema)
+            partitions = await introspector.list_partitions(args.name, database=None)
             data = _serialize_for_output(partitions)
             provider.display_results(data, title=f"Partitions of {args.name}")
 
@@ -332,7 +333,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'table-engine' introspection", file=sys.stderr)
                 sys.exit(1)
-            engine = await introspector.get_table_engine(args.name, database=args.schema)
+            engine = await introspector.get_table_engine(args.name, database=None)
             if engine is None:
                 print(f"Error: Table '{args.name}' not found", file=sys.stderr)
                 sys.exit(1)
@@ -344,12 +345,12 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'foreign-keys' introspection", file=sys.stderr)
                 sys.exit(1)
-            fks = await introspector.list_foreign_keys_async(args.name, schema=args.schema)
+            fks = await introspector.list_foreign_keys_async(args.name, schema=None)
             data = _serialize_for_output(fks)
             provider.display_results(data, title=f"Foreign Keys of {args.name}")
 
         elif args.type == "triggers":
-            triggers = await introspector.list_triggers_async(table=args.name, schema=args.schema)
+            triggers = await introspector.list_triggers_async(table=args.name, schema=None)
             data = _serialize_for_output(triggers)
             provider.display_results(data, title="Triggers")
 

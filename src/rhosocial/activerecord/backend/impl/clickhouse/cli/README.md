@@ -33,7 +33,7 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 | Option | Default | Description |
 | :--- | :--- | :--- |
 | `-o, --output` | `table` | `table` (rich), `json`, `csv`, `tsv`. |
-| `--schema` | the connected database | The database to read. ClickHouse's namespace level is a *database*, and the CLI says so rather than calling it a schema. |
+| `--database` | required (env: `CLICKHOUSE_DATABASE`) | The database to connect to **and** the database to read. ClickHouse's namespace level is a *database* and the flag says so. |
 | `--include-system` | off | Include system tables. |
 | `--host`, `--port`, `--database`, `--user`, `--password` | env or defaults | Connection. `CLICKHOUSE_*` env vars are honoured, and arguments override them. |
 | `--ssl` | off | Use SSL for the connection. |
@@ -47,6 +47,10 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 *   **Read-only.** `introspect` never writes. It does not create, drop, or
     alter anything, so it is safe to run against a server whose schema
     matters.
+*   **There is no namespace flag, and that is deliberate.** ClickHouse's one
+    namespace level is a *database* and `--database` names it, so the flag says
+    the engine's word rather than a generic one. No `--schema`, and no alias for
+    it, so a caller cannot name a level that does not exist here.
 *   **`partitions` reads `system.parts`, not `system.partitions`.** The parts
     view is what is live; a partition with no active parts has nothing to
     report, which is why the answer is aggregated rather than listed.
@@ -70,5 +74,5 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect table-engine
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect table events
 
 # Another database, including its system tables
-python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables --schema reports --include-system
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables --database reports --include-system
 ```
