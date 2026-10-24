@@ -62,6 +62,23 @@ class ClickHouseIntrospectionMixin:
     system table at all and raise.
     """
 
+    def supports_partition_introspection(self) -> bool:
+        """ClickHouse answers for a table's partitions from ``system.parts``.
+
+        The capability for the ``introspect partitions`` family. The
+        parts view is live, so a partition with no active parts has
+        nothing to report and the answer is aggregated."""
+        return True
+
+    def supports_table_engine_introspection(self) -> bool:
+        """ClickHouse answers for a table's storage definition.
+
+        The capability for the ``introspect table-engine`` family: the engine
+        a table was created with and the key expressions it declares, which
+        on this engine are the closest thing a schema has to a primary key.
+        """
+        return True
+
     # ========== Capability Detection ==========
 
     def supports_introspection(self) -> bool:

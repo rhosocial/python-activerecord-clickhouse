@@ -92,12 +92,31 @@ def create_parser(subparsers):
     )
 
     # introspect-specific arguments
+    # The dialect decides what this run may ask. A hand-written list here is
+    # how `foreign-keys` and `triggers` came to be offered on an engine that
+    # declares it has neither -- the user found that out from an error, not
+    # from --help.
+    from rhosocial.activerecord.backend.cli.introspect_capabilities import (
+        available_introspect_types,
+    )
+    from rhosocial.activerecord.backend.impl.clickhouse.dialect import (
+        ClickHouseDialect,
+    )
+
+    # Not connecting to decide this. The types ClickHouse offers are not
+    # version-gated -- system.parts, system.tables, system.data_skipping_indices
+    # predate the versions this backend supports -- so a dialect carrying a
+    # standing configuration answers the same as one adapted to a live server
+    # would. Where a family *is* version-gated (MariaDB's sequences), the CLI
+    # derives it in `handle` instead, once the backend is adapted.
+    dialect = ClickHouseDialect()
+    offered = available_introspect_types(dialect, INTROSPECT_TYPES)
     parser.add_argument(
         "type",
-        choices=INTROSPECT_TYPES,
+        choices=offered,
         help=(
-            "Introspection type: tables, views, table, columns, indexes, "
-            "partitions, table-engine, database"
+            "Introspection type: "
+            + ", ".join(offered)
         ),
     )
     parser.add_argument(
