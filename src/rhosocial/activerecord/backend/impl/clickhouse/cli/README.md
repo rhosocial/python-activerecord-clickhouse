@@ -16,17 +16,15 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 | :--- | :--- | :--- |
 | `tables` | `system.tables` | Tables, with the storage engine in the `table_type` position. `--include-system` adds the engine's own tables. |
 | `views` | `system.tables` | Views, with their definitions. |
-| `table` | several | One table by name, with its columns, indexes and foreign keys filled in. |
+| `table` | several | One table by name, with its columns and indexes filled in. |
 | `columns` | `system.columns` | One table's columns: name, type, nullability, ordinal position, default. |
 | `indexes` | `system.data_skipping_indices` | One table's data-skipping indices — ClickHouse's nearest analogue to an index. |
-| `foreign-keys` | — | The engine neither declares nor enforces foreign keys, so this answers with the capability missing rather than an empty list that looks like "none declared". |
-| `triggers` | — | Likewise: ClickHouse has no triggers. Asking reports the capability as unsupported, not a silent empty answer. |
 | `partitions` | `system.parts` | One table's partitions and subpartitions, in the engine's own order, aggregated from the parts currently active. |
 | `table-engine` | `system.tables` | The engine of one table, with its sorting, primary and sampling keys, plus row and byte totals. |
 | `database` | `system.build_options`, `system.databases` | Server version and the databases visible to this role. |
 
-`NAME` is required for `table`, `columns`, `indexes`, `foreign-keys`,
-`partitions` and `table-engine`. The list types take no name.
+`NAME` is required for `table`, `columns`, `indexes`, `partitions` and
+`table-engine`. The list types take no name.
 
 ## Options
 
@@ -56,10 +54,11 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
     report, which is why the answer is aggregated rather than listed.
 *   **`table_type` carries the engine.** For ClickHouse that is the more
     useful of the two facts MySQL's same-shaped view would report.
-*   **`triggers` and `foreign-keys` are refused, not empty.** ClickHouse has
-    neither, so the backend reports the capability as unsupported. An empty
-    list would read as "none declared", which is a different and wrong
-    answer — the same command against a MySQL database returns a real list.
+*   **No `triggers`, no `foreign-keys`.** ClickHouse has neither, so the CLI
+    does not offer those types at all — they are missing from `TYPE` instead of
+    accepted and then refused. An empty list from a type that was offered would
+    read as "none declared", which is a different and wrong answer; the same
+    command against a MySQL database returns a real list.
 *   **One question per invocation.** A CLI process is one connection that
     opens, answers, and closes — there is no cache carried between runs.
 

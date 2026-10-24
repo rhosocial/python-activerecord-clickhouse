@@ -92,31 +92,17 @@ def create_parser(subparsers):
     )
 
     # introspect-specific arguments
-    # The dialect decides what this run may ask. A hand-written list here is
-    # how `foreign-keys` and `triggers` came to be offered on an engine that
-    # declares it has neither -- the user found that out from an error, not
-    # from --help.
-    from rhosocial.activerecord.backend.cli.introspect_capabilities import (
-        available_introspect_types,
-    )
-    from rhosocial.activerecord.backend.impl.clickhouse.dialect import (
-        ClickHouseDialect,
-    )
-
-    # Not connecting to decide this. The types ClickHouse offers are not
-    # version-gated -- system.parts, system.tables, system.data_skipping_indices
-    # predate the versions this backend supports -- so a dialect carrying a
-    # standing configuration answers the same as one adapted to a live server
-    # would. Where a family *is* version-gated (MariaDB's sequences), the CLI
-    # derives it in `handle` instead, once the backend is adapted.
-    dialect = ClickHouseDialect()
-    offered = available_introspect_types(dialect, INTROSPECT_TYPES)
+    # The list above is this backend's own answer, written here because only
+    # ClickHouse can say which families it has. `foreign-keys` and `triggers`
+    # are absent on purpose: the engine neither declares nor enforces foreign
+    # keys and has no triggers, so offering those questions would advertise an
+    # error rather than an answer.
     parser.add_argument(
         "type",
-        choices=offered,
+        choices=INTROSPECT_TYPES,
         help=(
-            "Introspection type: "
-            + ", ".join(offered)
+            "Introspection type: tables, views, table, columns, indexes, "
+            "partitions, table-engine, database"
         ),
     )
     parser.add_argument(
@@ -236,8 +222,8 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             if not args.name:
                 print("Error: Table name is required for 'partitions' introspection", file=sys.stderr)
                 sys.exit(1)
-            # ``--schema`` carries a ClickHouse database name: this backend has
-            # no schema layer, so the method's parameter is named ``database``.
+            # This backend has no schema layer, so the method's parameter is
+            # named ``database`` and ``None`` means the connected database.
             partitions = introspector.list_partitions(args.name, database=None)
             data = _serialize_for_output(partitions)
             provider.display_results(data, title=f"Partitions of {args.name}")
@@ -327,8 +313,8 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'partitions' introspection", file=sys.stderr)
                 sys.exit(1)
-            # ``--schema`` carries a ClickHouse database name: this backend has
-            # no schema layer, so the method's parameter is named ``database``.
+            # This backend has no schema layer, so the method's parameter is
+            # named ``database`` and ``None`` means the connected database.
             partitions = await introspector.list_partitions(args.name, database=None)
             data = _serialize_for_output(partitions)
             provider.display_results(data, title=f"Partitions of {args.name}")
