@@ -109,20 +109,20 @@ class ClickHouseShowFunctionality:
 
     def _parse_create_table_result(self, result, table: str):
         """Parse ``SHOW CREATE TABLE`` — a single ``statement`` column."""
-        return self._show_parser()._parse_create_table(result.data, table)
+        return self._show_parser().parse_create_table(result.data, table)
 
     def _parse_create_view_result(self, result, view_name: str):
         """Parse ``SHOW CREATE VIEW`` — a single ``statement`` column, as above."""
-        return self._show_parser()._parse_create_view(result.data, view_name)
+        return self._show_parser().parse_create_view(result.data, view_name)
 
     def _parse_columns_result(self, result):
         """Parse ``SHOW [FULL] COLUMNS`` — ``field`` / ``type`` / ``null`` /
         ``key`` / ``default`` / ``extra``, plus the three ``FULL`` columns."""
-        return self._show_parser()._parse_columns(result.data)
+        return self._show_parser().parse_columns(result.data)
 
     def _parse_indexes_result(self, result):
         """Parse ``SHOW INDEX`` — ``table`` / ``key_name`` / ``pk_col`` / ..."""
-        return self._show_parser()._parse_indexes(result.data)
+        return self._show_parser().parse_indexes(result.data)
 
     def _parse_tables_result(self, result):
         """Parse ``SHOW [FULL] TABLES`` — columns ``name`` and, under ``FULL``, ``engine``.
@@ -238,7 +238,7 @@ class ClickHouseShowFunctionality:
 
     def _parse_processlist_result(self, result):
         """Parse ``SHOW PROCESSLIST`` — ``system.processes``' own columns."""
-        return self._show_parser()._parse_processlist(result.data)
+        return self._show_parser().parse_processlist(result.data)
 
     def _parse_warnings_result(self, result):
         """Parse SHOW WARNINGS result."""
@@ -268,7 +268,7 @@ class ClickHouseShowFunctionality:
 
     def _parse_engines_result(self, result):
         """Parse ``SHOW ENGINES`` — ``name`` plus the eight ``supports_*`` flags."""
-        return self._show_parser()._parse_engines(result.data)
+        return self._show_parser().parse_engines(result.data)
 
     def _parse_charset_result(self, result):
         """Parse SHOW CHARACTER SET result."""
@@ -302,7 +302,7 @@ class ClickHouseShowFunctionality:
 
     def _parse_grants_result(self, result):
         """Parse ``SHOW GRANTS`` — one column, named after the statement text."""
-        return self._show_parser()._parse_grants(result.data)
+        return self._show_parser().parse_grants(result.data)
 
     def _parse_plugins_result(self, result):
         """Parse SHOW PLUGINS result."""

@@ -12,12 +12,12 @@ Architecture:
   - SQL generation: Delegated to ClickHouseIntrospectionMixin.format_*_query()
     methods in the Dialect layer via Expression.to_sql()
   - Query execution: Handled by IntrospectorExecutor
-  - Result parsing: _parse_* methods in this module (pure Python, no I/O)
+  - Result parsing: parse_* methods in this module (pure Python, no I/O)
 
 Key behaviours:
   - Queries ClickHouse system.* tables (system.tables, system.columns,
     system.databases, system.parts, system.triggers, etc.)
-  - _parse_* methods are pure Python — shared by sync and async introspectors
+  - parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
 - SyncClickHouseIntrospector: for synchronous backends
@@ -78,13 +78,14 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
     from this mixin to share:
     - Default schema handling
     - ClickHouse version detection
-    - _parse_* implementations
+    - parse_* implementations
 
     SQL generation is delegated to the Dialect layer via Expression.to_sql()
     which calls ClickHouseIntrospectionMixin.format_*_query() methods.
     """
 
-    def _get_default_schema(self) -> str:
+    @property
+    def default_schema(self) -> str:
         """Return the ClickHouse database name from the backend config."""
         if hasattr(self._backend, "config") and hasattr(self._backend.config, "database"):
             return self._backend.config.database or ""
@@ -105,10 +106,10 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
     # Parse methods — pure Python, no I/O
     # ------------------------------------------------------------------ #
 
-    def _parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
+    def parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
         version = self._get_version()
         version_str = ".".join(str(v) for v in version)
-        db_name = self._get_default_schema()
+        db_name = self.default_schema
 
         db_row = rows[0] if rows else {}
 
@@ -121,8 +122,8 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             collation=db_row.get("DEFAULT_COLLATION_NAME"),
         )
 
-    def _parse_tables(self, rows: List[Dict[str, Any]], schema: Optional[str]) -> List[IntrospectionTableInfo]:
-        target_db = schema if schema is not None else self._get_default_schema()
+    def parse_tables(self, rows: List[Dict[str, Any]], schema: Optional[str]) -> List[IntrospectionTableInfo]:
+        target_db = schema if schema is not None else self.default_schema
         table_type_map = {
             "BASE TABLE": TableType.BASE_TABLE,
             "VIEW": TableType.VIEW,
@@ -146,7 +147,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             )
         return tables
 
-    def _parse_columns(
+    def parse_columns(
         self,
         rows: List[Dict[str, Any]],
         table: str,
@@ -181,7 +182,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             )
         return columns
 
-    def _parse_indexes(
+    def parse_indexes(
         self,
         rows: List[Dict[str, Any]],
         table: str,
@@ -217,7 +218,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             )
         return list(index_map.values())
 
-    def _parse_foreign_keys(
+    def parse_foreign_keys(
         self,
         rows: List[Dict[str, Any]],
         table: str,
@@ -253,7 +254,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             fk_map[fk_name].referenced_columns.append(row.get("REFERENCED_COLUMN_NAME", ""))
         return list(fk_map.values())
 
-    def _parse_views(self, rows: List[Dict[str, Any]], schema: str) -> List[IntrospectionViewInfo]:
+    def parse_views(self, rows: List[Dict[str, Any]], schema: str) -> List[IntrospectionViewInfo]:
         return [
             IntrospectionViewInfo(
                 name=row.get("TABLE_NAME", row.get("VIEW_NAME", "")),
@@ -265,7 +266,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
-    def _parse_view_info(
+    def parse_view_info(
         self,
         rows: List[Dict[str, Any]],
         view_name: str,
@@ -282,7 +283,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             is_updatable=row.get("IS_UPDATABLE") == "YES",
         )
 
-    def _parse_triggers(self, rows: List[Dict[str, Any]], schema: str) -> List[IntrospectionTriggerInfo]:
+    def parse_triggers(self, rows: List[Dict[str, Any]], schema: str) -> List[IntrospectionTriggerInfo]:
         return [
             IntrospectionTriggerInfo(
                 name=row.get("TRIGGER_NAME", ""),
@@ -295,7 +296,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
-    def _parse_partitions(
+    def parse_partitions(
         self,
         rows: List[Dict[str, Any]],
         table: str,
@@ -325,7 +326,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
-    def _parse_table_engine(
+    def parse_table_engine(
         self,
         rows: List[Dict[str, Any]],
         table: str,
@@ -450,13 +451,13 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
             returns an empty list — the server has nothing to report, so nothing
             is invented.
         """
-        target = database if database is not None else self._get_default_schema()
+        target = database if database is not None else self.default_schema
         key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="partition")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         sql, params = ClickHouseTablePartitionsQuery(self._backend.dialect, target, table_name).to_sql()
-        result = self._parse_partitions(self._executor.execute(sql, params), table_name, target)
+        result = self.parse_partitions(self._executor.execute(sql, params), table_name, target)
         self._cache.set(key, result)
         return result
 
@@ -483,13 +484,13 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
             The table's :class:`ClickHouseTableEngineInfo`, or ``None`` if the
             server has no such table.
         """
-        target = database if database is not None else self._get_default_schema()
+        target = database if database is not None else self.default_schema
         key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="engine")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         sql, params = ClickHouseTableEngineQuery(self._backend.dialect, target, table_name).to_sql()
-        result = self._parse_table_engine(self._executor.execute(sql, params), table_name, target)
+        result = self.parse_table_engine(self._executor.execute(sql, params), table_name, target)
         if result is not None:
             self._cache.set(key, result)
         return result
@@ -571,13 +572,13 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         :meth:`SyncClickHouseIntrospector.list_partitions` for the naming rule
         (``database`` is ClickHouse's own top-level namespace) and the scope.
         """
-        target = database if database is not None else self._get_default_schema()
+        target = database if database is not None else self.default_schema
         key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="partition")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         sql, params = ClickHouseTablePartitionsQuery(self._backend.dialect, target, table_name).to_sql()
-        result = self._parse_partitions(await self._executor.execute(sql, params), table_name, target)
+        result = self.parse_partitions(await self._executor.execute(sql, params), table_name, target)
         self._cache.set(key, result)
         return result
 
@@ -592,13 +593,13 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         same result, same cache key and the same "missing table is not cached"
         rule.
         """
-        target = database if database is not None else self._get_default_schema()
+        target = database if database is not None else self.default_schema
         key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="engine")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         sql, params = ClickHouseTableEngineQuery(self._backend.dialect, target, table_name).to_sql()
-        result = self._parse_table_engine(await self._executor.execute(sql, params), table_name, target)
+        result = self.parse_table_engine(await self._executor.execute(sql, params), table_name, target)
         if result is not None:
             self._cache.set(key, result)
         return result

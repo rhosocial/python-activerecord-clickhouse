@@ -417,7 +417,7 @@ class ClickHouseStatusIntrospectorMixin:
         """Get ClickHouse vendor name."""
         return "ClickHouse"
 
-    def _parse_variable_value(self, value: Any) -> Any:
+    def parse_variable_value(self, value: Any) -> Any:
         """Parse variable value to appropriate Python type."""
         if value is None:
             return None
@@ -430,7 +430,7 @@ class ClickHouseStatusIntrospectorMixin:
                 return value
         return value
 
-    def _parse_version_string(self, version_str: str) -> tuple:
+    def parse_version_string(self, version_str: str) -> tuple:
         """Parse ClickHouse version string to (major, minor, patch) tuple.
 
         ClickHouse numbers releases ``YY.M.patch``, so the major component is a
@@ -469,7 +469,7 @@ class ClickHouseStatusIntrospectorMixin:
         Returns:
             True if version >= major.minor
         """
-        parsed = self._parse_version_string(version_str)
+        parsed = self.parse_version_string(version_str)
         return parsed >= (major, minor, 0)
 
     def _create_status_item(
@@ -487,7 +487,7 @@ class ClickHouseStatusIntrospectorMixin:
         """Create a StatusItem with parsed value."""
         return StatusItem(
             name=name,
-            value=self._parse_variable_value(value),
+            value=self.parse_variable_value(value),
             category=category,
             description=description,
             unit=unit,
@@ -905,14 +905,14 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         max_connections = server_rows[0].get("value") if server_rows else None
 
         def _num(name: str) -> Optional[int]:
-            value = self._parse_variable_value(gauges.get(name))
+            value = self.parse_variable_value(gauges.get(name))
             return value if isinstance(value, int) else None
 
         active = [v for v in (_num(name) for name in OPEN_CONNECTION_METRICS) if v is not None]
 
         return ConnectionInfo(
             active_count=sum(active) if active else None,
-            max_connections=self._parse_variable_value(max_connections),
+            max_connections=self.parse_variable_value(max_connections),
             idle_count=None,
             extra={
                 "http_connections": _num("HTTPConnection"),
@@ -948,8 +948,8 @@ class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAb
         default_disk = next((d for d in disks if d.get("name") == "default"), None)
 
         return StorageInfo(
-            total_size_bytes=self._parse_variable_value(total_size),
-            free_space_bytes=self._parse_variable_value(default_disk.get("free_space")) if default_disk else None,
+            total_size_bytes=self.parse_variable_value(total_size),
+            free_space_bytes=self.parse_variable_value(default_disk.get("free_space")) if default_disk else None,
             extra={
                 "database": self._backend.config.database,
                 "data_path": default_disk.get("path") if default_disk else None,
@@ -1284,14 +1284,14 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         max_connections = server_rows[0].get("value") if server_rows else None
 
         def _num(name: str) -> Optional[int]:
-            value = self._parse_variable_value(gauges.get(name))
+            value = self.parse_variable_value(gauges.get(name))
             return value if isinstance(value, int) else None
 
         active = [v for v in (_num(name) for name in OPEN_CONNECTION_METRICS) if v is not None]
 
         return ConnectionInfo(
             active_count=sum(active) if active else None,
-            max_connections=self._parse_variable_value(max_connections),
+            max_connections=self.parse_variable_value(max_connections),
             idle_count=None,
             extra={
                 "http_connections": _num("HTTPConnection"),
@@ -1327,8 +1327,8 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         default_disk = next((d for d in disks if d.get("name") == "default"), None)
 
         return StorageInfo(
-            total_size_bytes=self._parse_variable_value(total_size),
-            free_space_bytes=self._parse_variable_value(default_disk.get("free_space")) if default_disk else None,
+            total_size_bytes=self.parse_variable_value(total_size),
+            free_space_bytes=self.parse_variable_value(default_disk.get("free_space")) if default_disk else None,
             extra={
                 "database": self._backend.config.database,
                 "data_path": default_disk.get("path") if default_disk else None,
