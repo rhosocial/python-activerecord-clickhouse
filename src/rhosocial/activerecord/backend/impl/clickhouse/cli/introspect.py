@@ -29,7 +29,6 @@ OUTPUT_CHOICES = ["table", "json", "csv", "tsv"]
 INTROSPECT_TYPES = [
     "tables",
     "views",
-    "table",
     "columns",
     "indexes",
     "partitions",
@@ -185,23 +184,6 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
 
-        elif args.type == "table":
-            if not args.name:
-                print("Error: Table name is required for 'table' introspection", file=sys.stderr)
-                sys.exit(1)
-            info = introspector.get_table_info(args.name, schema=None)
-            if info:
-                provider.display_results(_serialize_for_output(info.columns), title=f"Columns of {args.name}")
-                if info.indexes:
-                    provider.display_results(_serialize_for_output(info.indexes), title=f"Indexes of {args.name}")
-                if info.foreign_keys:
-                    provider.display_results(
-                        _serialize_for_output(info.foreign_keys), title=f"Foreign Keys of {args.name}"
-                    )
-            else:
-                print(f"Error: Table '{args.name}' not found", file=sys.stderr)
-                sys.exit(1)
-
         elif args.type == "columns":
             if not args.name:
                 print("Error: Table name is required for 'columns' introspection", file=sys.stderr)
@@ -275,23 +257,6 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             views = await introspector.list_views_async(schema=None)
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
-
-        elif args.type == "table":
-            if not args.name:
-                print("Error: Table name is required for 'table' introspection", file=sys.stderr)
-                sys.exit(1)
-            info = await introspector.get_table_info_async(args.name, schema=None)
-            if info:
-                provider.display_results(_serialize_for_output(info.columns), title=f"Columns of {args.name}")
-                if info.indexes:
-                    provider.display_results(_serialize_for_output(info.indexes), title=f"Indexes of {args.name}")
-                if info.foreign_keys:
-                    provider.display_results(
-                        _serialize_for_output(info.foreign_keys), title=f"Foreign Keys of {args.name}"
-                    )
-            else:
-                print(f"Error: Table '{args.name}' not found", file=sys.stderr)
-                sys.exit(1)
 
         elif args.type == "columns":
             if not args.name:
