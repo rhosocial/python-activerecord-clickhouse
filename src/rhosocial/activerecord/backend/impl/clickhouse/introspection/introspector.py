@@ -91,58 +91,77 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             return self._backend.config.database or ""
         return ""
 
-    def _get_version(self) -> tuple:
-        """Return the ClickHouse server version tuple from the backend.
-
-        Falls back to ``(0, 0, 0)``, the tuple
-        :meth:`...backend.backend.ClickHouseBackend.get_server_version` itself uses
-        for "not adapted yet", rather than to an invented version — this used to
-        return ``(8, 0, 0)``, which is not a release ClickHouse has and which a
-        caller could not distinguish from a server-reported version.
-        """
-        return getattr(self._backend, "_version", None) or (0, 0, 0)
-
     # ------------------------------------------------------------------ #
     # Parse methods — pure Python, no I/O
     # ------------------------------------------------------------------ #
 
     def parse_database_info(self, rows: List[Dict[str, Any]]) -> IntrospectionDatabaseInfo:
-        version = self._get_version()
-        version_str = ".".join(str(v) for v in version)
-        db_name = self.default_schema
+        """Report what ``system.databases`` answers, and nothing it does not.
 
+        The version comes from :attr:`server_version`, which reads the adapted
+        dialect and the backend's cache without I/O and never raises. When
+        nothing knows it yet the convention is ``version="unknown"`` with
+        ``version_tuple=(0, 0, 0)``: ``0.0.0`` is not a ClickHouse release, so
+        reporting it as a version would be a claim the server never made.
+
+        A ClickHouse database has no character set and no collation, so
+        ``encoding`` / ``collation`` stay ``None``. The storage engine the row
+        does answer is kept in ``extra``.
+        """
         db_row = rows[0] if rows else {}
+        version = self.server_version
+        if version is None:
+            version_str = "unknown"
+            version_tuple = (0, 0, 0)
+        else:
+            version_str = ".".join(str(part) for part in version)
+            version_tuple = version
+
+        engine = db_row.get("ENGINE")
+        extra: Dict[str, Any] = {}
+        if engine:
+            extra["engine"] = engine
 
         return IntrospectionDatabaseInfo(
-            name=db_name,
+            name=db_row.get("DATABASE_NAME") or self.default_schema,
             version=version_str,
-            version_tuple=version,
+            version_tuple=version_tuple,
             vendor="ClickHouse",
-            encoding=db_row.get("DEFAULT_CHARACTER_SET_NAME"),
-            collation=db_row.get("DEFAULT_COLLATION_NAME"),
+            encoding=None,
+            collation=None,
+            extra=extra,
         )
 
     def parse_tables(self, rows: List[Dict[str, Any]], schema: Optional[str]) -> List[IntrospectionTableInfo]:
+        """Read the kind of each relation from the engine that stores it.
+
+        ``system.tables`` has no table-type column: what it reports is the
+        storage engine. The dialect owns the closed set of view engines, so the
+        kind is asked of :meth:`engine_kind` — the same declaration the table
+        and view queries filter on — rather than matched against strings here.
+        Rows read from the ``system`` database are system tables whatever their
+        engine. The engine itself is kept in ``extra``: it is the fact the
+        catalogue did answer, and the kind does not replace it.
+        """
         target_db = schema if schema is not None else self.default_schema
-        table_type_map = {
-            "BASE TABLE": TableType.BASE_TABLE,
-            "VIEW": TableType.VIEW,
-            "SYSTEM VIEW": TableType.SYSTEM_TABLE,
-        }
         tables = []
         for row in rows:
-            t_type = table_type_map.get(row.get("TABLE_TYPE", "BASE TABLE"), TableType.BASE_TABLE)
+            row_db = row.get("database") or target_db
+            engine = row.get("ENGINE") or ""
+            kind = TableType.SYSTEM_TABLE if row_db == "system" else self.dialect.engine_kind(engine)
+            extra: Dict[str, Any] = {"engine": engine} if engine else {}
             tables.append(
                 IntrospectionTableInfo(
                     name=row["TABLE_NAME"],
                     schema=target_db,
-                    table_type=t_type,
+                    table_type=kind,
                     comment=row.get("TABLE_COMMENT"),
                     row_count=row.get("TABLE_ROWS"),
                     size_bytes=row.get("DATA_LENGTH"),
                     auto_increment=None,  # ClickHouse has no AUTO_INCREMENT
                     create_time=str(row["CREATE_TIME"]) if row.get("CREATE_TIME") else None,
                     update_time=str(row["UPDATE_TIME"]) if row.get("UPDATE_TIME") else None,
+                    extra=extra,
                 )
             )
         return tables

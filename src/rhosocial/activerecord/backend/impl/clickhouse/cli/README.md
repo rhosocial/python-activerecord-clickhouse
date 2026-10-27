@@ -14,7 +14,7 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 
 | Type | Reads | Notes |
 | :--- | :--- | :--- |
-| `tables` | `system.tables` | Tables, with the storage engine in the `table_type` position. `--include-system` adds the engine's own tables. |
+| `tables` | `system.tables` | Tables, with the relation kind in `table_type` (`BASE_TABLE` / `VIEW` / `MATERIALIZED_VIEW` / `SYSTEM_TABLE`) and the storage engine in `extra`. `--include-system` adds the engine's own tables. |
 | `views` | `system.tables` | Views, with their definitions. |
 | `table` | several | One table by name, with its columns and indexes filled in. |
 | `columns` | `system.columns` | One table's columns: name, type, nullability, ordinal position, default. |
@@ -52,8 +52,11 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 *   **`partitions` reads `system.parts`, not `system.partitions`.** The parts
     view is what is live; a partition with no active parts has nothing to
     report, which is why the answer is aggregated rather than listed.
-*   **`table_type` carries the engine.** For ClickHouse that is the more
-    useful of the two facts MySQL's same-shaped view would report.
+*   **`table_type` is the relation kind; the engine is in `extra`.** ClickHouse
+    answers the storage engine, not a standard table type, so the kind is
+    derived from the declared view-engine set (`View` and friends are views,
+    `MaterializedView` its own kind, `system`-database rows system tables) and
+    the engine string accompanies it instead of standing in for it.
 *   **No `triggers`, no `foreign-keys`.** ClickHouse has neither, so the CLI
     does not offer those types at all — they are missing from `TYPE` instead of
     accepted and then refused. An empty list from a type that was offered would

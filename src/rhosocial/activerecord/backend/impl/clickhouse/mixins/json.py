@@ -31,10 +31,10 @@ class ClickHouseJSONFunctionMixin:
     }
 
     def supports_json_type(self) -> bool:
-        return self.version >= (26, 0, 0)
+        return self.version_at_least((26, 0, 0))
 
     def supports_json_merge_patch(self) -> bool:
-        return self.version >= (26, 0, 0)
+        return self.version_at_least((26, 0, 0))
 
     def supports_json_table(self) -> bool:
         return False
@@ -95,8 +95,8 @@ class ClickHouseJSONFunctionMixin:
 
     def supports_json_function(self, function_name: str) -> bool:
         if function_name in self._JSON_FUNCTION_VERSIONS:
-            return self.version >= self._JSON_FUNCTION_VERSIONS[function_name]
-        return self.version >= (26, 0, 0)
+            return self.version_at_least(self._JSON_FUNCTION_VERSIONS[function_name])
+        return self.version_at_least((26, 0, 0))
 
     def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSONExtract function."""

@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/explain.py
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements import ExplainStatement
@@ -12,9 +12,11 @@ class ClickHouseExplainMixin:
         """Whether EXPLAIN ANALYZE is supported.
 
         Accepted syntax-wise from ClickHouse 26.7; older maintained lines
-        (25.8 LTS, 26.3 LTS) reject the ANALYZE keyword.
+        (25.8 LTS, 26.3 LTS) reject the ANALYZE keyword. Answered through
+        ``version_at_least`` so an unadapted dialect says "no" instead of
+        raising just to report a capability.
         """
-        return self.version >= (26, 7, 0)
+        return self.version_at_least((26, 7, 0))
 
     def supports_explain_format(self, format_type: str) -> bool:
         """Check if specific EXPLAIN format is supported.

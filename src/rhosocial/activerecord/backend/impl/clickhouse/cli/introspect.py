@@ -171,6 +171,10 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
     """Handle introspect subcommand synchronously."""
     try:
         backend.connect()
+        # Ask the server which version it is before any query is formatted:
+        # every capability gate reads the adapted dialect, and the parsers
+        # report the version through the same adaptation.
+        backend.introspect_and_adapt()
 
         introspector = backend.introspector
 
@@ -245,6 +249,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
     """Handle introspect subcommand asynchronously."""
     try:
         await backend.connect()
+        await backend.introspect_and_adapt()
 
         introspector = backend.introspector
 

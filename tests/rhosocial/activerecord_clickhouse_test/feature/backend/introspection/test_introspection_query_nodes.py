@@ -51,17 +51,24 @@ class TestIntrospectionQueriesAreTrees:
     def test_database_info_reads_system_databases_by_name(self, dialect):
         sql, params = DatabaseInfoQueryStatement(dialect, schema="analytics").to_sql()
         assert "FROM `system`.`databases`" in sql
-        assert "`engine` AS `DEFAULT_CHARACTER_SET_NAME`" in sql
-        assert "CAST('' AS String) AS `DEFAULT_COLLATION_NAME`" in sql
+        assert "`name` AS `DATABASE_NAME`" in sql
+        assert "`engine` AS `ENGINE`" in sql
+        # ClickHouse has no per-database charset or collation; the query asks
+        # for neither rather than projecting a value the server never answers.
+        assert "DEFAULT_CHARACTER_SET_NAME" not in sql
+        assert "DEFAULT_COLLATION_NAME" not in sql
         assert params == ("analytics",)
 
     def test_table_list_keeps_the_projection_order_and_aliases(self, dialect):
         sql, params = TableListQueryStatement(dialect, schema="default").to_sql()
-        assert sql.index("`name` AS `TABLE_NAME`") < sql.index("`engine` AS `TABLE_TYPE`")
-        assert sql.index("`engine` AS `TABLE_TYPE`") < sql.index("`comment` AS `TABLE_COMMENT`")
+        assert sql.index("`name` AS `TABLE_NAME`") < sql.index("`engine` AS `ENGINE`")
+        assert sql.index("`engine` AS `ENGINE`") < sql.index("`comment` AS `TABLE_COMMENT`")
         assert sql.index("`metadata_modification_time` AS `MODIFICATION_TIME`") > sql.index(
             "`total_bytes` AS `DATA_LENGTH`"
         )
+        # The engine is an engine, not a table type: the kind is derived by the
+        # parser from the declared view-engine set.
+        assert "TABLE_TYPE" not in sql
         assert params == ("default",)
 
     def test_table_list_excludes_views_with_the_declared_engine_set(self, dialect):

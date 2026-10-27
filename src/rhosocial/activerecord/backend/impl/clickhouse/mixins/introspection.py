@@ -226,9 +226,11 @@ class ClickHouseIntrospectionMixin:
     def format_database_info_query_statement(self, expr: "DatabaseInfoQueryStatement") -> Tuple[str, tuple]:
         """Format database information query against ClickHouse system.databases.
 
-        The engine is the only database-level "charset" ClickHouse reports, and
-        there is no per-database collation, so the second cell is the empty
-        string the parser reads as "none".
+        A ClickHouse database answers its name and its storage engine. It has
+        no per-database character set and no per-database collation, so neither
+        is projected: the previous form aliased the engine as
+        ``DEFAULT_CHARACTER_SET_NAME`` and invented an empty collation, which
+        reported two facts the server never answered.
         """
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
@@ -238,8 +240,8 @@ class ClickHouseIntrospectionMixin:
         query = QueryStatement(
             self,
             select=[
-                self._column("engine", alias="DEFAULT_CHARACTER_SET_NAME"),
-                self._text_constant("", "DEFAULT_COLLATION_NAME"),
+                self._column("name", alias="DATABASE_NAME"),
+                self._column("engine", alias="ENGINE"),
             ],
             from_=self._system_relation("databases"),
             where=self._where(self._equals(self._column("name"), Literal(self, schema))),
@@ -258,7 +260,11 @@ class ClickHouseIntrospectionMixin:
 
         conditions = [self._equals(self._column("database"), Literal(self, schema))]
 
-        if not include_system:
+        # ``include_system`` excludes the engine's own database. Asking for
+        # system tables by kind *is* that request already, so the exclusion is
+        # not added: otherwise the two answers ("system" and "not system")
+        # conjoin and no row can satisfy both.
+        if not include_system and not self.is_system_table_type(table_type):
             conditions.append(
                 self._not_equals(self._column("database"), Literal(self, "system", inline=True))
             )
@@ -269,13 +275,17 @@ class ClickHouseIntrospectionMixin:
             # kinds were being included when `include_views` was true.
             conditions.append(self.engine_kind_predicate(include_views=False))
         if table_type:
-            conditions.append(self._equals(self._column("engine"), Literal(self, table_type)))
+            conditions.append(self.table_type_predicate(table_type))
 
         query = QueryStatement(
             self,
             select=[
                 self._column("name", alias="TABLE_NAME"),
-                self._column("engine", alias="TABLE_TYPE"),
+                # The projection names the column the catalogue has. The kind
+                # (base table / view / materialized view) is derived from this
+                # engine by the parser; aliasing it as TABLE_TYPE made a
+                # storage-engine name look like a standard table type.
+                self._column("engine", alias="ENGINE"),
                 self._column("comment", alias="TABLE_COMMENT"),
                 self._column("total_rows", alias="TABLE_ROWS"),
                 self._column("total_bytes", alias="DATA_LENGTH"),
