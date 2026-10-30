@@ -39,6 +39,43 @@ INTROSPECT_TYPES = [
     "database",
 ]
 
+#: What the optional NAME positional means for each type.
+#:
+#: ``required`` -- the type asks about one table and cannot be answered without
+#: it. ``optional`` -- a catalogue family that can also answer for one member,
+#: so a given name narrows it (and a name that matches nothing is an error, not
+#: an empty list). ``forbidden`` -- the family has no single-member question
+#: here. ``tables`` must stay one: answering for one table would fill in its
+#: columns and indexes, which is the aggregate this command deliberately
+#: dropped.
+_NAME_RULE = {
+    "tables": "forbidden",
+    "views": "optional",
+    "columns": "required",
+    "indexes": "required",
+    "partitions": "required",
+    "table-engine": "required",
+    "database": "forbidden",
+}
+
+
+def _validate_name(args) -> None:
+    """Refuse a NAME the type cannot use, before anything connects.
+
+    A silently ignored argument is the worst of the three outcomes: the run
+    succeeds, prints a full listing, and reads as though it had been narrowed.
+    Only ``forbidden`` is decided here; a ``required`` name that is missing is
+    still reported by the branch that needs it, with the exit code it always
+    had.
+    """
+    if _NAME_RULE.get(args.type) == "forbidden" and args.name:
+        print(
+            f"Error: '{args.type}' introspection answers for the whole database "
+            f"and takes no name",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
 
 def create_parser(subparsers):
     """Create the introspect subcommand parser."""
@@ -51,6 +88,9 @@ def create_parser(subparsers):
 
   # List all views
   %(prog)s views --database mydb
+
+  # Describe one view
+  %(prog)s views v1 --database mydb
 
   # Get detailed table info (columns and indexes)
   %(prog)s table users --database mydb
@@ -126,6 +166,8 @@ def handle(args):
     """Handle the introspect subcommand."""
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
 
+    _validate_name(args)
+
     named_conn = getattr(args, "named_connection", None)
     if not named_conn and not args.database:
         print("Error: --database is required for introspection", file=sys.stderr)
@@ -187,9 +229,21 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = introspector.list_views(schema=None)
-            data = _serialize_for_output(views)
-            provider.display_results(data, title="Views")
+            if args.name:
+                # The core method calls its namespace parameter ``schema``;
+                # ClickHouse's one namespace level is its database, and
+                # ``None`` means the database this run connected to. The name
+                # above is not translated: it is the view name ``system.tables``
+                # lists.
+                view = introspector.get_view_info(args.name, schema=None)
+                if view is None:
+                    print(f"Error: View '{args.name}' not found", file=sys.stderr)
+                    sys.exit(1)
+                provider.display_results(_serialize_for_output([view]), title=f"View {args.name}")
+            else:
+                views = introspector.list_views(schema=None)
+                data = _serialize_for_output(views)
+                provider.display_results(data, title="Views")
 
         elif args.type == "columns":
             if not args.name:
@@ -267,9 +321,19 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = await introspector.list_views(schema=None)
-            data = _serialize_for_output(views)
-            provider.display_results(data, title="Views")
+            if args.name:
+                # Same rule as the synchronous handler: ``schema`` is
+                # ClickHouse's database in the core method's vocabulary, and
+                # ``None`` is the connected one.
+                view = await introspector.get_view_info(args.name, schema=None)
+                if view is None:
+                    print(f"Error: View '{args.name}' not found", file=sys.stderr)
+                    sys.exit(1)
+                provider.display_results(_serialize_for_output([view]), title=f"View {args.name}")
+            else:
+                views = await introspector.list_views(schema=None)
+                data = _serialize_for_output(views)
+                provider.display_results(data, title="Views")
 
         elif args.type == "columns":
             if not args.name:

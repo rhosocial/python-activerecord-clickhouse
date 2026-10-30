@@ -165,6 +165,12 @@ class FakeIntrospector:
         self.calls.append(("list_views", schema))
         return [{"name": "v1", "definition": "SELECT 1"}]
 
+    def get_view_info(self, view_name, schema=None):
+        self.calls.append(("get_view_info", view_name, schema))
+        if view_name != "v1":
+            return None
+        return {"name": "v1", "definition": "SELECT 1", "schema": schema}
+
     def list_columns(self, table_name, schema=None):
         self.calls.append(("list_columns", table_name, schema))
         return [{"name": "id", "data_type": "Int64"}]
@@ -204,6 +210,9 @@ class FakeAsyncIntrospector:
 
     async def list_views(self, schema=None):
         return self._sync.list_views(schema=schema)
+
+    async def get_view_info(self, view_name, schema=None):
+        return self._sync.get_view_info(view_name, schema=schema)
 
     async def list_columns(self, table_name, schema=None):
         return self._sync.list_columns(table_name, schema=schema)
@@ -292,3 +301,59 @@ class TestIntrospectBranches:
         assert backend.introspector.calls, f"'{introspect_type}' never reached the introspector"
         assert backend.disconnect_calls == 1
         assert "Error during introspection" not in capsys.readouterr().err
+
+
+class TestIntrospectName:
+    @pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
+    def test_views_with_a_name_describes_one_view(self, monkeypatch, capsys, use_async):
+        """``views NAME`` answers for that view, not for the whole database."""
+        backend_class = FakeAsyncBackend if use_async else FakeBackend
+        monkeypatch.setattr(introspect_mod, "ClickHouseBackend", FakeBackend)
+        monkeypatch.setattr(introspect_mod, "AsyncClickHouseBackend", FakeAsyncBackend)
+
+        argv = ["introspect", "views", "v1"]
+        if use_async:
+            argv.append("--async")
+        argv += ["--database", "app", "-o", "json"]
+
+        introspect_mod.handle(parse_introspect_args(argv))
+
+        data = json.loads(capsys.readouterr().out)
+        assert [item["name"] for item in data] == ["v1"]
+        assert data[0]["definition"]
+        assert backend_class.last_instance.introspector.calls == [("get_view_info", "v1", None)]
+
+    @pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
+    def test_an_unknown_view_exits_1(self, monkeypatch, capsys, use_async):
+        """A named view that does not exist is a failed request, not empty output."""
+        monkeypatch.setattr(introspect_mod, "ClickHouseBackend", FakeBackend)
+        monkeypatch.setattr(introspect_mod, "AsyncClickHouseBackend", FakeAsyncBackend)
+
+        argv = ["introspect", "views", "nope"]
+        if use_async:
+            argv.append("--async")
+        argv += ["--database", "app"]
+
+        with pytest.raises(SystemExit) as excinfo:
+            introspect_mod.handle(parse_introspect_args(argv))
+        assert excinfo.value.code == 1
+        assert "View 'nope' not found" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("introspect_type", ["tables", "database"])
+    def test_a_name_the_type_cannot_use_exits_2(self, monkeypatch, capsys, introspect_type):
+        """A NAME that would be ignored is refused instead of swallowed.
+
+        ``tables`` and ``database`` answer for the whole database. They used to
+        accept a name and drop it, so the run printed a full listing that read
+        as though it had been narrowed to one object.
+        """
+        monkeypatch.setattr(introspect_mod, "ClickHouseBackend", FakeBackend)
+        FakeBackend.last_instance = None
+
+        with pytest.raises(SystemExit) as excinfo:
+            introspect_mod.handle(
+                parse_introspect_args(["introspect", introspect_type, "users", "--database", "app"])
+            )
+        assert excinfo.value.code == 2
+        assert "takes no name" in capsys.readouterr().err
+        assert FakeBackend.last_instance is None
