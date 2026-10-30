@@ -359,6 +359,22 @@ class TestIntrospectName:
         assert FakeBackend.last_instance is None
 
 
+class TestTheAsyncRefusal:
+    def test_async_is_refused_with_a_sentence_not_a_traceback(self, capsys):
+        """``AsyncClickHouseBackend`` raises in its constructor.
+
+        Uncaught, that reached the user as a traceback out of ``handle()``.
+        The refusal is the same sentence ``query`` uses.
+        """
+        with pytest.raises(SystemExit) as excinfo:
+            introspect_mod.handle(
+                parse_introspect_args(["introspect", "tables", "--database", "app", "--async"])
+            )
+
+        assert excinfo.value.code == 1
+        assert "--async is not supported" in capsys.readouterr().err
+
+
 class FakeDialect:
     """Every capability switch answers True unless a test says otherwise."""
 

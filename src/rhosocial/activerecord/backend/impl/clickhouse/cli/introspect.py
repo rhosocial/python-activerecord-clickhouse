@@ -212,7 +212,19 @@ def handle(args):
     config = resolve_connection_config_from_args(args)
 
     if args.is_async:
-        backend = AsyncClickHouseBackend(connection_config=config)
+        # ``AsyncClickHouseBackend`` is a fail-fast placeholder: its constructor
+        # raises. Catching that here keeps the refusal readable -- the same
+        # sentence ``query`` uses -- instead of a traceback out of the
+        # constructor, which is what an unguarded call produced.
+        try:
+            backend = AsyncClickHouseBackend(connection_config=config)
+        except NotImplementedError:
+            print(
+                "Error: --async is not supported by the ClickHouse backend. "
+                "clickhouse-connect is a synchronous-only library.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
         asyncio.run(_handle_introspect_async(args, backend, provider))
     else:
         backend = ClickHouseBackend(connection_config=config)
@@ -345,7 +357,13 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
 
 
 async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provider):
-    """Handle introspect subcommand asynchronously."""
+    """Handle introspect subcommand asynchronously.
+
+    Kept correct even though the CLI refuses ``--async``: the backend it would
+    run against is a fail-fast placeholder, so the day a real async backend
+    exists the question is "connect it", not "write it". Before that, these
+    call sites named five methods no introspector class has.
+    """
     try:
         await backend.connect()
         await backend.introspect_and_adapt()
