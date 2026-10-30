@@ -17,9 +17,12 @@ from dataclasses import asdict, is_dataclass
 from enum import Enum
 from typing import Any
 
-from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
+
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
+    AsyncClickHouseBackend,
+)
 
 from .connection import add_connection_args, resolve_connection_config_from_args
 from .output import create_provider
@@ -206,7 +209,9 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
 
         elif args.type == "partitions":
             if not args.name:
-                print("Error: Table name is required for 'partitions' introspection", file=sys.stderr)
+                print(
+                    "Error: Table name is required for 'partitions' introspection", file=sys.stderr
+                )
                 sys.exit(1)
             # This backend has no schema layer, so the method's parameter is
             # named ``database`` and ``None`` means the connected database.
@@ -216,7 +221,10 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
 
         elif args.type == "table-engine":
             if not args.name:
-                print("Error: Table name is required for 'table-engine' introspection", file=sys.stderr)
+                print(
+                    "Error: Table name is required for 'table-engine' introspection",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
             engine = introspector.get_table_engine(args.name, database=None)
             if engine is None:
@@ -254,12 +262,12 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
         introspector = backend.introspector
 
         if args.type == "tables":
-            tables = await introspector.list_tables_async(schema=None, include_system=args.include_system)
+            tables = await introspector.list_tables(schema=None, include_system=args.include_system)
             data = _serialize_for_output(tables)
             provider.display_results(data, title="Tables")
 
         elif args.type == "views":
-            views = await introspector.list_views_async(schema=None)
+            views = await introspector.list_views(schema=None)
             data = _serialize_for_output(views)
             provider.display_results(data, title="Views")
 
@@ -267,7 +275,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'columns' introspection", file=sys.stderr)
                 sys.exit(1)
-            columns = await introspector.list_columns_async(args.name, schema=None)
+            columns = await introspector.list_columns(args.name, schema=None)
             data = _serialize_for_output(columns)
             provider.display_results(data, title=f"Columns of {args.name}")
 
@@ -275,13 +283,15 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             if not args.name:
                 print("Error: Table name is required for 'indexes' introspection", file=sys.stderr)
                 sys.exit(1)
-            indexes = await introspector.list_indexes_async(args.name, schema=None)
+            indexes = await introspector.list_indexes(args.name, schema=None)
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
 
         elif args.type == "partitions":
             if not args.name:
-                print("Error: Table name is required for 'partitions' introspection", file=sys.stderr)
+                print(
+                    "Error: Table name is required for 'partitions' introspection", file=sys.stderr
+                )
                 sys.exit(1)
             # This backend has no schema layer, so the method's parameter is
             # named ``database`` and ``None`` means the connected database.
@@ -291,7 +301,10 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
 
         elif args.type == "table-engine":
             if not args.name:
-                print("Error: Table name is required for 'table-engine' introspection", file=sys.stderr)
+                print(
+                    "Error: Table name is required for 'table-engine' introspection",
+                    file=sys.stderr,
+                )
                 sys.exit(1)
             engine = await introspector.get_table_engine(args.name, database=None)
             if engine is None:
@@ -302,7 +315,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             )
 
         elif args.type == "database":
-            info = await introspector.get_database_info_async()
+            info = await introspector.get_database_info()
             data = _serialize_for_output(info)
             provider.display_results([data], title="Database Info")
 

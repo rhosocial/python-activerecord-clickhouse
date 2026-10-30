@@ -6,14 +6,17 @@ With `-o json` the stdout is clean structured data (logs go to stderr).
 Live server scenarios come from tests/config/clickhouse_scenarios.yaml.
 """
 
+import argparse
 import io
 import json
 from contextlib import redirect_stderr, redirect_stdout
 
 import pytest
+from providers.scenarios import get_scenario_raw
 
 from rhosocial.activerecord.backend.impl.clickhouse.__main__ import main
-from providers.scenarios import get_scenario_raw
+from rhosocial.activerecord.backend.impl.clickhouse.cli import introspect as introspect_mod
+from rhosocial.activerecord.backend.impl.clickhouse.cli.introspect import INTROSPECT_TYPES
 
 COMMANDS = [
     "info",
@@ -33,11 +36,16 @@ def conn_args():
     """Connection args from the first available scenario."""
     backend_cls, config = get_scenario_raw("clickhouse_84")
     return [
-        "--host", config.host,
-        "--port", str(config.port),
-        "--database", config.database,
-        "--user", config.username,
-        "--password", config.password,
+        "--host",
+        config.host,
+        "--port",
+        str(config.port),
+        "--database",
+        config.database,
+        "--user",
+        config.username,
+        "--password",
+        config.password,
     ]
 
 
@@ -106,9 +114,181 @@ class TestNamedConnection:
         )
         env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(mod_dir)] + sys.path))
         proc = subprocess.run(
-            [sys.executable, "-m", "rhosocial.activerecord.backend.impl.clickhouse",
-             "named-connection", "--describe", "connections.prod_db"],
-            capture_output=True, text=True, env=env,
+            [
+                sys.executable,
+                "-m",
+                "rhosocial.activerecord.backend.impl.clickhouse",
+                "named-connection",
+                "--describe",
+                "connections.prod_db",
+            ],
+            capture_output=True,
+            text=True,
+            env=env,
         )
         assert proc.returncode == 0, proc.stderr
         assert "Resolved Configuration" in (proc.stdout + proc.stderr)
+
+
+# ---------------------------------------------------------------------------
+# Offline introspect coverage: a fake backend answers, so no server is needed.
+# ---------------------------------------------------------------------------
+
+#: The types whose NAME positional is a table name. The rest are asked without
+#: one: this class of test is about the type reaching its branch, not NAME.
+_NAME_FOR = {
+    "columns": "users",
+    "indexes": "users",
+    "partitions": "users",
+    "table-engine": "users",
+}
+
+
+def parse_introspect_args(argv):
+    parser = argparse.ArgumentParser(prog="clickhouse")
+    subparsers = parser.add_subparsers(dest="command")
+    introspect_mod.create_parser(subparsers)
+    return parser.parse_args(argv)
+
+
+class FakeIntrospector:
+    """Records which catalogue question the CLI reached."""
+
+    def __init__(self):
+        self.calls = []
+
+    def list_tables(self, schema=None, include_system=False):
+        self.calls.append(("list_tables", schema, include_system))
+        return [{"name": "users", "table_type": "BASE_TABLE"}]
+
+    def list_views(self, schema=None):
+        self.calls.append(("list_views", schema))
+        return [{"name": "v1", "definition": "SELECT 1"}]
+
+    def list_columns(self, table_name, schema=None):
+        self.calls.append(("list_columns", table_name, schema))
+        return [{"name": "id", "data_type": "Int64"}]
+
+    def list_indexes(self, table_name, schema=None):
+        self.calls.append(("list_indexes", table_name, schema))
+        return [{"name": "idx_id"}]
+
+    def list_partitions(self, table_name, database=None):
+        self.calls.append(("list_partitions", table_name, database))
+        return [{"partition_id": "all"}]
+
+    def get_table_engine(self, table_name, database=None):
+        self.calls.append(("get_table_engine", table_name, database))
+        return {"table_name": table_name, "engine": "MergeTree"}
+
+    def get_database_info(self):
+        self.calls.append(("get_database_info",))
+        return {"name": "app", "version": "26.7.1"}
+
+
+class FakeAsyncIntrospector:
+    """The same questions, answered as coroutines.
+
+    Only the unsuffixed names exist here, exactly as on the real
+    ``AsyncClickHouseIntrospector`` -- the sync and async introspectors share
+    one method name, so a call to ``list_tables_async`` fails here the same way
+    it failed against the real object.
+    """
+
+    def __init__(self, sync):
+        self._sync = sync
+        self.calls = sync.calls
+
+    async def list_tables(self, schema=None, include_system=False):
+        return self._sync.list_tables(schema=schema, include_system=include_system)
+
+    async def list_views(self, schema=None):
+        return self._sync.list_views(schema=schema)
+
+    async def list_columns(self, table_name, schema=None):
+        return self._sync.list_columns(table_name, schema=schema)
+
+    async def list_indexes(self, table_name, schema=None):
+        return self._sync.list_indexes(table_name, schema=schema)
+
+    async def list_partitions(self, table_name, database=None):
+        return self._sync.list_partitions(table_name, database=database)
+
+    async def get_table_engine(self, table_name, database=None):
+        return self._sync.get_table_engine(table_name, database=database)
+
+    async def get_database_info(self):
+        return self._sync.get_database_info()
+
+
+class FakeBackend:
+    last_instance = None
+
+    def __init__(self, connection_config=None):
+        self.connection_config = connection_config
+        self._connection = None
+        self.disconnect_calls = 0
+        self.introspector = FakeIntrospector()
+        FakeBackend.last_instance = self
+
+    def connect(self):
+        self._connection = object()
+
+    def introspect_and_adapt(self):
+        """The real backend learns the server version here before rendering."""
+        self.adapt_calls = getattr(self, "adapt_calls", 0) + 1
+
+    def disconnect(self):
+        self.disconnect_calls += 1
+        self._connection = None
+
+
+class FakeAsyncBackend(FakeBackend):
+    def __init__(self, connection_config=None):
+        super().__init__(connection_config)
+        self.introspector = FakeAsyncIntrospector(self.introspector)
+
+    async def connect(self):
+        self._connection = object()
+
+    async def introspect_and_adapt(self):
+        self.adapt_calls = getattr(self, "adapt_calls", 0) + 1
+
+    async def disconnect(self):
+        self.disconnect_calls += 1
+        self._connection = None
+
+
+class TestIntrospectBranches:
+    @pytest.mark.parametrize("introspect_type", INTROSPECT_TYPES)
+    @pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
+    def test_every_declared_type_reaches_the_introspector(
+        self, monkeypatch, capsys, introspect_type, use_async
+    ):
+        """Each declared type lands on a branch, with or without ``--async``.
+
+        The asynchronous handler used to call ``list_tables_async`` and four
+        more names the introspector does not have: sync and async are two
+        classes with one set of method names here. The resulting
+        ``AttributeError`` was swallowed by the catch-all into "Error during
+        introspection" and exit 1, so the async path answered nothing while
+        reading like a server failure. Reaching the introspector at all is the
+        thing the misspelt names did not do.
+        """
+        backend_class = FakeAsyncBackend if use_async else FakeBackend
+        monkeypatch.setattr(introspect_mod, "ClickHouseBackend", FakeBackend)
+        monkeypatch.setattr(introspect_mod, "AsyncClickHouseBackend", FakeAsyncBackend)
+
+        argv = ["introspect", introspect_type]
+        if introspect_type in _NAME_FOR:
+            argv.append(_NAME_FOR[introspect_type])
+        if use_async:
+            argv.append("--async")
+        argv += ["--database", "app", "-o", "json"]
+
+        introspect_mod.handle(parse_introspect_args(argv))
+
+        backend = backend_class.last_instance
+        assert backend.introspector.calls, f"'{introspect_type}' never reached the introspector"
+        assert backend.disconnect_calls == 1
+        assert "Error during introspection" not in capsys.readouterr().err
