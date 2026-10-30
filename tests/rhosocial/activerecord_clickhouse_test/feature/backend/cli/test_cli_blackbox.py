@@ -357,3 +357,83 @@ class TestIntrospectName:
         assert excinfo.value.code == 2
         assert "takes no name" in capsys.readouterr().err
         assert FakeBackend.last_instance is None
+
+
+class FakeDialect:
+    """Every capability switch answers True unless a test says otherwise."""
+
+    def __getattr__(self, name):
+        if name.startswith("supports_"):
+            return lambda: True
+        raise AttributeError(name)
+
+
+class TestIntrospectCapabilities:
+    def test_the_advertised_types_are_the_capability_mapping(self):
+        """One source for the list: the mapping, not a second hand-written copy."""
+        assert list(introspect_mod._TYPE_CAPABILITIES) == INTROSPECT_TYPES
+
+    def test_every_type_names_a_switch_the_dialect_has(self):
+        """A type whose switch does not exist would be un-gated, not gated."""
+        from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+
+        dialect = ClickHouseDialect(version=(26, 7, 1))
+        missing = [
+            (cli_type, switch)
+            for cli_type, switch in introspect_mod._TYPE_CAPABILITIES.items()
+            if not hasattr(dialect, switch)
+        ]
+        assert missing == []
+
+    def test_the_types_the_help_offers(self):
+        """``--help`` lists what the parser accepts, and nothing it does not."""
+        out, _, exc = run_cli(["introspect", "--help"])
+        assert exc is not None and exc.code == 0
+        for introspect_type in INTROSPECT_TYPES:
+            assert introspect_type in out
+        assert "foreign-keys" not in out
+        assert "triggers" not in out
+
+    def test_the_aggregate_table_type_is_gone(self):
+        """``table`` answered three catalogue questions and could not be JSON."""
+        assert "table" not in INTROSPECT_TYPES
+        with pytest.raises(SystemExit) as excinfo:
+            parse_introspect_args(["introspect", "table", "users"])
+        assert excinfo.value.code == 2
+
+    @pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
+    def test_a_type_the_server_cannot_answer_exits_2(self, monkeypatch, capsys, use_async):
+        """A declared family the connected server lacks is refused, not run.
+
+        "This server has no views" and "this database has none" are different
+        answers; an empty list would read as the second.
+        """
+
+        class GatedDialect(FakeDialect):
+            def supports_view_introspection(self):
+                return False
+
+        class GatedBackend(FakeBackend):
+            def __init__(self, connection_config=None):
+                super().__init__(connection_config)
+                self.dialect = GatedDialect()
+
+        class GatedAsyncBackend(FakeAsyncBackend):
+            def __init__(self, connection_config=None):
+                super().__init__(connection_config)
+                self.dialect = GatedDialect()
+
+        monkeypatch.setattr(introspect_mod, "ClickHouseBackend", GatedBackend)
+        monkeypatch.setattr(introspect_mod, "AsyncClickHouseBackend", GatedAsyncBackend)
+
+        argv = ["introspect", "views"]
+        if use_async:
+            argv.append("--async")
+        argv += ["--database", "app"]
+
+        with pytest.raises(SystemExit) as excinfo:
+            introspect_mod.handle(parse_introspect_args(argv))
+
+        assert excinfo.value.code == 2
+        assert "views introspection is not supported by this server" in capsys.readouterr().err
+        assert GatedBackend.last_instance.introspector.calls == []

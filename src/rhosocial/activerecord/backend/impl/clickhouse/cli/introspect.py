@@ -29,15 +29,30 @@ from .output import create_provider
 
 OUTPUT_CHOICES = ["table", "json", "csv", "tsv"]
 
-INTROSPECT_TYPES = [
-    "tables",
-    "views",
-    "columns",
-    "indexes",
-    "partitions",
-    "table-engine",
-    "database",
-]
+#: The single place a type name maps to the dialect capability that decides
+#: whether this backend can answer it. ``INTROSPECT_TYPES`` is derived from it,
+#: so a family cannot be offered without a switch saying it may be -- and the
+#: order below is the order the parser and ``--help`` print.
+#:
+#: ``foreign-keys`` and ``triggers`` are **not** here, and their absence says
+#: something different from a switch that answers False. This engine neither
+#: declares nor enforces foreign keys and has no triggers at all, so the
+#: question is not part of this backend's vocabulary: argparse refuses the word
+#: and the answer is "this backend does not ask" rather than "this server
+#: cannot answer". A capability switch is for the second case -- a family the
+#: dialect knows and a particular server version may lack. Mixing the two is
+#: what made an earlier attempt to arbitrate types in core unworkable.
+_TYPE_CAPABILITIES = {
+    "tables": "supports_table_introspection",
+    "views": "supports_view_introspection",
+    "columns": "supports_column_introspection",
+    "indexes": "supports_index_introspection",
+    "partitions": "supports_partition_introspection",
+    "table-engine": "supports_table_engine_introspection",
+    "database": "supports_database_info",
+}
+
+INTROSPECT_TYPES = list(_TYPE_CAPABILITIES)
 
 #: What the optional NAME positional means for each type.
 #:
@@ -57,6 +72,30 @@ _NAME_RULE = {
     "table-engine": "required",
     "database": "forbidden",
 }
+
+
+def _require_capability(args, backend) -> None:
+    """Refuse a type the connected server cannot answer.
+
+    The dialect is adapted before this runs, so the switch answers for the
+    server in front of us rather than for the newest release this backend
+    knows. A stub standing in for the backend (the offline CLI tests) may carry
+    no dialect at all; a real one always does.
+    """
+    switch = _TYPE_CAPABILITIES.get(args.type)
+    if switch is None:
+        return
+    dialect = getattr(backend, "dialect", None)
+    if dialect is None:
+        return
+    supported = getattr(dialect, switch, None)
+    if supported is None or supported():
+        return
+    print(
+        f"Error: {args.type} introspection is not supported by this server",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 
 def _validate_name(args) -> None:
@@ -142,10 +181,7 @@ def create_parser(subparsers):
     parser.add_argument(
         "type",
         choices=INTROSPECT_TYPES,
-        help=(
-            "Introspection type: tables, views, table, columns, indexes, "
-            "partitions, table-engine, database"
-        ),
+        help="Introspection type: " + ", ".join(INTROSPECT_TYPES),
     )
     parser.add_argument(
         "name",
@@ -220,6 +256,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
         # every capability gate reads the adapted dialect, and the parsers
         # report the version through the same adaptation.
         backend.introspect_and_adapt()
+        _require_capability(args, backend)
 
         introspector = backend.introspector
 
@@ -312,6 +349,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
     try:
         await backend.connect()
         await backend.introspect_and_adapt()
+        _require_capability(args, backend)
 
         introspector = backend.introspector
 
