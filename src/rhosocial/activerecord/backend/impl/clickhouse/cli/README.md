@@ -12,19 +12,27 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 
 ## What it can ask about
 
-| Type | Reads | Notes |
-| :--- | :--- | :--- |
-| `tables` | `system.tables` | Tables, with the relation kind in `table_type` (`BASE_TABLE` / `VIEW` / `MATERIALIZED_VIEW` / `SYSTEM_TABLE`) and the storage engine in `extra`. `--include-system` adds the engine's own tables. |
-| `views` | `system.tables` | Views, with their definitions. |
-| `table` | several | One table by name, with its columns and indexes filled in. |
-| `columns` | `system.columns` | One table's columns: name, type, nullability, ordinal position, default. |
-| `indexes` | `system.data_skipping_indices` | One table's data-skipping indices — ClickHouse's nearest analogue to an index. |
-| `partitions` | `system.parts` | One table's partitions and subpartitions, in the engine's own order, aggregated from the parts currently active. |
-| `table-engine` | `system.tables` | The engine of one table, with its sorting, primary and sampling keys, plus row and byte totals. |
-| `database` | `system.build_options`, `system.databases` | Server version and the databases visible to this role. |
+| Type | Reads | `NAME` | Notes |
+| :--- | :--- | :--- | :--- |
+| `tables` | `system.tables` | refused | Tables, with the relation kind in `table_type` (`BASE_TABLE` / `VIEW` / `MATERIALIZED_VIEW` / `SYSTEM_TABLE`) and the storage engine in `extra`. `--include-system` adds the engine's own tables. |
+| `views` | `system.tables` | view, optional | Views, with their definitions; a name describes one view. |
+| `columns` | `system.columns` | table, required | One table's columns: name, type, nullability, ordinal position, default. |
+| `indexes` | `system.data_skipping_indices` | table, required | One table's data-skipping indices — ClickHouse's nearest analogue to an index. |
+| `partitions` | `system.parts` | table, required | One table's partitions and subpartitions, in the engine's own order, aggregated from the parts currently active. |
+| `table-engine` | `system.tables` | table, required | The engine of one table, with its sorting, primary and sampling keys, plus row and byte totals. |
+| `database` | `system.build_options`, `system.databases` | refused | Server version and the databases visible to this role. |
 
-`NAME` is required for `table`, `columns`, `indexes`, `partitions` and
-`table-engine`. The list types take no name.
+`NAME` is a table name for `columns`, `indexes`, `partitions` and
+`table-engine`, and the view itself for `views`. `tables` and `database` answer
+for the whole database, so they **refuse** a name rather than drop it: a run
+that accepted one and printed the full listing would read as though it had been
+narrowed. The two exit codes say which kind of refusal happened:
+
+*   **1** — the request was well formed but did not succeed: the connection
+    failed, a query failed, or a named view does not exist.
+*   **2** — the request cannot be answered here: `NAME` is used where the type
+    takes none, or the connected server's capabilities do not include the type.
+
 
 ## Options
 
@@ -35,7 +43,7 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 | `--include-system` | off | Include system tables. |
 | `--host`, `--port`, `--database`, `--user`, `--password` | env or defaults | Connection. `CLICKHOUSE_*` env vars are honoured, and arguments override them. |
 | `--ssl` | off | Use SSL for the connection. |
-| `--async` | off | Drive the asynchronous backend. |
+| `--async` | off | **Not available**: ClickHouse is a synchronous-only backend, so this path cannot serve a request. |
 | `--named-connection` | _None_ | A connection saved by the `named-connection` subcommand. |
 | `--conn-param` | _None_ | Extra `key=value` connection parameters; repeatable. |
 | `--rich-ascii` | off | ASCII characters for table borders. |
@@ -61,7 +69,19 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
     does not offer those types at all — they are missing from `TYPE` instead of
     accepted and then refused. An empty list from a type that was offered would
     read as "none declared", which is a different and wrong answer; the same
-    command against a MySQL database returns a real list.
+    command against a MySQL database returns a real list. This is a statement
+    about the *engine*, and it is not the same as a capability switch: a
+    `supports_*` switch that answers False says "this server cannot answer",
+    while a type that is absent from the vocabulary says "this backend never
+    asks". Every type that *is* offered carries a switch, and a server that
+    answers False for it is refused with exit 2 and
+    `Error: <type> introspection is not supported by this server`.
+*   **`show.*` is not reachable from `introspect`, and that is a boundary, not
+    a gap.** The backend's SHOW passthrough (`introspector.show`, 19 methods
+    shared with MySQL and MariaDB) stays where it is: ClickHouse's `SHOW`
+    statements and `system.tables` / `system.parts` / `system.columns` are not
+    equivalent, and every type here reads `system.*`. Offering both would give
+    one question two readings, one of which depends on session context.
 *   **One question per invocation.** A CLI process is one connection that
     opens, answers, and closes — there is no cache carried between runs.
 
@@ -72,8 +92,12 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect partitions events
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect table-engine events -o json
 
-# One table in full
-python -m rhosocial.activerecord.backend.impl.clickhouse introspect table events
+# One view, by name
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect views daily_totals
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect views nope   # exit 1: no such view
+
+# A name a whole-database type cannot use
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables events  # exit 2
 
 # Another database, including its system tables
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables --database reports --include-system

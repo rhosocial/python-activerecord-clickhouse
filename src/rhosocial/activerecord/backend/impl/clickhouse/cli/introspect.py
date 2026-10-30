@@ -131,9 +131,6 @@ def create_parser(subparsers):
   # Describe one view
   %(prog)s views v1 --database mydb
 
-  # Get detailed table info (columns and indexes)
-  %(prog)s table users --database mydb
-
   # Get column details for a table
   %(prog)s columns users --database mydb
 
@@ -187,7 +184,10 @@ def create_parser(subparsers):
         "name",
         nargs="?",
         default=None,
-        help="Table/view name (required for some types)",
+        help=(
+            "Object name: a table for columns/indexes/partitions/table-engine, "
+            "a view for views. Refused for tables/database."
+        ),
     )
     parser.add_argument(
         "--include-system",
