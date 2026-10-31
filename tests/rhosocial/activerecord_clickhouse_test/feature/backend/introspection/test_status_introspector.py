@@ -597,13 +597,18 @@ class TestOverview:
         assert ov.processes
         assert ov.connections.max_connections
 
-    def test_mysql_only_slots_are_left_at_their_default(self, status):
-        """``innodb`` / ``binary_log`` / ``slow_query`` are core fields this
-        backend never fills; they must be ``None``, not fabricated."""
+    def test_mysql_only_slots_are_absent_entirely(self, status):
+        """``innodb`` / ``binary_log`` / ``slow_query`` used to be core fields
+        every backend carried and this one never filled. They left core with
+        their engines: an engine's own families ride its own overview
+        subclass, so this backend's overview must not carry them at all --
+        absence is the contract where ``None`` used to stand in for it."""
         ov = status.get_overview()
-        assert ov.innodb is None
-        assert ov.binary_log is None
-        assert ov.slow_query is None
+        for name in (
+            "innodb", "binary_log", "slow_query", "mysql_replication",
+            "wal", "replication", "archive",
+        ):
+            assert not hasattr(ov, name), f"{name} still rides the overview"
 
     def test_the_mixin_no_longer_imports_an_innodb_type(self):
         import rhosocial.activerecord.backend.impl.clickhouse.introspection.status_introspector as mod
@@ -617,7 +622,10 @@ class TestOverview:
 
         payload = status.get_overview().to_dict()
         json.dumps(payload)  # must not raise
-        assert payload["innodb"] is None
+        # The engine-owned families left core, so the payload must not claim
+        # them in either direction.
+        for name in ("innodb", "binary_log", "slow_query", "mysql_replication"):
+            assert name not in payload, f"{name} still serializes"
         # to_dict() already unwraps the enum to its value.
         assert payload["performance"][0]["category"] in {
             "configuration",

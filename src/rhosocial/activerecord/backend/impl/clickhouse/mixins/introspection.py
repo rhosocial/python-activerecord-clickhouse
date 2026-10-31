@@ -113,6 +113,21 @@ class ClickHouseIntrospectionMixin:
         """ClickHouse does not support triggers, so no trigger introspection."""
         return False
 
+    def supports_table_storage_introspection(self) -> bool:
+        """``system.tables.total_bytes`` answers a table's on-disk footprint.
+
+        The capability for the per-table storage family. ClickHouse's storage
+        is engine-shaped rather than row-plus-index shaped: bytes live in
+        parts on disk, and skipping indices are sparse structures the engine
+        maintains rather than a second copy of the data, so the common
+        minimum's ``size_bytes`` is answered while ``data_size_bytes`` and
+        ``index_size_bytes`` stay ``None`` -- which is the honest answer for a
+        split this engine does not keep, not a gap. Finer facts (per-part
+        ``bytes_on_disk``, the engine's own definition) stay on this
+        backend's own types (``.claude/rules/introspection.md`` §5).
+        """
+        return True
+
     def get_supported_introspection_scopes(self) -> List["IntrospectionScope"]:
         """Get list of supported introspection scopes."""
         from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
