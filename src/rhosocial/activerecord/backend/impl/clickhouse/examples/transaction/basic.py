@@ -31,27 +31,27 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableExpression,
-    DropTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    DropTableStatement,
+    InsertStatement,
     ValuesSource,
-    QueryExpression,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
 from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "accounts"), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "accounts"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "accounts"),
     columns=[
@@ -59,22 +59,22 @@ create_table = CreateTableExpression(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "name",
             "String",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "balance",
             "Decimal(10, 2)",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.DEFAULT, default_value=Literal(dialect, 0)),
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, 0))),
             ],
         ),
     ],
@@ -83,7 +83,7 @@ create_table = CreateTableExpression(
 sql, params = create_table.to_sql()
 backend.execute(sql, params)
 
-insert_expr = InsertExpression(
+insert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "accounts"),
     columns=["name", "balance"],
@@ -110,7 +110,7 @@ print("ClickHouse does not support ACID transactions.")
 print("Use plain INSERT/SELECT statements instead.")
 
 # Insert another row
-insert_expr2 = InsertExpression(
+insert_expr2 = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "accounts"),
     columns=["name", "balance"],
@@ -125,7 +125,7 @@ sql, params = insert_expr2.to_sql()
 backend.execute(sql, params)
 
 # Verify
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, "name"), Column(dialect, "balance")],
     from_=NamedRelationRef(dialect, Table(dialect, "accounts")),
@@ -149,7 +149,7 @@ except Exception as e:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "accounts"), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "accounts"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

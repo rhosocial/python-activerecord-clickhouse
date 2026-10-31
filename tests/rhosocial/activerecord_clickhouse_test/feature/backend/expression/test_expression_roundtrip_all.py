@@ -1,4 +1,4 @@
-# tests/rhosocial/activerecord_clickhouse_test/feature/backend/test_expression_roundtrip_all.py
+# tests/rhosocial/activerecord_clickhouse_test/feature/backend/expression/test_expression_roundtrip_all.py
 """
 Serialization coverage for every expression class ClickHouse can render.
 
@@ -94,15 +94,52 @@ Both expression packages are collected
 collect only the backend's own package, so core's classes have no systematic
 coverage anywhere except inside core -- which is how postgres's
 ``comment.py:42`` read a field core had removed months earlier and stayed green.
-Discovery walks both package trees; it never reads ``ExpressionRegistry``, which
-is process-global and grows as sibling modules import other backends, so the
-matrix's contents would otherwise depend on which files pytest imported first.
+Discovery walks both package trees; it never reads the serialization class
+index, which is process-global and grows as sibling modules import other
+backends, so the matrix's contents would otherwise depend on which files
+pytest imported first.
 
 No database is involved. The matrix drives the dialect, which is where SQL
 generation happens; nothing here opens a connection.
+
+The baseline this table was last reconciled against
+===================================================
+
+Core ``debde516`` (following ``679d9817``, which made a node's kind its identity
+and its payload plain JSON). Every number in the tables below is a statement
+about that tree: :func:`test_unmodelled_formatter_list_is_exact`,
+:func:`test_unconstructible_list_is_exact`,
+:func:`test_pinned_non_render_really_does_not_render` and
+:func:`test_pinned_non_roundtrip_refuses_as_pinned` all fail when core moves
+underneath, which is the point -- they are what make a core change visible here
+instead of on the backend that has to answer for it. Where core moved between
+the two baselines, this file says which direction:
+
+* ``debde516`` gave NaN and the infinities value kinds of their own, so the
+  closed set :class:`TestLiteralValueKinds` pins is sixteen, not fourteen
+  (see :attr:`TestLiteralValueKinds._CASES`).
+* ``ComparisonPredicate`` began normalising its operator, so the introspective
+  constructor's placeholder stopped satisfying it and the class took a
+  registered constructor rather than an UNCONSTRUCTIBLE exemption.
+* ``CustomType``'s ``raw`` became keyword-only, and the type root's refusal now
+  carries the generic dispatch's own spelling.
+* ``ForUpdateClause`` began normalising the word it stores, so its entry left
+  :data:`LEGITIMATE_NON_ROUNDTRIPS` rather than the table holding a reason that
+  no longer exists.
+
+Coverage at that baseline: 515 registered, 510 constructible, 5 pinned
+unconstructible, 61 pinned non-render; rendered 327, unsupported 121,
+unmodelled 32, non-render 30.
+:func:`TestMatrixIntegrity.test_coverage_report` prints the current figures on
+every run.
 """
 
+import datetime
+import decimal
+import enum
 import inspect
+import math
+import uuid
 from typing import Dict
 
 import pytest
@@ -117,7 +154,17 @@ from rhosocial.activerecord.backend.expression.advanced_functions import (
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.core import Column, Literal
 from rhosocial.activerecord.backend.expression.datetime import (
+    ExtractFieldExpression,
     TemporalOptionsExpression,
+    _ExtractBase,
+)
+from rhosocial.activerecord.backend.expression.functions.string import (
+    ChrFunction,
+    LeftFunction,
+    OverlayExpression,
+    RightFunction,
+    SpaceFunction,
+    SubstringExpression,
 )
 from rhosocial.activerecord.backend.expression.objects import (
     Database,
@@ -128,10 +175,16 @@ from rhosocial.activerecord.backend.expression.objects import (
     Table,
     View,
 )
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
+from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation
+from rhosocial.activerecord.backend.expression.predicates import (
+    LikeOperator,
+    ComparisonPredicate,
+    ILikePredicate,
+    LikePredicate,
+)
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
+from rhosocial.activerecord.backend.expression.query_sources import SetOperation
 from rhosocial.activerecord.backend.expression.serialization import (
-    ExpressionRegistry,
     deserialize,
     deserialize_json,
     deserialize_xml,
@@ -141,12 +194,12 @@ from rhosocial.activerecord.backend.expression.serialization import (
 )
 from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression,
-    CreateTableLikeExpression,
-    CreateViewExpression,
-    DropViewExpression,
-    InsertExpression,
-    TruncateExpression,
+    CreateTableStatement,
+    CreateTableLikeStatement,
+    CreateViewStatement,
+    DropViewStatement,
+    InsertStatement,
+    TruncateStatement,
     ValuesSource,
     ddl_alter,
     ddl_comment,
@@ -156,28 +209,33 @@ from rhosocial.activerecord.backend.expression.statements import (
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     AlterDatabaseAction,
-    AlterDatabaseExpression,
-    CreateDatabaseExpression,
-    DropDatabaseExpression,
+    AlterDatabaseStatement,
+    CreateDatabaseStatement,
+    DropDatabaseStatement,
+)
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    AddTableConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-    CreateTableCloneExpression,
+    CreateTableCloneStatement,
     TableConstraint,
-    TableConstraintType,
+    TableForeignKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
-    CreateMaterializedViewExpression,
-    DropMaterializedViewExpression,
-    RefreshMaterializedViewExpression,
+    CreateMaterializedViewStatement,
+    DropMaterializedViewStatement,
+    RefreshMaterializedViewStatement,
 )
+from rhosocial.activerecord.backend.expression.statements.dql import QueryStatement
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
     ClickHouseNamespaceMixin,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
-    ClickHouseModifyMaterializedViewRefreshExpression,
+    ClickHouseModifyMaterializedViewRefreshStatement,
     ClickHouseRefreshSchedule,
+    admin as admin_module,
     alter_column,
     column as chexpr_column,
     dml as chexpr_dml,
@@ -186,11 +244,12 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     partition,
     rename_table,
     routine,
+    storage_option,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     types as chexpr_types,
 )
-from rhosocial.activerecord.testsuite.utils.expression import (
+from expression_roundtrip_harness import (
     collect_expression_classes,
     make_instance,
     register_all,
@@ -228,16 +287,149 @@ def assert_params_equal(a, b, path="params"):
         return
     if isinstance(a, (list, tuple)):
         assert len(a) == len(b), f"{path}: lengths differ"
-        for i, (x, y) in enumerate(zip(a, b)):
+        for i, (x, y) in enumerate(zip(a, b, strict=True)):
             assert_params_equal(x, y, f"{path}[{i}]")
         return
     assert a == b, f"{path}: {a!r} != {b!r}"
 
 
+def _channel_builders(instance, dialect):
+    """One lazy builder per encoding channel.
+
+    Lazy on purpose: an eager tuple evaluated all three round-trips up front,
+    so a refusal on the first channel stopped the others from ever being
+    attempted -- and a pin that names one channel must leave the other two
+    demonstrably working, not merely unexamined.
+    """
+    return (
+        ("dict", lambda: deserialize(serialize(instance), dialect)),
+        ("json", lambda: deserialize_json(serialize_json(instance), dialect)),
+        ("xml", lambda: deserialize_xml(serialize_xml(instance), dialect)),
+    )
+
+
+def _roundtrip_pin(fqn: str, channel: str):
+    """The pin for one class on one channel, or ``None`` when it travels free."""
+    entry = LEGITIMATE_NON_ROUNDTRIPS.get(fqn)
+    if entry is None:
+        return None
+    return entry["channels"].get(channel)
+
+
+def _assert_pinned_channel(fqn, channel, build, instance, pin):
+    """Assert one pinned channel, in the shape its entry names.
+
+    ``raises`` -- the channel refuses outright. ``word`` / ``enum-str`` -- the
+    restore succeeds but is type-lossy, asserted both ways: the strict params
+    comparison must fail (so the pin stays load-bearing; a core fix makes the
+    entry stale and this assertion demands its removal), and the normalised
+    comparison must hold (so the loss is exactly the member/word spelling and
+    nothing else moved).
+    """
+    if pin[0] == "raises":
+        _, expected_type, fragment = pin
+        try:
+            build()
+        except Exception as exc:
+            assert isinstance(exc, expected_type), (
+                f"{fqn}: the {channel} channel was pinned as refusing with "
+                f"{expected_type.__name__}, but it raised "
+                f"{type(exc).__name__}: {exc}"
+            )
+            assert fragment in str(exc), (
+                f"{fqn}: expected the {channel} refusal to mention "
+                f"{fragment!r}, but it said: {exc}"
+            )
+        else:
+            raise AssertionError(
+                f"{fqn}: the {channel} channel is pinned in "
+                f"LEGITIMATE_NON_ROUNDTRIPS but the round-trip now succeeds. "
+                f"The reason it was pinned is gone -- remove the entry rather "
+                f"than leave a lie in the table."
+            )
+        return
+    mode = pin[0]
+    restored = build()
+    try:
+        assert_params_equal(restored.get_params(), instance.get_params(), fqn)
+    except AssertionError:
+        pass  # expected: the type loss is the pin's whole subject
+    else:
+        raise AssertionError(
+            f"{fqn}: the {channel} channel is pinned as type-lossy in "
+            f"LEGITIMATE_NON_ROUNDTRIPS but the round-trip is now exact; "
+            f"remove the stale entry."
+        )
+    _enum_word_params_equal(
+        restored.get_params(), instance.get_params(), mode, f"{fqn}.{channel}"
+    )
+
+
+def _sql_params_equal(a, b) -> bool:
+    """Bind-parameter sequences compared as sequences.
+
+    The artifact carries a tuple as an array (§4.8: JSON draws no distinction,
+    the kind does, and a constructor normalises on the way back), so a
+    round-tripped render may hand back a list where the original handed a
+    tuple. ``Subquery`` is the case in the tree: its ``query_params`` arrive
+    as a list on restore and its formatter passes them through. The values are
+    the contract; the container is not. Order still matters -- this is a
+    sequence comparison, not a set comparison.
+    """
+    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
+        return len(a) == len(b) and all(
+            _sql_params_equal(x, y) for x, y in zip(a, b, strict=True)
+        )
+    return a == b
+
+
+def _enum_word_params_equal(a, b, mode: str, path: str = "params") -> None:
+    """``assert_params_equal``, with a ``(str, Enum)`` member read as its word.
+
+    The two modes are the two spellings an artifact can hand back for a
+    member:
+
+    * ``"word"`` -- the member's own value, which is what the JSON channel
+      writes and what the XML channel writes when the enum sets
+      ``__str__ = str.__str__``;
+    * ``"enum-str"`` -- ``str(member)`` under the default ``Enum.__str__``,
+      the ``"EnumClass.MEMBER"`` spelling an enum without that assignment
+      produces on the XML channel.
+
+    Asserts rather than returns, mirroring :func:`assert_params_equal`; a
+    difference beyond the member/word spelling fails here by name.
+    """
+
+    def _norm(x):
+        if isinstance(x, enum.Enum):
+            return str(x) if mode == "enum-str" else x.value
+        return x
+
+    if isinstance(a, BaseExpression) and isinstance(b, BaseExpression):
+        _enum_word_params_equal(
+            a.get_params(), b.get_params(), mode, path + ".<expr>"
+        )
+        return
+    # No strict type check here, on purpose: the type difference between a
+    # member and the word that replaced it is exactly what this comparison
+    # exists to accept. Everything else still fails by name below.
+    if isinstance(a, dict):
+        assert set(a) == set(b), f"{path}: keys differ {set(a) ^ set(b)}"
+        for k in a:
+            _enum_word_params_equal(a[k], b[k], mode, f"{path}.{k}")
+        return
+    if isinstance(a, (list, tuple)):
+        assert len(a) == len(b), f"{path}: lengths differ"
+        for i, (x, y) in enumerate(zip(a, b, strict=True)):
+            _enum_word_params_equal(x, y, mode, f"{path}[{i}]")
+        return
+    assert _norm(a) == _norm(b), f"{path}: {a!r} != {b!r}"
+
+
 def _collect_matrix_classes() -> Dict[str, type]:
     """Every concrete expression class the two covered packages define.
 
-    Walked from the package, not read from ``ExpressionRegistry``: the registry
+    Walked from the package, not read from the serialization class index: that index
     is process-global and *grows* as other test modules import their own
     backends, so reading it makes this matrix's contents depend on which files
     pytest happened to import first. The matrix passed standalone and failed run
@@ -245,12 +437,12 @@ def _collect_matrix_classes() -> Dict[str, type]:
     backend -- classes that were then rendered with the ClickHouse dialect, which
     is not a meaningful thing to assert.
 
-    Several modules export aliases of one class (``ddl_alter`` spells
-    ``AlterConstraint`` and ``ValidateConstraint`` two ways each). The same
-    object collected twice would be tested twice and reported twice, so the first
-    name wins and identity does the deduplication.
+    Several modules export aliases of one class (``ddl_alter`` used to spell
+    ``AlterConstraintAction`` and ``ValidateConstraintAction`` two ways
+    each). The same object collected twice would be tested twice and
+    reported twice, so the first name wins and identity does the
+    deduplication.
     """
-    ExpressionRegistry._auto_register_builtins()
     found: Dict[str, type] = {}
     for package in COVERED_PACKAGES:
         found.update(collect_expression_classes(package))
@@ -267,10 +459,15 @@ def _collect_matrix_classes() -> Dict[str, type]:
 
 REGISTERED = _collect_matrix_classes()
 
-# Deserialization resolves a class by name through ``ExpressionRegistry``. Core's
-# builtins register themselves; the ClickHouse package's classes do not, so they
-# are registered here or every round-trip of a backend class raises
-# ``ExpressionDeserializationError`` before it can compare anything.
+# Deserialization resolves a kind to its class through the framework's
+# default registry. Core's own packages auto-populate it; the ClickHouse
+# package's classes do not, so they are registered here or every round-trip
+# of a backend class refuses by kind before it can compare anything. That
+# is the whole registration surface: core 679d9817 made an artifact plain
+# JSON, the registry owns the kind -> class table and nothing else, and the
+# enum / dataclass vocabulary tables are gone -- a str enum is a JSON
+# scalar, and every other conversion lives in the constructor that
+# receives it. Core's artifact-contract test pins the absence.
 register_all(REGISTERED)
 
 
@@ -304,6 +501,18 @@ def _column_predicate(dialect):
     return ComparisonPredicate(dialect, "=", Column(dialect, "a"), Column(dialect, "b"))
 
 
+def _operand(dialect, name):
+    """A value expression with no bind parameters, for arithmetic operands."""
+    return Column(dialect, name)
+
+
+def _ddl_dml_query(dialect, table):
+    """A minimal SELECT, the operand a set operation needs."""
+    return QueryStatement(
+        dialect, select=[Column(dialect, "id")], from_=Table(dialect, table)
+    )
+
+
 def _integer_column(dialect, name="col"):
     """A column definition carrying a *dialect-bound* type.
 
@@ -333,41 +542,64 @@ def register_specials():
 
     # -- tables --------------------------------------------------------------
     register_special_constructor(
-        "statements.ddl_table.CreateTableExpression",
-        lambda d: ddl_table.CreateTableExpression(d, _table(d), [_integer_column(d)]),
+        "statements.ddl_table.CreateTableStatement",
+        lambda d: ddl_table.CreateTableStatement(d, _table(d), [_integer_column(d)]),
     )
     register_special_constructor(
         "statements.ddl_table.ColumnDefinition", _integer_column
     )
     register_special_constructor(
-        "statements.ddl_alter.AddColumn", lambda d: ddl_alter.AddColumn(d, _integer_column(d))
+        "statements.ddl_alter.AddColumnAction",
+        lambda d: ddl_alter.AddColumnAction(d, _integer_column(d)),
     )
     register_special_constructor(
-        "statements.ddl_alter.ModifyColumn",
-        lambda d: ddl_alter.ModifyColumn(d, _integer_column(d)),
+        "statements.ddl_alter.ModifyColumnAction",
+        lambda d: ddl_alter.ModifyColumnAction(d, _integer_column(d)),
     )
     # ``old_name`` comes first here, so the guess's positional order is wrong:
     # it built the column definition into ``old_name`` and the string into
     # ``column``, and the failure surfaced as an AttributeError at render time.
     register_special_constructor(
-        "statements.ddl_alter.ChangeColumn",
-        lambda d: ddl_alter.ChangeColumn(d, "old", _integer_column(d)),
+        "statements.ddl_alter.ChangeColumnAction",
+        lambda d: ddl_alter.ChangeColumnAction(d, "old", _integer_column(d)),
     )
     register_special_constructor(
-        "statements.ddl_comment.CommentOnExpression",
-        lambda d: ddl_comment.CommentOnExpression(d, "table", _table(d), comment="c"),
+        "statements.ddl_comment.CommentOnStatement",
+        lambda d: ddl_comment.CommentOnStatement(d, "table", _table(d), comment="c"),
     )
 
     # -- databases -----------------------------------------------------------
     # ``RENAME TO`` is the action core's enum names; without it the guess picks
     # whatever sorts first.
     register_special_constructor(
-        "statements.ddl_database.AlterDatabaseExpression",
-        lambda d: ddl_database.AlterDatabaseExpression(
+        "statements.ddl_database.AlterDatabaseStatement",
+        lambda d: ddl_database.AlterDatabaseStatement(
             d,
             Database(d, "db"),
             action=AlterDatabaseAction.RENAME_TO,
             target="renamed_db",
+        ),
+    )
+
+    # -- closed word sets the guesser cannot satisfy --------------------------
+    # Both nodes validate their operation word at construction and refuse
+    # anything outside a fixed set. ``make_instance`` guesses a string for the
+    # ``op`` parameter, so both are refused before they can be rendered -- and
+    # both are among the nodes worth rendering, so a real word is supplied here
+    # rather than a new entry in UNCONSTRUCTIBLE.
+    register_special_constructor(
+        "operators.ArithmeticOperation",
+        lambda d: ArithmeticOperation(
+            d, "add", _operand(d, "a"), _operand(d, "b")
+        ),
+    )
+    register_special_constructor(
+        "query_sources.SetOperation",
+        lambda d: SetOperation(
+            d,
+            op="union",
+            left=_ddl_dml_query(d, "t1"),
+            right=_ddl_dml_query(d, "t2"),
         ),
     )
 
@@ -400,14 +632,24 @@ def register_specials():
     )
 
     # -- constraints and column pieces ---------------------------------------
-    # The guess hands the constraint-type parameter the bare string ``"x"``, which
-    # is not a ColumnConstraintType and not one of their string values, so the
-    # formatter's normalizer refuses it before any clause is spelled.
+    # The branch is a required keyword now, and an introspective constructor
+    # cannot guess one: ``branch=`` takes a node, not a value the guesser can
+    # read off the signature. ``ColumnNotNullConstraint`` is the cheapest branch
+    # that still renders, so it is what the round trip builds.
     register_special_constructor(
         "statements.ddl_table.ColumnConstraint",
         lambda d: ddl_table.ColumnConstraint(
-            d, ddl_table.ColumnConstraintType.NOT_NULL, name="c"
+            d, branch=ddl_table.ColumnNotNullConstraint(d), name="c"
         ),
+    )
+    # TABLE CHECK. The guesser's condition carries a binding ``Literal``, and a
+    # DDL position refuses bind parameters outright now (there is no lift
+    # pass any more -- the caller states ``inline=True`` where a position
+    # cannot bind). Two columns compose the same predicate with nothing that
+    # binds in it.
+    register_special_constructor(
+        "statements.ddl_table.TableCheckConstraint",
+        lambda d: ddl_table.TableCheckConstraint(d, _column_predicate(d)),
     )
     # REFERENCES needs at least one referenced column, or the clause is not a
     # clause; the guess supplies an empty list.
@@ -415,11 +657,72 @@ def register_specials():
         "statements.ddl_table.ReferencesClause",
         lambda d: ddl_table.ReferencesClause(d, Table(d, "other"), ["b"]),
     )
+    # ADD CONSTRAINT takes a constraint node, and the guess supplies a bare
+    # string, which reaches the formatter as ``constraint.branch`` and raises
+    # AttributeError. A PRIMARY KEY table branch is the cheapest one this
+    # dialect renders in that position.
+    register_special_constructor(
+        "statements.ddl_alter.AddTableConstraintAction",
+        lambda d: AddTableConstraintAction(
+            d,
+            ddl_table.TableConstraint(
+                d, branch=ddl_table.TablePrimaryKeyConstraint(d, ["a"])
+            ),
+        ),
+    )
+    # -- declared-result annotations: the source must be aliasable ------------
+    # ``format_declared_result`` reads the alias of both the annotation and
+    # the node it annotates, and the rewritten ``Literal`` is deliberately
+    # not aliasable -- the guesser's Literal source reaches the formatter and
+    # dies on ``source.alias``. A Column source is what the node is for: a
+    # statement whose result type the caller declares, rendered unchanged
+    # with the knowledge attached.
+    from rhosocial.activerecord.backend.expression import declared as declared_module
+
+    for _name in (
+        "TextAnnotation",
+        "NumberAnnotation",
+        "IntegerAnnotation",
+        "BooleanAnnotation",
+        "TemporalAnnotation",
+        "BinaryAnnotation",
+        "UUIDAnnotation",
+        "JSONAnnotation",
+        "XMLAnnotation",
+        "ArrayAnnotation",
+    ):
+        register_special_constructor(
+            f"declared.{_name}",
+            lambda d, _n=_name: getattr(declared_module, _n)(d, _operand(d, "c")),
+        )
+
+    # -- predicates whose operands are value nodes ---------------------------
+    # The generic guess hands the operand slot a bare string, which the
+    # formatter then calls ``.to_sql()`` on. Both constructors spell operands
+    # the way the round-trip contract requires; ``Literal`` for the pattern
+    # rather than a string, because a bare string is not a value node.
+    register_special_constructor(
+        "predicates.LikePredicate",
+        lambda d: LikePredicate(d, LikeOperator.LIKE, Column(d, "a"), Literal(d, "%x%")),
+    )
+    register_special_constructor(
+        "predicates.ILikePredicate",
+        lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
+    )
+    # COMPARISON. Core normalised ``op`` through ``normalize_comparison_operator``
+    # after this matrix was reconciled, and the guess hands ``Any`` the literal
+    # ``"x"`` -- not a comparison word, so the constructor refuses and the class
+    # drops to a quiet skip. A real operator word builds it, and the node then
+    # renders through the same entry every other predicate uses.
+    register_special_constructor(
+        "predicates.ComparisonPredicate",
+        lambda d: ComparisonPredicate(d, "=", Column(d, "a"), Literal(d, 1)),
+    )
 
     # -- DML -----------------------------------------------------------------
     register_special_constructor(
-        "statements.dml.MergeExpression",
-        lambda d: dml.MergeExpression(
+        "statements.dml.MergeStatement",
+        lambda d: dml.MergeStatement(
             d,
             target_table=_table(d),
             source=NamedRelationRef(d, Table(d, "src")),
@@ -447,11 +750,13 @@ def register_specials():
     )
 
     # -- types ---------------------------------------------------------------
+    # ArrayType's element type is keyword-only now, so the guesser -- and the
+    # positional call this used to be -- both miss it.
     register_special_constructor(
         "types.array.ArrayType", lambda d: __import__(
             "rhosocial.activerecord.backend.expression.types.array",
             fromlist=["ArrayType"],
-        ).ArrayType(d, VarCharType(d, 10))
+        ).ArrayType(d, element_type=VarCharType(d, 10))
     )
     register_special_constructor(
         "types.ClickHouseDecimalType",
@@ -492,6 +797,77 @@ def register_specials():
         ),
     )
 
+    # -- datetime extracts: the field must name a DateTimeField --------------
+    # Both the private shape base and the field-named extraction validate the
+    # field word at construction; the guesser's "x" is not one of the six.
+    # "YEAR" is, and renders EXTRACT(YEAR FROM `ts`).
+    register_special_constructor(
+        "datetime._ExtractBase",
+        lambda d: _ExtractBase(d, "YEAR", _operand(d, "ts")),
+    )
+    register_special_constructor(
+        "datetime.ExtractFieldExpression",
+        lambda d: ExtractFieldExpression(d, "YEAR", _operand(d, "ts")),
+    )
+
+    # -- string functions whose parameters the guesser fills with bare names --
+    # Every operand slot is annotated ``SQLValue`` -- a string annotation
+    # naming the base every value class shares -- and the guesser falls
+    # through to its bare-name fallback, so construction refuses. Real
+    # operands construct, and the renderings go through the shared scalar
+    # defaults ClickHouse agrees with (CHR, LEFT, RIGHT, SPACE are the
+    # standard spellings this engine accepts; SUBSTRING and OVERLAY render
+    # through their own entry points).
+    register_special_constructor(
+        "functions.string.ChrFunction",
+        lambda d: ChrFunction(d, Literal(d, 65)),
+    )
+    register_special_constructor(
+        "functions.string.LeftFunction",
+        lambda d: LeftFunction(d, _operand(d, "name"), Literal(d, 1)),
+    )
+    register_special_constructor(
+        "functions.string.RightFunction",
+        lambda d: RightFunction(d, _operand(d, "name"), Literal(d, 1)),
+    )
+    register_special_constructor(
+        "functions.string.SpaceFunction",
+        lambda d: SpaceFunction(d, Literal(d, 3)),
+    )
+    register_special_constructor(
+        "functions.string.SubstringExpression",
+        lambda d: SubstringExpression(
+            d, _operand(d, "name"), Literal(d, 1), Literal(d, 2)
+        ),
+    )
+    register_special_constructor(
+        "functions.string.OverlayExpression",
+        lambda d: OverlayExpression(
+            d,
+            _operand(d, "name"),
+            _operand(d, "replacement"),
+            Literal(d, 1),
+            Literal(d, 2),
+        ),
+    )
+
+    # -- admin selectors: the enums validate their words at construction now --
+    # The guesser fills a required enum-annotated parameter with "x", which
+    # the constructor refuses once it normalises (the word must name a
+    # member). Real members construct, and the renderings refuse on their own
+    # -- this dialect spells no RESET / HANDLER at all -- which the pinned
+    # renders above assert.
+    register_special_constructor(
+        "admin.ClickHouseResetStatement",
+        lambda d: admin_module.ClickHouseResetStatement(d, admin_module.ResetOption.MASTER),
+    )
+    register_special_constructor(
+        "admin.ClickHouseHandlerReadStatement",
+        lambda d: admin_module.ClickHouseHandlerReadStatement(
+            d, Table(d, "t"), admin_module.HandlerReadMode.FIRST
+        ),
+    )
+
     # -- ClickHouse partitions ----------------------------------------------
     # The MySQL-style declarative partitioning family was deleted outright:
     # ClickHouse declares partitioning as an arbitrary expression in CREATE
@@ -499,9 +875,9 @@ def register_specials():
     # three system.parts-addressed statements, each taking the table name
     # and the partition id, and each rendering through one shared base.
     for _name in (
-        "ClickHouseDropPartitionExpression",
-        "ClickHouseDetachPartitionExpression",
-        "ClickHouseAttachPartitionExpression",
+        "ClickHouseDropPartitionStatement",
+        "ClickHouseDetachPartitionStatement",
+        "ClickHouseAttachPartitionStatement",
     ):
         register_special_constructor(
             f"partition.{_name}",
@@ -515,7 +891,7 @@ def register_specials():
         "ClickHouseChecksumTableExpression",
         "ClickHouseOptimizeTableExpression",
         "ClickHouseRepairTableExpression",
-        "ClickHouseTableMaintenanceExpression",
+        "ClickHouseTableMaintenanceStatement",
     ):
         register_special_constructor(
             f"maintenance.{_name}",
@@ -526,39 +902,41 @@ def register_specials():
         lambda d: routine.ClickHouseRoutineExpression(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "routine.ClickHouseCreateProcedureExpression",
-        lambda d: routine.ClickHouseCreateProcedureExpression(d, Procedure(d, "proc")),
+        "routine.ClickHouseCreateProcedureStatement",
+        lambda d: routine.ClickHouseCreateProcedureStatement(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "routine.ClickHouseDropProcedureExpression",
-        lambda d: routine.ClickHouseDropProcedureExpression(d, Procedure(d, "proc")),
+        "routine.ClickHouseDropProcedureStatement",
+        lambda d: routine.ClickHouseDropProcedureStatement(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "routine.ClickHouseCreateFunctionExpression",
-        lambda d: routine.ClickHouseCreateFunctionExpression(
+        "routine.ClickHouseCreateFunctionStatement",
+        lambda d: routine.ClickHouseCreateFunctionStatement(
             d, Function(d, "fn"), returns="integer"
         ),
     )
     register_special_constructor(
-        "routine.ClickHouseDropFunctionExpression",
-        lambda d: routine.ClickHouseDropFunctionExpression(d, Function(d, "fn")),
+        "routine.ClickHouseDropFunctionStatement",
+        lambda d: routine.ClickHouseDropFunctionStatement(d, Function(d, "fn")),
     )
     register_special_constructor(
-        "routine.ClickHouseCallExpression",
-        lambda d: routine.ClickHouseCallExpression(d, Procedure(d, "proc")),
+        "routine.ClickHouseCallStatement",
+        lambda d: routine.ClickHouseCallStatement(d, Procedure(d, "proc")),
     )
     register_special_constructor(
-        "materialized_view.ClickHouseCreateMaterializedViewExpression",
-        lambda d: materialized_view.ClickHouseCreateMaterializedViewExpression(
+        "materialized_view.ClickHouseCreateMaterializedViewStatement",
+        lambda d: materialized_view.ClickHouseCreateMaterializedViewStatement(
             d, MaterializedView(d, "mv"), "SELECT 1", to_table=Table(d, "target")
         ),
     )
     register_special_constructor(
-        "materialized_view.ClickHouseModifyMaterializedViewRefreshExpression",
-        lambda d: materialized_view.ClickHouseModifyMaterializedViewRefreshExpression(
+        "materialized_view.ClickHouseModifyMaterializedViewRefreshStatement",
+        lambda d: materialized_view.ClickHouseModifyMaterializedViewRefreshStatement(
             d,
             MaterializedView(d, "mv"),
-            materialized_view.ClickHouseRefreshSchedule(every="1 HOUR"),
+            # The schedule is an expression node now, so it binds to the
+            # dialect it renders through -- first argument, like every node.
+            materialized_view.ClickHouseRefreshSchedule(d, every="1 HOUR"),
         ),
     )
 
@@ -576,25 +954,46 @@ def register_specials():
         ),
     )
     register_special_constructor(
-        "alter_column.ClickHouseAddColumn",
-        lambda d: alter_column.ClickHouseAddColumn(d, _integer_column(d)),
+        "alter_column.ClickHouseAddColumnAction",
+        # ``after`` is given a value on purpose: it is a declared constructor
+        # parameter, so the artifact has to carry it. The render half -- that
+        # the clause reaches the SQL -- is test_add_column_action.py's job.
+        lambda d: alter_column.ClickHouseAddColumnAction(
+            d, _integer_column(d), after="name"
+        ),
     )
     register_special_constructor(
-        "rename_table.ClickHouseRenameTableExpression",
-        lambda d: rename_table.ClickHouseRenameTableExpression(d, [("a", "b")]),
+        "rename_table.ClickHouseRenameTableStatement",
+        lambda d: rename_table.ClickHouseRenameTableStatement(d, [("a", "b")]),
     )
+
+    # -- ClickHouse CREATE TABLE storage clauses ------------------------------
+    # ``option`` is a discriminator enum and ``value`` is keyword-only, so the
+    # guess supplies neither: it hands a string where the enum is expected and
+    # never reaches the payload. ENGINE is built because every ClickHouse table
+    # declares one, and it is the member whose payload is itself a node, so the
+    # artifact carries a nested expression rather than a bare scalar.
+    register_special_constructor(
+        "storage_option.ClickHouseTableStorageOption",
+        lambda d: storage_option.ClickHouseTableStorageOption(
+            d,
+            storage_option.ClickHouseStorageOptionKind.ENGINE,
+            value=storage_option.ClickHouseEngineSpec(d, "MergeTree"),
+        ),
+    )
+
     # CUSTOM. Its ``raw`` slot exists to carry the SQL type name and defaults
     # to the empty string, which the filler skips and the class refuses while
     # constructing. Handed a real name it builds -- and then the dialect
     # refuses it, which is what the existing LEGITIMATE_NON_RENDERS pin below
     # asserts. A constructor rather than a skip, so the pin has something to
-    # assert against.
+    # assert against. ``raw`` is keyword-only now, so the name is spelled.
     def _custom_type(dialect):
         from rhosocial.activerecord.backend.expression.types.custom import (
             CustomType,
         )
 
-        return CustomType(dialect, "String")
+        return CustomType(dialect, raw="String")
 
     register_special_constructor("types.custom.CustomType", _custom_type)
 
@@ -631,23 +1030,20 @@ UNCONSTRUCTIBLE = (
     # ALTER CONSTRAINT. ``name`` and ``constraint_type`` sit behind defaulted
     # positionals and are keyword-only, so the introspective constructor skips
     # them and the class refuses an incomplete action.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraint",
-    # VALIDATE CONSTRAINT. Same shape as AlterConstraint: the required ``name``
-    # is keyword-only behind a defaulted positional.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.ValidateConstraint",
+    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraintAction",
+    # VALIDATE CONSTRAINT used to sit here with the same shape as
+    # AlterConstraint. Core moved ``constraint_name`` into the positional
+    # required slot, so the guesser's "x" builds it now -- and the built
+    # instance is what the graph of pinned renders asserts against.
     # ADD DOMAIN CHECK. Widens a SQLPredicate into a DomainCheckConstraint and
-    # needs one; the guess supplies a bare comparison whose literal would have to
-    # render as a bind parameter, which DDL cannot carry.
+    # needs one; the guess supplies a bare comparison whose literal would have
+    # to render as a bind parameter, which DDL cannot carry.
     "rhosocial.activerecord.backend.expression.statements.ddl_domain.AddDomainCheckAction",
-    # ENUM type. Its ``values`` list is keyword-only behind a defaulted
-    # positional, so the introspective constructor skips it and the type declares
-    # no members.
-    "rhosocial.activerecord.backend.expression.types.enum_.EnumType",
     # The three UUID nodes refuse in __init__, not in to_sql(): ClickHouse
     # spells no UUID SQL, so the answer is the same for every argument and no
     # registered constructor can change it. Measured with a valid ``which`` --
     # an invalid one raises ValueError first and hides the dialect's answer.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDCastExpression",
+    "rhosocial.activerecord.backend.expression.uuid.UUIDCastFunction",
     "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
     "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
 )
@@ -663,6 +1059,11 @@ UNCONSTRUCTIBLE = (
 # SQL/XML formatter at all -- so they are pinned by name in LEGITIMATE_NON_RENDERS
 # below instead, which is the stronger position: the gap is recorded against the
 # formatter it is actually about.
+#
+# ENUM TYPE used to be an entry here too, with a keyword-only ``values`` list the
+# constructor skipped. Core moved the members into the constructor's reach, so it
+# builds now -- and renders into the type map's refusal, which is the
+# LEGITIMATE_NON_RENDERS pin the constructed instance makes assertable.
 
 
 #: Classes that construct but cannot render, for a reason belonging to their own
@@ -680,7 +1081,7 @@ def _no_dialect_formatter(format_method: str) -> str:
     """The fragment ``to_sql()`` says when the dialect has no such formatter.
 
     ``BaseExpression.to_sql()`` raises ``UnsupportedFeatureError`` naming the
-    method it wanted, so pinning ``"format_pivot_expression"`` here records *which*
+    method it wanted, so pinning ``"format_pivot"`` here records *which*
     formatter is absent -- the blanket ``UnsupportedFeatureError`` branch in
     :func:`assert_sql_roundtrip_classified` already allows the type on its own.
 
@@ -703,13 +1104,39 @@ LEGITIMATE_NON_RENDERS = {
         NotImplementedError,
         _NO_FORMATTER,
     ),
-    "rhosocial.activerecord.backend.expression.bases.SQLValueExpression": (
+    "rhosocial.activerecord.backend.expression.bases.SQLValue": (
         NotImplementedError,
         _NO_FORMATTER,
     ),
-    "rhosocial.activerecord.backend.expression.datetime._TemporalValueExpression": (
+    # The column-definition clause base. Its subclasses each name their own
+    # formatter; the base names only what every column clause has in common.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnClause": (
         NotImplementedError,
         _NO_FORMATTER,
+    ),
+    # The constraint-branch bases, new with core's two-level constraint nodes.
+    # A branch names which alternative of the constraint production this is;
+    # rendering the branch is the clause dispatcher's job, so the bases name no
+    # formatter of their own and each concrete branch overrides ``format_method``.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnConstraintBranch": (
+        NotImplementedError,
+        _NO_FORMATTER,
+    ),
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.TableConstraintBranch": (
+        NotImplementedError,
+        _NO_FORMATTER,
+    ),
+    "rhosocial.activerecord.backend.expression.datetime._TemporalValue": (
+        NotImplementedError,
+        _NO_FORMATTER,
+    ),
+    # The declared-result shape base. It names ``format_declared_result`` and
+    # the dialect has one, but the base carries none of the surface state the
+    # formatter reads (``alias`` lives on the DeclaredValueType half); the ten
+    # concrete annotations each render through the source they annotate.
+    "rhosocial.activerecord.backend.expression.declared._Annotation": (
+        AttributeError,
+        "no attribute 'alias'",
     ),
     "rhosocial.activerecord.backend.expression.introspection.IntrospectionExpression": (
         NotImplementedError,
@@ -750,16 +1177,16 @@ LEGITIMATE_NON_RENDERS = {
         NotImplementedError,
         _NO_FORMATTER,
     ),
-    "rhosocial.activerecord.backend.expression.transaction.TransactionExpression": (
+    "rhosocial.activerecord.backend.expression.transaction.TransactionStatement": (
         NotImplementedError,
         _NO_FORMATTER,
     ),
     # Introspection query bases: each concrete subclass names its own
     # ``format_*_query``. The message differs from the group above only in
     # spelling, which is why each entry pins its own fragment.
-    "rhosocial.activerecord.backend.expression.introspection.TableInfoExpression": (
+    "rhosocial.activerecord.backend.expression.introspection.TableInfoQueryStatement": (
         NotImplementedError,
-        "Subclass must implement format_table_info_query",
+        "Subclass must implement format_table_info_query_statement",
     ),
     # The ClickHouse roots, same shape as the core ones above: a base holding
     # what every subclass shares, with no formatting method of its own.
@@ -783,15 +1210,19 @@ LEGITIMATE_NON_RENDERS = {
     # groups below report, and it says so in the same spelling. The type root is
     # the other kind: every concrete type declares its own generic ``name`` for
     # ``format_data_type`` to dispatch on, and this one declares none, so there is
-    # no name to look up at all. TypeError rather than UnsupportedFeatureError,
-    # because there the class is incomplete rather than the dialect being unable.
+    # no name to look up at all. It now says so in the dispatch's own spelling --
+    # "does not support the generic type None (no format_data_type_None)" -- the
+    # same message every other undeclared name produces, so the pin follows the
+    # class from its own refusal to the generic one. TypeError rather than
+    # UnsupportedFeatureError, because there the class is incomplete rather than
+    # the dialect being unable.
     "rhosocial.activerecord.backend.expression.sources.base.TableSource": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_table_source"),
     ),
     "rhosocial.activerecord.backend.expression.types._base.DataType": (
         TypeError,
-        "does not declare a valid generic type name",
+        "does not support the generic type None (no format_data_type_None)",
     ),
 
     # ---- core features ClickHouse does not declare a protocol for ---------
@@ -812,30 +1243,30 @@ LEGITIMATE_NON_RENDERS = {
     # two spellings, so a caller could not tell "ClickHouse does not have this"
     # from "this backend is broken". Core made it one spelling, and these entries
     # now say so while naming the specific formatter that is missing.
-    "rhosocial.activerecord.backend.expression.pivot.PivotExpression": (
+    "rhosocial.activerecord.backend.expression.pivot.Pivot": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_pivot_expression"),
+        _no_dialect_formatter("format_pivot"),
     ),
-    "rhosocial.activerecord.backend.expression.pivot.UnpivotExpression": (
+    "rhosocial.activerecord.backend.expression.pivot.Unpivot": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_unpivot_expression"),
+        _no_dialect_formatter("format_unpivot"),
     ),
-    "rhosocial.activerecord.backend.expression.predicates.ILIKEExpression": (
+    "rhosocial.activerecord.backend.expression.predicates.ILikePredicate": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_ilike_expression"),
+        _no_dialect_formatter("format_ilike_predicate"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_comment.CommentOnStatement": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_comment_statement"),
+        _no_dialect_formatter("format_comment_on_statement"),
     ),
     # ClickHouse has a database and no inner schema, so CREATE/DROP SCHEMA is
     # not in its grammar at all. These two are the direct consequence of that
     # decision, which is stated once in the namespace mixin.
-    "rhosocial.activerecord.backend.expression.statements.ddl_schema.CreateSchemaExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_schema.CreateSchemaStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_create_schema_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_schema.DropSchemaExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_schema.DropSchemaStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_schema_statement"),
     ),
@@ -847,15 +1278,15 @@ LEGITIMATE_NON_RENDERS = {
     # of a dialect that had itself declared the feature absent. Naming a sequence
     # is a separate capability and is untouched: SequenceNameMixin stays, so
     # Sequence(dialect, "s").to_sql() still renders.
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_create_sequence_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.DropSequenceExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.DropSequenceStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_sequence_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.AlterSequenceExpression": (
+    "rhosocial.activerecord.backend.expression.statements.ddl_sequence.AlterSequenceStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_alter_sequence_statement"),
     ),
@@ -866,31 +1297,31 @@ LEGITIMATE_NON_RENDERS = {
     # which is the gap being named rather than worked around.
     "rhosocial.activerecord.backend.expression.xml.XMLAggExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlagg_expression"),
+        _no_dialect_formatter("format_xml_agg_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLAttributesExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlattributes_expression"),
+        _no_dialect_formatter("format_xml_attributes_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLCommentExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlcomment_expression"),
+        _no_dialect_formatter("format_xml_comment_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLConcatExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlconcat_expression"),
+        _no_dialect_formatter("format_xml_concat_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLElementExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlelement_expression"),
+        _no_dialect_formatter("format_xml_element_expression"),
     ),
-    "rhosocial.activerecord.backend.expression.xml.XMLExistsExpression": (
+    "rhosocial.activerecord.backend.expression.xml.XMLExistsPredicate": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlexists_expression"),
+        _no_dialect_formatter("format_xmlexists_predicate"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLForestExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlforest_expression"),
+        _no_dialect_formatter("format_xml_forest_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLPIExpression": (
         UnsupportedFeatureError,
@@ -898,23 +1329,23 @@ LEGITIMATE_NON_RENDERS = {
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlparse_expression"),
+        _no_dialect_formatter("format_xml_parse_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLQueryExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlquery_expression"),
+        _no_dialect_formatter("format_xml_query_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLRootExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlroot_expression"),
+        _no_dialect_formatter("format_xml_root_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmlserialize_expression"),
+        _no_dialect_formatter("format_xml_serialize_expression"),
     ),
     "rhosocial.activerecord.backend.expression.xml.XMLTableExpression": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_xmltable_expression"),
+        _no_dialect_formatter("format_xml_table_expression"),
     ),
     # SQL/PGQ. ClickHouse mixes in GraphMixin, whose MATCH formatters exist and
     # refuse with UnsupportedFeatureError; the GRAPH_TABLE and CREATE/DROP/ALTER
@@ -929,9 +1360,14 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_vertex_table"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.EdgeTable": (
+    # The edge-table definition of CREATE PROPERTY GRAPH, the same declared
+    # gap as the graph rows around it: the DDL half of SQL/PGQ lives in
+    # mixins this dialect does not compose. (The clause core used to call
+    # ``EdgeTable`` is ``EdgeTableDefinition`` now -- one name, two contracts,
+    # and the relation object kept the old one.)
+    "rhosocial.activerecord.backend.expression.graph.EdgeTableDefinition": (
         UnsupportedFeatureError,
-        _no_dialect_formatter("format_edge_table"),
+        _no_dialect_formatter("format_edge_table_definition"),
     ),
     "rhosocial.activerecord.backend.expression.graph.ColumnsClause": (
         UnsupportedFeatureError,
@@ -941,15 +1377,15 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_table_properties_clause"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.CreatePropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.CreatePropertyGraphStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_create_property_graph_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.DropPropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.DropPropertyGraphStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_drop_property_graph_statement"),
     ),
-    "rhosocial.activerecord.backend.expression.graph.AlterPropertyGraphExpression": (
+    "rhosocial.activerecord.backend.expression.graph.AlterPropertyGraphStatement": (
         UnsupportedFeatureError,
         _no_dialect_formatter("format_alter_property_graph_statement"),
     ),
@@ -976,6 +1412,16 @@ LEGITIMATE_NON_RENDERS = {
         TypeError,
         "does not support the generic type 'interval'",
     ),
+    # ENUM. ClickHouse's own enum types are sized and signed
+    # (ClickHouseEnum8Type / ClickHouseEnum16Type, registered above); the
+    # generic name has no formatter here, so the type map reports the
+    # substitute. It constructs -- the members are in the constructor's
+    # reach now -- and the constructed instance is what makes this pin
+    # assertable.
+    "rhosocial.activerecord.backend.expression.types.enum_.EnumType": (
+        TypeError,
+        "does not support the generic type 'enum'",
+    ),
     "rhosocial.activerecord.backend.expression.types.datetime_.TimeTzType": (
         TypeError,
         "does not support the generic type 'timetz'",
@@ -992,6 +1438,126 @@ LEGITIMATE_NON_RENDERS = {
         TypeError,
         "does not support the generic type 'xml'",
     ),
+}
+
+
+# ---------------------------------------------------------------------------
+# Classes whose own tree refuses their round-trip
+# ---------------------------------------------------------------------------
+#
+# A fourth verdict, needed by core ``679d9817``: the artifact is plain JSON
+# now, and the contract (组织规则 §10) puts one conversion in one place --
+# "构造函数接受该参数的序列化形式并归一成宿主类型；反序列化器只按名字传参".
+# Every entry below is a class whose *own* tree breaks that contract, so the
+# restore is refused or comes back as something the original never was. The
+# reason belongs to the tree that defines the class, not to this backend.
+#
+# Each entry pins the failing channels, and each channel pins one of three
+# shapes:
+#
+# * ``("raises", Exc, fragment)`` -- the channel refuses outright.
+# * ``("word",)`` -- the restore succeeds but is type-lossy: a
+#   ``(str, Enum)`` member comes back as its plain word (the JSON channel
+#   writes a member's underlying string; the XML channel writes
+#   ``str(member)``, which equals the word when the enum sets
+#   ``__str__ = str.__str__``). The constructor stores it raw instead of
+#   normalising, so the restored params differ in type and agree in value.
+#   Asserted both ways: strictly different (so the pin stays load-bearing --
+#   a core fix makes this entry stale) and equal under member-≡-word
+#   normalisation (so the loss is exactly the spelling, nothing else moved).
+# * ``("enum-str",)`` -- the same, but the enum lacks ``__str__ =
+#   str.__str__``, so the XML channel writes ``"EnumClass.MEMBER"``: neither
+#   the member nor its word. Asserted equal under member-≡-``Enum.__str__``
+#   normalisation, which pins the corrupted spelling itself -- the moment
+#   core spells the enum properly, this entry goes.
+#
+# A channel an entry does not name must still round-trip; that is asserted per
+# class, so a pin can never quietly swallow a whole class.
+LEGITIMATE_NON_ROUNDTRIPS: Dict[str, Dict[str, object]] = {
+    # -- the datetime family: ``DateTimeField`` / ``IntervalUnit`` were
+    #    ``(str, Enum)`` without ``__str__ = str.__str__``, so the XML
+    #    channel wrote ``"DateTimeField.YEAR"`` and the constructor's own
+    #    normaliser refused it. Core gave the nine families the missing
+    #    ``__str__``, so the XML channel now writes "year" / "day" and all
+    #    three channels round-trip exactly. No rows left here; the block
+    #    stays to say which family this used to be about.
+    # -- ``mode`` is declared ``CreateTableCloneMode`` with a member default;
+    #    the JSON and XML channels write the word (``"CLONE"``), and the
+    #    constructor demands the member -- the ``isinstance`` half of the
+    #    contract without the normalise half.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.CreateTableCloneStatement": {
+        "channels": {
+            "json": ("raises", TypeError, "mode must be a CreateTableCloneMode"),
+            "xml": ("raises", TypeError, "mode must be a CreateTableCloneMode"),
+        },
+    },
+    # -- ``options`` is a ``ViewOptions`` *instance*, a plain class in a
+    #    parameter slot: the codec writes nodes, scalars, and containers of
+    #    those two, and a bare ``options or ViewOptions()`` puts one in every
+    #    CREATE VIEW. Serialization refuses before any round-trip can start.
+    "rhosocial.activerecord.backend.expression.statements.ddl_view.CreateViewStatement": {
+        "channels": {
+            "dict": ("raises", TypeError, "ViewOptions is not one of the value kinds"),
+            "json": ("raises", TypeError, "ViewOptions is not one of the value kinds"),
+            "xml": ("raises", TypeError, "ViewOptions is not one of the value kinds"),
+        },
+    },
+    # -- ``ColumnsClause`` carries ``GraphColumn`` instances, another plain
+    #    class in a parameter slot (GraphTableExpression holds the clause, so
+    #    the refusal propagates to it too; ColumnsClause itself is only built
+    #    with a Literal child here and travels fine).
+    "rhosocial.activerecord.backend.expression.graph.GraphTableExpression": {
+        "channels": {
+            "dict": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
+            "json": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
+            "xml": ("raises", TypeError, "GraphColumn is not one of the value kinds"),
+        },
+    },
+    # -- ``storage_type`` defaults to a ``GeneratedColumnType`` member. It was
+    #    a plain (non-str) enum the artifact refused outright; core made it a
+    #    str enum, so the writer carries it and the dict channel passes the
+    #    member through untouched. JSON and XML hand back the word, which the
+    #    constructor stores raw -- value-faithful, type-lossy.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ColumnGeneratedConstraint": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    # -- ``on_delete`` / ``on_update`` default to ``ReferentialAction``
+    #    members. Same shape as ``storage_type`` above: core made the enum a
+    #    str enum, the writer carries it, the dict channel keeps the member,
+    #    and JSON / XML come back with the word.
+    "rhosocial.activerecord.backend.expression.statements.ddl_table.ForeignKeyConstraint": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    # -- the word-form family: ``(str, Enum)`` members spelled properly
+    #    (``__str__ = str.__str__``), carried by constructors that store the
+    #    serialized word raw. The JSON and XML channels each hand back the
+    #    word; the restore is value-faithful and type-lossy.
+    "rhosocial.activerecord.backend.expression.graph.GraphEdge": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.ddl_database.AlterDatabaseStatement": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.ddl_trigger.CreateTriggerStatement": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.dml.MergeAction": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.statements.dml.MergeStatement": {
+        # The loss sits one level down, in the ``MergeAction`` child.
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    # -- ``XMLParseDocumentType`` / ``XMLSerializeDocumentType`` are
+    #    ``(str, Enum)`` and now set ``__str__ = str.__str__`` too, so both
+    #    JSON and XML write the word ("DOCUMENT") and the constructor stores
+    #    it raw: value-faithful, type-lossy on both channels.
+    "rhosocial.activerecord.backend.expression.xml.XMLParseExpression": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
+    "rhosocial.activerecord.backend.expression.xml.XMLSerializeExpression": {
+        "channels": {"json": ("word",), "xml": ("word",)},
+    },
 }
 
 
@@ -1055,26 +1621,27 @@ def _dispatched_formatter(exc):
 #: ``trimBoth``/``trimLeft``/``trimRight`` -- so none of the four appears here.
 UNMODELLED_FORMATTERS = {
     "SQL/XML (ClickHouse mixes in no SQL/XML formatter at all)": (
-        "format_xmlagg_expression",
-        "format_xmlattributes_expression",
-        "format_xmlcomment_expression",
-        "format_xmlconcat_expression",
-        "format_xmlelement_expression",
-        "format_xmlexists_expression",
-        "format_xmlforest_expression",
+        "format_passing_clause",
+        "format_xml_agg_expression",
+        "format_xml_attributes_expression",
+        "format_xml_comment_expression",
+        "format_xml_concat_expression",
+        "format_xml_element_expression",
+        "format_xmlexists_predicate",
+        "format_xml_forest_expression",
         "format_xmlpi_expression",
-        "format_xmlparse_expression",
-        "format_xmlquery_expression",
-        "format_xmlroot_expression",
-        "format_xmlserialize_expression",
-        "format_xmltable_expression",
+        "format_xml_parse_expression",
+        "format_xml_query_expression",
+        "format_xml_root_expression",
+        "format_xml_serialize_expression",
+        "format_xml_table_expression",
     ),
     "SQL/PGQ (ClickHouse mixes in GraphMixin, whose MATCH formatters exist "
     "and refuse; the GRAPH_TABLE half lives in GraphTableMixin, which is not "
     "mixed in)": (
         "format_graph_table_expression",
         "format_vertex_table",
-        "format_edge_table",
+        "format_edge_table_definition",
         "format_graph_columns_clause",
         "format_table_properties_clause",
         "format_create_property_graph_statement",
@@ -1082,7 +1649,7 @@ UNMODELLED_FORMATTERS = {
         "format_alter_property_graph_statement",
     ),
     "COMMENT ON (the dialect mixes in no comment-DDL mixin; ClickHouse "
-    "comments ride on table and column definitions)": ("format_comment_statement",),
+    "comments ride on table and column definitions)": ("format_comment_on_statement",),
     "SCHEMA (ClickHouse has a database and no inner schema, so CREATE/DROP "
     "SCHEMA is not in its grammar at all)": (
         "format_create_schema_statement",
@@ -1095,11 +1662,11 @@ UNMODELLED_FORMATTERS = {
         "format_alter_sequence_statement",
     ),
     "ILIKE (the dialect mixes in no ILIKE mixin; case-insensitive matching "
-    "is ClickHouse's positionCaseInsensitive)": ("format_ilike_expression",),
+    "is ClickHouse's positionCaseInsensitive)": ("format_ilike_predicate",),
     "the core PIVOT / UNPIVOT expressions (the dialect mixes in no pivot "
     "mixin)": (
-        "format_pivot_expression",
-        "format_unpivot_expression",
+        "format_pivot",
+        "format_unpivot",
     ),
     "the TableSource root (every concrete row source overrides its "
     "formatter; the root carries nothing but an alias and is never "
@@ -1189,18 +1756,19 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
         )
         return "non-render"
 
-    for channel, decoded in (
-        ("dict", deserialize(serialize(instance), dialect)),
-        ("json", deserialize_json(serialize_json(instance), dialect)),
-        ("xml", deserialize_xml(serialize_xml(instance), dialect)),
-    ):
+    for channel, build in _channel_builders(instance, dialect):
+        pin = _roundtrip_pin(fqn, channel)
+        if pin is not None:
+            _assert_pinned_channel(fqn, channel, build, instance, pin)
+            continue
+        decoded = build()
         decoded_sql, decoded_params = decoded.to_sql()
         assert decoded_sql == expected_sql, (
             f"{fqn}: {channel} round-trip changed the SQL.\n"
             f"  original: {expected_sql!r}\n"
             f"  {channel}: {decoded_sql!r}"
         )
-        assert decoded_params == expected_params, (
+        assert _sql_params_equal(decoded_params, expected_params), (
             f"{fqn}: {channel} round-trip changed the bind parameters.\n"
             f"  original: {expected_params!r}\n"
             f"  {channel}: {decoded_params!r}"
@@ -1245,27 +1813,19 @@ class TestExpressionRoundtripAll:
         self, expr_case, clickhouse_matrix_dialect
     ):
         fqn, instance = expr_case
-        original = instance.get_params()
 
-        assert_params_equal(
-            deserialize(serialize(instance), clickhouse_matrix_dialect).get_params(),
-            original,
-            fqn,
-        )
-        assert_params_equal(
-            deserialize_json(
-                serialize_json(instance), clickhouse_matrix_dialect
-            ).get_params(),
-            original,
-            fqn,
-        )
-        assert_params_equal(
-            deserialize_xml(
-                serialize_xml(instance), clickhouse_matrix_dialect
-            ).get_params(),
-            original,
-            fqn,
-        )
+        for channel, build in _channel_builders(instance, clickhouse_matrix_dialect):
+            pin = _roundtrip_pin(fqn, channel)
+            if pin is not None:
+                # The refusal is asserted per channel right here, so the pin
+                # cannot go stale without this test failing.
+                _assert_pinned_channel(fqn, channel, build, instance, pin)
+                continue
+            assert_params_equal(
+                build().get_params(),
+                instance.get_params(),
+                f"{fqn}.{channel}",
+            )
 
     def test_to_sql_roundtrip_classified(self, expr_case, clickhouse_matrix_dialect):
         """A render must survive the round-trip; a non-render must be classified."""
@@ -1349,6 +1909,129 @@ class TestClickHouseShape:
         ).to_sql() == ("`analytics`.users", ())
 
 
+class TestLiteralValueKinds:
+    """The one ``Literal`` class carries sixteen value kinds, named flatly.
+
+    Core ``679d9817`` made the artifact plain JSON and folded the value classes
+    into a single ``Literal`` whose kind comes from the host value -- so the
+    matrix's per-class rows now cover the *class*, and this test covers the
+    *kinds*: each one travels as one flat JSON scalar under its own wire name,
+    with no marker, no wrapper and no second table. Binary is base64 text, an
+    interval is its ISO 8601 spelling, a decimal its exact text -- the
+    language-neutral spellings spec 4.8 asks for -- and every kind comes back
+    as the host type it left as, through all three channels.
+
+    ``debde516`` added the two non-finite floats as kinds of their own
+    (``nan_value``, ``infinity_value``) rather than letting them ride on
+    ``float_value``, which is why the set is sixteen and not fourteen: NaN is not
+    equal to itself and JSON has no NaN literal, so a round-trip that stored it
+    as a number could not tell "read back" from "read back wrong". Both travel as
+    their spelling, and ``infinity_value`` carries its sign in the text.
+
+    The cases are written out per kind rather than generated because each is a
+    statement about what the wire must carry, and a generated case makes no
+    statement. Rendering is deliberately not asserted here: whether a kind
+    binds or spells inline, and what text this dialect writes, is the
+    literal-values file's question -- this is the artifact's.
+    """
+
+    #: (wire kind, host value, artifact scalar, restored host type), in
+    #: :class:`LiteralKind` declaration order -- the order ``of()`` tries them,
+    #: which is why ``boolean_value`` precedes ``integer_value``, ``nan_value``
+    #: precedes ``decimal_value`` and ``timestamp_value`` precedes ``date_value``.
+    _CASES = (
+        ("null_value", None, None, type(None)),
+        ("boolean_value", True, True, bool),
+        ("integer_value", 7, 7, int),
+        ("float_value", 0.5, 0.5, float),
+        ("nan_value", float("nan"), "nan", float),
+        ("infinity_value", float("inf"), "+inf", float),
+        ("decimal_value", decimal.Decimal("1.25"), "1.25", decimal.Decimal),
+        ("string_value", "hi", "hi", str),
+        ("binary_value", b"\x01\x02", "AQI=", bytes),
+        (
+            "timestamp_value",
+            datetime.datetime(2020, 1, 2, 3, 4, 5),
+            "2020-01-02 03:04:05",
+            datetime.datetime,
+        ),
+        ("date_value", datetime.date(2020, 1, 2), "2020-01-02", datetime.date),
+        ("time_value", datetime.time(3, 4, 5), "03:04:05", datetime.time),
+        (
+            "interval_value",
+            datetime.timedelta(days=1, hours=2),
+            "P1DT2H",
+            datetime.timedelta,
+        ),
+        ("list_value", [1, "a"], [1, "a"], list),
+        ("tuple_value", (1, "a"), [1, "a"], tuple),
+        ("uuid_value", uuid.UUID(int=7), "00000000-0000-0000-0000-000000000007", uuid.UUID),
+    )
+
+    def test_the_kind_set_is_exactly_these_sixteen(self):
+        """A seventeenth kind must be added here deliberately, not discovered.
+
+        The closed set is the contract: the wire names every value kind there
+        is, and a reader builds its allow-list from it. A kind that appears in
+        :class:`LiteralKind` without a case here has no stated artifact shape.
+        """
+        from rhosocial.activerecord.backend.expression.values import LiteralKind
+
+        assert tuple(kind.wire for kind in LiteralKind) == tuple(
+            wire for wire, *_ in self._CASES
+        )
+
+    @pytest.mark.parametrize(
+        ("wire", "host", "flat", "host_type"),
+        _CASES,
+        ids=[wire for wire, *_ in _CASES],
+    )
+    def test_each_kind_travels_as_one_flat_scalar(
+        self, clickhouse_matrix_dialect, wire, host, flat, host_type
+    ):
+        d = clickhouse_matrix_dialect
+        instance = Literal(d, host)
+        assert serialize(instance) == {
+            "kind": wire,
+            "params": {"value": flat, "inline": False},
+        }, wire
+        for channel, build in _channel_builders(instance, d):
+            restored = build()
+            assert type(restored.value) is host_type, (
+                f"{wire}/{channel}: came back as {type(restored.value).__name__}"
+            )
+            # NaN is the one host value that is not equal to itself, so ``==``
+            # would fail on a perfectly faithful round-trip. Both non-finite
+            # kinds are compared by their spelling, which is what the wire
+            # actually carries.
+            if isinstance(host, float) and math.isnan(host):
+                assert isinstance(restored.value, float) and math.isnan(
+                    restored.value
+                ), f"{wire}/{channel}: {restored.value!r}"
+                continue
+            assert restored.value == host, wire
+
+    @pytest.mark.parametrize("host", [float("-inf")], ids=["negative_infinity"])
+    def test_negative_infinity_carries_its_sign_in_the_text(
+        self, clickhouse_matrix_dialect, host
+    ):
+        """One wire kind, two spellings: the sign is the payload.
+
+        ``infinity_value`` is a single kind for both directions, so the text is
+        what tells them apart -- ``+inf`` and ``-inf``. Pinning only the
+        positive direction would leave ``-inf`` free to come back as ``+inf``.
+        """
+        d = clickhouse_matrix_dialect
+        instance = Literal(d, host)
+        assert serialize(instance) == {
+            "kind": "infinity_value",
+            "params": {"value": "-inf", "inline": False},
+        }
+        for channel, build in _channel_builders(instance, d):
+            restored = build()
+            assert restored.value == host, f"negative infinity/{channel}"
+
+
 class TestObjectKindChecks:
     """A statement handed the wrong object kind must be refused while rendering.
 
@@ -1374,7 +2057,7 @@ class TestObjectKindChecks:
 
     def test_create_table_refuses_a_view(self):
         d = self._dialect()
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             d, View(d, "users"), [ddl_table.ColumnDefinition(d, "id", IntegerType(d))]
         )
         with pytest.raises(TypeError, match="must be a Table, got View"):
@@ -1382,38 +2065,38 @@ class TestObjectKindChecks:
 
     def test_create_table_like_refuses_an_index(self):
         d = self._dialect()
-        expr = CreateTableLikeExpression(d, Index(d, "i"), Table(d, "users"))
+        expr = CreateTableLikeStatement(d, Index(d, "i"), Table(d, "users"))
         with pytest.raises(TypeError, match="must be a Table, got Index"):
             expr.to_sql()
 
     def test_create_table_clone_refuses_a_view_source(self):
         d = self._dialect()
-        expr = CreateTableCloneExpression(d, Table(d, "t"), View(d, "v"))
+        expr = CreateTableCloneStatement(d, Table(d, "t"), View(d, "v"))
         with pytest.raises(TypeError, match="source_table must be a Table, got View"):
             expr.to_sql()
 
     def test_create_view_refuses_a_materialized_view(self):
         d = self._dialect()
-        expr = CreateViewExpression(
+        expr = CreateViewStatement(
             d, MaterializedView(d, "mv"), "SELECT 1"
         )
-        with pytest.raises(TypeError, match="CreateViewExpression.view must be a View"):
+        with pytest.raises(TypeError, match="CreateViewStatement.view must be a View"):
             expr.to_sql()
 
     def test_drop_view_refuses_a_table(self):
         d = self._dialect()
-        with pytest.raises(TypeError, match="DropViewExpression.view must be a View"):
-            DropViewExpression(d, Table(d, "t")).to_sql()
+        with pytest.raises(TypeError, match="DropViewStatement.view must be a View"):
+            DropViewStatement(d, Table(d, "t")).to_sql()
 
     def test_generic_materialized_view_ddl_refuses_a_table(self):
         """The generic expression has no kind check of its own, so the formatter's is the only one."""
         d = self._dialect()
         with pytest.raises(TypeError, match="must be a MaterializedView"):
-            CreateMaterializedViewExpression(d, Table(d, "t"), "SELECT 1").to_sql()
+            CreateMaterializedViewStatement(d, Table(d, "t"), "SELECT 1").to_sql()
         with pytest.raises(TypeError, match="must be a MaterializedView"):
-            DropMaterializedViewExpression(d, Table(d, "t")).to_sql()
+            DropMaterializedViewStatement(d, Table(d, "t")).to_sql()
         with pytest.raises(TypeError, match="must be a MaterializedView"):
-            RefreshMaterializedViewExpression(d, Table(d, "t")).to_sql()
+            RefreshMaterializedViewStatement(d, Table(d, "t")).to_sql()
 
     def test_refresh_schedule_refuses_a_non_view_upstream(self):
         """``DEPENDS ON`` renders each entry through its own ``to_sql()``.
@@ -1422,15 +2105,15 @@ class TestObjectKindChecks:
         and nothing about the SQL would look wrong.
         """
         d = self._dialect()
-        schedule = ClickHouseRefreshSchedule(every="1 HOUR")
-        expr = ClickHouseModifyMaterializedViewRefreshExpression(
+        schedule = ClickHouseRefreshSchedule(d, every="1 HOUR")
+        expr = ClickHouseModifyMaterializedViewRefreshStatement(
             d, MaterializedView(d, "mv"), schedule
         )
-        # Mutated *after* construction on purpose. The schedule is a plain
-        # mutable dataclass and its own ``validate()`` runs in the constructor, so
-        # the only way a wrong kind reaches the renderer is a later assignment.
-        # The formatter is where the value is consumed, so that is where it is
-        # checked -- a constructor check would already have been bypassed.
+        # Mutated *after* construction on purpose. The schedule validates in
+        # its own constructor path, so the only way a wrong kind reaches the
+        # renderer is a later assignment. The formatter is where the value is
+        # consumed, so that is where it is checked -- a constructor check
+        # would already have been bypassed.
         schedule.depends_on = (Table(d, "t"),)
         with pytest.raises(TypeError, match="depends_on must hold MaterializedView"):
             expr.to_sql()
@@ -1438,9 +2121,9 @@ class TestObjectKindChecks:
     def test_database_ddl_refuses_a_table(self):
         d = self._dialect()
         for expr in (
-            CreateDatabaseExpression(d, Table(d, "t")),
-            DropDatabaseExpression(d, Table(d, "t")),
-            AlterDatabaseExpression(
+            CreateDatabaseStatement(d, Table(d, "t")),
+            DropDatabaseStatement(d, Table(d, "t")),
+            AlterDatabaseStatement(
                 d, Table(d, "t"), action=AlterDatabaseAction.RENAME_TO, target="x"
             ),
         ):
@@ -1456,30 +2139,42 @@ class TestObjectKindChecks:
         before reaching any clause.
         """
         d = self._dialect()
-        expr = AlterDatabaseExpression(
+        expr = AlterDatabaseStatement(
             d, Database(d, "db"), action=AlterDatabaseAction.SET_PROPERTY, target="x"
         )
         with pytest.raises(UnsupportedFeatureError):
             expr.to_sql()
 
-    def test_alter_database_renders_rename_to(self):
+    def test_alter_database_refuses_rename_to(self):
+        """ClickHouse has no ``ALTER DATABASE ... RENAME TO``.
+
+        The server's own answer to that spelling is a syntax error -- "Expected
+        one of: ON, a list of ALTER commands, ALTER command, MODIFY SETTING,
+        MODIFY COMMENT" -- and a database is renamed with ``RENAME DATABASE
+        <old> TO <new>``, which is a different statement.  So the action is
+        refused by name, and the refusal names the spelling that does work.
+        """
         d = self._dialect()
-        expr = AlterDatabaseExpression(
+        expr = AlterDatabaseStatement(
             d, Database(d, "db"), action=AlterDatabaseAction.RENAME_TO, target="renamed"
         )
-        assert expr.to_sql()[0] == "ALTER DATABASE `db` RENAME TO `renamed`"
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            expr.to_sql()
+        message = str(excinfo.value)
+        assert "ALTER DATABASE ... RENAME TO" in message, message
+        assert "RENAME DATABASE" in message, message
 
     def test_truncate_refuses_a_view(self):
         d = self._dialect()
-        with pytest.raises(TypeError, match="TruncateExpression.table must be a Table"):
-            TruncateExpression(d, View(d, "v")).to_sql()
+        with pytest.raises(TypeError, match="TruncateStatement.table must be a Table"):
+            TruncateStatement(d, View(d, "v")).to_sql()
 
     def test_insert_refuses_an_index(self):
         d = self._dialect()
-        expr = InsertExpression(
+        expr = InsertStatement(
             d, into=Index(d, "i"), source=ValuesSource(d, [[Literal(d, 1)]])
         )
-        with pytest.raises(TypeError, match="InsertExpression.into must be a Table"):
+        with pytest.raises(TypeError, match="InsertStatement.into must be a Table"):
             expr.to_sql()
 
     def test_foreign_key_target_must_be_a_table(self):
@@ -1488,15 +2183,20 @@ class TestObjectKindChecks:
         Otherwise a caller who passed the wrong object is told FOREIGN KEY is
         unsupported -- a true statement about a different mistake, and one that
         sends them looking in the wrong place.
+
+        The branch carries the references, so the check reads
+        ``TableForeignKeyConstraint.references`` rather than the production's
+        (deleted) ``foreign_key_table`` field.
         """
         d = self._dialect()
         constraint = TableConstraint(
             d,
-            TableConstraintType.FOREIGN_KEY,
-            columns=["a"],
-            foreign_key_table=View(d, "other"),
+            branch=TableForeignKeyConstraint(d, ["a"], (View(d, "other"), None)),
         )
-        with pytest.raises(TypeError, match="foreign_key_table must be a Table, got View"):
+        with pytest.raises(
+            TypeError,
+            match="TableForeignKeyConstraint.references must pair a Table with its columns, got View",
+        ):
             self._dialect().format_table_constraint(constraint)
 
     def test_column_definition_type_must_be_a_data_type(self):
@@ -1517,7 +2217,6 @@ class TestMatrixIntegrity:
         a constructor and the entry is stale; a class that fails to build without
         being named would become a silent skip. Both fail here.
         """
-        ExpressionRegistry._auto_register_builtins()
         actual = tuple(
             sorted(
                 fqn
@@ -1553,6 +2252,46 @@ class TestMatrixIntegrity:
             f"LEGITIMATE_NON_RENDERS names classes that were not registered: "
             f"{sorted(unknown)}"
         )
+
+    def test_legitimate_non_roundtrips_are_real_classes(self):
+        """Every pinned round-trip entry names a collected class, a real
+        channel, and a shape the assertions know how to check."""
+        unknown = set(LEGITIMATE_NON_ROUNDTRIPS) - set(REGISTERED)
+        assert not unknown, (
+            f"LEGITIMATE_NON_ROUNDTRIPS names classes that were not "
+            f"registered: {sorted(unknown)}"
+        )
+        for fqn, entry in LEGITIMATE_NON_ROUNDTRIPS.items():
+            bad = set(entry["channels"]) - {"dict", "json", "xml"}
+            assert not bad, f"{fqn}: pins unknown channels {sorted(bad)}"
+            for channel, pin in entry["channels"].items():
+                assert pin[0] in ("raises", "word", "enum-str"), (
+                    f"{fqn}/{channel}: unknown pin shape {pin[0]!r}"
+                )
+
+    def test_pinned_non_roundtrip_refuses_as_pinned(self, clickhouse_matrix_dialect):
+        """Each pinned round-trip entry still refuses exactly as it claims.
+
+        Three directions, per entry: every pinned channel fails in its pinned
+        shape; every channel the pin does NOT name still round-trips (so a
+        pin can never quietly swallow a whole class); and the class still
+        constructs, so what is pinned is the restore and not the constructor.
+        """
+        for fqn, entry in LEGITIMATE_NON_ROUNDTRIPS.items():
+            instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            assert instance is not None, (
+                f"{fqn} is pinned as a round-trip refusal but could not be "
+                f"constructed ({source})"
+            )
+            for channel, build in _channel_builders(instance, clickhouse_matrix_dialect):
+                pin = entry["channels"].get(channel)
+                if pin is not None:
+                    _assert_pinned_channel(fqn, channel, build, instance, pin)
+                else:
+                    restored = build()
+                    assert_params_equal(
+                        restored.get_params(), instance.get_params(), f"{fqn}.{channel}"
+                    )
 
     def test_pinned_non_render_really_does_not_render(self, clickhouse_matrix_dialect):
         """Each pinned entry still raises what it claims, for the stated reason.
@@ -1635,7 +2374,6 @@ class TestMatrixIntegrity:
         rather than the registry because the registry also holds whatever
         backends other test modules happened to import.
         """
-        ExpressionRegistry._auto_register_builtins()
         expected = set(_collect_matrix_classes())
         assert expected == set(REGISTERED), (
             "the set of expression classes the covered packages define changed "
@@ -1657,19 +2395,34 @@ class TestMatrixIntegrity:
     def test_every_covered_class_is_registered_for_deserialization(self):
         """A class in the matrix can be found again when deserializing.
 
-        Deserialization looks the class up by name, so a class the matrix
-        renders but the registry cannot resolve would round-trip into the wrong
-        thing or nothing at all.
+        Deserialization resolves a kind to its class through the framework's
+        default registry, so a class the matrix renders but the registry
+        cannot resolve would round-trip into the wrong thing or nothing at
+        all. The kind is the only identity the artifact carries, so the check
+        resolves each class's own kind and compares what comes back.
         """
-        ExpressionRegistry._auto_register_builtins()
-        unresolved = sorted(set(REGISTERED) - set(ExpressionRegistry._registry))
+        from rhosocial.activerecord.backend.expression.registry import kind_of
+        from rhosocial.activerecord.backend.expression.serialization import (
+            default_registry,
+        )
+
+        registry = default_registry()
+        unresolved = []
+        for fqn, cls in REGISTERED.items():
+            try:
+                resolved = registry.resolve_node(kind_of(cls))
+            except Exception:
+                unresolved.append(fqn)
+                continue
+            if resolved is not cls:
+                unresolved.append(fqn)
+        unresolved.sort()
         assert not unresolved, (
             f"the matrix covers classes the registry cannot resolve: {unresolved}"
         )
 
     def test_coverage_report(self, clickhouse_matrix_dialect):
         """Surface what the matrix covers, so coverage stays transparent."""
-        ExpressionRegistry._auto_register_builtins()
         branches: Dict[str, int] = {}
         constructible = 0
         for fqn in sorted(REGISTERED):

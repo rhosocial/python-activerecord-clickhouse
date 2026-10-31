@@ -388,14 +388,14 @@ class BasicSyncProvider(BasicProviderBase, IBasicSyncProvider, WorkerTestProtoco
     def _reset_table_sync(self, model_class: Type[ActiveRecord], table_name: str) -> None:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.basic import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         backend = model_class.__backend__
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend.dialect,
                 table=Table(backend, table_name),
                 if_exists=True,
@@ -605,14 +605,14 @@ class BasicAsyncProvider(BasicProviderBase, IBasicAsyncProvider):
     async def _reset_table_async(self, model_class: Type[ActiveRecord], table_name: str) -> None:
         from rhosocial.activerecord.backend.options import ExecutionOptions
         from rhosocial.activerecord.backend.schema import StatementType
-        from rhosocial.activerecord.backend.expression import DropTableExpression
+        from rhosocial.activerecord.backend.expression import DropTableStatement
         from providers.fixtures.basic import TABLE_EXPRESSIONS
         from providers.fixtures._common import to_clickhouse_ddl_sql
 
         options = ExecutionOptions(stmt_type=StatementType.DDL)
         backend = model_class.__backend__
         try:
-            drop_expr = DropTableExpression(
+            drop_expr = DropTableStatement(
                 dialect=backend.dialect,
                 table=Table(backend, table_name),
                 if_exists=True,

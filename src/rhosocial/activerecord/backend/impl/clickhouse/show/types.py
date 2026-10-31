@@ -101,7 +101,7 @@ class ShowCreateTriggerResult:
 
     NOTE: MySQL-only command, not supported by ClickHouse. ``SHOW CREATE TRIGGER``
     is a ``SYNTAX_ERROR`` on 26.7.3.19 and the server has no triggers at all;
-    ``format_show_create_trigger`` refuses with "ClickHouse does not support
+    ``format_show_create_trigger_statement`` refuses with "ClickHouse does not support
     triggers". A SQL UDF (``CREATE FUNCTION ... AS``) invoked from the
     application is the ClickHouse equivalent.
 
@@ -174,7 +174,7 @@ class ShowTableStatusResult:
 
     NOTE: MySQL-only command, not supported by ClickHouse: ``SHOW TABLE STATUS``
     is the one MySQL ``SHOW`` the server answers with ``UNKNOWN_TABLE``-style
-    failure rather than a bare parse error on 26.7.3.19. ``format_show_table_status``
+    failure rather than a bare parse error on 26.7.3.19. ``format_show_table_status_statement``
     refuses and points at ``system.tables``.
 
     Contains extensive table metadata.
@@ -322,7 +322,7 @@ class ShowTriggerResult:
 
     ClickHouse has no triggers at all: ``SHOW TRIGGERS`` is a ``SYNTAX_ERROR``
     on 26.7.3.19 and the server's own grammar after ``SHOW`` offers no
-    ``TRIGGERS``. The statement is not emitted — ``format_show_triggers``
+    ``TRIGGERS``. The statement is not emitted — ``format_show_triggers_statement``
     raises ``UnsupportedFeatureError`` with "ClickHouse does not support
     triggers" — so the refusal stays the negotiation point for a caller moving
     between backends. ``CREATE FUNCTION ... AS`` (an SQL UDF) plus a MATERIALIZED

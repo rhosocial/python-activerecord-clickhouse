@@ -1,5 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/__init__.py
 from .introspection import ClickHouseIntrospectionMixin
+from .status import ClickHouseStatusQueryMixin
 from .transaction import ClickHouseTransactionMixin
 from .backend_mixin import ClickHouseBackendMixin
 from .trigger import ClickHouseTriggerMixin
@@ -50,12 +51,15 @@ from .index import ClickHouseIndexMixin
 from .sequence import ClickHouseSequenceMixin
 from .constraint import ClickHouseConstraintMixin
 from .ddl_column import ClickHouseDDLColumnMixin
+from .wildcard import ClickHouseWildcardMixin
 from .function import ClickHouseFunctionMixin
 from .column_type import ClickHouseColumnTypeMixin
 from .trim import ClickHouseTrimMixin
+from .literal import ClickHouseLiteralValueMixin
 
 __all__ = [
     "ClickHouseIntrospectionMixin",
+    "ClickHouseStatusQueryMixin",
     "ClickHouseTransactionMixin",
     "ClickHouseBackendMixin",
     "ClickHouseTriggerMixin",
@@ -105,7 +109,9 @@ __all__ = [
     "ClickHouseSequenceMixin",
     "ClickHouseConstraintMixin",
     "ClickHouseDDLColumnMixin",
+    "ClickHouseWildcardMixin",
     "ClickHouseFunctionMixin",
     "ClickHouseColumnTypeMixin",
     "ClickHouseTrimMixin",
+    "ClickHouseLiteralValueMixin",
 ]

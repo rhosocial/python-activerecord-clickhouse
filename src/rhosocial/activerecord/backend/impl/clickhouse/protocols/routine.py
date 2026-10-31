@@ -9,11 +9,11 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.routine import (
-        ClickHouseCallExpression,
-        ClickHouseCreateFunctionExpression,
-        ClickHouseCreateProcedureExpression,
-        ClickHouseDropFunctionExpression,
-        ClickHouseDropProcedureExpression,
+        ClickHouseCallStatement,
+        ClickHouseCreateFunctionStatement,
+        ClickHouseCreateProcedureStatement,
+        ClickHouseDropFunctionStatement,
+        ClickHouseDropProcedureStatement,
     )
 
 @runtime_checkable
@@ -41,22 +41,22 @@ class ClickHouseRoutineSupport(Protocol):
         """Whether CALL is supported."""
         ...
 
-    def format_create_procedure_statement(self, expr: "ClickHouseCreateProcedureExpression") -> Tuple[str, tuple]:
+    def format_create_procedure_statement(self, expr: "ClickHouseCreateProcedureStatement") -> Tuple[str, tuple]:
         """Format CREATE PROCEDURE."""
         ...
 
-    def format_drop_procedure_statement(self, expr: "ClickHouseDropProcedureExpression") -> Tuple[str, tuple]:
+    def format_drop_procedure_statement(self, expr: "ClickHouseDropProcedureStatement") -> Tuple[str, tuple]:
         """Format DROP PROCEDURE."""
         ...
 
-    def format_create_function_statement(self, expr: "ClickHouseCreateFunctionExpression") -> Tuple[str, tuple]:
+    def format_create_function_statement(self, expr: "ClickHouseCreateFunctionStatement") -> Tuple[str, tuple]:
         """Format CREATE FUNCTION (stored function)."""
         ...
 
-    def format_drop_function_statement(self, expr: "ClickHouseDropFunctionExpression") -> Tuple[str, tuple]:
+    def format_drop_function_statement(self, expr: "ClickHouseDropFunctionStatement") -> Tuple[str, tuple]:
         """Format DROP FUNCTION."""
         ...
 
-    def format_call_statement(self, expr: "ClickHouseCallExpression") -> Tuple[str, tuple]:
+    def format_call_statement(self, expr: "ClickHouseCallStatement") -> Tuple[str, tuple]:
         """Format CALL."""
         ...

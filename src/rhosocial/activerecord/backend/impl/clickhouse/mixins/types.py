@@ -161,8 +161,24 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``bigint`` names, which are the same concepts reached by their own
         dispatch keys — refuse it the same way and point at the class that does own
         the unsigned column.
+
+        The shape check runs first, and this is the only gate there is: the
+        expression collects ``unsigned`` without judging it, because only the
+        formatter knows which backend must honour it, so a non-boolean arrives
+        here rather than being rejected at construction.  A truth test cannot
+        see it — ``unsigned=0``, ``unsigned=""`` and ``unsigned=None`` are all
+        falsy, so they would pass the test below and render a signed ``Int8``
+        (or a core ``TINYINT``) while reporting success.  ``bool`` is also the
+        only shape that means what the field says: the flag *is* the identity,
+        so ``"yes"`` and ``1`` are not spellings of ``True`` but wrong values.
         """
-        if not data_type.unsigned:
+        unsigned = data_type.unsigned
+        if not isinstance(unsigned, bool):
+            raise TypeError(
+                f"unsigned must be a bool, got {type(unsigned).__name__}; it "
+                f"becomes a type modifier in the rendered DDL."
+            )
+        if not unsigned:
             return
         raise UnsupportedFeatureError(
             self.name,
@@ -252,11 +268,24 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``UnsupportedFeatureError``, not ``ValueError``: this is a declaration
         the grammar cannot express at all rather than a wrong value, and the two
         exceptions do not share a base class.  This method runs **before**
-        ``_check_spelling`` in every caller, so a request wrong in two ways is
+        ``check_spelling`` in every caller, so a request wrong in two ways is
         told about the signedness first — that one is a stronger and less
         recoverable statement than a misspelled word.
+
+        The shape check is first for the reason given in
+        :meth:`_refuse_unsigned_integer`, and it covers the same four numeric
+        concepts through their own dispatch keys: a non-boolean reaches this
+        gate unjudged, and a falsy one — ``0``, ``""``, ``None``, an empty
+        container — is invisible to the truth test below, so it would render a
+        signed ``Float32`` / ``Float64`` / ``Decimal(P, S)`` and report success.
         """
-        if not data_type.unsigned:
+        unsigned = data_type.unsigned
+        if not isinstance(unsigned, bool):
+            raise TypeError(
+                f"unsigned must be a bool, got {type(unsigned).__name__}; it "
+                f"becomes a type modifier in the rendered DDL."
+            )
+        if not unsigned:
             return
         raise UnsupportedFeatureError(
             self.name,
@@ -833,7 +862,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         and ``ClickHouseUInt32Type()`` are the same ``UInt32`` column, and this
         backend keeps one class per column.
         """
-        self._check_spelling(data_type, IntegerType)
+        self.check_spelling(data_type, IntegerType)
         self._refuse_unsigned_integer(data_type, "Int32", "ClickHouseUInt32Type")
         return "Int32", ()
 
@@ -844,7 +873,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
 
         ``unsigned`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`."""
-        self._check_spelling(data_type, BigIntType)
+        self.check_spelling(data_type, BigIntType)
         self._refuse_unsigned_integer(data_type, "Int64", "ClickHouseUInt64Type")
         return "Int64", ()
 
@@ -854,7 +883,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
 
         ``unsigned`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`."""
-        self._check_spelling(data_type, SmallIntType)
+        self.check_spelling(data_type, SmallIntType)
         self._refuse_unsigned_integer(data_type, "Int16", "ClickHouseUInt16Type")
         return "Int16", ()
 
@@ -873,7 +902,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``unsigned`` is refused here and points at that class instead. See
         :meth:`_refuse_unsigned_integer`.
         """
-        self._check_spelling(data_type, TinyIntType)
+        self.check_spelling(data_type, TinyIntType)
         self._refuse_unsigned_integer(data_type, "Int8", "ClickHouseUInt8Type")
         return "Int8", ()
 
@@ -883,7 +912,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``VARCHAR`` and ``CHARACTER VARYING`` are accepted for the same reason as
         the integer spellings — the concept was asked for and this is its only
         storage."""
-        self._check_spelling(data_type, VarCharType)
+        self.check_spelling(data_type, VarCharType)
         return "String", ()
 
     def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
@@ -897,7 +926,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         becomes. Both spellings are accepted for the reason given on
         :meth:`format_data_type_varchar`.
         """
-        self._check_spelling(data_type, CharType)
+        self.check_spelling(data_type, CharType)
         return "String", ()
 
     def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
@@ -907,7 +936,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         spelling and ``String`` is the concept's only storage here, so it is
         accepted rather than refused.
         """
-        self._check_spelling(data_type, TextType)
+        self.check_spelling(data_type, TextType)
         return "String", ()
 
     def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
@@ -918,7 +947,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         this is the one concept whose core spelling list happens to be exactly
         ClickHouse's vocabulary.
         """
-        self._check_spelling(data_type, BooleanType)
+        self.check_spelling(data_type, BooleanType)
         return "Bool", ()
 
     def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
@@ -990,7 +1019,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         see :meth:`_refuse_unsigned_numeric`.
         """
         self._refuse_unsigned_numeric(data_type, "Float64")
-        self._check_spelling(data_type, DoubleType)
+        self.check_spelling(data_type, DoubleType)
         return "Float64", ()
 
     def format_data_type_real(self, data_type: RealType) -> Tuple[str, tuple]:
@@ -1023,7 +1052,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         and the caller is told so by name rather than handed a signed column.
         """
         self._refuse_unsigned_numeric(data_type, "Decimal(P, S)")
-        self._check_spelling(data_type, DecimalType)
+        self.check_spelling(data_type, DecimalType)
         p = data_type.precision
         s = data_type.scale
         if p is not None and s is not None:
@@ -1054,7 +1083,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         Not ``FixedString``: there is no length to honour, and ``FixedString``
         zero-pads, so using it here would change the value.
         """
-        self._check_spelling(data_type, BlobType)
+        self.check_spelling(data_type, BlobType)
         return "String", ()
 
     def format_data_type_uuid(self, data_type: UUIDType) -> Tuple[str, tuple]:

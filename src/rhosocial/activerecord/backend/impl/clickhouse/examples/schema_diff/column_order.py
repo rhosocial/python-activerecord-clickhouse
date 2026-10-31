@@ -33,22 +33,22 @@ backend.introspect_and_adapt()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableExpression, CreateTableExpression, ColumnDefinition,
-    ColumnConstraint, ColumnConstraintType,
+    DropTableStatement, CreateTableStatement, ColumnDefinition,
+    ColumnConstraint, ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
     ClickHouseUInt32Type, ClickHouseStringType,
 )
 
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableStatement(dialect, "users", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
-expr = CreateTableExpression(
+expr = CreateTableStatement(
     dialect=dialect, table=Table(dialect, "users"), columns=[
         ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
             constraints=[
-                ColumnConstraint(constraint_type=ColumnConstraintType.NOT_NULL),
-                ColumnConstraint(constraint_type=ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ]),
         ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
         ColumnDefinition(dialect, "email", ClickHouseStringType(dialect)),
@@ -67,19 +67,19 @@ from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # no
     ClickHouseSchemaDiffer,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
-    AlterTableExpression,
+    AlterTableStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (  # noqa: E402
-    ClickHouseAddColumn,
+    ClickHouseAddColumnAction,
 )
 
 builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
 snapshot_before = builder.build()
 
 # Add `age` column between `name` and `email` — shifts email to position 4
-add_col = ClickHouseAddColumn(dialect, ColumnDefinition(dialect, "age", ClickHouseUInt32Type(dialect)),
+add_col = ClickHouseAddColumnAction(dialect, ColumnDefinition(dialect, "age", ClickHouseUInt32Type(dialect)),
                               after="name")
-alter_expr = AlterTableExpression(dialect, "users", [add_col])
+alter_expr = AlterTableStatement(dialect, "users", [add_col])
 sql, params = alter_expr.to_sql()
 backend.execute(sql, params)
 
@@ -104,7 +104,7 @@ if "users" in diff.table_diffs:
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-expr = DropTableExpression(dialect, "users", if_exists=True)
+expr = DropTableStatement(dialect, "users", if_exists=True)
 sql, params = expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()

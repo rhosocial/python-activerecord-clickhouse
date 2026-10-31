@@ -52,42 +52,42 @@ class ClickHouseJSONFunctionSupport(JSONSupport, Protocol):
         """
         ...
 
-    def format_json_extract(self, expr) -> Tuple[str, tuple]:
+    def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_EXTRACT function call."""
         ...
 
-    def format_json_unquote(self, expr) -> Tuple[str, tuple]:
+    def format_json_unquote_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_UNQUOTE function call."""
         ...
 
-    def format_json_object(self, expr) -> Tuple[str, tuple]:
+    def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_OBJECT function call."""
         ...
 
-    def format_json_array(self, expr) -> Tuple[str, tuple]:
+    def format_json_array_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_ARRAY function call."""
         ...
 
-    def format_json_contains(self, expr) -> Tuple[str, tuple]:
+    def format_json_contains_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS function call."""
         ...
 
-    def format_json_set(self, expr) -> Tuple[str, tuple]:
+    def format_json_set_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SET function call."""
         ...
 
-    def format_json_remove(self, expr) -> Tuple[str, tuple]:
+    def format_json_remove_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_REMOVE function call."""
         ...
 
-    def format_json_type(self, expr) -> Tuple[str, tuple]:
+    def format_json_type_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_TYPE function call."""
         ...
 
-    def format_json_valid(self, expr) -> Tuple[str, tuple]:
+    def format_json_valid_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_VALID function call."""
         ...
 
-    def format_json_search(self, expr) -> Tuple[str, tuple]:
+    def format_json_search_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSON_SEARCH function call."""
         ...

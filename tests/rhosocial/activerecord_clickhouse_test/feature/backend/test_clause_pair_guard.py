@@ -42,7 +42,7 @@ Code 558). :class:`TestSetOperationQualifier` asserts that mapping explicitly
 instead of the generic four-state check.
 
 **The four master probes core's gate round consults.** Core now consults
-``supports_materialized_cte()`` in every ``format_cte_expression``,
+``supports_materialized_cte()`` in every ``format_cte_clause``,
 ``supports_truncate()`` in ``format_truncate_statement``, and the new
 ``supports_with_data_clause()`` in the CTAS / CREATE MATERIALIZED VIEW /
 REFRESH MATERIALIZED VIEW renderers; the wait pair added to the two
@@ -79,28 +79,28 @@ from rhosocial.activerecord.backend.expression.objects import (
     View,
 )
 from rhosocial.activerecord.backend.expression.query_sources import (
-    CTEExpression,
-    SetOperationExpression,
+    CTEClause,
+    SetOperation,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-    CreateTableAsExpression,
-    DropTableExpression,
+    CreateTableAsStatement,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
-    TruncateExpression,
+    TruncateStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_view import (
-    CreateMaterializedViewExpression,
-    DropMaterializedViewExpression,
-    DropViewExpression,
-    RefreshMaterializedViewExpression,
+    CreateMaterializedViewStatement,
+    DropMaterializedViewStatement,
+    DropViewStatement,
+    RefreshMaterializedViewStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.dql import (
-    QueryExpression,
+    QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.transaction import (
-    BeginTransactionExpression,
-    SetTransactionExpression,
+    BeginTransactionStatement,
+    SetTransactionStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
@@ -113,17 +113,16 @@ def _table(d: ClickHouseDialect, name: str = "t") -> Table:
     return Table(d, name)
 
 
-def _query(d: ClickHouseDialect) -> QueryExpression:
-    return QueryExpression(d, select=[Column(d, "id")], from_=_table(d))
+def _query(d: ClickHouseDialect) -> QueryStatement:
+    return QueryStatement(d, select=[Column(d, "id")], from_=_table(d))
 
 
-def _union(d: ClickHouseDialect, **kw: Any) -> SetOperationExpression:
-    return SetOperationExpression(
+def _union(d: ClickHouseDialect, op: str = "union") -> SetOperation:
+    return SetOperation(
         d,
-        left=QueryExpression(d, select=[Column(d, "a")], from_=_table(d, "t1")),
-        right=QueryExpression(d, select=[Column(d, "a")], from_=_table(d, "t2")),
-        operation="UNION",
-        **kw,
+        op=op,
+        left=QueryStatement(d, select=[Column(d, "a")], from_=_table(d, "t1")),
+        right=QueryStatement(d, select=[Column(d, "a")], from_=_table(d, "t2")),
     )
 
 
@@ -137,7 +136,7 @@ def _generic_mv_with_target(d: ClickHouseDialect, **kw: Any) -> Any:
     would be refused for the missing target and the pair could not be
     observed at all.
     """
-    expr = CreateMaterializedViewExpression(
+    expr = CreateMaterializedViewStatement(
         d, MaterializedView(d, "mv"), _query(d), **kw
     )
     expr.to_table = _table(d, "target")
@@ -185,8 +184,8 @@ def _case(
 #: refusal happens before the pair is read, so no state is silently dropped.
 PAIR_CASES: Tuple[PairCase, ...] = (
     _case(
-        "TruncateExpression.cascade",
-        lambda d, **kw: TruncateExpression(d, _table(d), **kw),
+        "TruncateStatement.cascade",
+        lambda d, **kw: TruncateStatement(d, _table(d), **kw),
         "cascade",
         "restrict",
         Expected(sql="TRUNCATE TABLE `t`"),
@@ -194,8 +193,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="TRUNCATE ... RESTRICT"),
     ),
     _case(
-        "TruncateExpression.restart_identity",
-        lambda d, **kw: TruncateExpression(d, _table(d), **kw),
+        "TruncateStatement.restart_identity",
+        lambda d, **kw: TruncateStatement(d, _table(d), **kw),
         "restart_identity",
         "continue_identity",
         Expected(sql="TRUNCATE TABLE `t`"),
@@ -203,8 +202,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="TRUNCATE ... CONTINUE IDENTITY"),
     ),
     _case(
-        "DropTableExpression.cascade",
-        lambda d, **kw: DropTableExpression(d, _table(d), **kw),
+        "DropTableStatement.cascade",
+        lambda d, **kw: DropTableStatement(d, _table(d), **kw),
         "cascade",
         "restrict",
         Expected(sql="DROP TABLE `t`"),
@@ -212,8 +211,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="DROP TABLE ... RESTRICT"),
     ),
     _case(
-        "DropViewExpression.cascade",
-        lambda d, **kw: DropViewExpression(d, View(d, "v"), **kw),
+        "DropViewStatement.cascade",
+        lambda d, **kw: DropViewStatement(d, View(d, "v"), **kw),
         "cascade",
         "restrict",
         Expected(sql="DROP VIEW `v`"),
@@ -221,8 +220,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="DROP VIEW RESTRICT"),
     ),
     _case(
-        "DropMaterializedViewExpression.cascade",
-        lambda d, **kw: DropMaterializedViewExpression(
+        "DropMaterializedViewStatement.cascade",
+        lambda d, **kw: DropMaterializedViewStatement(
             d, MaterializedView(d, "mv"), **kw
         ),
         "cascade",
@@ -232,8 +231,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="DROP MATERIALIZED VIEW RESTRICT"),
     ),
     _case(
-        "RefreshMaterializedViewExpression.with_data",
-        lambda d, **kw: RefreshMaterializedViewExpression(
+        "RefreshMaterializedViewStatement.with_data",
+        lambda d, **kw: RefreshMaterializedViewStatement(
             d, MaterializedView(d, "mv"), **kw
         ),
         "with_data",
@@ -243,7 +242,7 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="REFRESH MATERIALIZED VIEW WITH NO DATA"),
     ),
     _case(
-        "CreateMaterializedViewExpression.with_data",
+        "CreateMaterializedViewStatement.with_data",
         _generic_mv_with_target,
         "with_data",
         "no_data",
@@ -257,8 +256,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="CREATE MATERIALIZED VIEW WITH NO DATA"),
     ),
     _case(
-        "CreateTableAsExpression.with_data",
-        lambda d, **kw: CreateTableAsExpression(d, _table(d), _query(d), **kw),
+        "CreateTableAsStatement.with_data",
+        lambda d, **kw: CreateTableAsStatement(d, _table(d), _query(d), **kw),
         "with_data",
         "no_data",
         Expected(sql="CREATE TABLE `t` AS SELECT `id` FROM `t`"),
@@ -266,8 +265,8 @@ PAIR_CASES: Tuple[PairCase, ...] = (
         Expected(refused_as="CREATE TABLE ... WITH NO DATA"),
     ),
     _case(
-        "CTEExpression.materialized",
-        lambda d, **kw: CTEExpression(d, "c", _query(d), **kw),
+        "CTEClause.materialized",
+        lambda d, **kw: CTEClause(d, "c", _query(d), **kw),
         "materialized",
         "not_materialized",
         Expected(sql="`c` AS (SELECT `id` FROM `t`)"),
@@ -278,10 +277,13 @@ PAIR_CASES: Tuple[PairCase, ...] = (
 
 PAIR_IDS = [case.case_id for case in PAIR_CASES]
 
-#: Every consumed pair, including the set-operation qualifier that has its own
-#: class (its grammar has no bare form, so its "neither" state maps to the
-#: required default rather than to "nothing").
-ALL_CONSUMED_PAIRS = frozenset(PAIR_IDS) | {"SetOperationExpression.all_"}
+#: Every consumed pair. The set operation is deliberately absent: its
+#: qualifier is no longer a boolean pair at all. ``all_`` / ``distinct`` are
+#: gone with the trailing clauses, and the ALL/DISTINCT choice is now carried by
+#: the ``union`` / ``union_all`` operation word -- a closed word set the node
+#: validates at construction, not two flags that could be set independently.
+#: ``TestSetOperationSpelling`` guards that mapping instead.
+ALL_CONSUMED_PAIRS = frozenset(PAIR_IDS)
 
 
 def _render(case: PairCase, **kwargs: Any) -> Tuple[str, str]:
@@ -360,76 +362,66 @@ class TestFourStatesArePairwiseDistinguishable:
         )
 
 
-class TestSetOperationQualifier:
-    """``SetOperationExpression.all_`` / ``distinct`` -- the documented exception.
+class TestSetOperationSpelling:
+    """The four operation words and the spelling each one gets here.
 
     ClickHouse's grammar has no bare UNION under the default
     ``union_default_mode`` (measured: ``Code: 558. Expected ALL or DISTINCT in
-    SelectWithUnion query``). The dialect therefore spells the unspecified
-    state with the grammar's required default, ``DISTINCT``; it does not emit
-    the rejected bare form and it does not refuse the ORM's default
-    ``union()`` path (``SetOperationQuery`` constructs the expression without
-    either parameter). The explicit ``distinct=True`` state renders the same
-    SQL: on this dialect the two requests cannot be distinguished in SQL,
-    because there is no second spelling for "no qualifier". This is the one
-    pair whose four states are not pairwise distinguishable in SQL -- the
-    audit's recorded reason ("ClickHouse: falsy forces DISTINCT, so
-    'unspecified' is unreachable there") -- and the collision is pinned below
-    so it cannot change silently.
+    SelectWithUnion query``), so every rendering carries an explicit ALL or
+    DISTINCT. The node names the operation with a word and the dialect maps it,
+    which is what makes ``union`` and ``union_all`` distinguishable here: they
+    differ by the modifier, not only by the keyword.
+
+    The former ``all_`` / ``distinct`` flag pair is gone, so the collision this
+    class used to record -- "unspecified" and "explicit DISTINCT" rendering
+    identically -- cannot occur: the word set has no duplicate member, and the
+    node refuses anything outside it at construction.
     """
 
-    def test_neither_spells_the_grammar_required_default(self):
+    def test_union_spells_distinct(self):
         sql, _ = _union(_dialect()).to_sql()
         assert sql == (
             "SELECT `a` FROM `t1` UNION DISTINCT SELECT `a` FROM `t2`"
         ), sql
 
-    def test_all_spells_all(self):
-        sql, _ = _union(_dialect(), all_=True).to_sql()
+    def test_union_all_spells_all(self):
+        sql, _ = _union(_dialect(), "union_all").to_sql()
         assert sql == "SELECT `a` FROM `t1` UNION ALL SELECT `a` FROM `t2`", sql
 
-    def test_distinct_spells_distinct(self):
-        sql, _ = _union(_dialect(), distinct=True).to_sql()
-        assert sql == (
-            "SELECT `a` FROM `t1` UNION DISTINCT SELECT `a` FROM `t2`"
-        ), sql
-
-    def test_both_parameters_are_api_misuse(self):
-        with pytest.raises(
-            ValueError, match="all_ and distinct are mutually exclusive"
-        ):
-            _union(_dialect(), all_=True, distinct=True)
-
-    def test_the_default_and_explicit_distinct_collide_by_grammar(self):
-        """The one intentional collision: pinned, not accidental.
-
-        If this ever stops colliding, the dialect gained a bare-UNION spelling
-        (e.g. a changed ``union_default_mode`` assumption) and the guard's
-        exception must be revisited.
-        """
-        neither = _union(_dialect()).to_sql()[0]
-        explicit = _union(_dialect(), distinct=True).to_sql()[0]
-        assert neither == explicit
+    def test_the_two_union_words_are_distinguishable(self):
+        assert _union(_dialect()).to_sql()[0] != _union(_dialect(), "union_all").to_sql()[0]
 
     def test_intersect_and_except_keep_the_required_modifier(self):
         """The same required-default mapping applies to every set operation."""
         d = _dialect()
-        for operation, expected in (
-            ("INTERSECT", "INTERSECT DISTINCT"),
-            ("EXCEPT", "EXCEPT DISTINCT"),
+        for op, expected in (
+            ("intersect", "INTERSECT DISTINCT"),
+            ("except", "EXCEPT DISTINCT"),
         ):
-            expr = SetOperationExpression(
-                d,
-                left=QueryExpression(
-                    d, select=[Column(d, "a")], from_=_table(d, "t1")
-                ),
-                right=QueryExpression(
-                    d, select=[Column(d, "a")], from_=_table(d, "t2")
-                ),
-                operation=operation,
-            )
+            expr = _union(d, op)
             sql, _ = expr.to_sql()
-            assert expected in sql, (operation, sql)
+            assert expected in sql, (op, sql)
+
+    def test_the_word_is_case_insensitive_and_normalized(self):
+        d = _dialect()
+        expr = _union(d, "UNION_ALL")
+        assert expr.op == "union_all"
+        assert "UNION ALL" in expr.to_sql()[0]
+
+    def test_every_operation_word_is_covered_and_distinct(self):
+        """Each word renders its own SQL, and no bare form is ever emitted."""
+        d = _dialect()
+        rendered = {}
+        for op in ("union", "union_all", "intersect", "except"):
+            sql, _ = _union(d, op).to_sql()
+            rendered[op] = sql
+            keyword = sql.split(" FROM `t1` ")[1].split(" SELECT")[0]
+            assert "ALL" in keyword or "DISTINCT" in keyword, (op, sql)
+        assert len(set(rendered.values())) == 4, rendered
+
+    def test_an_unknown_operation_word_is_refused(self):
+        with pytest.raises(ValueError, match="op must be one of"):
+            _union(_dialect(), "minus")
 
 
 class TestGuardIsNotVacuous:
@@ -442,16 +434,15 @@ class TestGuardIsNotVacuous:
     def test_every_pair_is_covered(self):
         """The pairs this dialect consumes are all in the table."""
         expected = {
-            "TruncateExpression.cascade",
-            "TruncateExpression.restart_identity",
-            "DropTableExpression.cascade",
-            "DropViewExpression.cascade",
-            "DropMaterializedViewExpression.cascade",
-            "RefreshMaterializedViewExpression.with_data",
-            "CreateMaterializedViewExpression.with_data",
-            "CreateTableAsExpression.with_data",
-            "CTEExpression.materialized",
-            "SetOperationExpression.all_",
+            "TruncateStatement.cascade",
+            "TruncateStatement.restart_identity",
+            "DropTableStatement.cascade",
+            "DropViewStatement.cascade",
+            "DropMaterializedViewStatement.cascade",
+            "RefreshMaterializedViewStatement.with_data",
+            "CreateMaterializedViewStatement.with_data",
+            "CreateTableAsStatement.with_data",
+            "CTEClause.materialized",
         }
         assert expected == ALL_CONSUMED_PAIRS, (
             f"pairs in scope but not guarded: "
@@ -463,28 +454,43 @@ class TestGuardIsNotVacuous:
     def test_the_distinguishability_check_rejects_a_fabricated_collision(self):
         """A checker that cannot see a collision makes every verdict vacuous.
 
-        The fabricated case reuses the one real SQL collision this dialect has
-        -- the set-operation required default -- as its sentinel: two of the
-        three non-ValueError states render identically, so a checker that
-        claimed pairwise distinguishability here would be lying.
+        The fabricated case is built by hand rather than borrowed from the
+        table: its builder ignores which flag was set and renders the same SQL
+        for all three renderable states, refusing only the fourth. Two of the
+        outcomes therefore collide, so a checker that claimed pairwise
+        distinguishability here would be lying. (It cannot be borrowed from the
+        table: the set operation used to be the one real collision on this
+        dialect, and the word-form rewrite made it fully distinguishable.)
         """
+        union_sql = "SELECT `a` FROM `t1` UNION DISTINCT SELECT `a` FROM `t2`"
+
+        def _colliding(d: ClickHouseDialect, **kw: Any) -> Any:
+            if sum(bool(v) for v in kw.values()) > 1:
+                raise ValueError("a_set and b_set are mutually exclusive")
+            return _union(d)
+
         fabricated = _case(
             "fabricated",
-            _union,
-            "all_",
-            "distinct",
-            Expected(sql="SELECT `a` FROM `t1` UNION DISTINCT SELECT `a` FROM `t2`"),
-            Expected(sql="SELECT `a` FROM `t1` UNION ALL SELECT `a` FROM `t2`"),
-            Expected(sql="SELECT `a` FROM `t1` UNION DISTINCT SELECT `a` FROM `t2`"),
+            _colliding,
+            "a_set",
+            "b_set",
+            Expected(sql=union_sql),
+            Expected(sql=union_sql),
+            Expected(sql=union_sql),
         )
         outcomes = [
             _render(fabricated),
-            _render(fabricated, all_=True),
-            _render(fabricated, distinct=True),
+            _render(fabricated, a_set=True),
+            _render(fabricated, b_set=True),
         ]
-        assert len(set(outcomes)) == 2, (
+        assert len(set(outcomes)) == 1, (
             "the sentinel is expected to collide; if it does not, this guard's "
             "distinguishability assertion is not testing what it claims"
+        )
+        both = _render(fabricated, a_set=True, b_set=True)
+        assert both[0] == "ValueError", both
+        assert len(set(outcomes) | {both}) != 4, (
+            "a colliding pair must not yield four distinct outcomes"
         )
 
 
@@ -543,7 +549,7 @@ class TestCoreGatedMasterProbes:
         assert d.supports_materialized_cte() is True
         owner = d.supports_materialized_cte.__qualname__
         assert owner == "ClickHouseCTEMixin.supports_materialized_cte"
-        sql, _params = CTEExpression(d, "c", _query(d), materialized=True).to_sql()
+        sql, _params = CTEClause(d, "c", _query(d), materialized=True).to_sql()
         assert sql == "`c` AS MATERIALIZED (SELECT `id` FROM `t`)"
 
     def test_materialized_cte_negative_spelling_is_refused_by_name(self):
@@ -553,7 +559,7 @@ class TestCoreGatedMasterProbes:
         so the by-name refusal is the faithful outcome."""
         d = _dialect()
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            CTEExpression(d, "c", _query(d), not_materialized=True).to_sql()
+            CTEClause(d, "c", _query(d), not_materialized=True).to_sql()
         assert excinfo.value.dialect_name == "ClickHouse"
         assert excinfo.value.feature_name == "CTE NOT MATERIALIZED"
 
@@ -562,7 +568,7 @@ class TestCoreGatedMasterProbes:
         assert d.supports_truncate() is True
         owner = d.supports_truncate.__qualname__
         assert owner == "ClickHouseTruncateMixin.supports_truncate"
-        sql, _params = TruncateExpression(d, _table(d)).to_sql()
+        sql, _params = TruncateStatement(d, _table(d)).to_sql()
         assert sql == "TRUNCATE TABLE `t`"
 
     def test_with_data_clause_is_declared_false_by_this_dialect(self):
@@ -591,21 +597,21 @@ class TestCoreGatedMasterProbes:
         d = _dialect()
         cases = (
             (
-                CreateTableAsExpression(d, _table(d), _query(d), with_data=True),
+                CreateTableAsStatement(d, _table(d), _query(d), with_data=True),
                 "CREATE TABLE ... WITH DATA",
             ),
             (
-                CreateTableAsExpression(d, _table(d), _query(d), no_data=True),
+                CreateTableAsStatement(d, _table(d), _query(d), no_data=True),
                 "CREATE TABLE ... WITH NO DATA",
             ),
             (_generic_mv_with_target(d, with_data=True), "CREATE MATERIALIZED VIEW WITH DATA"),
             (_generic_mv_with_target(d, no_data=True), "CREATE MATERIALIZED VIEW WITH NO DATA"),
             (
-                RefreshMaterializedViewExpression(d, MaterializedView(d, "mv"), with_data=True),
+                RefreshMaterializedViewStatement(d, MaterializedView(d, "mv"), with_data=True),
                 "REFRESH MATERIALIZED VIEW WITH DATA",
             ),
             (
-                RefreshMaterializedViewExpression(d, MaterializedView(d, "mv"), no_data=True),
+                RefreshMaterializedViewStatement(d, MaterializedView(d, "mv"), no_data=True),
                 "REFRESH MATERIALIZED VIEW WITH NO DATA",
             ),
         )
@@ -631,8 +637,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionExpression, SetTransactionExpression],
-        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionStatement],
+        ids=["BeginTransactionStatement", "SetTransactionStatement"],
     )
     @pytest.mark.parametrize(
         "parameter,spelling", [("wait", "WAIT"), ("no_wait", "NO WAIT")]
@@ -649,8 +655,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionExpression, SetTransactionExpression],
-        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionStatement],
+        ids=["BeginTransactionStatement", "SetTransactionStatement"],
     )
     def test_neither_spelling_still_refuses_the_whole_statement(
         self, expression_class
@@ -662,8 +668,8 @@ class TestWaitPairRefusesByName:
 
     @pytest.mark.parametrize(
         "expression_class",
-        [BeginTransactionExpression, SetTransactionExpression],
-        ids=["BeginTransactionExpression", "SetTransactionExpression"],
+        [BeginTransactionStatement, SetTransactionStatement],
+        ids=["BeginTransactionStatement", "SetTransactionStatement"],
     )
     def test_both_spellings_are_api_misuse(self, expression_class):
         d = _dialect()

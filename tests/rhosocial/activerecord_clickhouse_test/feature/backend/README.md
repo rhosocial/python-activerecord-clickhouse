@@ -10,7 +10,7 @@ ClickHouse backend tests organized by common subject (taxonomy per
 | `adapters/` | value adapters, column mapping |
 | `backend/` | backend-object lifecycle/ops |
 | `cli/` | CLI blackbox |
-| `ddl/` | DDL generation/coverage, CreateTableExpression diff |
+| `ddl/` | DDL generation/coverage, CreateTableStatement diff |
 | `dialect/` | dialect capabilities, security, mixins, unsupported features, live-backend dialect |
 | `dml/` | CRUD via backend object |
 | `expression/` | JSON, datetime-interval expressions |

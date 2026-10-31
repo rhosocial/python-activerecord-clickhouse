@@ -488,7 +488,7 @@ class IntToStringAdapter(BaseSQLTypeAdapter):
 
     def __init__(self):
         super().__init__()
-        self._register_type(str, int)  # Python 'str' can be converted to DB 'int'
+        self.register_type(str, int)  # Python 'str' can be converted to DB 'int'
 
     def _do_to_database(self, value: Any, target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
         # The 'notes' attribute on the model is a str, which we convert to an int for the DB.
@@ -532,7 +532,7 @@ class ListToStringAdapter(BaseSQLTypeAdapter):
 
     def __init__(self):
         super().__init__()
-        self._register_type(list, str)
+        self.register_type(list, str)
 
     def _do_to_database(self, value: List[str], target_type: Type, options: Optional[Dict[str, Any]] = None) -> Optional[str]:
         if value is None:
@@ -589,7 +589,7 @@ class JsonToStringAdapter(BaseSQLTypeAdapter):
 
     def __init__(self):
         super().__init__()
-        self._register_type(dict, str)
+        self.register_type(dict, str)
 
     def _do_to_database(self, value: Dict, target_type: Type, options: Optional[Dict[str, Any]] = None) -> Optional[str]:
         if value is None:
@@ -767,7 +767,7 @@ class AsyncMappedOrderItem(CompositePKMixin, AsyncActiveRecord):
 # =============================================================================
 
 from rhosocial.activerecord.base import DerivedField
-from rhosocial.activerecord.backend.expression import Column, Literal, BinaryArithmeticExpression
+from rhosocial.activerecord.backend.expression import Column, Literal, ArithmeticOperation
 
 
 class Product(ActiveRecord):
@@ -779,12 +779,12 @@ class Product(ActiveRecord):
     quantity: int
 
     discounted_price: ClassVar[Annotated[float, DerivedField(
-        lambda d: BinaryArithmeticExpression(d, "*", Column(d, "price"), Literal(d, 0.9)),
+        lambda d: ArithmeticOperation(d, "mul", Column(d, "price"), Literal(d, 0.9)),
     )]]
 
     total_value: ClassVar[Annotated[float, DerivedField(
-        lambda d: BinaryArithmeticExpression(
-            d, "*", Column(d, "price"), Column(d, "quantity")
+        lambda d: ArithmeticOperation(
+            d, "mul", Column(d, "price"), Column(d, "quantity")
         ),
     )]]
 
@@ -798,12 +798,12 @@ class AsyncProduct(AsyncActiveRecord):
     quantity: int
 
     discounted_price: ClassVar[Annotated[float, DerivedField(
-        lambda d: BinaryArithmeticExpression(d, "*", Column(d, "price"), Literal(d, 0.9)),
+        lambda d: ArithmeticOperation(d, "mul", Column(d, "price"), Literal(d, 0.9)),
     )]]
 
     total_value: ClassVar[Annotated[float, DerivedField(
-        lambda d: BinaryArithmeticExpression(
-            d, "*", Column(d, "price"), Column(d, "quantity")
+        lambda d: ArithmeticOperation(
+            d, "mul", Column(d, "price"), Column(d, "quantity")
         ),
     )]]
 
@@ -818,12 +818,12 @@ class ProductFormA(ActiveRecord):
     quantity: int
 
     discounted_price: ClassVar[DerivedField] = DerivedField(
-        lambda d: BinaryArithmeticExpression(d, "*", Column(d, "price"), Literal(d, 0.9)),
+        lambda d: ArithmeticOperation(d, "mul", Column(d, "price"), Literal(d, 0.9)),
     )
 
     total_value: ClassVar[DerivedField] = DerivedField(
-        lambda d: BinaryArithmeticExpression(
-            d, "*", Column(d, "price"), Column(d, "quantity")
+        lambda d: ArithmeticOperation(
+            d, "mul", Column(d, "price"), Column(d, "quantity")
         ),
     )
 
@@ -837,12 +837,12 @@ class AsyncProductFormA(AsyncActiveRecord):
     quantity: int
 
     discounted_price: ClassVar[DerivedField] = DerivedField(
-        lambda d: BinaryArithmeticExpression(d, "*", Column(d, "price"), Literal(d, 0.9)),
+        lambda d: ArithmeticOperation(d, "mul", Column(d, "price"), Literal(d, 0.9)),
     )
 
     total_value: ClassVar[DerivedField] = DerivedField(
-        lambda d: BinaryArithmeticExpression(
-            d, "*", Column(d, "price"), Column(d, "quantity")
+        lambda d: ArithmeticOperation(
+            d, "mul", Column(d, "price"), Column(d, "quantity")
         ),
     )
 
@@ -908,12 +908,12 @@ class ProductWithColumnAndAdapter(ActiveRecord):
     quantity: int
 
     discounted_price: ClassVar[Annotated[float, DerivedField(
-        lambda d: BinaryArithmeticExpression(d, "*", Column(d, "price"), Literal(d, 0.9)),
+        lambda d: ArithmeticOperation(d, "mul", Column(d, "price"), Literal(d, 0.9)),
     ), UseColumn("disc")]]
 
     total_int: ClassVar[Annotated[int, DerivedField(
-        lambda d: BinaryArithmeticExpression(
-            d, "*", Column(d, "price"), Column(d, "quantity")
+        lambda d: ArithmeticOperation(
+            d, "mul", Column(d, "price"), Column(d, "quantity")
         ),
     ), UseAdapter(PriceToIntAdapter(), int)]]
 
@@ -927,12 +927,12 @@ class AsyncProductWithColumnAndAdapter(AsyncActiveRecord):
     quantity: int
 
     discounted_price: ClassVar[Annotated[float, DerivedField(
-        lambda d: BinaryArithmeticExpression(d, "*", Column(d, "price"), Literal(d, 0.9)),
+        lambda d: ArithmeticOperation(d, "mul", Column(d, "price"), Literal(d, 0.9)),
     ), UseColumn("disc")]]
 
     total_int: ClassVar[Annotated[int, DerivedField(
-        lambda d: BinaryArithmeticExpression(
-            d, "*", Column(d, "price"), Column(d, "quantity")
+        lambda d: ArithmeticOperation(
+            d, "mul", Column(d, "price"), Column(d, "quantity")
         ),
     ), UseAdapter(PriceToIntAdapter(), int)]]
 

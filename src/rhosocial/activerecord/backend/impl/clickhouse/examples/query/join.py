@@ -24,27 +24,27 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 
-drop_customers = DropTableExpression(dialect=dialect, table=Table(dialect, "customers"), if_exists=True)
+drop_customers = DropTableStatement(dialect=dialect, table=Table(dialect, "customers"), if_exists=True)
 sql, params = drop_customers.to_sql()
 backend.execute(sql, params)
 
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-create_customers = CreateTableExpression(
+create_customers = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "customers"),
     columns=[
@@ -52,14 +52,14 @@ create_customers = CreateTableExpression(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "name",
             "String",
-            constraints=[ColumnConstraint(ColumnConstraintType.NOT_NULL)],
+            constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
         ),
         ColumnDefinition("email", "String"),
     ],
@@ -68,7 +68,7 @@ create_customers = CreateTableExpression(
 sql, params = create_customers.to_sql()
 backend.execute(sql, params)
 
-create_orders = CreateTableExpression(
+create_orders = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "orders"),
     columns=[
@@ -76,8 +76,8 @@ create_orders = CreateTableExpression(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("customer_id", "UInt32"),
@@ -89,7 +89,7 @@ create_orders = CreateTableExpression(
 sql, params = create_orders.to_sql()
 backend.execute(sql, params)
 
-insert_customers = InsertExpression(
+insert_customers = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "customers"),
     columns=["name", "email"],
@@ -104,7 +104,7 @@ insert_customers = InsertExpression(
 sql, params = insert_customers.to_sql()
 backend.execute(sql, params)
 
-insert_orders = InsertExpression(
+insert_orders = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "orders"),
     columns=["customer_id", "total", "status"],
@@ -124,7 +124,7 @@ backend.execute(sql, params)
 # SECTION: Business Logic (the pattern to learn)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    QueryExpression,
+    QueryStatement,
     Column,
     WhereClause,
 )
@@ -135,7 +135,7 @@ from rhosocial.activerecord.backend.expression.predicates import ComparisonPredi
 customers = NamedRelationRef(dialect, Table(dialect, "customers"), alias="c")
 orders = NamedRelationRef(dialect, Table(dialect, "orders"), alias="o")
 
-query = QueryExpression(
+query = QueryStatement(
     dialect=dialect,
     select=[
         Column(dialect, "name", table="c"),

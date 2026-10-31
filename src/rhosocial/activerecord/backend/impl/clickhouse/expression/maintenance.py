@@ -24,16 +24,27 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class NoWriteToBinlogOption(Enum):
-    """NO_WRITE_TO_BINLOG / LOCAL synonym selector."""
+class NoWriteToBinlogOption(str, Enum):
+    """NO_WRITE_TO_BINLOG / LOCAL synonym selector.
+
+    A ``str`` enum whose ``__str__`` is ``str.__str__``: a member *is* the word
+    it carries, so an artifact names the option as a plain JSON string and the
+    constructors below normalise the word back to the member. ``Enum.__str__``
+    would otherwise win and spell members as ``NoWriteToBinlogOption.LOCAL`` --
+    the spelling the XML channel writes, and no reader accepts it.
+    """
+
+    __str__ = str.__str__
 
     NONE = ""
     NO_WRITE_TO_BINLOG = "NO_WRITE_TO_BINLOG"
     LOCAL = "LOCAL"
 
 
-class CheckTableOption(Enum):
-    """CHECK TABLE optional modes."""
+class CheckTableOption(str, Enum):
+    """CHECK TABLE optional modes. A ``str`` enum -- see :class:`NoWriteToBinlogOption`."""
+
+    __str__ = str.__str__
 
     FOR_UPGRADE = "FOR UPGRADE"
     QUICK = "QUICK"
@@ -43,22 +54,26 @@ class CheckTableOption(Enum):
     CHANGED = "CHANGED"
 
 
-class ChecksumTableOption(Enum):
-    """CHECKSUM TABLE optional modes."""
+class ChecksumTableOption(str, Enum):
+    """CHECKSUM TABLE optional modes. A ``str`` enum -- see :class:`NoWriteToBinlogOption`."""
+
+    __str__ = str.__str__
 
     QUICK = "QUICK"
     EXTENDED = "EXTENDED"
 
 
-class RepairTableOption(Enum):
-    """REPAIR TABLE optional modes."""
+class RepairTableOption(str, Enum):
+    """REPAIR TABLE optional modes. A ``str`` enum -- see :class:`NoWriteToBinlogOption`."""
+
+    __str__ = str.__str__
 
     QUICK = "QUICK"
     EXTENDED = "EXTENDED"
     USE_FRM = "USE_FRM"
 
 
-class ClickHouseTableMaintenanceExpression(BaseExpression):
+class ClickHouseTableMaintenanceStatement(BaseExpression):
     """Base class for whole-table maintenance statements.
 
     Attributes:
@@ -84,7 +99,11 @@ class ClickHouseTableMaintenanceExpression(BaseExpression):
     ):
         super().__init__(dialect)
         self.tables: list = list(tables)
-        self.no_write_to_binlog: NoWriteToBinlogOption = no_write_to_binlog
+        # Normalise: the artifact carries the word, and the restored instance
+        # must hold the member the original held, not the bare string.
+        self.no_write_to_binlog: NoWriteToBinlogOption = NoWriteToBinlogOption(
+            no_write_to_binlog
+        )
         self.validate()
 
     def validate(self, strict: bool = True) -> None:
@@ -113,13 +132,13 @@ class ClickHouseTableMaintenanceExpression(BaseExpression):
         return "format_table_maintenance_statement"
 
 
-class ClickHouseAnalyzeTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseAnalyzeTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``ANALYZE TABLE``."""
 
     operation: str = "ANALYZE"
 
 
-class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``CHECK TABLE`` with optional modes."""
 
     operation: str = "CHECK"
@@ -136,10 +155,12 @@ class ClickHouseCheckTableExpression(ClickHouseTableMaintenanceExpression):
             tables,
             no_write_to_binlog=NoWriteToBinlogOption.NONE,
         )
-        self.options: list[CheckTableOption] = list(options or [])
+        self.options: list[CheckTableOption] = [
+            CheckTableOption(o) for o in (options or [])
+        ]
 
 
-class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``CHECKSUM TABLE`` with optional mode."""
 
     operation: str = "CHECKSUM"
@@ -156,16 +177,18 @@ class ClickHouseChecksumTableExpression(ClickHouseTableMaintenanceExpression):
             tables,
             no_write_to_binlog=NoWriteToBinlogOption.NONE,
         )
-        self.option: Optional[ChecksumTableOption] = option
+        self.option: Optional[ChecksumTableOption] = (
+            ChecksumTableOption(option) if option is not None else None
+        )
 
 
-class ClickHouseOptimizeTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseOptimizeTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``OPTIMIZE TABLE``."""
 
     operation: str = "OPTIMIZE"
 
 
-class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceExpression):
+class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceStatement):
     """Represent ``REPAIR TABLE`` with optional modes."""
 
     operation: str = "REPAIR"
@@ -183,4 +206,6 @@ class ClickHouseRepairTableExpression(ClickHouseTableMaintenanceExpression):
             tables,
             no_write_to_binlog=no_write_to_binlog,
         )
-        self.options: list[RepairTableOption] = list(options or [])
+        self.options: list[RepairTableOption] = [
+            RepairTableOption(o) for o in (options or [])
+        ]

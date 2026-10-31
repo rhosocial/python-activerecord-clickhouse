@@ -2,6 +2,7 @@
 """ClickHouse database DDL mixin."""
 from __future__ import annotations
 
+from enum import Enum
 from typing import Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -9,9 +10,9 @@ from rhosocial.activerecord.backend.expression.objects import Database
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_database import (
-        AlterDatabaseExpression,
-        CreateDatabaseExpression,
-        DropDatabaseExpression,
+        AlterDatabaseStatement,
+        CreateDatabaseStatement,
+        DropDatabaseStatement,
     )
 
 
@@ -46,7 +47,7 @@ class ClickHouseDatabaseMixin:
         return True
 
     def format_create_database_statement(
-        self, expr: CreateDatabaseExpression
+        self, expr: CreateDatabaseStatement
     ) -> Tuple[str, tuple]:
         """Format ``CREATE DATABASE``.
 
@@ -56,7 +57,7 @@ class ClickHouseDatabaseMixin:
         """
         if not isinstance(expr.database, Database):
             raise TypeError(
-                f"CreateDatabaseExpression.database must be a Database, "
+                f"CreateDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
         parts = ["CREATE DATABASE"]
@@ -66,16 +67,21 @@ class ClickHouseDatabaseMixin:
         if expr.comment:
             escaped_comment = expr.comment.replace("'", "''")
             parts.append(f"COMMENT '{escaped_comment}'")
-        engine = getattr(expr, "engine", None)
-        if engine:
-            parts.append(f"ENGINE = {engine}")
-        on_cluster = getattr(expr, "on_cluster", None)
-        if on_cluster:
-            parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
+        # ``ENGINE`` / ``ON CLUSTER`` are ClickHouse clauses and live on this
+        # backend's own node; the generic CreateDatabaseStatement carries
+        # neither, and which one arrived is a type question asked with
+        # isinstance rather than probed field by field.
+        from ..expression.database import ClickHouseCreateDatabaseExpression
+
+        if isinstance(expr, ClickHouseCreateDatabaseExpression):
+            if expr.engine:
+                parts.append(f"ENGINE = {expr.engine}")
+            if expr.on_cluster:
+                parts.append(f"ON CLUSTER {self.format_identifier(expr.on_cluster)}")
         return " ".join(parts), ()
 
     def format_drop_database_statement(
-        self, expr: DropDatabaseExpression
+        self, expr: DropDatabaseStatement
     ) -> Tuple[str, tuple]:
         """Format ``DROP DATABASE``.
 
@@ -85,22 +91,35 @@ class ClickHouseDatabaseMixin:
         """
         if not isinstance(expr.database, Database):
             raise TypeError(
-                f"DropDatabaseExpression.database must be a Database, "
+                f"DropDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
         parts = ["DROP DATABASE"]
         if expr.if_exists:
             parts.append("IF EXISTS")
         parts.append(expr.database.to_sql()[0])
-        sync = getattr(expr, "sync", False)
-        if sync:
+        # ``SYNC`` is a ClickHouse clause and lives on this backend's own
+        # node; the generic DropDatabaseStatement does not carry it.
+        from ..expression.database import ClickHouseDropDatabaseExpression
+
+        if isinstance(expr, ClickHouseDropDatabaseExpression) and expr.sync:
             parts.append("SYNC")
         return " ".join(parts), ()
 
     def format_alter_database_statement(
-        self, expr: AlterDatabaseExpression
+        self, expr: AlterDatabaseStatement
     ) -> Tuple[str, tuple]:
         """Format ``ALTER DATABASE``.
+
+        ClickHouse's ALTER DATABASE takes a list of ALTER commands, and
+        ``MODIFY SETTING`` / ``MODIFY COMMENT`` are the two this branch
+        spells -- see :meth:`supports_alter_database`.  It has no
+        ``RENAME TO``: the server's own answer to that spelling is a syntax
+        error ("Expected one of: ON, a list of ALTER commands, ALTER command,
+        MODIFY SETTING, MODIFY COMMENT"), and a database is renamed with
+        ``RENAME DATABASE <old> TO <new>``, which is a different statement.
+        So the action is refused by name rather than emitted in a form the
+        server rejects.
 
         Raises:
             TypeError: ``expr.database`` is not a Database. Anything else would
@@ -110,34 +129,37 @@ class ClickHouseDatabaseMixin:
         """
         if not isinstance(expr.database, Database):
             raise TypeError(
-                f"AlterDatabaseExpression.database must be a Database, "
+                f"AlterDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
         from rhosocial.activerecord.backend.expression.statements.ddl_database import (
             AlterDatabaseAction,
         )
-        parts = ["ALTER DATABASE"]
-        parts.append(expr.database.to_sql()[0])
-        # ``RENAME TO`` is the one action core's enum names and ClickHouse spells
-        # the same way. ``MODIFY COMMENT`` was read off this branch by name and
-        # core's AlterDatabaseAction has no such member, so every ALTER DATABASE
-        # raised AttributeError before reaching any of this; an action ClickHouse
-        # has no form for is reported rather than silently dropped.
+        # ``MODIFY COMMENT`` was read off this branch by name and core's
+        # AlterDatabaseAction has no such member, so every ALTER DATABASE
+        # raised AttributeError before reaching any of this; an action
+        # ClickHouse has no form for is reported rather than silently
+        # dropped.  ``action`` accepts the enum or its raw spelling; which one
+        # it is is a type question, so it is asked with isinstance rather than
+        # probed field by field.
+        action = expr.action.value if isinstance(expr.action, Enum) else expr.action
         if expr.action == AlterDatabaseAction.RENAME_TO:
-            target = expr.target
-            if not target:
-                raise UnsupportedFeatureError(
-                    self.name, "ALTER DATABASE ... RENAME TO",
-                    suggestion="RENAME TO requires the new database name.",
-                )
-            parts.append(f"RENAME TO {self.format_identifier(str(target))}")
-        else:
             raise UnsupportedFeatureError(
                 self.name,
-                f"ALTER DATABASE {getattr(expr.action, 'value', expr.action)}",
-                suggestion="ClickHouse supports ALTER DATABASE ... RENAME TO.",
+                "ALTER DATABASE ... RENAME TO",
+                suggestion=(
+                    "ClickHouse has no ALTER DATABASE ... RENAME TO; rename the "
+                    "database with RENAME DATABASE <old> TO <new>."
+                ),
             )
-        return " ".join(parts), ()
+        raise UnsupportedFeatureError(
+            self.name,
+            f"ALTER DATABASE {action}",
+            suggestion=(
+                "ClickHouse's ALTER DATABASE takes MODIFY SETTING / MODIFY "
+                "COMMENT."
+            ),
+        )
 
 
 __all__ = ['ClickHouseDatabaseMixin']

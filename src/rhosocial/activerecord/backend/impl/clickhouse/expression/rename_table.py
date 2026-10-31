@@ -18,7 +18,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseRenameTableExpression(BaseExpression):
+class ClickHouseRenameTableStatement(BaseExpression):
     """Represent a ClickHouse ``RENAME TABLE ...`` atomic multi-table statement.
 
     Attributes:

@@ -153,6 +153,7 @@ from .mixins import (
     ClickHouseJSONFunctionMixin,
     ClickHouseSpatialMixin,
     ClickHouseIntrospectionMixin,
+    ClickHouseStatusQueryMixin,
     ClickHouseLockingMixin,
     ClickHouseModifyColumnMixin,
     ClickHouseJsonDualityViewMixin,
@@ -182,6 +183,7 @@ from .mixins import (
     ClickHouseJoinMixin,
     ClickHouseSetOperationMixin,
     ClickHouseDQLMixin,
+    ClickHouseWildcardMixin,
     ClickHouseMaterializedViewMixin,  # MV DDL overrides ClickHouseViewMixin and ViewMixin
     ClickHouseViewMixin,
     ClickHouseNamespaceMixin,
@@ -196,16 +198,39 @@ from .mixins import (
     # reason documented there: the direction is the function name, and the
     # no-characters ANSI form the default renders is a syntax error here.
     ClickHouseTrimMixin,
+    ClickHouseLiteralValueMixin,
 )
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+        ModifyColumnAction as ModifyColumn,
+    )
 
 
 class ClickHouseDialect(
+    # The bases below come in bundles: a backend mixin, then the core bundle
+    # it stands in for. The backend's answer has to come first -- a mixin
+    # placed after the class it overrides never wins -- so a new mixin goes
+    # immediately before the core mixin it overrides, and the pairing is read
+    # off the list. Two positions sit outside that pairing and are called out
+    # where they occur: a mixin that overrides a method ``SQLDialectBase``
+    # defines has to precede the base, and a mixin that subclasses a core
+    # mixin has to precede it too (C3: a subclass precedes its base).
+    # Ahead of SQLDialectBase, unlike every other mixin in this list. Those
+    # add methods the base does not have, so their position is a readability
+    # choice; this one overrides ``format_literal`` -- ClickHouse's two
+    # tier-2 spellings, unhex for bytes and the bare quoted text for UUID --
+    # and a mixin placed after the class it overrides never wins.
+    ClickHouseLiteralValueMixin,
     SQLDialectBase,
+    # ClickHouse's own answer to the row-source capabilities core's
+    # RelationSourceMixin supplies. It precedes that mixin because a mixin
+    # placed after the class it overrides never wins -- and this one was
+    # after it, so the override was dead code and core's default answered
+    # for ClickHouse.
+    ClickHouseTableStatementMixin,
     RelationSourceMixin,
     # The object tree: each *NameMixin renders one object kind and inherits
     # NamespaceMixin for the namespace levels, so they precede it. The object
@@ -313,6 +338,7 @@ class ClickHouseDialect(
     ConstraintMixin,
     ClickHouseSpatialMixin,
     ClickHouseIntrospectionMixin,
+    ClickHouseStatusQueryMixin,
     ClickHouseShowDialectMixin,
     ClickHouseModifyColumnMixin,
     ClickHouseJsonDualityViewMixin,
@@ -320,7 +346,6 @@ class ClickHouseDialect(
     UserDefinedTypeMixin,
     DomainMixin,
     ClickHouseOptimizerHintMixin,
-    ClickHouseTableStatementMixin,
     ClickHouseMaintenanceMixin,
     ClickHouseRoutineMixin,
     ClickHouseLoadXMLLMixin,
@@ -330,6 +355,17 @@ class ClickHouseDialect(
     IntrospectionMixin,
     # Global new mixins
     PredicateMixin,
+    # Before ExpressionMixin: the wildcard split gave the row-count position its
+    # own formatter, and ClickHouse spells ``COUNT(DISTINCT *)`` where core
+    # spells ``*``. C3 gives the earlier name in this list priority, so this must
+    # stay ahead of ``ExpressionMixin`` or the override would never be reached.
+    ClickHouseWildcardMixin,
+    # Before ExpressionMixin for the same reason: this carries ClickHouse's
+    # ``lengthUTF8`` answer for ``CHAR_LENGTH`` (the engine's LENGTH counts
+    # bytes), and ExpressionMixin inherits the core's FunctionCallMixin
+    # whose ``LENGTH`` default it replaces. Listed after it, the override
+    # would be dead code -- which is what it was until the MRO was checked.
+    ClickHouseFunctionMixin,
     ExpressionMixin,
     ClickHouseDateTimeMixin,
     DateTimeMixin,
@@ -341,7 +377,6 @@ class ClickHouseDialect(
     TransactionControlMixin,
     ClickHouseSetOperationMixin,
     SetOperationMixin,
-    ClickHouseFunctionMixin,
     # Column types. The ClickHouse half first: it overrides the eighteen-entry
     # table, and C3 gives the earlier name priority. Nothing else in this list
     # can answer it, so the pair may move as a unit without disturbing the order
@@ -480,8 +515,7 @@ class ClickHouseDialect(
 
         return ClickHouseSchemaDiffer()
 
-    @staticmethod
-    def _escape_sql_string(value: str) -> str:
+    def escape_sql_string(self, value: str) -> str:
         """Escape string for ClickHouse.
 
         ClickHouse by default treats backslash as an escape character.
@@ -526,7 +560,7 @@ class ClickHouseDialect(
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
 
-    # region CreateTableExpression.diff() hooks (CreateTableExpressionDiffMixin)
+    # region CreateTableStatement.diff() hooks (CreateTableExpressionDiffMixin)
     #
     # ClickHouse-specific policy for the expression-level CREATE TABLE diff:
     #
@@ -553,9 +587,11 @@ class ClickHouseDialect(
 
     def alter_column_type_action(self, old_col, new_col) -> "ModifyColumn":
         """Render a column type change as MODIFY COLUMN <new definition>."""
-        from rhosocial.activerecord.backend.expression.statements.ddl_alter import ModifyColumn
+        from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+            ModifyColumnAction,
+        )
 
-        return ModifyColumn(self, column=new_col)
+        return ModifyColumnAction(self, column=new_col)
 
     def supports_alter_column_properties(self) -> bool:
         """No ``ALTER COLUMN SET/DROP DEFAULT`` / ``SET/DROP NOT NULL`` in ClickHouse."""

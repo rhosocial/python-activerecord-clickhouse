@@ -18,7 +18,7 @@ class ClickHouseOptimizerHintMixin:
     def supports_hypergraph_optimizer(self) -> bool:
         return False
 
-    def format_optimizer_hint(self, expr: Any) -> Tuple[str, tuple]:
+    def format_optimizer_hint_expression(self, expr: Any) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "optimizer hints",
             suggestion="ClickHouse does not support /*+ SET_VAR */ hints; use SETTINGS.",

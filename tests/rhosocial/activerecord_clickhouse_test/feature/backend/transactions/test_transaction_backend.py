@@ -64,8 +64,8 @@ class TestClickHouseTransactionsUnsupported:
         """Transaction SQL generation must raise UnsupportedFeatureError."""
         d = clickhouse_backend.dialect
         with pytest.raises(UnsupportedFeatureError):
-            from rhosocial.activerecord.backend.expression import BeginTransactionExpression
-            d.format_begin_transaction(BeginTransactionExpression(d))
+            from rhosocial.activerecord.backend.expression import BeginTransactionStatement
+            d.format_begin_transaction_statement(BeginTransactionStatement(d))
 
     def test_normal_operations_still_work(self, clickhouse_backend, test_table):
         """Non-transactional DML works normally."""

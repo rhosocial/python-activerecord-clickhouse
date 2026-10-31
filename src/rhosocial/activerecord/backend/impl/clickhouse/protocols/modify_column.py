@@ -9,8 +9,8 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-        ChangeColumn,
-        ModifyColumn,
+        ChangeColumnAction as ChangeColumn,
+        ModifyColumnAction as ModifyColumn,
     )
 
 @runtime_checkable

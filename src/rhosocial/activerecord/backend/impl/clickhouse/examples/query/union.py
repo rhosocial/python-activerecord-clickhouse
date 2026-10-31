@@ -1,10 +1,9 @@
 """
-UNION using SetOperationExpression - ClickHouse.
+UNION using SetOperation - ClickHouse.
 
 This example demonstrates:
 1. UNION (distinct)
 2. UNION ALL
-3. UNION with ORDER BY
 
 """
 
@@ -31,24 +30,24 @@ backend.connect()
 dialect = backend.dialect
 
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableExpression,
-    InsertExpression,
+    CreateTableStatement,
+    InsertStatement,
     ValuesSource,
-    DropTableExpression,
+    DropTableStatement,
 )
 from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
 from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint,
 )
 
 # Drop table first for clean setup
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "users"),
     columns=[
@@ -56,7 +55,7 @@ create_table = CreateTableExpression(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
             ],
         ),
         ColumnDefinition("name", "String"),
@@ -68,7 +67,7 @@ print(f"Create table SQL: {sql}")
 backend.execute(sql, params)
 
 # Insert data into table_a
-insert = InsertExpression(
+insert = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "users"),
     columns=["id", "name"],
@@ -88,27 +87,27 @@ backend.execute(sql, params)
 # SECTION: UNION (distinct)
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    QueryExpression,
-    SetOperationExpression,
+    QueryStatement,
+    SetOperation,
 )
 
 # First query
-query1 = QueryExpression(
+query1 = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, "name")],
     from_=NamedRelationRef(dialect, Table(dialect, "users")),
 )
 
-query2 = QueryExpression(
+query2 = QueryStatement(
     dialect=dialect,
     select=[Literal(dialect, "Charlie")],
 )
 
 # Union
-union_expr = SetOperationExpression(
+union_expr = SetOperation(
     dialect=dialect,
     left=query1,
-    operation="UNION",
+    op="union",
     right=query2,
 )
 sql, params = union_expr.to_sql()
@@ -122,11 +121,10 @@ print(f"UNION result: {result.data}")
 # ============================================================
 # SECTION: UNION ALL
 # ============================================================
-union_all = SetOperationExpression(
+union_all = SetOperation(
     dialect=dialect,
     left=query1,
-    operation="UNION",
-    all_=True,
+    op="union_all",
     right=query2,
 )
 sql, params = union_all.to_sql()
@@ -137,7 +135,7 @@ print(f"UNION ALL result: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_expr = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_expr.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
@@ -146,6 +144,9 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use SetOperationExpression with operation='UNION', all_=True for UNION ALL
+# 1. Use SetOperation with op='union' for UNION DISTINCT, op='union_all' for UNION ALL
 # 2. UNION removes duplicates, UNION ALL keeps all rows
-# 3. Can add ORDER BY using query1.with_order_by()
+# 3. ClickHouse's grammar has no bare UNION: the dialect always spells the
+#    ALL/DISTINCT modifier, so op='union' renders 'UNION DISTINCT'
+# 4. Ordering and row limiting of a compound query are statement-level
+#    clauses, not part of the SetOperation node

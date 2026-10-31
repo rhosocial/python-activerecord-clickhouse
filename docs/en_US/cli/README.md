@@ -59,11 +59,18 @@ Introspect the schema via `system.*` tables.
 ```bash
 $ python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables \
     --host localhost --database test_db --user root --password password
+
+$ python -m rhosocial.activerecord.backend.impl.clickhouse introspect views daily_totals \
+    --host localhost --database test_db --user root --password password
 ```
 
-Positional argument (introspection type): `tables`/`views`/`table`/`columns`/`indexes`/`foreign-keys`/`triggers`/`database`. `foreign-keys`/`triggers` return empty for ClickHouse (not supported).
+Positional argument (introspection type): `tables` / `views` / `columns` / `indexes` / `partitions` / `table-engine` / `database`.
 
-Specific arguments: `--schema SCHEMA`, `--include-system` (include system tables).
+`NAME` is a table for `columns` / `indexes` / `partitions` / `table-engine`, and the view itself for `views`. `tables` / `database` answer for the whole database and **refuse** a name (exit 2) rather than print a listing that looks narrowed. Exit 1 means the run failed — a connection or query error, or a view name that does not exist.
+
+`foreign-keys` / `triggers` are not offered at all: ClickHouse has neither, so the type is absent from this backend's vocabulary instead of being answered with an empty list. Every offered type is gated on a dialect capability switch; a server that answers `False` for it is refused with exit 2 and `Error: <type> introspection is not supported by this server`. The backend's `show.*` SHOW passthrough is not exposed here either: `SHOW` and `system.*` are not equivalent, and every introspection type reads `system.*`.
+
+Specific arguments: `--include-system` (include system tables).
 
 ## status — server status
 

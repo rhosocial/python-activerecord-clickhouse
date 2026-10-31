@@ -17,7 +17,7 @@ This module provides expression classes for ClickHouse JSON functions:
 
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from rhosocial.activerecord.backend.expression.bases import SQLValueExpression
+from rhosocial.activerecord.backend.expression.bases import SQLValue
 from rhosocial.activerecord.backend.expression.mixins import (
     AliasableMixin,
     ComparisonMixin,
@@ -27,10 +27,11 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_EXTRACT expression.
 
-    Extracts a value from a JSON document using a path.
+    Extracts a value from a JSON document using a path, or from several
+    paths when ``paths`` names more of them.
 
     Example:
         >>> expr = ClickHouseJSONExtractExpression(dialect, 'data', '$.name')
@@ -42,23 +43,31 @@ class ClickHouseJSONExtractExpression(AliasableMixin, ComparisonMixin, SQLValueE
         json_column: str,
         path: str,
         *,
+        paths: Optional[List[str]] = None,
         alias: Optional[str] = None,
     ):
         super().__init__(dialect)
         self.json_column = json_column
         self.path = path
+        self.paths = paths or []
         self.alias = alias
 
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_extract"
+        return "format_json_extract_expression"
 
 
-class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONObjectExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_OBJECT expression.
 
     Creates a JSON object from key-value pairs.
+
+    The members arrive as ``data`` -- a dict, or an iterable of
+    ``(key, value)`` pairs -- and never as ``**kwargs``: the artifact carries
+    its parameters by name (§4.11.4), and a ``**kwargs`` parameter cannot be
+    matched by name, so the class refuses that shape rather than building a
+    node the wire format cannot carry.
 
     Example:
         >>> expr = ClickHouseJSONObjectExpression(dialect, {'name': 'Alice', 'age': 30})
@@ -72,17 +81,11 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
         data: Any = None,
         *,
         alias: Optional[str] = None,
-        **kwargs: Any,
     ):
         super().__init__(dialect)
         self.data = data  # keep raw for get_params() introspection
-        self.kwargs: Dict[str, Any] = dict(kwargs)
-        if data is not None and kwargs:
-            pairs = self._convert_to_pairs(data) + self._convert_to_pairs(kwargs)
-        elif data is not None:
+        if data is not None:
             pairs = self._convert_to_pairs(data)
-        elif kwargs:
-            pairs = self._convert_to_pairs(kwargs)
         else:
             pairs = []
         self.pairs = pairs
@@ -97,10 +100,10 @@ class ClickHouseJSONObjectExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_object"
+        return "format_json_object_expression"
 
 
-class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONArrayExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_ARRAY expression.
 
     Creates a JSON array from values.
@@ -143,10 +146,10 @@ class ClickHouseJSONArrayExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_array"
+        return "format_json_array_expression"
 
 
-class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_CONTAINS expression.
 
     Checks if a JSON document contains a specific value.
@@ -173,10 +176,10 @@ class ClickHouseJSONContainsExpression(AliasableMixin, ComparisonMixin, SQLValue
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_contains"
+        return "format_json_contains_expression"
 
 
-class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_UNQUOTE expression.
 
     Unquotes a JSON value.
@@ -199,10 +202,10 @@ class ClickHouseJSONUnquoteExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_unquote"
+        return "format_json_unquote_expression"
 
 
-class ClickHouseJSONSetExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONSetExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_SET expression.
 
     Sets a value in a JSON document.
@@ -231,10 +234,10 @@ class ClickHouseJSONSetExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_set"
+        return "format_json_set_expression"
 
 
-class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_REMOVE expression.
 
     Removes a value from a JSON document.
@@ -261,10 +264,10 @@ class ClickHouseJSONRemoveExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_remove"
+        return "format_json_remove_expression"
 
 
-class ClickHouseJSONTypeExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONTypeExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_TYPE expression.
 
     Returns the type of a JSON value.
@@ -287,10 +290,10 @@ class ClickHouseJSONTypeExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_type"
+        return "format_json_type_expression"
 
 
-class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValueExpression):
+class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValue):
     """ClickHouse JSON_VALID expression.
 
     Checks if a value is valid JSON.
@@ -313,10 +316,10 @@ class ClickHouseJSONValidExpression(AliasableMixin, ComparisonMixin, SQLValueExp
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_valid"
+        return "format_json_valid_expression"
 
 
-class ClickHouseJSONSearchExpression(AliasableMixin, SQLValueExpression):
+class ClickHouseJSONSearchExpression(AliasableMixin, SQLValue):
     """ClickHouse JSON_SEARCH expression.
 
     Searches for a string in a JSON document.
@@ -345,7 +348,7 @@ class ClickHouseJSONSearchExpression(AliasableMixin, SQLValueExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_json_search"
+        return "format_json_search_expression"
 
 
 __all__ = [

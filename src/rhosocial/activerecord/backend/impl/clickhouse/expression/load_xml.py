@@ -20,23 +20,34 @@ if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class LoadXMLPriority(Enum):
-    """LOW_PRIORITY / CONCURRENT selector."""
+class LoadXMLPriority(str, Enum):
+    """LOW_PRIORITY / CONCURRENT selector.
+
+    A ``str`` enum whose ``__str__`` is ``str.__str__``: a member *is* the word
+    it carries, so an artifact names the option as a plain JSON string and the
+    constructor normalises the word back to the member. ``Enum.__str__`` would
+    otherwise win and spell members as ``LoadXMLPriority.LOW_PRIORITY`` -- the
+    spelling the XML channel writes, and no reader accepts it.
+    """
+
+    __str__ = str.__str__
 
     NONE = ""
     LOW_PRIORITY = "LOW_PRIORITY"
     CONCURRENT = "CONCURRENT"
 
 
-class LoadXMLConflictMode(Enum):
-    """REPLACE / IGNORE selector."""
+class LoadXMLConflictMode(str, Enum):
+    """REPLACE / IGNORE selector. A ``str`` enum -- see :class:`LoadXMLPriority`."""
+
+    __str__ = str.__str__
 
     NONE = ""
     REPLACE = "REPLACE"
     IGNORE = "IGNORE"
 
 
-class ClickHouseLoadXMLEXpression(BaseExpression):
+class ClickHouseLoadXMLStatement(BaseExpression):
     """Represent the ClickHouse ``LOAD XML`` statement.
 
     Attributes:
@@ -68,8 +79,10 @@ class ClickHouseLoadXMLEXpression(BaseExpression):
         self.file_path: str = file_path
         self.table: str = table
         self.local: bool = local
-        self.priority: LoadXMLPriority = priority
-        self.conflict_mode: LoadXMLConflictMode = conflict_mode
+        # Normalise: the artifact carries the word, and the restored instance
+        # must hold the member the original held, not the bare string.
+        self.priority: LoadXMLPriority = LoadXMLPriority(priority)
+        self.conflict_mode: LoadXMLConflictMode = LoadXMLConflictMode(conflict_mode)
         self.character_set: Optional[str] = character_set
         self.rows_identified_by: Optional[str] = rows_identified_by
         self.ignore_count: Optional[int] = ignore_count
@@ -98,4 +111,4 @@ class ClickHouseLoadXMLEXpression(BaseExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_load_xml_statement"
+        return "format_clickhouse_load_xml_statement"

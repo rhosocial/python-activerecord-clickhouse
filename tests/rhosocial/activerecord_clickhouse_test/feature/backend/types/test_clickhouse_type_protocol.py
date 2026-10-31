@@ -940,7 +940,7 @@ class TestSpellingGates:
     def test_clickhouse_spells_all_of_a_concepts_spellings(self):
         """``accepted`` may be an explicit tuple for a backend that spells only
         some of a concept. ClickHouse spells all of them, so the concept class is
-        passed to ``_check_spelling`` — asserted here so narrowing any one of them
+        passed to ``check_spelling`` — asserted here so narrowing any one of them
         has to be deliberate rather than a copy-paste slip."""
         dialect = ClickHouseDialect()
         # ``clob`` is not a ClickHouse word, yet it is accepted and rendered
@@ -1201,14 +1201,14 @@ class TestFormatDispatch:
         from rhosocial.activerecord.backend.expression.types import CustomType
         dialect = ClickHouseDialect()
         with pytest.raises(TypeError, match="does not support the generic type 'custom'"):
-            CustomType(dialect, "SomeTypeWeDoNotKnow").to_sql()
+            CustomType(dialect, raw="SomeTypeWeDoNotKnow").to_sql()
 
     def test_format_unknown_type_error_names_the_substitute(self):
         """The message has to say what to use, not just that nothing is there."""
         from rhosocial.activerecord.backend.expression.types import CustomType
         dialect = ClickHouseDialect()
         with pytest.raises(TypeError, match="ClickHouseStringType"):
-            CustomType(dialect, "SomeTypeWeDoNotKnow").to_sql()
+            CustomType(dialect, raw="SomeTypeWeDoNotKnow").to_sql()
 
 
 # ── ``unsigned`` is refused, not dropped ─────────────────────────────
@@ -1855,7 +1855,6 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
     def test_a_collection_is_not_the_generic_geometry_type(self):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
             ClickHouseGeometryCollectionType,
-            ClickHouseGeometryType,
         )
 
         dialect = ClickHouseDialect()
@@ -2021,18 +2020,32 @@ class TestParseRoundTripSweep:
 
     @pytest.fixture(scope="class")
     def registry(self):
-        """The round-trip module's registry, loaded from the parent
+        """The round-trip module's registry, loaded from the expression area.
 
-        directory. Executing it also registers its special constructors,
-        which the sweep's ``make_instance`` consults -- the same
-        registrations the full suite performs at collection time.
+        Executing it also registers its special constructors, which the sweep's
+        ``make_instance`` consults -- the same registrations the full suite
+        performs at collection time. The matrix moved under
+        ``feature/backend/expression/`` when this file's neighbours were
+        gathered there (the literal spellings sit beside it), so the path is
+        spelled as ``parent.parent / "expression"`` rather than a file name in
+        this directory's parent.
         """
         import importlib.util
+        import sys
         from pathlib import Path
 
-        path = Path(__file__).resolve().parent.parent / (
-            "test_expression_roundtrip_all.py"
+        path = (
+            Path(__file__).resolve().parent.parent
+            / "expression"
+            / "test_expression_roundtrip_all.py"
         )
+        # The matrix imports its harness by bare name, which works under pytest
+        # because collection puts the test file's own directory on sys.path.
+        # Loading it by file spec from here does not, so the directory is put on
+        # the path explicitly -- the same effect, without depending on which
+        # directory pytest happens to be collecting.
+        if str(path.parent) not in sys.path:
+            sys.path.insert(0, str(path.parent))
         spec = importlib.util.spec_from_file_location(
             "clickhouse_rt_registry",
             path,
@@ -2044,7 +2057,10 @@ class TestParseRoundTripSweep:
         return registry
 
     def test_every_rendered_type_parses_back_coherently(self, registry):
-        from rhosocial.activerecord.testsuite.utils.parse_contract import (
+        # The sweep is vendored beside the matrix (the testsuite deleted its
+        # shared harness with round-trip coverage moving to each backend);
+        # make_instance is the same function the matrix registers with.
+        from expression_roundtrip_harness import (
             parse_roundtrip_failures,
         )
 

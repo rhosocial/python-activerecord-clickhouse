@@ -8,16 +8,65 @@ ClickHouseTypeSupportMixin type formatting.
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.expression.statements import ColumnDefinition, CreateTableExpression
+from rhosocial.activerecord.backend.expression.core import Column, FunctionCall
 from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.statements import (
+    ColumnDefinition,
+    CreateTableStatement,
+)
 from rhosocial.activerecord.backend.expression.types import (
+    BooleanType,
+    DateTimeType,
+    DecimalType,
     IntegerType,
     VarCharType,
-    DecimalType,
-    DateTimeType,
-    BooleanType,
 )
+from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+    ClickHouseCreateTableOptions,
+    ClickHouseEngineSpec,
+    ClickHouseSetting,
+    ClickHouseStorageOptionKind,
+    ClickHouseTableStorageOption,
+)
+
+
+def _storage(dialect, engine=None, *, order_by=(), partition_by=None, settings=()):
+    """Build the ClickHouse storage clause run for a CREATE TABLE."""
+    clauses = []
+    if engine is not None:
+        clauses.append(
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.ENGINE,
+                value=ClickHouseEngineSpec(dialect, engine),
+            )
+        )
+    if order_by:
+        clauses.append(
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.ORDER_BY,
+                value=[Column(dialect, name) for name in order_by],
+            )
+        )
+    if partition_by is not None:
+        clauses.append(
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.PARTITION_BY,
+                value=[partition_by],
+            )
+        )
+    if settings:
+        clauses.append(
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.SETTINGS,
+                value=[ClickHouseSetting(dialect, name, value) for name, value in settings],
+            )
+        )
+    return clauses
 
 
 @pytest.fixture
@@ -28,34 +77,40 @@ def dialect():
 class TestClickHouseDDLGeneration:
     def test_create_table_basic(self, dialect):
         """CREATE TABLE with ClickHouse storage options."""
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "users"),
             [
                 ColumnDefinition(dialect, "id", IntegerType(dialect)),
                 ColumnDefinition(dialect, "name", VarCharType(length=100, dialect=dialect)),
             ],
-            storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
+            table_options=ClickHouseCreateTableOptions(
+                dialect,
+                table_storage_options=_storage(dialect, "MergeTree", order_by=("id",)),
+            ),
         )
         sql, _ = expr.to_sql()
         assert "CREATE TABLE" in sql
-        assert "ENGINE = MergeTree()" in sql
-        assert "ORDER BY = id" in sql or "ORDER BY id" in sql
+        assert "ENGINE = MergeTree" in sql
+        assert "ORDER BY `id`" in sql
 
     def test_create_table_if_not_exists(self, dialect):
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "events"),
             [ColumnDefinition(dialect, "id", IntegerType(dialect))],
             if_not_exists=True,
-            storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
+            table_options=ClickHouseCreateTableOptions(
+                dialect,
+                table_storage_options=_storage(dialect, "MergeTree", order_by=("id",)),
+            ),
         )
         sql, _ = expr.to_sql()
         assert "IF NOT EXISTS" in sql
 
     def test_create_table_types_map_to_clickhouse(self, dialect):
         """Core types map to ClickHouse equivalents."""
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "t"),
             [
@@ -65,7 +120,6 @@ class TestClickHouseDDLGeneration:
                 ColumnDefinition(dialect, "ts", DateTimeType(dialect)),
                 ColumnDefinition(dialect, "active", BooleanType(dialect)),
             ],
-            storage_options={"ENGINE": "MergeTree()", "ORDER BY": "id"},
         )
         sql, _ = expr.to_sql()
         assert "Int32" in sql          # IntegerType
@@ -76,38 +130,60 @@ class TestClickHouseDDLGeneration:
 
     def test_create_table_engine_clauses(self, dialect):
         """Full ENGINE / ORDER BY / PARTITION BY clauses."""
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect,
             Table(dialect, "metrics"),
             [
                 ColumnDefinition(dialect, "id", IntegerType(dialect)),
                 ColumnDefinition(dialect, "ts", DateTimeType(dialect)),
             ],
-            storage_options={
-                "ENGINE": "MergeTree()",
-                "ORDER BY": "id",
-                "PARTITION BY": "toYYYYMM(ts)",
-            },
+            table_options=ClickHouseCreateTableOptions(
+                dialect,
+                table_storage_options=_storage(
+                    dialect,
+                    "MergeTree",
+                    order_by=("id",),
+                    partition_by=FunctionCall(dialect, "toYYYYMM", Column(dialect, "ts")),
+                ),
+            ),
         )
         sql, _ = expr.to_sql()
-        assert "ENGINE = MergeTree()" in sql
-        assert "PARTITION BY = toYYYYMM(ts)" in sql or "PARTITION BY toYYYYMM(ts)" in sql
+        assert "ENGINE = MergeTree" in sql
+        assert "PARTITION BY TOYYYYMM(" in sql
 
 
 class TestClickHouseTableEngineClauses:
     def test_table_engine_clauses_formatting(self, dialect):
-        result, params = dialect.format_table_engine_clauses({
-            "ENGINE": "MergeTree()",
-            "ORDER BY": ["id", "ts"],
-            "PARTITION BY": "toYYYYMM(ts)",
-            "TTL": "ts + INTERVAL 30 DAY",
-            "SETTINGS": "index_granularity = 8192",
-        })
-        assert "ENGINE = MergeTree()" in result
-        assert "ORDER BY (id, ts)" in result
-        assert "PARTITION BY toYYYYMM(ts)" in result
+        from rhosocial.activerecord.backend.expression.operators import RawSQL
+
+        clauses = _storage(
+            dialect,
+            "MergeTree",
+            order_by=("id", "ts"),
+            partition_by=FunctionCall(dialect, "toYYYYMM", Column(dialect, "ts")),
+            settings=[("index_granularity", 8192)],
+        )
+        clauses.append(
+            ClickHouseTableStorageOption(
+                dialect,
+                ClickHouseStorageOptionKind.TTL,
+                value=RawSQL(dialect, "ts + INTERVAL 30 DAY"),
+            )
+        )
+        rendered = []
+        for clause in sorted(clauses, key=lambda item: item.option.rank):
+            clause_sql, _ = clause.to_sql()
+            rendered.append(clause_sql)
+        result = " ".join(rendered)
+
+        assert "ENGINE = MergeTree" in result
+        assert "ORDER BY (`id`, `ts`)" in result
+        assert "PARTITION BY TOYYYYMM(" in result
         assert "TTL ts + INTERVAL 30 DAY" in result
         assert "SETTINGS index_granularity = 8192" in result
+        # ENGINE comes first, SETTINGS last, whatever order they were declared in.
+        assert result.startswith("ENGINE = ")
+        assert result.endswith("= 8192")
 
     def test_table_engine_capabilities(self, dialect):
         assert dialect.supports_table_engine() is True
@@ -175,3 +251,45 @@ class TestClickHouseTypeFormatting:
         sql, _ = parsed.to_sql()
         assert sql.startswith("Enum8(")
         assert "'a'" in sql and "'b'" in sql
+
+
+class TestClickHouseStorageOptionContract:
+    """The validation and spelling rules the option nodes own."""
+
+    def test_repeated_option_is_refused_at_construction(self, dialect):
+        engine = ClickHouseEngineSpec(dialect, "MergeTree")
+
+        def clause():
+            return ClickHouseTableStorageOption(
+                dialect, ClickHouseStorageOptionKind.ENGINE, value=engine
+            )
+
+        with pytest.raises(ValueError, match="repeats ENGINE"):
+            ClickHouseCreateTableOptions(dialect, table_storage_options=[clause(), clause()])
+
+    def test_wrong_payload_names_the_member_and_the_type(self, dialect):
+        with pytest.raises(TypeError, match="ENGINE takes a ClickHouseEngineSpec, got str"):
+            ClickHouseTableStorageOption(
+                dialect, ClickHouseStorageOptionKind.ENGINE, value="MergeTree"
+            )
+
+    def test_empty_expression_list_is_refused(self, dialect):
+        with pytest.raises(ValueError, match="ORDER BY takes at least one expression"):
+            ClickHouseTableStorageOption(
+                dialect, ClickHouseStorageOptionKind.ORDER_BY, value=[]
+            )
+
+    def test_option_accepts_its_spelling_back(self, dialect):
+        """A reader rebuilding the node hands the artifact's word, not a member."""
+        clause = ClickHouseTableStorageOption(
+            dialect, "ORDER BY", value=[Column(dialect, "id")]
+        )
+        assert clause.option is ClickHouseStorageOptionKind.ORDER_BY
+        assert clause.to_sql() == ("ORDER BY `id`", ())
+
+    def test_unknown_spelling_is_refused(self, dialect):
+        with pytest.raises(ValueError, match="NOT A CLAUSE"):
+            ClickHouseTableStorageOption(
+                dialect, "NOT A CLAUSE", value=[Column(dialect, "id")]
+            )
+

@@ -66,6 +66,14 @@ and raise `UnsupportedFeatureError` instead of being emulated:
 - Mutations run with `mutations_sync=1`; `affected_rows` for UPDATE/DELETE is a
   pre-count of rows matching the WHERE predicate.
 - Optional model fields must map to `Nullable(T)` columns.
+- The CLI's `introspect` offers exactly seven types — `tables`, `views`,
+  `columns`, `indexes`, `partitions`, `table-engine`, `database` — and each is
+  gated on a dialect `supports_*` switch (exit 2 when the connected server
+  answers False). `foreign-keys` / `triggers` are absent from the vocabulary
+  because the engine has neither, which is a different statement from a
+  capability switch. The SHOW passthrough (`introspector.show`, 19 methods) is
+  library-only and deliberately not wired into `introspect`: SHOW and
+  `system.*` are not equivalent, and every introspect type reads `system.*`.
 
 ## Python Version Support
 

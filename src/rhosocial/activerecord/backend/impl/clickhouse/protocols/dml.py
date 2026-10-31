@@ -9,11 +9,11 @@ from typing import Protocol, runtime_checkable, Tuple, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements import (
-        InsertExpression,
+        InsertStatement,
         OnConflictClause,
     )
     from rhosocial.activerecord.backend.impl.clickhouse.expression.load_data import (
-        ClickHouseLoadDataExpression,
+        ClickHouseLoadDataStatement,
     )
 
 
@@ -54,14 +54,14 @@ class ClickHouseDMLOperationSupport(Protocol):
         """
         ...
 
-    def format_load_data_statement(self, expr: "ClickHouseLoadDataExpression") -> Tuple[str, tuple]:
+    def format_load_data_statement(self, expr: "ClickHouseLoadDataStatement") -> Tuple[str, tuple]:
         """Format LOAD DATA INFILE statement.
 
         Raises:
             UnsupportedFeatureError: ClickHouse does not support LOAD DATA INFILE.
 
         Args:
-            expr: ClickHouseLoadDataExpression instance
+            expr: ClickHouseLoadDataStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -82,11 +82,11 @@ class ClickHouseDMLOperationSupport(Protocol):
         """
         ...
 
-    def format_insert_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
+    def format_insert_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
         """Format INSERT statement.
 
         Args:
-            expr: InsertExpression instance
+            expr: InsertStatement instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)

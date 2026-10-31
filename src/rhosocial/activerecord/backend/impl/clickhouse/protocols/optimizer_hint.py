@@ -39,7 +39,7 @@ class ClickHouseOptimizerHintSupport(Protocol):
         """Whether the hypergraph optimizer is available (ClickHouse 9.7+)."""
         ...
 
-    def format_optimizer_hint(self, expr: "ClickHouseOptimizerHintExpression") -> Tuple[str, tuple]:
+    def format_optimizer_hint_expression(self, expr: "ClickHouseOptimizerHintExpression") -> Tuple[str, tuple]:
         """Format optimizer hint expression.
 
         Args:

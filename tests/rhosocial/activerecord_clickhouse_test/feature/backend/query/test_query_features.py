@@ -154,7 +154,7 @@ class TestClickHouseDDLFeatures:
     def test_materialized_view(self, clickhouse_backend, sample_table):
         """ClickHouse materialized views via raw SQL.
 
-        Deliberately not routed through ``CreateMaterializedViewExpression``:
+        Deliberately not routed through ``CreateMaterializedViewStatement``:
         ClickHouse's MV DDL (``ENGINE``/``TO``/``POPULATE``/``REFRESH``/``EMPTY``,
         insert-trigger semantics, ``DROP VIEW`` for removal) diverges from the
         SQL-standard statement, so the dialect reports

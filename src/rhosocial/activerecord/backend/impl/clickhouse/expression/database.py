@@ -5,15 +5,15 @@ from typing import TYPE_CHECKING, Optional
 
 from rhosocial.activerecord.backend.expression.objects import Database
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
-    CreateDatabaseExpression,
-    DropDatabaseExpression,
+    CreateDatabaseStatement,
+    DropDatabaseStatement,
 )
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.dialect import SQLDialectBase
 
 
-class ClickHouseCreateDatabaseExpression(CreateDatabaseExpression):
+class ClickHouseCreateDatabaseExpression(CreateDatabaseStatement):
     """A ClickHouse CREATE DATABASE statement extending the generic one.
 
     Adds the ClickHouse-only ``ENGINE = <expr>`` and ``ON CLUSTER <name>``
@@ -54,7 +54,7 @@ class ClickHouseCreateDatabaseExpression(CreateDatabaseExpression):
         self.on_cluster = on_cluster
 
 
-class ClickHouseDropDatabaseExpression(DropDatabaseExpression):
+class ClickHouseDropDatabaseExpression(DropDatabaseStatement):
     """A ClickHouse DROP DATABASE statement extending the generic one.
 
     Adds the ClickHouse-only ``SYNC`` modifier, which has no generic

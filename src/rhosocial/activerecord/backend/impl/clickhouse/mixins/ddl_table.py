@@ -1,6 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py
 from typing import Any, List, Tuple, TYPE_CHECKING
-import re
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -9,23 +8,30 @@ from rhosocial.activerecord.backend.expression.types import DataType
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
         ColumnDefinition,
-        CreateTableAsExpression,
-        CreateTableCloneExpression,
-        CreateTableExpression,
-        CreateTableLikeExpression,
-        StorageOptionsExpression,
+        CreateTableAsStatement,
+        CreateTableCloneStatement,
+        CreateTableStatement,
+        CreateTableLikeStatement,
         IndexDefinition,
         TableConstraint,
     )
 
+from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    ColumnPrimaryKeyConstraint,
+)
 
-class ClickHouseTableMixin:
-    """ClickHouse table DDL implementation."""
+from .ddl_table_engine import ClickHouseTableEngineMixin
 
-    @staticmethod
-    def _validate_data_type(data_type: str) -> bool:
-        """Validate data type string, allowing single quotes for ClickHouse ENUM types."""
-        return bool(re.fullmatch(r"[A-Za-z0-9\s\(\),\']+", data_type))
+
+class ClickHouseTableMixin(ClickHouseTableEngineMixin):
+    """ClickHouse table DDL implementation.
+
+    The storage clause renderers (``ENGINE``, ``ORDER BY``, ``SETTINGS`` and
+    their nodes) are the tail of ``CREATE TABLE``, so they live in
+    :class:`ClickHouseTableEngineMixin` and this class inherits them: the
+    table DDL protocol describes one surface, and the conformance suite pairs
+    it with one mixin.
+    """
 
     def supports_create_table_like(self) -> bool:
         """ClickHouse expresses a structure copy with ``AS <source>``, not ``LIKE``.
@@ -36,6 +42,15 @@ class ClickHouseTableMixin:
         """
         return True
 
+
+    def supports_create_table_as_bind_parameters(self) -> bool:
+        """ClickHouse accepts bind parameters in a CTAS body.
+
+        Measured on 26.7.3: ``CREATE TABLE t AS SELECT %s FROM s`` is
+        accepted and the table is created. ClickHouse's "parameters" are
+        interpolated client-side, so the value is baked into the text.
+        """
+        return True
     def supports_create_table_clone(self) -> bool:
         """ClickHouse has ``CREATE TABLE target CLONE AS source``."""
         return True
@@ -66,7 +81,7 @@ class ClickHouseTableMixin:
     def supports_charset_option(self) -> bool:
         return True
 
-    def format_create_table_statement(self, expr: "CreateTableExpression") -> Tuple[str, tuple]:
+    def format_create_table_statement(self, expr: "CreateTableStatement") -> Tuple[str, tuple]:
         """Format CREATE TABLE statement for ClickHouse.
 
         The target is read from ``expr.table`` as a schema object and rendered by
@@ -76,14 +91,14 @@ class ClickHouseTableMixin:
         database.
 
         Raises:
-            TypeError: ``CreateTableExpression.table`` is not a Table. Any other
+            TypeError: ``CreateTableStatement.table`` is not a Table. Any other
                 object kind carries its own ``format_method``, so the dialect
                 would call that kind's formatter and render a well-formed
                 ``CREATE TABLE`` whose name is a view, an index or a sequence.
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableExpression.table must be a Table, "
+                f"CreateTableStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if expr.tablespace:
@@ -96,12 +111,18 @@ class ClickHouseTableMixin:
                 self.name, "table INHERITS",
                 "ClickHouse does not support table inheritance.",
             )
+        if expr.storage_options is not None:
+            raise UnsupportedFeatureError(
+                self.name, "STORAGE OPTIONS",
+                "ClickHouse has no generic storage-options clause. Declare the "
+                "clauses on ClickHouseCreateTableOptions(table_storage_options=...) "
+                "instead.",
+            )
         all_params: List[Any] = []
 
         options_part = ""
-        table_options = getattr(expr, "table_options", None)
-        if table_options is not None:
-            options_sql, options_params = table_options.to_sql()
+        if expr.table_options is not None:
+            options_sql, options_params = expr.table_options.to_sql()
             if options_sql:
                 options_part = options_sql
             all_params.extend(options_params)
@@ -114,6 +135,13 @@ class ClickHouseTableMixin:
         if expr.if_not_exists:
             parts.append("IF NOT EXISTS")
         parts.append(expr.table.to_sql()[0])
+
+        # ``ON CLUSTER`` follows the table name, before the column list -- it is
+        # not a header qualifier and cannot come from
+        # ``format_clickhouse_create_table_options``.
+        on_cluster = getattr(expr.table_options, "on_cluster", None)
+        if on_cluster is not None:
+            parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
 
         column_parts = []
         for col_def in expr.columns:
@@ -133,15 +161,15 @@ class ClickHouseTableMixin:
 
         parts.append(f"({', '.join(column_parts)})")
 
-        if expr.storage_options:
-            storage_sql, storage_params = self._format_table_storage_options(expr.storage_options)
-            if storage_sql:
-                parts.append(storage_sql)
-                all_params.extend(storage_params)
+        storage_sql, storage_params = self._format_table_storage_clauses(
+            expr.table_options
+        )
+        if storage_sql:
+            parts.append(storage_sql)
+            all_params.extend(storage_params)
 
-        table_options = getattr(expr, "table_options", None)
-        if table_options is not None and getattr(table_options, "comment", None) is not None:
-            comment_sql, _ = self.format_table_comment_clause(table_options.comment)
+        if expr.table_options is not None and expr.table_options.comment is not None:
+            comment_sql, _ = self.format_table_comment_clause(expr.table_options.comment)
             parts.append(comment_sql.strip())
 
         if expr.partition is not None:
@@ -152,14 +180,26 @@ class ClickHouseTableMixin:
 
         return " ".join(parts), tuple(all_params)
 
-    def _format_table_storage_options(self, storage_options: Any) -> Tuple[str, tuple]:
-        """Render storage options from either a mapping or a StorageOptionsExpression."""
-        if isinstance(storage_options, dict):
-            return self.format_table_engine_clauses(storage_options)
-        return storage_options.to_sql()
+    def _format_table_storage_clauses(self, table_options: Any) -> Tuple[str, tuple]:
+        """Render the storage clause run a ClickHouse options node declares.
+
+        The order is the grammar's, not the caller's: clauses are sorted by
+        :attr:`ClickHouseStorageOptionKind.rank` before rendering, so a caller
+        that declares them out of order still gets ClickHouse's order.
+        """
+        clauses = getattr(table_options, "table_storage_options", ())
+        if not clauses:
+            return "", ()
+        params: List[Any] = []
+        rendered: List[str] = []
+        for clause in sorted(clauses, key=lambda item: item.option.rank):
+            clause_sql, clause_params = clause.to_sql()
+            rendered.append(clause_sql)
+            params.extend(clause_params)
+        return " ".join(rendered), tuple(params)
 
     def format_create_table_like_statement(
-        self, expr: "CreateTableLikeExpression"
+        self, expr: "CreateTableLikeStatement"
     ) -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE target AS source``.
 
@@ -167,23 +207,23 @@ class ClickHouseTableMixin:
         ``CREATE TABLE target CLONE AS source`` -- which also copies data -- is
         a *different* statement and lives in
         :meth:`format_create_table_clone_statement`, driven by
-        ``CreateTableCloneExpression``. It used to be mentioned in this
+        ``CreateTableCloneStatement``. It used to be mentioned in this
         docstring as if it were something this method could emit; it never was.
 
         Raises:
-            TypeError: ``CreateTableLikeExpression.table`` or ``.like_table`` is
+            TypeError: ``CreateTableLikeStatement.table`` or ``.like_table`` is
                 not a Table. Either one would otherwise render its own name as
                 the target or the copied table's.
             UnsupportedFeatureError: The form is not available.
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableLikeExpression.table must be a Table, "
+                f"CreateTableLikeStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not isinstance(expr.like_table, Table):
             raise TypeError(
-                f"CreateTableLikeExpression.like_table must be a Table, "
+                f"CreateTableLikeStatement.like_table must be a Table, "
                 f"got {type(expr.like_table).__name__}"
             )
         if not self.supports_create_table_like():
@@ -202,7 +242,7 @@ class ClickHouseTableMixin:
         return " ".join(parts), ()
 
     def format_create_table_as_statement(
-        self, expr: "CreateTableAsExpression"
+        self, expr: "CreateTableAsStatement"
     ) -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE ... AS <query>``.
 
@@ -232,7 +272,7 @@ class ClickHouseTableMixin:
         return super().format_create_table_as_statement(expr)
 
     def format_create_table_clone_statement(
-        self, expr: "CreateTableCloneExpression"
+        self, expr: "CreateTableCloneStatement"
     ) -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE target CLONE AS source``.
 
@@ -245,7 +285,7 @@ class ClickHouseTableMixin:
         https://clickhouse.com/docs/sql-reference/statements/create/table#create-table-clone-as
 
         Raises:
-            TypeError: ``CreateTableCloneExpression.table`` or ``.source_table``
+            TypeError: ``CreateTableCloneStatement.table`` or ``.source_table``
                 is not a Table. Either one would otherwise render its own name
                 as the target or the cloned table's.
             UnsupportedFeatureError: A clause ClickHouse's ``CLONE AS`` has no
@@ -253,12 +293,12 @@ class ClickHouseTableMixin:
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableCloneExpression.table must be a Table, "
+                f"CreateTableCloneStatement.table must be a Table, "
                 f"got {type(expr.table).__name__}"
             )
         if not isinstance(expr.source_table, Table):
             raise TypeError(
-                f"CreateTableCloneExpression.source_table must be a Table, "
+                f"CreateTableCloneStatement.source_table must be a Table, "
                 f"got {type(expr.source_table).__name__}"
             )
         if not self.supports_create_table_clone():
@@ -314,16 +354,23 @@ class ClickHouseTableMixin:
         params: List[Any] = list(type_params)
 
         for constraint in col_def.constraints:
+            # S3: the branch names the kind and carries that kind's own fields.
+            # ``is_auto_increment`` belongs to the PRIMARY KEY branch, so reading
+            # it off the production would be a field the production does not
+            # declare.
+            if (
+                isinstance(constraint.branch, ColumnPrimaryKeyConstraint)
+                and constraint.branch.is_auto_increment
+            ):
+                raise UnsupportedFeatureError(
+                    self.name, "AUTO_INCREMENT column",
+                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
+                )
             suffix, cp = self.format_column_constraint(constraint)
             constraint_text = suffix.strip()
             if constraint_text:
                 parts.append(constraint_text)
             params.extend(list(cp))
-            if constraint.is_auto_increment:
-                raise UnsupportedFeatureError(
-                    self.name, "AUTO_INCREMENT column",
-                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
-                )
 
         attr_sql, attr_params = self.format_column_attributes(col_def)
         if attr_sql:
@@ -353,41 +400,126 @@ class ClickHouseTableMixin:
         return " ".join(parts), tuple(params)
 
     def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
-        """Format a table-level constraint.
+        """Format a table-level constraint, narrowing on the branch class.
+
+        Core's S3 split moved the kind out of a ``constraint_type`` tag and into
+        the branch node, so the dispatch here reads the branch's class instead
+        of comparing a tag: ``constraint_type`` is gone as a field, and what
+        the production keeps in its place is a property that raises
+        ``AttributeError`` and names the branch. That is the point of the split
+        -- the kind is a class, so it cannot be misspelled.
+
+        ClickHouse has two table-level constraint forms and neither is in the
+        SQL-standard set this used to dispatch on: ``CONSTRAINT name CHECK
+        <expr>`` and ``CONSTRAINT name ASSUME <expr>``
+        (https://clickhouse.com/docs/reference/statements/create/table#constraints).
+        Only ``PRIMARY KEY`` is rendered from the standard set.
+
+        ``UNIQUE``, ``FOREIGN KEY`` and ``EXCLUDE`` refuse rather than emit, and
+        the reasons are not symmetric:
+
+        * ``UNIQUE (col)`` is a ``SYNTAX_ERROR`` on 26.7.3.19 -- ``Code: 62.
+          Syntax error: failed at position 50 ((): (col)). Expected one of: NULL,
+          NOT, DEFAULT, MATERIALIZED, EPHEMERAL, ALIAS, AUTO_INCREMENT, TTL,
+          PRIMARY KEY, data type, identifier. (SYNTAX_ERROR)`` -- so rendering it
+          would be an error the caller sees immediately.
+        * ``FOREIGN KEY`` **without** a ``CONSTRAINT`` name is *accepted and
+          silently discarded*, and that is why it refuses. Measured on
+          26.7.3.19: ``CREATE TABLE c (id UInt32, pid UInt32, FOREIGN KEY (pid)
+          REFERENCES p(id)) ENGINE = MergeTree ORDER BY id`` succeeds, but
+          ``SHOW CREATE TABLE c`` reports no foreign key,
+          ``system.tables.create_table_query`` does not contain the string
+          ``FOREIGN``, an orphan row inserts and reads back fine, and dropping
+          the referenced parent also succeeds. (The *named* form ``CONSTRAINT fk
+          FOREIGN KEY ...`` is a ``SYNTAX_ERROR`` expecting ``CHECK`` or
+          ``ASSUME``, as are the inline column-level ``REFERENCES p(id)`` and
+          the form written after the storage clauses.)
+
+          So emitting it would be the worst of the three outcomes: no error at
+          DDL time, no record in the schema, and no enforcement at write time.
+          The referential-integrity bug would surface in production data with
+          nothing in the server's metadata to explain it. Refusing turns that
+          into an ``UnsupportedFeatureError`` at the point of declaration.
 
         Raises:
-            TypeError: ``t_const.foreign_key_table`` is not a Table. The check
-                runs before the kind dispatch so the error names the wrong type
-                rather than reporting FOREIGN KEY as unsupported, which is a
-                different mistake and sends the caller looking in the wrong place.
+            TypeError: the FOREIGN KEY branch's referenced object is not a
+                :class:`Table`. The check runs before the kind dispatch so the
+                error names the wrong type rather than reporting FOREIGN KEY as
+                unsupported, which is a different mistake and sends the caller
+                looking in the wrong place.
         """
-        from rhosocial.activerecord.backend.expression.statements import TableConstraintType
-        foreign_key_table = getattr(t_const, "foreign_key_table", None)
-        if foreign_key_table is not None and not isinstance(foreign_key_table, Table):
-            raise TypeError(
-                f"TableConstraint.foreign_key_table must be a Table, "
-                f"got {type(foreign_key_table).__name__}"
-            )
-        parts = []
+        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+            TableCheckConstraint,
+            TableExcludeConstraint,
+            TableForeignKeyConstraint,
+            TablePrimaryKeyConstraint,
+            TableUniqueConstraint,
+        )
+
+        branch = t_const.branch
+        if isinstance(branch, TableForeignKeyConstraint):
+            foreign_key_table = branch.references[0]
+            if foreign_key_table is not None and not isinstance(foreign_key_table, Table):
+                raise TypeError(
+                    f"TableForeignKeyConstraint.references must pair a Table with "
+                    f"its columns, got {type(foreign_key_table).__name__}"
+                )
+
+        parts: List[str] = []
         params: List[Any] = []
 
         if t_const.name:
             parts.append(f"CONSTRAINT {self.format_identifier(t_const.name)}")
 
-        if t_const.constraint_type == TableConstraintType.PRIMARY_KEY:
-            if t_const.columns:
-                cols_str = ", ".join(self.format_identifier(c) for c in t_const.columns)
+        if isinstance(branch, TablePrimaryKeyConstraint):
+            if branch.columns:
+                cols_str = ", ".join(self.format_identifier(c) for c in branch.columns)
                 parts.append(f"PRIMARY KEY ({cols_str})")
-        elif t_const.constraint_type == TableConstraintType.UNIQUE:
+        elif isinstance(branch, TableCheckConstraint):
+            branch_sql, branch_params = self.format_table_check_constraint(branch)
+            parts.append(branch_sql)
+            params.extend(branch_params)
+        elif isinstance(branch, TableUniqueConstraint):
             raise UnsupportedFeatureError(
                 self.name, "UNIQUE table constraint",
                 suggestion="ClickHouse does not support UNIQUE constraints."
             )
-        elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
+        elif isinstance(branch, TableForeignKeyConstraint):
             raise UnsupportedFeatureError(
                 self.name, "FOREIGN KEY constraint",
-                suggestion="ClickHouse does not support FOREIGN KEY constraints."
+                suggestion=(
+                    "ClickHouse does not support FOREIGN KEY constraints, and an "
+                    "unnamed FOREIGN KEY (...) REFERENCES ... clause is accepted and "
+                    "then silently discarded, so emitting one would produce a schema "
+                    "with no foreign key and no enforcement. Maintain referential "
+                    "integrity in the application, or use CONSTRAINT ... CHECK."
+                )
             )
+        elif isinstance(branch, TableExcludeConstraint):
+            raise UnsupportedFeatureError(
+                self.name, "EXCLUDE table constraint",
+                suggestion=(
+                    "ClickHouse's table-constraint grammar is CHECK and ASSUME; the "
+                    "server prints 'Expected one of: CHECK, ASSUME.' for every third "
+                    "kind (Code 62, measured on 26.7.3.19)."
+                )
+            )
+
+        # The production-level traits. ClickHouse has no spelling for either, so
+        # both refuse here rather than being dropped silently; rendering them
+        # explicitly is what keeps the override faithful to core's shape.
+        if (
+            t_const.deferrable
+            or t_const.not_deferrable
+            or t_const.initially_deferred
+            or t_const.initially_immediate
+        ):
+            raise UnsupportedFeatureError(
+                self.name, "DEFERRABLE / INITIALLY table constraint"
+            )
+        enforcement = self.format_constraint_enforcement(t_const)
+        if enforcement:
+            parts.append(enforcement)
 
         return " ".join(parts), tuple(params)
 
@@ -413,16 +545,6 @@ class ClickHouseTableMixin:
         granularity = idx_def.granularity if isinstance(idx_def, ClickHouseIndexDefinition) else 1
         parts.append(f"GRANULARITY {granularity}")
         return " ".join(parts), ()
-
-    def format_storage_options(self, expr: "StorageOptionsExpression") -> Tuple[str, tuple]:
-        """Format ClickHouse table storage options.
-
-        Delegates to ``format_table_engine_clauses`` using the expression's
-        options mapping.  Values are rendered verbatim (not quoted) because
-        ClickHouse storage option values are SQL fragments (engine names,
-        column lists, etc.).
-        """
-        return self.format_table_engine_clauses(expr.options)
 
     def supports_if_not_exists_table(self) -> bool:
         """Whether CREATE TABLE IF NOT EXISTS is supported."""

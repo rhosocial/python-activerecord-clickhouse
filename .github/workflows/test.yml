@@ -69,24 +69,10 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
-      - name: Check out activerecord and testsuite (release branches)
-        uses: actions/checkout@v6
-        with:
-          repository: rhosocial/python-activerecord
-          ref: release/v1.0.0.dev30
-          path: _activerecord
-
-      - name: Check out testsuite (release branch)
-        uses: actions/checkout@v6
-        with:
-          repository: rhosocial/python-activerecord-testsuite
-          ref: release/v1.0.0.dev17
-          path: _testsuite
-
-      - name: Install activerecord and testsuite (editable)
+      - name: Install activerecord and testsuite
         run: |
-          pip install -e ./_activerecord
-          pip install -e ./_testsuite
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@release/v1.0.0.dev30"
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@fix/column-constraint-gates"
 
       - name: Verify ClickHouse connectivity
         run: |

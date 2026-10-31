@@ -19,11 +19,11 @@ not support them and the corresponding dialect mixins fail fast with
 import pytest
 
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AlterColumn,
-    AlterTableExpression,
+    AlterColumnAction,
+    AlterTableStatement,
     ColumnAlterOperation,
 )
-from rhosocial.activerecord.backend.expression.statements.ddl_truncate import TruncateExpression
+from rhosocial.activerecord.backend.expression.statements.ddl_truncate import TruncateStatement
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.impl.clickhouse import expression as clickhouse_expr
@@ -39,18 +39,18 @@ class TestRenameTable:
     """Test ClickHouse RENAME TABLE statement."""
 
     def test_single_rename(self, dialect):
-        expr = clickhouse_expr.ClickHouseRenameTableExpression(dialect, [("old_name", "new_name")])
+        expr = clickhouse_expr.ClickHouseRenameTableStatement(dialect, [("old_name", "new_name")])
         sql, params = expr.to_sql()
         assert sql == "RENAME TABLE `old_name` TO `new_name`"
         assert params == ()
 
     def test_multi_rename(self, dialect):
-        expr = clickhouse_expr.ClickHouseRenameTableExpression(dialect, [("a", "b"), ("c", "d")])
+        expr = clickhouse_expr.ClickHouseRenameTableStatement(dialect, [("a", "b"), ("c", "d")])
         sql, params = expr.to_sql()
         assert sql == "RENAME TABLE `a` TO `b`, `c` TO `d`"
 
     def test_empty_raises(self, dialect):
-        expr = clickhouse_expr.ClickHouseRenameTableExpression(dialect, [])
+        expr = clickhouse_expr.ClickHouseRenameTableStatement(dialect, [])
         with pytest.raises(ValueError, match="at least one"):
             expr.to_sql()
 
@@ -63,7 +63,7 @@ class TestTruncateTable:
     """Test ClickHouse TRUNCATE TABLE statement."""
 
     def test_basic(self, dialect):
-        sql, params = TruncateExpression(dialect, table=Table(dialect, "users")).to_sql()
+        sql, params = TruncateStatement(dialect, table=Table(dialect, "users")).to_sql()
         assert sql == "TRUNCATE TABLE `users`"
         assert params == ()
 
@@ -75,11 +75,11 @@ class TestTruncateTable:
 
     def test_restart_identity_unsupported(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            TruncateExpression(dialect, table=Table(dialect, "users"), restart_identity=True).to_sql()
+            TruncateStatement(dialect, table=Table(dialect, "users"), restart_identity=True).to_sql()
 
     def test_cascade_unsupported(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            TruncateExpression(dialect, table=Table(dialect, "users"), cascade=True).to_sql()
+            TruncateStatement(dialect, table=Table(dialect, "users"), cascade=True).to_sql()
 
 
 class TestAlterColumnDefault:
@@ -94,29 +94,31 @@ class TestAlterColumnDefault:
     """
 
     def test_set_default_string(self, dialect):
-        action = AlterColumn(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC")
-        sql, params = AlterTableExpression(dialect, Table(dialect, "t"), [action]).to_sql()
+        action = AlterColumnAction(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC")
+        sql, params = AlterTableStatement(dialect, Table(dialect, "t"), [action]).to_sql()
         assert "ALTER COLUMN `col` DEFAULT 'ABC'" in sql
         assert params == ()
 
     def test_set_default_integer(self, dialect):
-        action = AlterColumn(dialect, "num", ColumnAlterOperation.SET_DEFAULT, new_value=5)
-        sql, _ = AlterTableExpression(dialect, Table(dialect, "t"), [action]).to_sql()
+        action = AlterColumnAction(dialect, "num", ColumnAlterOperation.SET_DEFAULT, new_value=5)
+        sql, _ = AlterTableStatement(dialect, Table(dialect, "t"), [action]).to_sql()
         assert "ALTER COLUMN `num` DEFAULT 5" in sql
 
     def test_drop_default_uses_modify_remove(self, dialect):
-        action = AlterColumn(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)
-        sql, params = AlterTableExpression(dialect, Table(dialect, "t"), [action]).to_sql()
+        action = AlterColumnAction(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)
+        sql, params = AlterTableStatement(dialect, Table(dialect, "t"), [action]).to_sql()
         assert "MODIFY COLUMN `col` REMOVE DEFAULT" in sql
         assert params == ()
 
     def test_no_set_or_drop_default_keyword_is_rendered(self, dialect):
         """The two spellings the server rejects must not appear in the output."""
-        set_sql, _ = AlterTableExpression(
-            dialect, Table(dialect, "t"), [AlterColumn(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value=1)]
+        set_sql, _ = AlterTableStatement(
+            dialect,
+            Table(dialect, "t"),
+            [AlterColumnAction(dialect, "col", ColumnAlterOperation.SET_DEFAULT, new_value=1)],
         ).to_sql()
-        drop_sql, _ = AlterTableExpression(
-            dialect, Table(dialect, "t"), [AlterColumn(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)]
+        drop_sql, _ = AlterTableStatement(
+            dialect, Table(dialect, "t"), [AlterColumnAction(dialect, "col", ColumnAlterOperation.DROP_DEFAULT)]
         ).to_sql()
         assert "SET DEFAULT" not in set_sql
         assert "DROP DEFAULT" not in drop_sql
@@ -136,16 +138,16 @@ class TestAlterColumnDefault:
         backend.execute("CREATE TABLE ar_alter_default (id UInt32) ENGINE = MergeTree ORDER BY id")
         try:
             d = backend.dialect
-            backend.execute(*AlterTableExpression(
+            backend.execute(*AlterTableStatement(
                 d, Table(d, "ar_alter_default"),
-                [AlterColumn(d, "id", ColumnAlterOperation.SET_DEFAULT, new_value=7)],
+                [AlterColumnAction(d, "id", ColumnAlterOperation.SET_DEFAULT, new_value=7)],
             ).to_sql())
             create = backend.execute("SHOW CREATE TABLE ar_alter_default").data[0]["statement"]
             assert "DEFAULT 7" in create
 
-            backend.execute(*AlterTableExpression(
+            backend.execute(*AlterTableStatement(
                 d, Table(d, "ar_alter_default"),
-                [AlterColumn(d, "id", ColumnAlterOperation.DROP_DEFAULT)],
+                [AlterColumnAction(d, "id", ColumnAlterOperation.DROP_DEFAULT)],
             ).to_sql())
             create = backend.execute("SHOW CREATE TABLE ar_alter_default").data[0]["statement"]
             assert "DEFAULT" not in create

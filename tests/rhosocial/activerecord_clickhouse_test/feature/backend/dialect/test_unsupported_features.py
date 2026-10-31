@@ -45,19 +45,19 @@ from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
     PartitionStrategy,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
-    CreateTriggerExpression,
-    DropTriggerExpression,
+    CreateTriggerStatement,
+    DropTriggerStatement,
     TriggerEvent,
     TriggerTiming,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
-    ClickHouseFlushExpression,
-    ClickHouseKillExpression,
+    ClickHouseFlushStatement,
+    ClickHouseKillStatement,
     FlushOption,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
-    CreateJsonDualityViewExpression,
+    ClickHouseCreateJsonDualityViewStatement,
     DualityObjectSpec,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
@@ -65,7 +65,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import
     JSONTableColumn,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
-    ClickHouseLoadXMLEXpression,
+    ClickHouseLoadXMLStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.maintenance import (
     ClickHouseAnalyzeTableExpression,
@@ -78,17 +78,17 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.optimizer_hint im
     SetVarHint,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.routine import (
-    ClickHouseCallExpression,
-    ClickHouseCreateProcedureExpression,
+    ClickHouseCallStatement,
+    ClickHouseCreateProcedureStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.spatial import (
-    ClickHouseCreateSpatialIndexExpression,
+    ClickHouseCreateSpatialIndexStatement,
     ClickHouseSpatialLiteralExpression,
     ClickHouseSTGeomFromTextExpression,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.table_statement import (
-    ClickHouseTableExpression,
-    ClickHouseValuesExpression,
+    ClickHouseTableStatement,
+    ClickHouseValuesStatement,
 )
 
 
@@ -109,7 +109,7 @@ class TestTriggerStub:
 
     def test_format_create_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            CreateTriggerExpression(
+            CreateTriggerStatement(
                 dialect,
                 Trigger(dialect, "trg"),
                 Table(dialect, "tbl"),
@@ -120,7 +120,7 @@ class TestTriggerStub:
 
     def test_format_drop_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            DropTriggerExpression(
+            DropTriggerStatement(
                 dialect, Trigger(dialect, "trg"), Table(dialect, "tbl")
             ).to_sql()
 
@@ -143,7 +143,7 @@ class TestSpatialStub:
 
     def test_format_create_spatial_index_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCreateSpatialIndexExpression(dialect, "idx", "tbl", "col").to_sql()
+            ClickHouseCreateSpatialIndexStatement(dialect, "idx", "tbl", "col").to_sql()
 
 
 class TestOptimizerHintStub:
@@ -165,11 +165,11 @@ class TestTableStatementStub:
 
     def test_format_table_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseTableExpression(dialect, "tbl").to_sql()
+            ClickHouseTableStatement(dialect, "tbl").to_sql()
 
     def test_format_values_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseValuesExpression(dialect, [[1]]).to_sql()
+            ClickHouseValuesStatement(dialect, [[1]]).to_sql()
 
 
 class TestMaintenanceStub:
@@ -199,15 +199,15 @@ class TestRoutineStub:
 
     def test_format_create_procedure_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCreateProcedureExpression(dialect, Procedure(dialect, "proc")).to_sql()
+            ClickHouseCreateProcedureStatement(dialect, Procedure(dialect, "proc")).to_sql()
 
     def test_format_call_statement_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCallExpression(dialect, Procedure(dialect, "proc")).to_sql()
+            ClickHouseCallStatement(dialect, Procedure(dialect, "proc")).to_sql()
 
     def test_bare_string_routine_is_rejected(self, dialect):
         with pytest.raises(TypeError, match="Function or Procedure object"):
-            ClickHouseCreateProcedureExpression(dialect, "proc")
+            ClickHouseCreateProcedureStatement(dialect, "proc")
 
 
 class TestLoadXmlStub:
@@ -216,7 +216,7 @@ class TestLoadXmlStub:
 
     def test_format_load_xml_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseLoadXMLEXpression(dialect, "/tmp/data.xml", "tbl").to_sql()
+            ClickHouseLoadXMLStatement(dialect, "/tmp/data.xml", "tbl").to_sql()
 
 
 class TestAdminCommandStub:
@@ -233,11 +233,11 @@ class TestAdminCommandStub:
 
     def test_format_flush_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseFlushExpression(dialect, [FlushOption.TABLES]).to_sql()
+            ClickHouseFlushStatement(dialect, [FlushOption.TABLES]).to_sql()
 
     def test_format_kill_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseKillExpression(dialect, 1).to_sql()
+            ClickHouseKillStatement(dialect, 1).to_sql()
 
 
 class TestJsonDualityViewStub:
@@ -247,7 +247,9 @@ class TestJsonDualityViewStub:
 
     def test_format_create_json_duality_view_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            CreateJsonDualityViewExpression(dialect, "v", DualityObjectSpec()).to_sql()
+            ClickHouseCreateJsonDualityViewStatement(
+                dialect, "v", DualityObjectSpec()
+            ).to_sql()
 
 
 class TestFullTextStub:

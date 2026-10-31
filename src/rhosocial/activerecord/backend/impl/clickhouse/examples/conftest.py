@@ -15,6 +15,13 @@ Feature notes:
 """
 
 EXAMPLES_META = {
+    "introspection_partitions.py": {
+        "title": "Partitions and Table Engine (backend-specific introspection)",
+        "dialect_protocols": [],
+        "priority": 10,
+        "min_version": "25.8",
+        "max_version": "26.7",
+    },
     "transaction/basic.py": {
         "title": "Transaction Awareness (ClickHouse does not support transactions)",
         "dialect_protocols": [],
@@ -59,7 +66,7 @@ EXAMPLES_META = {
         "max_version": "26.7",
     },
     "ddl/drop_table.py": {
-        "title": "DROP TABLE using DropTableExpression",
+        "title": "DROP TABLE using DropTableStatement",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "25.8",
@@ -101,21 +108,21 @@ EXAMPLES_META = {
         "max_version": "26.7",
     },
     "delete/basic.py": {
-        "title": "DELETE using DeleteExpression",
+        "title": "DELETE using DeleteStatement",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "25.8",
         "max_version": "26.7",
     },
     "update/basic.py": {
-        "title": "UPDATE using UpdateExpression",
+        "title": "UPDATE using UpdateStatement",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "25.8",
         "max_version": "26.7",
     },
     "query/union.py": {
-        "title": "UNION using SetOperationExpression",
+        "title": "UNION using SetOperation",
         "dialect_protocols": [],
         "priority": 10,
         "min_version": "25.8",

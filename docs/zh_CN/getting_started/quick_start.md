@@ -63,7 +63,7 @@ SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 > ⚠️ `SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1` 是 UPDATE/DELETE 的前置条件——ClickHouse 26.x 默认拒绝轻量级变更。详见 [变更（UPDATE/DELETE）](../capabilities/mutations.md)。
 >
-> 也可用 DDL 表达式（`CreateTableExpression` + `storage_options`）生成等价 DDL，见 [第一个 CRUD 应用](first_crud.md#2-建表ddl-表达式-vs-原始-sql-对照)。
+> 也可用 DDL 表达式（`CreateTableStatement` + `storage_options`）生成等价 DDL，见 [第一个 CRUD 应用](first_crud.md#2-建表ddl-表达式-vs-原始-sql-对照)。
 
 ## 关键点
 

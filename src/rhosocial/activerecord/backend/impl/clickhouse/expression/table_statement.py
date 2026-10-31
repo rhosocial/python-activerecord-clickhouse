@@ -73,7 +73,7 @@ class ClickHouseBaseTableStatement(BaseExpression):
             raise ValueError("offset must be a non-negative integer")
 
 
-class ClickHouseTableExpression(ClickHouseBaseTableStatement):
+class ClickHouseTableStatement(ClickHouseBaseTableStatement):
     """MySQL's ``TABLE <table>`` simplified SELECT — a statement ClickHouse does not have.
 
     Fail-fast switch: ``to_sql()`` raises ``UnsupportedFeatureError`` through the
@@ -110,7 +110,7 @@ class ClickHouseTableExpression(ClickHouseBaseTableStatement):
         return "format_table_statement"
 
 
-class ClickHouseValuesExpression(ClickHouseBaseTableStatement):
+class ClickHouseValuesStatement(ClickHouseBaseTableStatement):
     """MySQL's ``VALUES ROW(...), ...`` table value constructor — not in ClickHouse.
 
     Fail-fast switch: ``to_sql()`` raises ``UnsupportedFeatureError`` through the

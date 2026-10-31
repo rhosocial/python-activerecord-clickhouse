@@ -20,19 +20,19 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     DropTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression import Literal
+from rhosocial.activerecord.backend.expression.core import Literal
 from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
-    AlterDomainExpression,
-    AlterTypeExpression,
-    CreateDomainExpression,
-    CreateTypeExpression,
+    AlterDomainStatement,
+    AlterTypeStatement,
+    CreateDomainStatement,
+    CreateTypeStatement,
     DomainCheckConstraint,
     DomainNullability,
     DomainValueExpression,
     DropDomainDefaultAction,
-    DropDomainExpression,
-    DropTypeExpression,
+    DropDomainStatement,
+    DropTypeStatement,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_type import (
     TypeAlterAction,
@@ -179,19 +179,19 @@ def test_type_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -
     action = _NegativeTypeAlterAction(dialect)
     status = Type(dialect, "status")
     expressions = (
-        CreateTypeExpression(
+        CreateTypeStatement(
             dialect,
             status,
             definition,
             if_not_exists=True,
         ),
-        AlterTypeExpression(
+        AlterTypeStatement(
             dialect,
             status,
             [action],
             if_exists=True,
         ),
-        DropTypeExpression(dialect, status, if_exists=True),
+        DropTypeStatement(dialect, status, if_exists=True),
         definition,
         action,
     )
@@ -204,24 +204,23 @@ def test_type_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -
 
 
 def test_domain_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -> None:
-    condition = DomainValueExpression(dialect) > Literal(
-        dialect,
-        0,
-        inline_literals=True,
-    )
+    # A domain CHECK is a DDL position: the literal states ``inline=True``
+    # itself, per node -- the caller's call, and no lift pass exists to make
+    # it for them (the old ``DdlLiteral`` class-level spelling is gone).
+    condition = DomainValueExpression(dialect) > Literal(dialect, 0, inline=True)
     check = DomainCheckConstraint(dialect, condition, name="positive")
     action = DropDomainDefaultAction(dialect)
     positive = Domain(dialect, "positive")
     expressions = (
-        CreateDomainExpression(
+        CreateDomainStatement(
             dialect,
             positive,
             IntegerType(dialect),
             checks=[check],
             collation="en_US",
         ),
-        AlterDomainExpression(dialect, positive, [action]),
-        DropDomainExpression(dialect, positive),
+        AlterDomainStatement(dialect, positive, [action]),
+        DropDomainStatement(dialect, positive),
         DomainValueExpression(dialect),
         check,
         action,

@@ -21,9 +21,9 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..expression.partition import (
-        ClickHouseAttachPartitionExpression,
-        ClickHouseDetachPartitionExpression,
-        ClickHouseDropPartitionExpression,
+        ClickHouseAttachPartitionStatement,
+        ClickHouseDetachPartitionStatement,
+        ClickHouseDropPartitionStatement,
     )
 
 
@@ -174,7 +174,7 @@ class ClickHousePartitionMixin:
     # ------------------------------------------------------------------
 
     def format_drop_partition_statement(
-        self, expr: "ClickHouseDropPartitionExpression"
+        self, expr: "ClickHouseDropPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Render ``ALTER TABLE ... DROP PARTITION ID '<id>'``.
 
@@ -184,7 +184,7 @@ class ClickHousePartitionMixin:
         return self._format_partition_id_statement(expr, "DROP")
 
     def format_detach_partition_statement(
-        self, expr: "ClickHouseDetachPartitionExpression"
+        self, expr: "ClickHouseDetachPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Render ``ALTER TABLE ... DETACH PARTITION ID '<id>'``.
 
@@ -194,7 +194,7 @@ class ClickHousePartitionMixin:
         return self._format_partition_id_statement(expr, "DETACH")
 
     def format_attach_partition_statement(
-        self, expr: "ClickHouseAttachPartitionExpression"
+        self, expr: "ClickHouseAttachPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Render ``ALTER TABLE ... ATTACH PARTITION ID '<id>'``.
 
@@ -211,7 +211,7 @@ class ClickHousePartitionMixin:
         caller, not derived from a column value, so there is no query-planning
         benefit in parameterising it.
         """
-        partition_id = getattr(expr, "partition_id", None)
+        partition_id = expr.partition_id
         if not isinstance(partition_id, str) or not partition_id.strip():
             raise UnsupportedFeatureError(
                 self.name,

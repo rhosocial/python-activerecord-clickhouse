@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-        CreateTableLikeExpression,
+        CreateTableLikeStatement,
     )
 
 
@@ -62,6 +62,16 @@ class ClickHouseTableSupport(
     - Various storage engines: ClickHouse 5.5+
     """
 
+    def supports_create_table_as_bind_parameters(self) -> bool:
+        """Whether this statement's body may carry bind parameters.
+
+        Defaults to ``False``: a DDL statement carries no bind parameters
+        unless the dialect says it can, so a dialect that does not answer
+        refuses rather than emitting a statement the engine may reject. A
+        dialect whose engine accepts them returns ``True``.
+        """
+        ...  # pragma: no cover
+
     def supports_inline_index(self) -> bool:
         """Whether an inline data-skipping INDEX may appear in CREATE TABLE."""
         ...
@@ -81,7 +91,7 @@ class ClickHouseTableSupport(
         ...
 
     def format_create_table_like_statement(
-        self, expr: "CreateTableLikeExpression"
+        self, expr: "CreateTableLikeStatement"
     ) -> Tuple[str, tuple]:
         """Format the ClickHouse ``CREATE TABLE ... AS <source>`` structure copy.
 
@@ -107,8 +117,20 @@ class ClickHouseTableSupport(
         """Format an inline data-skipping INDEX definition within CREATE TABLE."""
         ...
 
-    def format_storage_options(self, expr: Any) -> Tuple[str, tuple]:
-        """Format ClickHouse table storage options (ENGINE, CHARSET, etc.)."""
+    def format_clickhouse_create_table_options(self, expr: Any) -> Tuple[str, tuple]:
+        """Format the ClickHouse ``CREATE`` header qualifier (``OR REPLACE``)."""
+        ...
+
+    def format_clickhouse_engine_spec(self, expr: Any) -> Tuple[str, tuple]:
+        """Format an engine name and its parameters (``ReplacingMergeTree(version)``)."""
+        ...
+
+    def format_clickhouse_setting(self, expr: Any) -> Tuple[str, tuple]:
+        """Format one ``name = value`` pair of a ``SETTINGS`` clause."""
+        ...
+
+    def format_clickhouse_table_storage_option(self, expr: Any) -> Tuple[str, tuple]:
+        """Format one ClickHouse table storage clause (``ENGINE``, ``ORDER BY``, …)."""
         ...
 
     def supports_ilike(self) -> bool:

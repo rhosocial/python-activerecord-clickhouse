@@ -63,28 +63,28 @@ class TestCreateStatementOutputShape:
     VIEW_ROW = {"statement": "CREATE VIEW default.v\n(\n    `id` Int64\n)\nAS SELECT id"}
 
     def test_create_table_reads_the_statement_column(self):
-        result = ShowMixin._parse_create_table([self.TABLE_ROW], "t")
+        result = ShowMixin.parse_create_table([self.TABLE_ROW], "t")
         assert result.table_name == "t"
         assert result.create_statement == self.TABLE_ROW["statement"]
 
     def test_create_view_reads_the_statement_column(self):
-        result = ShowMixin._parse_create_view([self.VIEW_ROW], "v")
+        result = ShowMixin.parse_create_view([self.VIEW_ROW], "v")
         assert result.view_name == "v"
         assert result.create_statement == self.VIEW_ROW["statement"]
 
     def test_create_view_leaves_mysql_only_fields_empty(self):
-        result = ShowMixin._parse_create_view([self.VIEW_ROW], "v")
+        result = ShowMixin.parse_create_view([self.VIEW_ROW], "v")
         assert result.character_set_client is None
         assert result.collation_connection is None
 
     def test_no_rows_returns_none(self):
-        assert ShowMixin._parse_create_table([], "t") is None
-        assert ShowMixin._parse_create_view([], "v") is None
+        assert ShowMixin.parse_create_table([], "t") is None
+        assert ShowMixin.parse_create_view([], "v") is None
 
     def test_mysql_column_names_are_not_consulted(self):
         """A row carrying only MySQL's names must not be mistaken for a result."""
-        assert ShowMixin._parse_create_table([{"Create Table": "..."}], "t").create_statement == ""
-        assert ShowMixin._parse_create_view([{"Create View": "..."}], "v").create_statement == ""
+        assert ShowMixin.parse_create_table([{"Create Table": "..."}], "t").create_statement == ""
+        assert ShowMixin.parse_create_view([{"Create View": "..."}], "v").create_statement == ""
 
 
 class TestListOutputShape:
@@ -92,13 +92,13 @@ class TestListOutputShape:
 
     def test_tables_reads_name(self):
         rows = [{"name": "a"}, {"name": "b"}]
-        result = ShowMixin._parse_tables(rows)
+        result = ShowMixin.parse_tables(rows)
         assert [(r.name, r.table_type) for r in result] == [("a", None), ("b", None)]
 
     def test_full_tables_reads_name_and_engine(self):
         """Under ``FULL`` the second column is the storage engine, not a table type."""
         rows = [{"name": "a", "engine": "MergeTree"}, {"name": "v", "engine": "View"}]
-        result = ShowMixin._parse_tables(rows)
+        result = ShowMixin.parse_tables(rows)
         assert [(r.name, r.table_type) for r in result] == [
             ("a", "MergeTree"),
             ("v", "View"),
@@ -106,14 +106,14 @@ class TestListOutputShape:
 
     def test_databases_reads_name(self):
         rows = [{"name": "default"}, {"name": "system"}]
-        assert [r.name for r in ShowMixin._parse_databases(rows)] == ["default", "system"]
+        assert [r.name for r in ShowMixin.parse_databases(rows)] == ["default", "system"]
 
     def test_mysql_column_names_are_not_consulted(self):
         """MySQL's ``Tables_in_<db>`` / ``Database`` names must not be looked for."""
         mysql_rows = [{"Tables_in_db": "a", "Table_type": "BASE TABLE"}]
-        result = ShowMixin._parse_tables(mysql_rows)
+        result = ShowMixin.parse_tables(mysql_rows)
         assert [(r.name, r.table_type) for r in result] == [(None, None)]
-        assert [r.name for r in ShowMixin._parse_databases([{"Database": "default"}])] == [None]
+        assert [r.name for r in ShowMixin.parse_databases([{"Database": "default"}])] == [None]
 
 
 # Every row below is a row the 26.7.3.19 server returned, quoted column for
@@ -182,30 +182,30 @@ class TestColumnsOutputShape:
     """``SHOW [FULL] COLUMNS`` answers lower-cased ``field``/``type``/``key``/..."""
 
     def test_columns_read_the_lowercase_names(self):
-        result = ShowMixin._parse_columns(COLUMN_ROWS)
+        result = ShowMixin.parse_columns(COLUMN_ROWS)
         assert [(r.field, r.type, r.null, r.key) for r in result] == [
             ("al", "UInt8", "NO", ""),
             ("id", "UInt32", "NO", "PRI SOR"),
         ]
 
     def test_columns_carry_default_and_extra(self):
-        result = ShowMixin._parse_columns(COLUMN_ROWS)
+        result = ShowMixin.parse_columns(COLUMN_ROWS)
         assert [(r.default, r.extra) for r in result] == [("id", ""), (None, "")]
 
     def test_full_columns_read_collation_comment_and_privileges(self):
         """The three extra columns appear only under ``FULL``, in lower case."""
-        result = ShowMixin._parse_columns(COLUMN_FULL_ROWS)
+        result = ShowMixin.parse_columns(COLUMN_FULL_ROWS)
         assert (result[0].collation, result[0].comment, result[0].privileges) == (
             None, "", "",
         )
 
     def test_plain_columns_leave_the_full_only_columns_empty(self):
-        result = ShowMixin._parse_columns(COLUMN_ROWS)
+        result = ShowMixin.parse_columns(COLUMN_ROWS)
         assert all(r.collation is None and r.comment is None and r.privileges is None for r in result)
 
     def test_mysql_column_names_are_not_consulted(self):
         """MySQL's ``Field``/``Type``/``Key`` must not be looked for."""
-        result = ShowMixin._parse_columns(
+        result = ShowMixin.parse_columns(
             [{"Field": "id", "Type": "int", "Null": "NO", "Key": "PRI", "Default": None, "Extra": ""}]
         )
         assert [(r.field, r.type, r.key) for r in result] == [(None, None, None)]
@@ -215,25 +215,25 @@ class TestIndexOutputShape:
     """``SHOW INDEX`` answers ``pk_col`` where MySQL answers ``Column_name``."""
 
     def test_index_reads_pk_col_as_the_column_name(self):
-        result = ShowMixin._parse_indexes(INDEX_ROWS)
+        result = ShowMixin.parse_indexes(INDEX_ROWS)
         assert [r.column_name for r in result] == ["", "id"]
 
     def test_index_reports_clickhouse_index_types(self):
-        result = ShowMixin._parse_indexes(INDEX_ROWS)
+        result = ShowMixin.parse_indexes(INDEX_ROWS)
         assert [r.index_type for r in result] == ["BLOOM_FILTER", "PRIMARY"]
 
     def test_skipping_index_keeps_its_expression(self):
-        skip, primary = ShowMixin._parse_indexes(INDEX_ROWS)
+        skip, primary = ShowMixin.parse_indexes(INDEX_ROWS)
         assert (skip.key_name, skip.expression, skip.collation) == ("idx_s", "s", None)
         assert (primary.key_name, primary.expression, primary.collation) == ("PRIMARY", "", "A")
 
     def test_index_carries_no_mysql_btree_default(self):
         """``index_type`` must come from the server, not default to ``BTREE``."""
-        result = ShowMixin._parse_indexes([{"table": "t", "non_unique": 1, "key_name": "PRIMARY", "seq_in_index": 1}])
+        result = ShowMixin.parse_indexes([{"table": "t", "non_unique": 1, "key_name": "PRIMARY", "seq_in_index": 1}])
         assert result[0].index_type is None
 
     def test_mysql_column_names_are_not_consulted(self):
-        result = ShowMixin._parse_indexes(
+        result = ShowMixin.parse_indexes(
             [{"Table": "t", "Key_name": "PRIMARY", "Column_name": "id", "Index_type": "BTREE"}]
         )
         assert [(r.table_name, r.column_name, r.index_type) for r in result] == [(None, None, None)]
@@ -243,7 +243,7 @@ class TestProcessListOutputShape:
     """``SHOW PROCESSLIST`` is ``system.processes``, so its columns are that table's."""
 
     def test_processlist_maps_query_id_user_address_and_elapsed(self):
-        row = ShowMixin._parse_processlist(PROCESSLIST_ROWS)[0]
+        row = ShowMixin.parse_processlist(PROCESSLIST_ROWS)[0]
         assert row.id == "0a944dd1-8a7e-4fd2-9733-e9e44f4d9f53"
         assert row.user == "root"
         assert row.host == "::ffff:192.168.65.1:39550"
@@ -253,12 +253,12 @@ class TestProcessListOutputShape:
 
     def test_command_and_state_have_no_clickhouse_source(self):
         """``system.processes`` has no per-process command or state column."""
-        row = ShowMixin._parse_processlist(PROCESSLIST_ROWS)[0]
+        row = ShowMixin.parse_processlist(PROCESSLIST_ROWS)[0]
         assert row.command is None
         assert row.state is None
 
     def test_mysql_column_names_are_not_consulted(self):
-        result = ShowMixin._parse_processlist(
+        result = ShowMixin.parse_processlist(
             [{"Id": 1, "User": "root", "Host": "localhost", "Command": "Query", "Time": 0}]
         )
         assert [(r.id, r.user, r.host, r.command, r.time) for r in result] == [
@@ -270,24 +270,24 @@ class TestEnginesOutputShape:
     """``SHOW ENGINES`` is ``system.table_engines``: ``name`` plus ``supports_*``."""
 
     def test_engines_read_the_name_column(self):
-        assert ShowMixin._parse_engines(ENGINE_ROWS)[0].engine == "AggregatingMergeTree"
+        assert ShowMixin.parse_engines(ENGINE_ROWS)[0].engine == "AggregatingMergeTree"
 
     def test_engines_read_all_eight_supports_flags(self):
-        row = ShowMixin._parse_engines(ENGINE_ROWS)[0]
+        row = ShowMixin.parse_engines(ENGINE_ROWS)[0]
         assert (row.supports_settings, row.supports_skipping_indices) == (1, 1)
         assert (row.supports_projections, row.supports_sort_order) == (1, 1)
         assert (row.supports_ttl, row.supports_replication) == (1, 0)
         assert (row.supports_deduplication, row.supports_parallel_insert) == (0, 1)
 
     def test_engines_read_the_documentation_columns(self):
-        row = ShowMixin._parse_engines(ENGINE_ROWS)[0]
+        row = ShowMixin.parse_engines(ENGINE_ROWS)[0]
         assert row.description == "# AggregatingMergeTree"
         assert row.syntax == "AGGREGATING"
         assert row.related == ["ReplicatedAggregatingMergeTree"]
 
     def test_mysql_column_names_are_not_consulted(self):
         """MySQL's ``Engine``/``Support``/``XA`` must not be looked for."""
-        result = ShowMixin._parse_engines(
+        result = ShowMixin.parse_engines(
             [{"Engine": "InnoDB", "Support": "DEFAULT", "Transactions": "YES", "XA": "NO", "Savepoints": "NO"}]
         )
         assert result[0].engine is None
@@ -297,32 +297,32 @@ class TestGrantsOutputShape:
     """``SHOW GRANTS`` labels its only column after the statement plus the format."""
 
     def test_grants_reads_the_native_protocol_column_name(self):
-        assert ShowMixin._parse_grants(GRANT_ROWS[:1])[0].grants.startswith("GRANT SOURCES")
+        assert ShowMixin.parse_grants(GRANT_ROWS[:1])[0].grants.startswith("GRANT SOURCES")
 
     def test_grants_reads_the_for_user_column_name(self):
-        assert ShowMixin._parse_grants(GRANT_ROWS[1:])[0].grants == (
+        assert ShowMixin.parse_grants(GRANT_ROWS[1:])[0].grants == (
             "GRANT SET DEFINER ON * TO root WITH GRANT OPTION"
         )
 
     def test_grants_falls_back_to_the_single_column_value(self):
         """HTTP with ``default_format=JSONEachRow`` names the bare column ``GRANTS``."""
-        assert ShowMixin._parse_grants([{"GRANTS": "GRANT SELECT ON *.* TO u"}])[0].grants == (
+        assert ShowMixin.parse_grants([{"GRANTS": "GRANT SELECT ON *.* TO u"}])[0].grants == (
             "GRANT SELECT ON *.* TO u"
         )
 
     def test_grants_reads_a_row_whose_column_is_unrecognised(self):
         """The statement has exactly one column; its value is the grant either way."""
-        assert ShowMixin._parse_grants([{"SHOW GRANTS": "GRANT ALL ON *.* TO u"}])[0].grants == (
+        assert ShowMixin.parse_grants([{"SHOW GRANTS": "GRANT ALL ON *.* TO u"}])[0].grants == (
             "GRANT ALL ON *.* TO u"
         )
 
     def test_mysql_column_name_is_not_required(self):
         """MySQL's fixed ``Grants for`` is not the lookup key; the value is."""
-        result = ShowMixin._parse_grants([{"Grants for root@localhost": "GRANT ALL"}])
+        result = ShowMixin.parse_grants([{"Grants for root@localhost": "GRANT ALL"}])
         assert result[0].grants == "GRANT ALL"
 
     def test_an_empty_row_yields_no_grant(self):
-        assert ShowMixin._parse_grants([{}])[0].grants is None
+        assert ShowMixin.parse_grants([{}])[0].grants is None
 
 
 class TestShowDialectRendersWhatTheServerAccepts:
@@ -336,16 +336,16 @@ class TestShowDialectRendersWhatTheServerAccepts:
 
     def _columns(self, dialect, **kw):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowColumnsExpression,
+            ShowColumnsStatement,
         )
 
-        expr = ShowColumnsExpression(dialect, "t")
-        if kw.get("schema"):
-            expr.schema(kw["schema"])
-        if kw.get("full"):
-            expr.full()
-        if kw.get("like"):
-            expr.like(kw["like"])
+        expr = ShowColumnsStatement(
+            dialect,
+            "t",
+            schema=kw.get("schema"),
+            full=bool(kw.get("full")),
+            like_pattern=kw.get("like"),
+        )
         return expr.to_sql()
 
     def test_columns_sql(self, dialect):
@@ -357,38 +357,42 @@ class TestShowDialectRendersWhatTheServerAccepts:
     def test_index_sql_uses_one_table_reference(self, dialect):
         """``SHOW INDEX FROM t FROM db`` is a SYNTAX_ERROR; ``db.t`` is the form."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowIndexExpression,
+            ShowIndexStatement,
         )
 
-        expr = ShowIndexExpression(dialect, "t").schema("db")
+        expr = ShowIndexStatement(dialect, "t", schema="db")
         assert expr.to_sql() == ("SHOW INDEX FROM `db`.`t`", ())
 
     def test_processlist_sql_never_emits_full(self, dialect):
         """``SHOW FULL PROCESSLIST`` is a SYNTAX_ERROR on 26.7.3.19."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowProcessListExpression,
+            ShowProcessListStatement,
         )
 
-        assert ShowProcessListExpression(dialect).full().to_sql() == ("SHOW PROCESSLIST", ())
+        assert ShowProcessListStatement(dialect).to_sql() == ("SHOW PROCESSLIST", ())
+        assert ShowProcessListStatement(dialect, full=True).to_sql() == (
+            "SHOW PROCESSLIST",
+            (),
+        )
 
     def test_engines_sql(self, dialect):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowEnginesExpression,
+            ShowEnginesStatement,
         )
 
-        assert ShowEnginesExpression(dialect).to_sql() == ("SHOW ENGINES", ())
+        assert ShowEnginesStatement(dialect).to_sql() == ("SHOW ENGINES", ())
 
     def test_grants_sql_drops_the_mysql_host_part(self, dialect):
         """``SHOW GRANTS FOR root@localhost`` is UNKNOWN_ROLE on 26.7.3.19."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowGrantsExpression,
+            ShowGrantsStatement,
         )
 
-        assert ShowGrantsExpression(dialect).to_sql() == ("SHOW GRANTS", ())
-        assert ShowGrantsExpression(dialect).for_user("root").to_sql() == (
+        assert ShowGrantsStatement(dialect).to_sql() == ("SHOW GRANTS", ())
+        assert ShowGrantsStatement(dialect, user="root").to_sql() == (
             "SHOW GRANTS FOR `root`", (),
         )
-        assert ShowGrantsExpression(dialect).for_user("root", "localhost").to_sql() == (
+        assert ShowGrantsStatement(dialect, user="root", host="localhost").to_sql() == (
             "SHOW GRANTS FOR `root`", (),
         )
 

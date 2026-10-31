@@ -16,7 +16,7 @@ class ClickHouseLoadXMLLMixin:
     def supports_load_xml(self) -> bool:
         return False
 
-    def format_load_xml_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_load_xml_statement(self, expr: Any) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "LOAD XML",
             suggestion="ClickHouse has no LOAD XML; use a format parser or input() table function.",

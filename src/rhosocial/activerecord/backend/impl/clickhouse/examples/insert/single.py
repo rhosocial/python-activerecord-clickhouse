@@ -4,7 +4,7 @@ Single row insert - ClickHouse.
 This example demonstrates:
 1. INSERT a single row with explicit column values
 2. INSERT with UInt32 primary key (auto-generated)
-3. Verify inserted data using QueryExpression
+3. Verify inserted data using QueryStatement
 
 """
 
@@ -17,18 +17,18 @@ import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
-    DropTableExpression,
-    QueryExpression,
-    InsertExpression,
+    CreateTableStatement,
+    DropTableStatement,
+    QueryStatement,
+    InsertStatement,
     ValuesSource,
 )
-from rhosocial.activerecord.backend.expression.core import Literal, WildcardExpression, Column
+from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column
 from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.options import ExecutionOptions
@@ -48,15 +48,15 @@ dialect = backend.dialect
 dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
 # Drop dependent tables first for clean setup
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+drop = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop.to_sql()
 backend.execute(sql, params)
 
-create_table = CreateTableExpression(
+create_table = CreateTableStatement(
     dialect=dialect,
     table=Table(dialect, "users"),
     columns=[
@@ -64,15 +64,15 @@ create_table = CreateTableExpression(
             "id",
             "UInt32",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.PRIMARY_KEY),
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition(
             "name",
             "String",
             constraints=[
-                ColumnConstraint(ColumnConstraintType.NOT_NULL),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
             ],
         ),
         ColumnDefinition("email", "String"),
@@ -87,7 +87,7 @@ backend.execute(sql, params)
 # ============================================================
 
 # 1. Insert a single row with explicit column values
-insert_expr = InsertExpression(
+insert_expr = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "users"),
     source=ValuesSource(
@@ -109,9 +109,9 @@ result = backend.execute(sql, params)
 print(f"Affected rows: {result.affected_rows}")
 
 # Verify the inserted row
-verify_query = QueryExpression(
+verify_query = QueryStatement(
     dialect=dialect,
-    select=[WildcardExpression(dialect)],
+    select=[AllColumnsWildcard(dialect)],
     from_=NamedRelationRef(dialect, Table(dialect, "users")),
     where=ComparisonPredicate(
         dialect,
@@ -125,7 +125,7 @@ result = backend.execute(sql, params, options=dql_options)
 print(f"Inserted row: {result.data}")
 
 # 2. Insert another row (id will be assigned automatically)
-insert_expr2 = InsertExpression(
+insert_expr2 = InsertStatement(
     dialect=dialect,
     into=Table(dialect, "users"),
     source=ValuesSource(
@@ -141,7 +141,7 @@ result = backend.execute(sql, params)
 print(f"Second insert affected rows: {result.affected_rows}")
 
 # Verify all rows
-all_query = QueryExpression(
+all_query = QueryStatement(
     dialect=dialect,
     select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "email")],
     from_=NamedRelationRef(dialect, Table(dialect, "users")),
@@ -154,11 +154,11 @@ print(f"All rows: {result.data}")
 # ============================================================
 # SECTION: Teardown (necessary for execution, reference only)
 # ============================================================
-drop_orders = DropTableExpression(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
+drop_orders = DropTableStatement(dialect=dialect, table=Table(dialect, "orders"), if_exists=True)
 sql, params = drop_orders.to_sql()
 backend.execute(sql, params)
 
-drop_table = DropTableExpression(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
 sql, params = drop_table.to_sql()
 backend.execute(sql, params)
 backend.disconnect()
@@ -167,7 +167,7 @@ backend.disconnect()
 # SECTION: Summary
 # ============================================================
 # Key points:
-# 1. Use InsertExpression with ValuesSource containing a single row list
+# 1. Use InsertStatement with ValuesSource containing a single row list
 # 2. The primary key id (UInt32) is auto-assigned and omitted from the insert columns list
-# 3. Verify inserts using QueryExpression with WHERE clause
+# 3. Verify inserts using QueryStatement with WHERE clause
 # 4. ClickHouse returns affected_rows = 1 for successful single insert

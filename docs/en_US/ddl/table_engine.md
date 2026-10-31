@@ -2,7 +2,7 @@
 
 ClickHouse DDL consists of clauses such as `ENGINE`, `ORDER BY`, `PARTITION BY`, `TTL`, `PRIMARY KEY`, `SAMPLE BY`, and `SETTINGS`. This backend supports them natively at the dialect layer and can generate them through the core library's DDL expressions — **full SQL semantic coverage**, no hand-written SQL required.
 
-> 📐 This backend inherits and extends the core library's `CreateTableExpression`: declaring ClickHouse clauses through the `storage_options` dictionary, with `to_sql()` generating complete native ClickHouse DDL.
+> 📐 This backend extends the core library's `CreateTableStatement` with its own options node: the clauses are declared as **expression nodes** on `ClickHouseCreateTableOptions(table_storage_options=...)`, and `to_sql()` generates complete native ClickHouse DDL.
 
 ## MergeTree Family
 
@@ -29,16 +29,15 @@ The backend maps the model's `__primary_key__` to the `ORDER BY` sorting key.
 
 ## DDL Expression vs Raw SQL Comparison
 
-Both approaches generate **exactly the same** ClickHouse DDL, demonstrating that the expressions cover all SQL semantics:
+Both approaches produce the **same** ClickHouse DDL, demonstrating that the expressions cover the SQL semantics:
 
 ### Raw SQL
 
 ```sql
 CREATE TABLE IF NOT EXISTS events (
-    ts DateTime64(6, 'UTC'),
+    ts DateTime64(6),
     id Int64,
-    url String,
-    INDEX idx_url url TYPE bloom_filter GRANULARITY 4
+    url String
 ) ENGINE = MergeTree
 PARTITION BY toYYYYMM(ts)
 ORDER BY (ts, id)
@@ -49,52 +48,107 @@ SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 ### DDL Expression (equivalent)
 
 ```python
+from rhosocial.activerecord.backend.expression.core import Column, FunctionCall
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.operators import RawSQL
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableExpression, ColumnDefinition, IndexDefinition,
+    ColumnDefinition,
+    CreateTableStatement,
 )
-from rhosocial.activerecord.backend.expression.parts import IndexType
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
-    ClickHouseInt64Type, ClickHouseStringType, ClickHouseDateTime64Type,
+    ClickHouseCreateTableOptions,
+    ClickHouseDateTime64Type,
+    ClickHouseEngineSpec,
+    ClickHouseInt64Type,
+    ClickHouseSetting,
+    ClickHouseStorageOptionKind,
+    ClickHouseStringType,
+    ClickHouseTableStorageOption,
 )
 
-expr = CreateTableExpression(
-    dialect=dialect,
-    table="events",
-    columns=[
-        ColumnDefinition(name="ts", data_type=ClickHouseDateTime64Type(6)),
-        ColumnDefinition(name="id", data_type=ClickHouseInt64Type()),
-        ColumnDefinition(name="url", data_type=ClickHouseStringType()),
+kind = ClickHouseStorageOptionKind
+
+storage = [
+    ClickHouseTableStorageOption(
+        dialect, kind.ENGINE, value=ClickHouseEngineSpec(dialect, "MergeTree")
+    ),
+    ClickHouseTableStorageOption(
+        dialect,
+        kind.PARTITION_BY,
+        value=[FunctionCall(dialect, "toYYYYMM", Column(dialect, "ts"))],
+    ),
+    ClickHouseTableStorageOption(
+        dialect, kind.ORDER_BY, value=[Column(dialect, "ts"), Column(dialect, "id")]
+    ),
+    ClickHouseTableStorageOption(
+        dialect, kind.TTL, value=RawSQL(dialect, "ts + INTERVAL 90 DAY DELETE")
+    ),
+    ClickHouseTableStorageOption(
+        dialect,
+        kind.SETTINGS,
+        value=[
+            ClickHouseSetting(dialect, "enable_block_number_column", 1),
+            ClickHouseSetting(dialect, "enable_block_offset_column", 1),
+        ],
+    ),
+]
+
+expr = CreateTableStatement(
+    dialect,
+    Table(dialect, "events"),
+    [
+        ColumnDefinition(dialect, "ts", ClickHouseDateTime64Type(dialect, precision=6)),
+        ColumnDefinition(dialect, "id", ClickHouseInt64Type(dialect)),
+        ColumnDefinition(dialect, "url", ClickHouseStringType(dialect)),
     ],
-    indexes=[
-        IndexDefinition(name="idx_url", columns=["url"], index_type="bloom_filter",
-                       dialect_options={"granularity": 4}),
-    ],
-    storage_options={
-        "ENGINE": "MergeTree",
-        "PARTITION BY": "toYYYYMM(ts)",
-        "ORDER BY": ["ts", "id"],
-        "TTL": "ts + INTERVAL 90 DAY DELETE",
-        "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-    },
     if_not_exists=True,
+    table_options=ClickHouseCreateTableOptions(dialect, table_storage_options=storage),
 )
-sql, _ = expr.to_sql()      # 与上方原始 SQL 等价
-dialect.execute(sql)
+sql, params = expr.to_sql()
+dialect.execute(sql, params)
 ```
 
-### Supported `storage_options` keys
+Generated SQL (one line; ClickHouse accepts either form):
 
-`format_table_engine_clauses` accepts (case/underscore insensitive, values inserted as-is):
+```sql
+CREATE TABLE IF NOT EXISTS `events` (`ts` DateTime64(6), `id` Int64, `url` String)
+ENGINE = MergeTree PARTITION BY TOYYYYMM(`ts`) ORDER BY (`ts`, `id`)
+TTL ts + INTERVAL 90 DAY DELETE
+SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
+```
 
-| key | renders as |
-|-----|--------|
-| `ENGINE` | `ENGINE = <value>` |
-| `ORDER BY` | `ORDER BY (col1, col2)` |
-| `PARTITION BY` | `PARTITION BY <expr>` |
-| `PRIMARY KEY` | `PRIMARY KEY (...)` |
-| `SAMPLE BY` | `SAMPLE BY <expr>` |
-| `TTL` | `TTL <expr>` |
-| `SETTINGS` | `SETTINGS k = v, ...` |
+## Storage Clause Nodes
+
+One clause is one `ClickHouseTableStorageOption`. Which payload shape it takes is decided by its `option` member, and the renderer owns the keyword — the caller never writes SQL text for a clause:
+
+| `option` | `value` | renders as |
+|-----|--------|--------|
+| `ENGINE` | `ClickHouseEngineSpec` | `ENGINE = MergeTree`, `ENGINE = ReplacingMergeTree(version)` |
+| `PRIMARY KEY` | list of expression nodes | `PRIMARY KEY (a, b)` |
+| `PARTITION BY` | list of expression nodes | `PARTITION BY toYYYYMM(ts)` |
+| `ORDER BY` | list of expression nodes | `ORDER BY (ts, id)` |
+| `SAMPLE BY` | one expression node | `SAMPLE BY cityHash64(user_id)` |
+| `TTL` | one expression node | `TTL ts + INTERVAL 90 DAY DELETE` |
+| `SETTINGS` | list of `ClickHouseSetting` | `SETTINGS index_granularity = 8192` |
+
+Three rules the renderer enforces:
+
+- **Canonical order.** Clauses are emitted in ClickHouse's grammar order (`ENGINE` → `PRIMARY KEY` → `PARTITION BY` → `ORDER BY` → `SAMPLE BY` → `TTL` → `SETTINGS`) regardless of the order you declared them in.
+- **One clause, once.** Declaring the same `option` twice raises `ValueError` at construction instead of rendering a statement ClickHouse would reject.
+- **A single node needs no parentheses.** `ORDER BY id` and `ORDER BY (ts, id)` are both valid; the renderer parenthesises only when there is more than one expression.
+
+`ON CLUSTER` is not a storage clause: it sits between the table name and the column list, so it is declared on the options node next to the clauses:
+
+```python
+table_options=ClickHouseCreateTableOptions(
+    dialect,
+    on_cluster="analytics_cluster",
+    table_storage_options=storage,
+)
+# CREATE TABLE `events` ON CLUSTER `analytics_cluster` (...) ENGINE = MergeTree ...
+```
+
+> ⚠️ The core `CreateTableStatement(storage_options=...)` slot is **refused by name** in this backend: ClickHouse has no generic `WITH (...)` storage-options clause, and accepting the dict would render a statement that silently differs from what the caller wrote. The error names `ClickHouseCreateTableOptions` as the replacement.
 
 > 💡 *AI prompt: "`ReplacingMergeTree` dedup is eventually consistent; how does the caller ensure it reads the latest version when querying? What is the cost of the `FINAL` keyword?"*
 
@@ -119,17 +173,22 @@ Expired data is automatically deleted; commonly used for log/event tables.
 This backend supports `ALTER TABLE` ADD/DROP COLUMN (including `IF EXISTS`/`IF NOT EXISTS`), MODIFY COLUMN, etc.:
 
 ```python
+from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
-    AlterTableExpression, AlterColumn, ColumnAlterOperation,
+    AddColumnAction, AlterTableStatement, ColumnDefinition,
 )
-expr = AlterTableExpression(dialect, "users", [
-    AlterColumn("col", ColumnAlterOperation.SET_DEFAULT, new_value="ABC"),
-])
+from rhosocial.activerecord.backend.impl.clickhouse.expression import ClickHouseStringType
+
+expr = AlterTableStatement(
+    dialect,
+    Table(dialect, "events"),
+    [AddColumnAction(dialect, ColumnDefinition(dialect, "country", ClickHouseStringType(dialect)))],
+)
 sql, _ = expr.to_sql()
-# ALTER TABLE users ALTER COLUMN col SET DEFAULT 'ABC'
+# ALTER TABLE `events` ADD COLUMN `country` String
 ```
 
-See the DDL comparison in [First CRUD application](../getting_started/first_crud.md).
+See the DDL comparison in [First CRUD application](../getting_started/first_crud.md), and [Skip indexes](skip_indexes.md) for inline `INDEX` clauses.
 
 ## Next steps
 

@@ -9,7 +9,7 @@ from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.rename_table import (
-        ClickHouseRenameTableExpression,
+        ClickHouseRenameTableStatement,
     )
 
 @runtime_checkable
@@ -34,6 +34,6 @@ class ClickHouseRenameTableSupport(Protocol):
         """Whether multiple rename pairs in one statement are supported."""
         ...
 
-    def format_rename_table_statement(self, expr: "ClickHouseRenameTableExpression") -> Tuple[str, tuple]:
+    def format_rename_table_statement(self, expr: "ClickHouseRenameTableStatement") -> Tuple[str, tuple]:
         """Format a ClickHouse RENAME TABLE statement."""
         ...

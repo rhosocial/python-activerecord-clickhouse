@@ -74,7 +74,7 @@ class ClickHouseRoutineExpression(BaseExpression):
             )
 
 
-class ClickHouseCreateProcedureExpression(ClickHouseRoutineExpression):
+class ClickHouseCreateProcedureStatement(ClickHouseRoutineExpression):
     """Represent ``CREATE PROCEDURE``."""
 
     @property
@@ -82,7 +82,7 @@ class ClickHouseCreateProcedureExpression(ClickHouseRoutineExpression):
         return "format_create_procedure_statement"
 
 
-class ClickHouseDropProcedureExpression(ClickHouseRoutineExpression):
+class ClickHouseDropProcedureStatement(ClickHouseRoutineExpression):
     """Represent ``DROP PROCEDURE [IF EXISTS]``."""
 
     def __init__(
@@ -100,7 +100,7 @@ class ClickHouseDropProcedureExpression(ClickHouseRoutineExpression):
         return "format_drop_procedure_statement"
 
 
-class ClickHouseCreateFunctionExpression(ClickHouseRoutineExpression):
+class ClickHouseCreateFunctionStatement(ClickHouseRoutineExpression):
     """Represent ``CREATE FUNCTION`` (stored function)."""
 
     def __init__(
@@ -127,7 +127,7 @@ class ClickHouseCreateFunctionExpression(ClickHouseRoutineExpression):
         return "format_create_function_statement"
 
 
-class ClickHouseDropFunctionExpression(ClickHouseRoutineExpression):
+class ClickHouseDropFunctionStatement(ClickHouseRoutineExpression):
     """Represent ``DROP FUNCTION [IF EXISTS]`` (stored function)."""
 
     def __init__(
@@ -145,7 +145,7 @@ class ClickHouseDropFunctionExpression(ClickHouseRoutineExpression):
         return "format_drop_function_statement"
 
 
-class ClickHouseCallExpression(BaseExpression):
+class ClickHouseCallStatement(BaseExpression):
     """Represent ``CALL procedure_name([args])``.
 
     Attributes:

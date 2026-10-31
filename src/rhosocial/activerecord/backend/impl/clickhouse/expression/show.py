@@ -10,7 +10,12 @@ Expression classes inherit from BaseExpression and implement to_sql(),
 following the expression-dialect pattern used throughout the codebase.
 
 Key design:
-- Expressions collect parameters (table, schema, options)
+- **Every parameter is a constructor parameter.** A node is complete the moment
+  it is built, so ``get_params()`` reads the declared fields and nothing has to
+  be filled in afterwards. The ``schema()`` / ``full()`` / ``like()`` /
+  ``for_user()`` setters this module used to carry made "the node" a thing that
+  was only sometimes finished, and an artifact built from one could not say
+  which state it had captured (expression-dialect §16.1).
 - Expressions hold a dialect reference
 - to_sql() delegates to dialect.format_show_* methods
 - Dialect handles actual SQL generation
@@ -30,7 +35,7 @@ carries a NOTE saying so — their dialect formatter raises
 here renders SQL the server would reject.
 """
 
-from typing import Any, Dict, Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression, SQLQueryAndParams
 
@@ -41,75 +46,58 @@ if TYPE_CHECKING:
 class ShowExpression(BaseExpression):
     """Base class for ClickHouse SHOW command expressions.
 
-    All ClickHouse SHOW expressions inherit from this class and provide
-    fluent API for setting parameters.
+    All ClickHouse SHOW expressions inherit from this class. ``schema`` is the
+    ClickHouse database the statement is qualified by, and it is declared here
+    because every subclass that can carry one declares it in its own
+    ``__init__`` too: ``get_params()`` reads the *class's own* signature, so a
+    qualifier declared on the base alone would be invisible to the artifact and
+    silently dropped from the rendered statement.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(self, dialect: "ClickHouseDialect", *, schema: Optional[str] = None):
         super().__init__(dialect)
-        self._schema: Optional[str] = None
-
-    def schema(self, name: str) -> "ShowExpression":
-        """Set the schema/database name.
-
-        Args:
-            name: Schema or database name.
-
-        Returns:
-            Self for method chaining.
-        """
-        self._schema = name
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        """Get all parameters.
-
-        Returns:
-            Dictionary containing all parameters.
-        """
-        params: Dict[str, Any] = {}
-        if self._schema is not None:
-            params["schema"] = self._schema
-        return params
+        self.schema: Optional[str] = schema
 
     def to_sql(self) -> SQLQueryAndParams:
         """Generate SQL. Subclasses must implement this method."""
         raise NotImplementedError("Subclasses must implement to_sql() method")
 
 
-class ShowCreateTableExpression(ShowExpression):
+class ShowCreateTableStatement(ShowExpression):
     """Expression for SHOW CREATE TABLE command."""
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str):
-        super().__init__(dialect)
-        self._table = table
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["table"] = self._table
-        return params
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        *,
+        schema: Optional[str] = None,
+    ):
+        super().__init__(dialect, schema=schema)
+        self.table: str = table
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_table(self)
+        return self._dialect.format_show_create_table_statement(self)
 
 
-class ShowCreateViewExpression(ShowExpression):
+class ShowCreateViewStatement(ShowExpression):
     """Expression for SHOW CREATE VIEW command."""
 
-    def __init__(self, dialect: "ClickHouseDialect", view_name: str):
-        super().__init__(dialect)
-        self._view_name = view_name
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["view_name"] = self._view_name
-        return params
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        view_name: str,
+        *,
+        schema: Optional[str] = None,
+    ):
+        super().__init__(dialect, schema=schema)
+        self.view_name: str = view_name
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_view(self)
+        return self._dialect.format_show_create_view_statement(self)
 
 
-class ShowColumnsExpression(ShowExpression):
+class ShowColumnsStatement(ShowExpression):
     """Expression for SHOW [FULL] COLUMNS command.
 
     ClickHouse has this statement; the table is mandatory (bare ``SHOW COLUMNS``
@@ -126,66 +114,38 @@ class ShowColumnsExpression(ShowExpression):
         like_pattern: Optional[str] = None,
         schema: Optional[str] = None,
     ):
-        super().__init__(dialect)
-        self._table = table
-        self._full: bool = full
-        self._like_pattern: Optional[str] = like_pattern
-        if schema is not None:
-            self._schema = schema
-
-    def full(self, value: bool = True) -> "ShowColumnsExpression":
-        """Include additional column information (privileges, comments)."""
-        self._full = value
-        return self
-
-    def like(self, pattern: str) -> "ShowColumnsExpression":
-        """Filter columns by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["table"] = self._table
-        params["full"] = self._full
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        super().__init__(dialect, schema=schema)
+        self.table: str = table
+        self.full: bool = full
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_columns(self)
+        return self._dialect.format_show_columns_statement(self)
 
 
-class ShowIndexExpression(ShowExpression):
+class ShowIndexStatement(ShowExpression):
     """Expression for SHOW INDEX command.
 
     ClickHouse has this statement "mostly for compatibility with MySQL". As with
     ``SHOW COLUMNS``, the database is part of the table reference.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", table: str):
-        super().__init__(dialect)
-        self._table = table
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["table"] = self._table
-        return params
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        *,
+        schema: Optional[str] = None,
+    ):
+        super().__init__(dialect, schema=schema)
+        self.table: str = table
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_index(self)
+        return self._dialect.format_show_index_statement(self)
 
 
-class ShowTablesExpression(ShowExpression):
-    """Expression for SHOW [FULL] TABLES command.
-
-    ``full``, ``like_pattern`` and ``schema`` are accepted as keyword arguments
-    as well as set through the fluent methods. They have to be: ``get_params``
-    emits all three, and deserialization rebuilds an expression by calling the
-    constructor with what ``get_params`` produced. A fluent-only field made the
-    round-trip impossible -- ``SHOW TABLES`` serialised fine and then failed to
-    rebuild with "unexpected keyword argument 'full'". The fluent methods are
-    kept because they read better in the call sites that use them.
-    """
+class ShowTablesStatement(ShowExpression):
+    """Expression for SHOW [FULL] TABLES command."""
 
     def __init__(
         self,
@@ -195,132 +155,94 @@ class ShowTablesExpression(ShowExpression):
         like_pattern: Optional[str] = None,
         schema: Optional[str] = None,
     ):
-        super().__init__(dialect)
-        self._full: bool = full
-        self._like_pattern: Optional[str] = like_pattern
-        if schema is not None:
-            self._schema = schema
-
-    def full(self, value: bool = True) -> "ShowTablesExpression":
-        """Include table type (BASE TABLE or VIEW)."""
-        self._full = value
-        return self
-
-    def like(self, pattern: str) -> "ShowTablesExpression":
-        """Filter tables by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["full"] = self._full
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        super().__init__(dialect, schema=schema)
+        self.full: bool = full
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_tables(self)
+        return self._dialect.format_show_tables_statement(self)
 
 
-class ShowDatabasesExpression(ShowExpression):
+class ShowDatabasesStatement(ShowExpression):
     """Expression for SHOW DATABASES command."""
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        like_pattern: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._like_pattern: Optional[str] = None
-
-    def like(self, pattern: str) -> "ShowDatabasesExpression":
-        """Filter databases by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_databases(self)
+        return self._dialect.format_show_databases_statement(self)
 
 
-class ShowTableStatusExpression(ShowExpression):
+class ShowTableStatusStatement(ShowExpression):
     """Expression for SHOW TABLE STATUS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
-        super().__init__(dialect)
-        self._like_pattern: Optional[str] = None
-
-    def like(self, pattern: str) -> "ShowTableStatusExpression":
-        """Filter tables by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        like_pattern: Optional[str] = None,
+        schema: Optional[str] = None,
+    ):
+        super().__init__(dialect, schema=schema)
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_table_status(self)
+        return self._dialect.format_show_table_status_statement(self)
 
 
-class ShowTriggersExpression(ShowExpression):
+class ShowTriggersStatement(ShowExpression):
     """Expression for SHOW TRIGGERS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
-        super().__init__(dialect)
-        self._table: Optional[str] = None
-
-    def for_table(self, table: str) -> "ShowTriggersExpression":
-        """Filter triggers for a specific table."""
-        self._table = table
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._table:
-            params["table"] = self._table
-        return params
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        table: Optional[str] = None,
+        schema: Optional[str] = None,
+    ):
+        super().__init__(dialect, schema=schema)
+        self.table: Optional[str] = table
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_triggers(self)
+        return self._dialect.format_show_triggers_statement(self)
 
 
-class ShowCreateTriggerExpression(ShowExpression):
+class ShowCreateTriggerStatement(ShowExpression):
     """Expression for SHOW CREATE TRIGGER command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect", trigger: str):
-        super().__init__(dialect)
-        self._trigger = trigger
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["trigger"] = self._trigger
-        return params
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        trigger: str,
+        *,
+        schema: Optional[str] = None,
+    ):
+        super().__init__(dialect, schema=schema)
+        self.trigger: str = trigger
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_create_trigger(self)
+        return self._dialect.format_show_create_trigger_statement(self)
 
 
-class ShowVariablesExpression(ShowExpression):
+class ShowVariablesStatement(ShowExpression):
     """Expression for SHOW VARIABLES command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
-
-    ``session``, ``like_pattern`` and ``schema`` are keyword arguments as well as
-    fluent methods; see :class:`ShowTablesExpression` for why the constructor has
-    to accept what ``get_params`` emits.
     """
 
     def __init__(
@@ -331,46 +253,18 @@ class ShowVariablesExpression(ShowExpression):
         like_pattern: Optional[str] = None,
         schema: Optional[str] = None,
     ):
-        super().__init__(dialect)
-        self._like_pattern: Optional[str] = like_pattern
-        self._session: bool = session
-        if schema is not None:
-            self._schema = schema
-
-    def like(self, pattern: str) -> "ShowVariablesExpression":
-        """Filter variables by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def session(self, value: bool = True) -> "ShowVariablesExpression":
-        """Show session variables (default)."""
-        self._session = value
-        return self
-
-    def global_vars(self) -> "ShowVariablesExpression":
-        """Show global variables."""
-        self._session = False
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["session"] = self._session
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        super().__init__(dialect, schema=schema)
+        self.session: bool = session
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_variables(self)
+        return self._dialect.format_show_variables_statement(self)
 
 
-class ShowStatusExpression(ShowExpression):
+class ShowStatusStatement(ShowExpression):
     """Expression for SHOW STATUS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
-
-    ``session``, ``like_pattern`` and ``schema`` are keyword arguments as well as
-    fluent methods; see :class:`ShowTablesExpression` for why the constructor has
-    to accept what ``get_params`` emits.
     """
 
     def __init__(
@@ -381,39 +275,15 @@ class ShowStatusExpression(ShowExpression):
         like_pattern: Optional[str] = None,
         schema: Optional[str] = None,
     ):
-        super().__init__(dialect)
-        self._like_pattern: Optional[str] = like_pattern
-        self._session: bool = session
-        if schema is not None:
-            self._schema = schema
-
-    def like(self, pattern: str) -> "ShowStatusExpression":
-        """Filter status by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def session(self, value: bool = True) -> "ShowStatusExpression":
-        """Show session status (default)."""
-        self._session = value
-        return self
-
-    def global_status(self) -> "ShowStatusExpression":
-        """Show global status."""
-        self._session = False
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["session"] = self._session
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        super().__init__(dialect, schema=schema)
+        self.session: bool = session
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_status(self)
+        return self._dialect.format_show_status_statement(self)
 
 
-class ShowProcessListExpression(ShowExpression):
+class ShowProcessListStatement(ShowExpression):
     """Expression for SHOW PROCESSLIST command.
 
     ClickHouse has this statement; it is ``SELECT * FROM system.processes``.
@@ -428,170 +298,129 @@ class ShowProcessListExpression(ShowExpression):
         full: bool = False,
         schema: Optional[str] = None,
     ):
-        super().__init__(dialect)
-        self._full: bool = full
-        if schema is not None:
-            self._schema = schema
-
-    def full(self, value: bool = True) -> "ShowProcessListExpression":
-        """Include full query text."""
-        self._full = value
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        params["full"] = self._full
-        return params
+        super().__init__(dialect, schema=schema)
+        self.full: bool = full
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_processlist(self)
+        return self._dialect.format_show_process_list_statement(self)
 
 
-class ShowWarningsExpression(ShowExpression):
+class ShowWarningsStatement(ShowExpression):
     """Expression for SHOW WARNINGS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        limit: Optional[int] = None,
+    ):
         super().__init__(dialect)
-        self._limit: Optional[int] = None
-
-    def limit(self, count: int) -> "ShowWarningsExpression":
-        """Limit number of warnings returned."""
-        self._limit = count
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._limit is not None:
-            params["limit"] = self._limit
-        return params
+        self.limit: Optional[int] = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_warnings(self)
+        return self._dialect.format_show_warnings_statement(self)
 
 
-class ShowErrorsExpression(ShowExpression):
+class ShowErrorsStatement(ShowExpression):
     """Expression for SHOW ERRORS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        limit: Optional[int] = None,
+    ):
         super().__init__(dialect)
-        self._limit: Optional[int] = None
-
-    def limit(self, count: int) -> "ShowErrorsExpression":
-        """Limit number of errors returned."""
-        self._limit = count
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._limit is not None:
-            params["limit"] = self._limit
-        return params
+        self.limit: Optional[int] = limit
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_errors(self)
+        return self._dialect.format_show_errors_statement(self)
 
 
-class ShowEnginesExpression(ShowExpression):
+class ShowEnginesStatement(ShowExpression):
     """Expression for SHOW ENGINES command.
 
     ClickHouse has this statement; it is ``SELECT * FROM system.table_engines``.
     """
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_engines(self)
+        return self._dialect.format_show_engines_statement(self)
 
 
-class ShowCharsetExpression(ShowExpression):
+class ShowCharsetStatement(ShowExpression):
     """Expression for SHOW CHARACTER SET command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        like_pattern: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._like_pattern: Optional[str] = None
-
-    def like(self, pattern: str) -> "ShowCharsetExpression":
-        """Filter character sets by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_charset(self)
+        return self._dialect.format_show_charset_statement(self)
 
 
-class ShowCollationExpression(ShowExpression):
+class ShowCollationStatement(ShowExpression):
     """Expression for SHOW COLLATION command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        like_pattern: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._like_pattern: Optional[str] = None
-
-    def like(self, pattern: str) -> "ShowCollationExpression":
-        """Filter collations by name pattern."""
-        self._like_pattern = pattern
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._like_pattern:
-            params["like_pattern"] = self._like_pattern
-        return params
+        self.like_pattern: Optional[str] = like_pattern
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_collation(self)
+        return self._dialect.format_show_collation_statement(self)
 
 
-class ShowGrantsExpression(ShowExpression):
+class ShowGrantsStatement(ShowExpression):
     """Expression for SHOW GRANTS command.
 
     ClickHouse has this statement. Its ``FOR`` clause takes access-entity names
-    only — there is no ``user@host`` form — so ``host`` is accepted and ignored.
+    only — there is no ``user@host`` form — so ``host`` is recorded and not
+    rendered. It stays a parameter because the callers that drive SHOW from a
+    MySQL-shaped interface pass it; the dialect formatter is where the fact that
+    ClickHouse cannot spell it is stated.
     """
 
-    def __init__(self, dialect: "ClickHouseDialect"):
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        *,
+        user: Optional[str] = None,
+        host: Optional[str] = None,
+    ):
         super().__init__(dialect)
-        self._user: Optional[str] = None
-        self._host: Optional[str] = None
-
-    def for_user(self, user: str, host: Optional[str] = None) -> "ShowGrantsExpression":
-        """Show grants for a specific user."""
-        self._user = user
-        self._host = host
-        return self
-
-    def get_params(self) -> Dict[str, Any]:
-        params = super().get_params()
-        if self._user:
-            params["user"] = self._user
-        if self._host:
-            params["host"] = self._host
-        return params
+        self.user: Optional[str] = user
+        self.host: Optional[str] = host
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_grants(self)
+        return self._dialect.format_show_grants_statement(self)
 
 
-class ShowPluginsExpression(ShowExpression):
+class ShowPluginsStatement(ShowExpression):
     """Expression for SHOW PLUGINS command.
 
     NOTE: MySQL-only command, not supported by ClickHouse.
     """
 
     def to_sql(self) -> SQLQueryAndParams:
-        return self._dialect.format_show_plugins(self)
+        return self._dialect.format_show_plugins_statement(self)

@@ -13,7 +13,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDia
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnDefaultConstraint,
 )
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -32,11 +32,8 @@ def dialect():
 
 def test_clickhouse_format_column_definition_default_string_escaping(dialect):
     """Test DEFAULT constraint string is escaped in ClickHouse."""
-    constraint = ColumnConstraint(
-        dialect,
-        ColumnConstraintType.DEFAULT,
-        default_value="test's value",
-    )
+    constraint = ColumnConstraint(dialect,
+                 branch=ColumnDefaultConstraint(dialect, "test's value"))
 
     col_def = ColumnDefinition(
         dialect,
@@ -62,18 +59,44 @@ def test_clickhouse_format_column_definition_comment_string_escaping(dialect):
     assert "Comment with ''single quote''" in sql
 
 
-def test_clickhouse_escape_sql_string(dialect):
-    """Test ClickHouse inherits _escape_sql_string."""
-    result = dialect._escape_sql_string("Table's comment")
+def test_clickhouseescape_sql_string(dialect):
+    """Test ClickHouse inherits escape_sql_string."""
+    result = dialect.escape_sql_string("Table's comment")
     assert result == "Table''s comment"
 
 
-def test_clickhouse_validate_data_type(dialect):
-    """Test ClickHouse inherits _validate_data_type."""
-    assert dialect._validate_data_type("VARCHAR(255)")
-    assert dialect._validate_data_type("INT")
-    assert dialect._validate_data_type("BIGINT")
-    assert not dialect._validate_data_type("INT; DROP TABLE users--")
+def test_clickhousea_type_position_refuses_a_payload(dialect):
+    """A type name is a name, and the grammar is what says so.
+
+    The backend has no character filter of its own any more: the type
+    position is guarded by the grammar, which is the framework's rule for
+    what a name may be, and the server decides whether the type exists.
+    """
+    from rhosocial.activerecord.backend.expression import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        AlterColumnAction,
+    )
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+    )
+    from rhosocial.activerecord.backend.expression.xml import (
+        XMLSerializeExpression,
+    )
+
+    # A name is a name: the position takes it.
+    XMLSerializeExpression(dialect, Literal(dialect, "x"), "TEXT")
+    AlterColumnAction(dialect, "c", "SET DATA TYPE", new_value="TEXT")
+
+    # A value that is not a name is refused, and refused before the
+    # statement is ever rendered.
+    with pytest.raises(InvalidTypeNameError):
+        XMLSerializeExpression(
+            dialect, Literal(dialect, "x"), "TEXT; DROP TABLE users--"
+        )
+    with pytest.raises(InvalidTypeNameError):
+        AlterColumnAction(
+            dialect, "c", "SET DATA TYPE", new_value="TEXT; DROP TABLE users--"
+        )
 
 
 def test_clickhouse_format_column_definition_data_type_validation(dialect):
@@ -173,22 +196,22 @@ def test_clickhouse_format_cast_expression_rejects_injection(dialect):
 
 
 class TestClickHouseEscapeSqlStringBackslash:
-    """Tests for ClickHouse _escape_sql_string with backslash escaping."""
+    """Tests for ClickHouse escape_sql_string with backslash escaping."""
 
-    def test_escape_sql_string_backslash_escaped(self, dialect):
+    def testescape_sql_string_backslash_escaped(self, dialect):
         """Test backslash is properly escaped in ClickHouse."""
-        result = dialect._escape_sql_string("test\\value")
+        result = dialect.escape_sql_string("test\\value")
         assert "\\\\" in result
 
-    def test_escape_sql_string_backslash_and_quote(self, dialect):
+    def testescape_sql_string_backslash_and_quote(self, dialect):
         """Test both backslash and single quote are escaped."""
-        result = dialect._escape_sql_string("test\\'value")
+        result = dialect.escape_sql_string("test\\'value")
         assert "\\\\" in result
         assert "''" in result
 
-    def test_escape_sql_string_preserves_others(self, dialect):
+    def testescape_sql_string_preserves_others(self, dialect):
         """Test other characters are preserved."""
-        result = dialect._escape_sql_string('test"double"value')
+        result = dialect.escape_sql_string('test"double"value')
         assert 'test"double"value' in result
 
 
@@ -426,11 +449,11 @@ class TestClickHouseCreateTableCommentEscaping:
     def test_create_table_comment_escaped(self, dialect):
         """Test table-level COMMENT is properly escaped."""
         from rhosocial.activerecord.backend.expression.statements import (
-            CreateTableExpression,
+            CreateTableStatement,
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, "test_table"),
             columns=[],
@@ -448,11 +471,11 @@ class TestClickHouseCreateTableCommentEscaping:
     def test_create_table_comment_with_backslash(self, dialect):
         """Test table-level COMMENT with backslash is properly escaped."""
         from rhosocial.activerecord.backend.expression.statements import (
-            CreateTableExpression,
+            CreateTableStatement,
             CreateTableOptions,
         )
 
-        expr = CreateTableExpression(
+        expr = CreateTableStatement(
             dialect=dialect,
             table=Table(dialect, "test_table"),
             columns=[],
@@ -465,38 +488,103 @@ class TestClickHouseCreateTableCommentEscaping:
 
 
 # ============================================================
-# format_storage_options — ClickHouse native ENGINE / ORDER BY / TTL syntax
+# storage clauses — ClickHouse's ENGINE / ORDER BY / SETTINGS nodes
 # ============================================================
 
 
-def test_storage_options_normal_key_and_value(dialect):
-    """ClickHouse storage option key/value are joined with ' = ' and not quoted."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()"}))
-    assert "ENGINE = MergeTree()" in sql
+def _clause(dialect, option, value):
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseTableStorageOption,
+    )
+
+    return ClickHouseTableStorageOption(dialect, option, value=value)
 
 
-def test_storage_options_multiple_keys(dialect):
-    """Multiple storage options are space separated."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()", "ORDER BY": "id"}))
-    assert "ENGINE = MergeTree()" in sql
-    assert "ORDER BY id" in sql
+def test_storage_clause_engine_is_emitted_unquoted(dialect):
+    """An engine name is vocabulary, not a string: no quotes, no escaping."""
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseEngineSpec,
+        ClickHouseStorageOptionKind,
+    )
 
-
-def test_storage_options_int_value(dialect):
-    """Integer value is rendered without quotes."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"PARTITION_BY": 1000}))
-    assert "PARTITION BY 1000" in sql
-
-
-def test_storage_options_string_value_preserved(dialect):
-    """ClickHouse storage option values are NOT quoted (engine/expression names)."""
-    from rhosocial.activerecord.backend.expression.statements import StorageOptionsExpression
-    sql, params = dialect.format_storage_options(StorageOptionsExpression(dialect, {"ENGINE": "MergeTree()"}))
-    assert "ENGINE = MergeTree()" == sql
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.ENGINE,
+            ClickHouseEngineSpec(dialect, "MergeTree"),
+        )
+    )
+    assert sql == "ENGINE = MergeTree"
+    assert params == ()
     assert "'" not in sql
+
+
+def test_storage_clause_order_by_places_each_expression(dialect):
+    """A sort key is expression nodes; a single one is not parenthesised."""
+    from rhosocial.activerecord.backend.expression import Column
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseStorageOptionKind,
+    )
+
+    single = _clause(
+        dialect,
+        ClickHouseStorageOptionKind.ORDER_BY,
+        [Column(dialect, "id")],
+    )
+    assert dialect.format_clickhouse_table_storage_option(single) == ("ORDER BY `id`", ())
+
+    composite = _clause(
+        dialect,
+        ClickHouseStorageOptionKind.ORDER_BY,
+        [Column(dialect, "a"), Column(dialect, "b")],
+    )
+    assert dialect.format_clickhouse_table_storage_option(composite) == (
+        "ORDER BY (`a`, `b`)",
+        (),
+    )
+
+
+def test_storage_clause_setting_int_value_is_unquoted(dialect):
+    """An integer setting reaches the SQL as a number, not as text."""
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseSetting,
+        ClickHouseStorageOptionKind,
+    )
+
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.SETTINGS,
+            [ClickHouseSetting(dialect, "index_granularity", 8192)],
+        )
+    )
+    assert sql == "SETTINGS index_granularity = 8192"
+    assert params == ()
+
+
+def test_storage_clause_setting_string_value_is_a_literal(dialect):
+    """A string setting is formatted as a literal -- the caller's text is never pasted.
+
+    What holds for every other value in the tree holds here too: the caller
+    supplies data, the dialect decides how it is spelled. A quote in the value
+    is doubled by ``format_literal``, so it stays inside the literal instead of
+    ending it.
+    """
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseSetting,
+        ClickHouseStorageOptionKind,
+    )
+
+    payload = "x'; DROP TABLE users--"
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.SETTINGS,
+            [ClickHouseSetting(dialect, "storage_policy", payload)],
+        )
+    )
+    assert sql == "SETTINGS storage_policy = 'x''; DROP TABLE users--'"
+    assert sql.count("'") == 4
 
 
 # ============================================================

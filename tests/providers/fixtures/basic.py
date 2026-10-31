@@ -1,7 +1,7 @@
 # tests/providers/fixtures/basic.py
 """DDL expressions for the ``feature/basic`` table group (ClickHouse).
 
-Each factory builds a :class:`CreateTableExpression` whose generated ClickHouse
+Each factory builds a :class:`CreateTableStatement` whose generated ClickHouse
 DDL is semantically equivalent to the reference ``.sql`` schema files under
 ``tests/rhosocial/activerecord_clickhouse_test/feature/basic/schema/``.  Those
 ``.sql`` files are kept as the authoritative reference and are no longer
@@ -18,16 +18,16 @@ ClickHouse-specific notes:
 from typing import Callable, Dict
 
 from rhosocial.activerecord.backend.expression import (
-    CreateTableExpression,
+    CreateTableStatement,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,
-    ColumnConstraintType,
+    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
     IndexDefinition,
     TableConstraint,
-    TableConstraintType,
+    TablePrimaryKeyConstraint,
 )
 from rhosocial.activerecord.backend.expression.types import (
     BigIntType,
@@ -53,16 +53,9 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 
 from . import _common
 
-# Standard ClickHouse table options.
-_DEFAULT_STORAGE_OPTIONS = {
-    "ENGINE": "MergeTree",
-    "ORDER BY": "id",
-    "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-}
 
-
-def to_sql(expr: CreateTableExpression):
-    """Route a CreateTableExpression through the canonical ClickHouse DDL post-processor."""
+def to_sql(expr: CreateTableStatement):
+    """Route a CreateTableStatement through the canonical ClickHouse DDL post-processor."""
     return _common.to_clickhouse_ddl_sql(expr)
 
 
@@ -70,29 +63,29 @@ def to_sql(expr: CreateTableExpression):
 # basic/users.sql
 # ---------------------------------------------------------------------------
 
-def create_users_table(dialect, table_name: str = "users") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_users_table(dialect, table_name: str = "users") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "username", VarCharType(dialect, length=191),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=191),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "age", IntegerType(dialect)),
             ColumnDefinition(dialect, "balance", FloatType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0.0)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0.0))]),
             ColumnDefinition(dialect, "is_active", BooleanType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1))]),
             ColumnDefinition(dialect, "created_at", TextType(dialect)),
             ColumnDefinition(dialect, "updated_at", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -100,19 +93,19 @@ def create_users_table(dialect, table_name: str = "users") -> CreateTableExpress
 # basic/type_cases.sql
 # ---------------------------------------------------------------------------
 
-def create_type_cases_table(dialect, table_name: str = "type_cases") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_type_cases_table(dialect, table_name: str = "type_cases") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", CharType(dialect, length=36),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "username", TextType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "email", TextType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "tiny_int", TextType(dialect)),
             ColumnDefinition(dialect, "small_int", TextType(dialect)),
             ColumnDefinition(dialect, "big_int", TextType(dialect)),
@@ -130,7 +123,7 @@ def create_type_cases_table(dialect, table_name: str = "type_cases") -> CreateTa
             ColumnDefinition(dialect, "array_val", TextType(dialect)),
             ColumnDefinition(dialect, "is_active", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -138,36 +131,36 @@ def create_type_cases_table(dialect, table_name: str = "type_cases") -> CreateTa
 # basic/type_tests.sql
 # ---------------------------------------------------------------------------
 
-def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", CharType(dialect, length=36),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "string_field", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value="test string")]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, "test string"))]),
             ColumnDefinition(dialect, "int_field", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=42)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 42))]),
             ColumnDefinition(dialect, "float_field", FloatType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=3.14)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 3.14))]),
             ColumnDefinition(dialect, "decimal_field", DoubleType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=10.99)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 10.99))]),
             ColumnDefinition(dialect, "bool_field", TinyIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1))]),
             ColumnDefinition(dialect, "datetime_field", TextType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "json_field", JsonType(dialect)),
             ColumnDefinition(dialect, "nullable_field", ClickHouseNullableType(dialect, inner_type=ClickHouseStringType(dialect))),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -175,32 +168,32 @@ def create_type_tests_table(dialect, table_name: str = "type_tests") -> CreateTa
 # basic/validated_field_users.sql
 # ---------------------------------------------------------------------------
 
-def create_validated_field_users_table(dialect, table_name: str = "validated_field_users") -> CreateTableExpression:
+def create_validated_field_users_table(dialect, table_name: str = "validated_field_users") -> CreateTableStatement:
     # ClickHouse ENUM column for status.
     status_enum = ClickHouseEnum8Type(dialect, values=[('active', 1), ('inactive', 2), ('banned', 3), ('pending', 4), ('suspended', 5)])
-    return CreateTableExpression(
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "username", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "age", IntegerType(dialect)),
             ColumnDefinition(dialect, "balance", DecimalType(dialect, precision=10, scale=2)),
             ColumnDefinition(dialect, "credit_score", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "status", status_enum,
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value="active")]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, "active"))]),
             ColumnDefinition(dialect, "is_active", TinyIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -208,21 +201,21 @@ def create_validated_field_users_table(dialect, table_name: str = "validated_fie
 # basic/validated_users.sql
 # ---------------------------------------------------------------------------
 
-def create_validated_users_table(dialect, table_name: str = "validated_users") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_validated_users_table(dialect, table_name: str = "validated_users") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "username", VarCharType(dialect, length=50),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "age", ClickHouseNullableType(dialect, inner_type=IntegerType(dialect))),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -230,14 +223,14 @@ def create_validated_users_table(dialect, table_name: str = "validated_users") -
 # basic/pydantic_validated_models.sql
 # ---------------------------------------------------------------------------
 
-def create_pydantic_validated_models_table(dialect, table_name: str = "pydantic_validated_models") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_pydantic_validated_models_table(dialect, table_name: str = "pydantic_validated_models") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "code", VarCharType(dialect, length=32)),
             ColumnDefinition(dialect, "quantity", IntegerType(dialect)),
             ColumnDefinition(dialect, "step_count", IntegerType(dialect)),
@@ -248,7 +241,7 @@ def create_pydantic_validated_models_table(dialect, table_name: str = "pydantic_
             ColumnDefinition(dialect, "normalized_name", VarCharType(dialect, length=50)),
             ColumnDefinition(dialect, "created_token", VarCharType(dialect, length=255)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -256,22 +249,22 @@ def create_pydantic_validated_models_table(dialect, table_name: str = "pydantic_
 # basic/bulk_users.sql
 # ---------------------------------------------------------------------------
 
-def create_bulk_users_table(dialect, table_name: str = "bulk_users") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_bulk_users_table(dialect, table_name: str = "bulk_users") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "name", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "age", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0))]),
             ColumnDefinition(dialect, "email", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value="")]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, ""))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -279,27 +272,27 @@ def create_bulk_users_table(dialect, table_name: str = "bulk_users") -> CreateTa
 # basic/posts.sql
 # ---------------------------------------------------------------------------
 
-def create_posts_table(dialect, table_name: str = "posts") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_posts_table(dialect, table_name: str = "posts") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "author", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "title", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "content", TextType(dialect)),
             ColumnDefinition(dialect, "published_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "published", BooleanType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0))]),
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
         ],
         indexes=[IndexDefinition(dialect, name="idx_author", columns=["author"])],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -307,31 +300,31 @@ def create_posts_table(dialect, table_name: str = "posts") -> CreateTableExpress
 # basic/comments.sql
 # ---------------------------------------------------------------------------
 
-def create_comments_table(dialect, table_name: str = "comments") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_comments_table(dialect, table_name: str = "comments") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "post_ref", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "author", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "text", TextType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "created_at", ClickHouseDateTime64Type(dialect, precision=6),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "updated_at", ClickHouseDateTime64Type(dialect, precision=6)),
             ColumnDefinition(dialect, "approved", BooleanType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0))]),
         ],
         indexes=[
             IndexDefinition(dialect, name="idx_post_ref", columns=["post_ref"]),
             IndexDefinition(dialect, name="idx_author", columns=["author"]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -339,21 +332,21 @@ def create_comments_table(dialect, table_name: str = "comments") -> CreateTableE
 # basic/column_mapping_items.sql
 # ---------------------------------------------------------------------------
 
-def create_column_mapping_items_table(dialect, table_name: str = "column_mapping_items") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_column_mapping_items_table(dialect, table_name: str = "column_mapping_items") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "name", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "item_total", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "remarks", IntegerType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -361,22 +354,22 @@ def create_column_mapping_items_table(dialect, table_name: str = "column_mapping
 # basic/mixed_annotation_items.sql
 # ---------------------------------------------------------------------------
 
-def create_mixed_annotation_items_table(dialect, table_name: str = "mixed_annotation_items") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_mixed_annotation_items_table(dialect, table_name: str = "mixed_annotation_items") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "name", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "tags", TextType(dialect)),
             ColumnDefinition(dialect, "meta", TextType(dialect)),
             ColumnDefinition(dialect, "description", TextType(dialect)),
             ColumnDefinition(dialect, "status", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -384,16 +377,16 @@ def create_mixed_annotation_items_table(dialect, table_name: str = "mixed_annota
 # basic/type_adapter_tests.sql  (no ENGINE/CHARSET in reference file)
 # ---------------------------------------------------------------------------
 
-def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tests") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tests") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=True,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "name", VarCharType(dialect, length=255),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             # Optional[T] model fields must map to Nullable columns so that None
             # is stored/returned as SQL NULL instead of ClickHouse's empty string.
             ColumnDefinition(dialect, "optional_name", ClickHouseNullableType(dialect, inner_type=VarCharType(dialect, length=255))),
@@ -404,7 +397,7 @@ def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tes
             ColumnDefinition(dialect, "custom_bool", VarCharType(dialect, length=3)),
             ColumnDefinition(dialect, "optional_custom_bool", ClickHouseNullableType(dialect, inner_type=VarCharType(dialect, length=3))),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -412,31 +405,27 @@ def create_type_adapter_tests_table(dialect, table_name: str = "type_adapter_tes
 # basic/order_items.sql (composite PK)
 # ---------------------------------------------------------------------------
 
-def create_composite_pk_order_items_table(dialect, table_name: str = "order_items") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_composite_pk_order_items_table(dialect, table_name: str = "order_items") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "order_id", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "product_id", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "quantity", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=1)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1))]),
             ColumnDefinition(dialect, "unit_price", DecimalType(dialect, precision=10, scale=2),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
         ],
         table_constraints=[
-            TableConstraint(dialect, constraint_type=TableConstraintType.PRIMARY_KEY,
-                columns=["order_id", "product_id"]),
+            TableConstraint(dialect,
+                branch=TablePrimaryKeyConstraint(dialect, columns=["order_id", "product_id"])),
         ],
-        storage_options={
-            "ENGINE": "MergeTree",
-            "ORDER BY": ("order_id", "product_id"),
-            "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-        },
+        table_options=_common.default_table_options(dialect, order_by=("order_id", "product_id")),
     )
 
 
@@ -444,31 +433,27 @@ def create_composite_pk_order_items_table(dialect, table_name: str = "order_item
 # basic/store_inventory.sql (composite PK, no FK)
 # ---------------------------------------------------------------------------
 
-def create_store_inventory_table(dialect, table_name: str = "store_inventory") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_store_inventory_table(dialect, table_name: str = "store_inventory") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "store_id", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "product_id", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "batch_id", VarCharType(dialect, length=64),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "stock", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL),
-                             ColumnConstraint(dialect, ColumnConstraintType.DEFAULT, default_value=0)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                             ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 0))]),
         ],
         table_constraints=[
-            TableConstraint(dialect, constraint_type=TableConstraintType.PRIMARY_KEY,
-                columns=["store_id", "product_id", "batch_id"]),
+            TableConstraint(dialect,
+                branch=TablePrimaryKeyConstraint(dialect, columns=["store_id", "product_id", "batch_id"])),
         ],
-        storage_options={
-            "ENGINE": "MergeTree",
-            "ORDER BY": ("store_id", "product_id", "batch_id"),
-            "SETTINGS": "enable_block_number_column = 1, enable_block_offset_column = 1",
-        },
+        table_options=_common.default_table_options(dialect, order_by=("store_id", "product_id", "batch_id")),
     )
 
 
@@ -476,20 +461,20 @@ def create_store_inventory_table(dialect, table_name: str = "store_inventory") -
 # basic/orders.sql (single PK, no FK in composite-PK scenario)
 # ---------------------------------------------------------------------------
 
-def create_orders_table(dialect, table_name: str = "orders") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_orders_table(dialect, table_name: str = "orders") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=False,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "total", DecimalType(dialect, precision=10, scale=2),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "created_at", TextType(dialect)),
             ColumnDefinition(dialect, "updated_at", TextType(dialect)),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 
@@ -497,22 +482,22 @@ def create_orders_table(dialect, table_name: str = "orders") -> CreateTableExpre
 # basic/product.sql (single PK)
 # ---------------------------------------------------------------------------
 
-def create_product_table(dialect, table_name: str = "product") -> CreateTableExpression:
-    return CreateTableExpression(
+def create_product_table(dialect, table_name: str = "product") -> CreateTableStatement:
+    return CreateTableStatement(
         dialect=dialect,
         table=Table(dialect, table_name),
         if_not_exists=True,
         columns=[
             ColumnDefinition(dialect, "id", BigIntType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.PRIMARY_KEY)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))]),
             ColumnDefinition(dialect, "name", TextType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "price", FloatType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
             ColumnDefinition(dialect, "quantity", IntegerType(dialect),
-                constraints=[ColumnConstraint(dialect, ColumnConstraintType.NOT_NULL)]),
+                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))]),
         ],
-        storage_options=dict(_DEFAULT_STORAGE_OPTIONS),
+        table_options=_common.default_table_options(dialect),
     )
 
 

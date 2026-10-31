@@ -1,12 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py
-from typing import Any, Dict, List, Tuple, TYPE_CHECKING
+from enum import Enum
+from typing import Tuple
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-
-if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-        TableConstraint,
-    )
+from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 
 class ClickHouseDDLColumnMixin:
@@ -21,31 +17,78 @@ class ClickHouseDDLColumnMixin:
         return True
 
     def supports_drop_constraint_if_exists(self) -> bool:
-        """Whether DROP CONSTRAINT IF EXISTS is supported."""
-        return False
+        """True: ``DROP CONSTRAINT IF EXISTS`` is accepted and is a silent no-op
+        when the constraint is absent.
+
+        ClickHouse 26.7.3.19 (official build), measured on the instance
+        ``tests/config/clickhouse_scenarios.yaml`` names ``clickhouse_http``
+        (``127.0.0.1:18682``, database ``test_db``)::
+
+            ALTER TABLE probe_t DROP CONSTRAINT nope
+            -> Code: 36. DB::Exception: Wrong constraint name.
+               Cannot find constraint `nope` to drop. (BAD_ARGUMENTS)
+
+            ALTER TABLE probe_t DROP CONSTRAINT IF EXISTS nope
+            -- accepted; system.constraints unchanged, no result set, no error
+
+        So on this backend the ``IF EXISTS`` form is **the** idempotent path,
+        exactly as it is on MariaDB, PostgreSQL and SQL Server. The plain form
+        is a real error, so catching Code 36 instead of spelling ``IF EXISTS``
+        would be both worse and less portable -- MySQL has no
+        ``DROP CONSTRAINT IF EXISTS`` at all and fails at the parser (1064).
+
+        Declared here (and in this package) rather than left to core's
+        ``DDLColumnMixin`` default of ``False``: that default is shared with the
+        dummy dialect and is exactly the kind of value that can move silently.
+
+        Core renders the clause itself, as of its ``4875ea3b`` fix (before it,
+        core read this probe but never spelled the two words, and this module
+        carried an override to add them; that override is gone -- keeping it
+        now splices a second ``IF EXISTS`` and produces
+        ``DROP CONSTRAINT IF EXISTS IF EXISTS <name>``).
+
+        Only CHECK and ASSUME can be named here -- they are the only kinds that
+        exist. The primary key is not a constraint and cannot be dropped by
+        name; see
+        :meth:`ClickHouseConstraintMixin.supports_drop_constraint`.
+        """
+        return True
 
     def supports_generated_columns(self) -> bool:
         """Whether generated columns are supported (alias for protocol)."""
         return False
 
-    def format_add_table_constraint_action(self, action: Any) -> Tuple[str, tuple]:
-        raise UnsupportedFeatureError(
-            self.name, "ADD CONSTRAINT",
-            suggestion="ClickHouse does not support table constraints."
-        )
-
     def format_add_column_action(self, action) -> Tuple[str, tuple]:
         column_sql, column_params = self.format_column_definition(action.column)
         parts = []
-        if getattr(action, "if_not_exists", None) is True:
+        if action.if_not_exists is True:
             parts.append("ADD COLUMN IF NOT EXISTS")
         else:
             parts.append("ADD COLUMN")
         parts.append(column_sql)
-        after = getattr(action, "after", None)
-        if after:
-            parts.append(f"AFTER {self.format_identifier(after)}")
+        # The core AddColumnAction carries no position field, so there is
+        # nothing here to place. ClickHouse's ``AFTER <column>`` arrives through
+        # ``ClickHouseAddColumnAction.after``, which has its own entry below.
         return " ".join(parts), column_params
+
+    def format_clickhouse_add_column_action(self, action) -> Tuple[str, tuple]:
+        """``ADD COLUMN ... AFTER <column>`` — the ClickHouse position clause.
+
+        ClickHouse places a new column with ``AFTER <name>`` (also ``FIRST``);
+        no other backend has the clause, which is why it lives on the derived
+        node and gets its own entry rather than being probed for on the core
+        action. ``after=None`` renders exactly what the core entry renders, so
+        the clause is a position the caller asked for and nothing else.
+
+        The name is a bare identifier, not a value: ``format_identifier`` quotes
+        it (backticks) and warns on a reserved word rather than emitting SQL the
+        server would refuse. Documented on
+        ``https://clickhouse.com/docs/sql-reference/statements/alter/column``.
+        """
+        sql, params = self.format_add_column_action(action)
+        if action.after is not None:
+            sql = f"{sql} AFTER {self.format_identifier(action.after)}"
+        return sql, params
 
     def format_alter_column_action(self, action) -> Tuple[str, tuple]:
         """Format ALTER TABLE ... ALTER/MODIFY COLUMN for a default change.
@@ -80,16 +123,22 @@ class ClickHouseDDLColumnMixin:
         Note that ClickHouse does require a literal default expression here, so
         the value is inlined rather than parameterised.
         """
-        operation = getattr(action.operation, "value", None) or str(action.operation)
+        # ``operation`` accepts the enum or its raw spelling; which one it
+        # is is a type question, so it is asked with isinstance rather than
+        # probed for a ``value`` attribute (the core formatter reads it the
+        # same way).
+        operation = (
+            action.operation.value if isinstance(action.operation, Enum) else str(action.operation)
+        )
         col_name = self.format_identifier(action.column_name)
 
         if operation == "DROP DEFAULT":
             return f"MODIFY COLUMN {col_name} REMOVE DEFAULT", ()
 
         if operation == "SET DEFAULT":
-            new_value = getattr(action, "new_value", None)
+            new_value = action.new_value
             if isinstance(new_value, str):
-                escaped = self._escape_sql_string(new_value)
+                escaped = self.escape_sql_string(new_value)
                 return f"ALTER COLUMN {col_name} DEFAULT '{escaped}'", ()
             if isinstance(new_value, bool):
                 return f"ALTER COLUMN {col_name} DEFAULT {1 if new_value else 0}", ()
@@ -97,93 +146,10 @@ class ClickHouseDDLColumnMixin:
                 raise ValueError("SET DEFAULT requires a default value")
             if isinstance(new_value, (int, float)):
                 return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
-            if hasattr(new_value, "to_sql"):
+            if isinstance(new_value, BaseExpression):
                 value_sql, value_params = new_value.to_sql()
                 return f"ALTER COLUMN {col_name} DEFAULT {value_sql}", tuple(value_params)
             return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
 
         return super().format_alter_column_action(action)
 
-    def format_table_constraint(
-        self,
-        t_const: "TableConstraint"
-    ) -> Tuple[str, tuple]:
-        """Format a table-level constraint.
-
-        ClickHouse has two table-level constraint forms and they are not these:
-        ``CONSTRAINT name CHECK <expr>`` and ``CONSTRAINT name ASSUME <expr>``
-        (https://clickhouse.com/docs/reference/statements/create/table#constraints).
-        Only ``PRIMARY KEY`` is rendered from the SQL-standard set.
-
-        ``UNIQUE`` and ``FOREIGN KEY`` refuse rather than emit, and the reason is
-        not symmetric:
-
-        * ``UNIQUE (col)`` is a ``SYNTAX_ERROR`` on 26.7.3.19 — ``Code: 62.
-          Syntax error: failed at position 50 ((): (col)). Expected one of: NULL,
-          NOT, DEFAULT, MATERIALIZED, EPHEMERAL, ALIAS, AUTO_INCREMENT, TTL,
-          PRIMARY KEY, data type, identifier. (SYNTAX_ERROR)`` — so rendering it
-          would be an error the caller sees immediately.
-        * ``FOREIGN KEY`` **without** a ``CONSTRAINT`` name is *accepted and
-          silently discarded*, and that is why it refuses. Measured on
-          26.7.3.19: ``CREATE TABLE c (id UInt32, pid UInt32, FOREIGN KEY (pid)
-          REFERENCES p(id)) ENGINE = MergeTree ORDER BY id`` succeeds, but
-          ``SHOW CREATE TABLE c`` reports no foreign key,
-          ``system.tables.create_table_query`` does not contain the string
-          ``FOREIGN``, an orphan row inserts and reads back fine, and dropping
-          the referenced parent also succeeds. (The *named* form ``CONSTRAINT fk
-          FOREIGN KEY ...`` is a ``SYNTAX_ERROR`` expecting ``CHECK`` or
-          ``ASSUME``, as are the inline column-level ``REFERENCES p(id)`` and
-          the form written after the storage clauses.)
-
-          So emitting it would be the worst of the three outcomes: no error at
-          DDL time, no record in the schema, and no enforcement at write time.
-          The referential-integrity bug would surface in production data with
-          nothing in the server's metadata to explain it. Refusing turns that
-          into an ``UnsupportedFeatureError`` at the point of declaration.
-        """
-        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
-            TableConstraintType,
-        )
-        parts = []
-        params: List[Any] = []
-
-        if t_const.constraint_type == TableConstraintType.PRIMARY_KEY:
-            if t_const.columns:
-                cols_str = ', '.join(self.format_identifier(c) for c in t_const.columns)
-                parts.append(f"PRIMARY KEY ({cols_str})")
-        elif t_const.constraint_type == TableConstraintType.UNIQUE:
-            raise UnsupportedFeatureError(
-                self.name, "UNIQUE table constraint",
-                suggestion="ClickHouse does not support UNIQUE constraints."
-            )
-        elif t_const.constraint_type == TableConstraintType.FOREIGN_KEY:
-            raise UnsupportedFeatureError(
-                self.name, "FOREIGN KEY constraint",
-                suggestion=(
-                    "ClickHouse does not support FOREIGN KEY constraints, and an "
-                    "unnamed FOREIGN KEY (...) REFERENCES ... clause is accepted and "
-                    "then silently discarded, so emitting one would produce a schema "
-                    "with no foreign key and no enforcement. Maintain referential "
-                    "integrity in the application, or use CONSTRAINT ... CHECK."
-                )
-            )
-
-        return ' '.join(parts), tuple(params)
-
-    def format_storage_options(self, storage_options: Dict[str, Any]) -> str:
-        """
-        Format storage options for ClickHouse.
-
-        Args:
-            storage_options: Dict with keys like 'ENGINE', 'ORDER BY', 'PARTITION BY'
-
-        Returns:
-            Formatted storage options string (e.g., "ENGINE = MergeTree() ORDER BY id")
-        """
-        parts = []
-        for key, value in storage_options.items():
-            if isinstance(value, str):
-                parts.append(f"{key} = {value}")
-            else:
-                parts.append(f"{key} = {value}")
-        return ' '.join(parts)

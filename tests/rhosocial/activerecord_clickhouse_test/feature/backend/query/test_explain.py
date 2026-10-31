@@ -9,7 +9,7 @@ The tests create a temporary table, run EXPLAIN, and verify the typed result obj
 import pytest
 
 from rhosocial.activerecord.backend.explain import SyncExplainBackendProtocol
-from rhosocial.activerecord.backend.expression import RawSQLExpression
+from rhosocial.activerecord.backend.expression import RawSQL
 from rhosocial.activerecord.backend.expression.statements import ExplainOptions
 from rhosocial.activerecord.backend.impl.clickhouse.explain import (
     ClickHouseExplainResult,
@@ -76,39 +76,39 @@ class TestExplainProtocol:
 class TestSyncExplainBasic:
     def test_explain_returns_clickhouse_explain_result(self, indexed_backend):
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         assert isinstance(result, ClickHouseExplainResult)
 
     def test_result_has_rows(self, indexed_backend):
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         assert len(result.rows) > 0
 
     def test_result_row_type(self, indexed_backend):
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         for row in result.rows:
             assert isinstance(row, ClickHouseExplainRow)
 
     def test_result_has_sql(self, indexed_backend):
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         assert "explain_orders" in result.sql.lower()
         assert result.sql.upper().startswith("EXPLAIN")
 
     def test_result_has_duration(self, indexed_backend):
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         assert result.duration >= 0.0
 
     def test_result_has_raw_rows(self, indexed_backend):
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         assert isinstance(result.raw_rows, list)
         assert len(result.raw_rows) == len(result.rows)
@@ -116,7 +116,7 @@ class TestSyncExplainBasic:
     def test_row_fields_present(self, indexed_backend):
         """Verify ClickHouseExplainRow has expected attribute names."""
         dialect = indexed_backend.dialect
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr)
         row = result.rows[0]
         # All expected fields must exist (may be None for some)
@@ -140,7 +140,7 @@ class TestClickHouseExplainVariants:
         dialect = indexed_backend.dialect
         if not dialect.supports_explain_analyze():
             pytest.skip("ClickHouse version does not support EXPLAIN ANALYZE")
-        expr = RawSQLExpression(dialect, "SELECT * FROM explain_orders")
+        expr = RawSQL(dialect, "SELECT * FROM explain_orders")
         result = indexed_backend.explain(expr, ExplainOptions(analyze=True))
         assert isinstance(result, ClickHouseExplainResult)
         assert result.sql.upper().startswith("EXPLAIN ANALYZE")

@@ -5,7 +5,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements import InsertExpression
+    from rhosocial.activerecord.backend.expression.statements import InsertStatement
 
 
 class ClickHouseDMLOperationMixin:
@@ -40,7 +40,7 @@ class ClickHouseDMLOperationMixin:
             ),
         )
 
-    def format_insert_statement(self, expr: "InsertExpression") -> Tuple[str, tuple]:
+    def format_insert_statement(self, expr: "InsertStatement") -> Tuple[str, tuple]:
         """Format a ClickHouse INSERT statement.
 
         ClickHouse does not support INSERT IGNORE / REPLACE INTO / ON CONFLICT;
@@ -55,18 +55,22 @@ class ClickHouseDMLOperationMixin:
         """
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertExpression.into must be a Table, "
+                f"InsertStatement.into must be a Table, "
                 f"got {type(expr.into).__name__}"
             )
         if self.strict_validation:
             expr.validate(strict=True)
 
-        if getattr(expr, "replace", False):
+        # The core node spells these ``or_replace`` / ``or_ignore``; reading
+        # the names the contract declares makes the two refusals below real
+        # (they used to probe ``replace`` / ``ignore``, fields no InsertStatement
+        # carries, so an INSERT OR REPLACE silently rendered as a plain INSERT).
+        if expr.or_replace:
             raise UnsupportedFeatureError(
                 self.name, "REPLACE INTO",
                 suggestion="ClickHouse does not support REPLACE INTO."
             )
-        if getattr(expr, "ignore", False):
+        if expr.or_ignore:
             raise UnsupportedFeatureError(
                 self.name, "INSERT IGNORE",
                 suggestion="ClickHouse does not support INSERT IGNORE."
@@ -96,16 +100,14 @@ class ClickHouseDMLOperationMixin:
         if isinstance(expr.source, DefaultValuesSource):
             parts.append("DEFAULT VALUES")
         elif isinstance(expr.source, ValuesSource):
-            all_rows_sql = []
-            for row in expr.source.values_list:
-                row_sql, row_params = [], []
-                for val in row:
-                    s, p = val.to_sql()
-                    row_sql.append(s)
-                    row_params.extend(p)
-                all_rows_sql.append(f"({', '.join(row_sql)})")
-                all_params.extend(row_params)
-            parts.append("VALUES " + ", ".join(all_rows_sql))
+            # A cell is either an expression or a bare host value, and the
+            # core owns that decision in one place -- re-rendering the rows
+            # here (the old loop called ``val.to_sql()`` unconditionally, so
+            # a bare scalar cell crashed) would fork it. ClickHouse's VALUES
+            # spelling is the base's, so the whole branch is the delegation.
+            source_sql, source_params = self.format_insert_values_source(expr.source)
+            parts.append(source_sql)
+            all_params.extend(source_params)
         elif isinstance(expr.source, SelectSource):
             s_sql, s_params = expr.source.select_query.to_sql()
             parts.append(s_sql)

@@ -16,9 +16,9 @@ import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
-    ClickHouseAttachPartitionExpression,
-    ClickHouseDetachPartitionExpression,
-    ClickHouseDropPartitionExpression,
+    ClickHouseAttachPartitionStatement,
+    ClickHouseDetachPartitionStatement,
+    ClickHouseDropPartitionStatement,
 )
 
 
@@ -32,9 +32,9 @@ class TestClickHousePartitionIdExpressions:
     """Signature compliance for the three ``ALTER TABLE ... <verb> PARTITION ID`` clauses."""
 
     EXPRESSIONS = (
-        (ClickHouseDropPartitionExpression, "format_drop_partition_statement", "DROP"),
-        (ClickHouseDetachPartitionExpression, "format_detach_partition_statement", "DETACH"),
-        (ClickHouseAttachPartitionExpression, "format_attach_partition_statement", "ATTACH"),
+        (ClickHouseDropPartitionStatement, "format_drop_partition_statement", "DROP"),
+        (ClickHouseDetachPartitionStatement, "format_detach_partition_statement", "DETACH"),
+        (ClickHouseAttachPartitionStatement, "format_attach_partition_statement", "ATTACH"),
     )
 
     @pytest.mark.parametrize("expr_class,formatter,verb", EXPRESSIONS)

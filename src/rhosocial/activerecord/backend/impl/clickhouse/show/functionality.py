@@ -51,15 +51,15 @@ from typing import Optional, Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 from ..expression.show import (
-    ShowColumnsExpression,
-    ShowCreateTableExpression,
-    ShowCreateViewExpression,
-    ShowDatabasesExpression,
-    ShowEnginesExpression,
-    ShowGrantsExpression,
-    ShowIndexExpression,
-    ShowProcessListExpression,
-    ShowTablesExpression,
+    ShowColumnsStatement,
+    ShowCreateTableStatement,
+    ShowCreateViewStatement,
+    ShowDatabasesStatement,
+    ShowEnginesStatement,
+    ShowGrantsStatement,
+    ShowIndexStatement,
+    ShowProcessListStatement,
+    ShowTablesStatement,
 )
 
 if TYPE_CHECKING:
@@ -109,20 +109,20 @@ class ClickHouseShowFunctionality:
 
     def _parse_create_table_result(self, result, table: str):
         """Parse ``SHOW CREATE TABLE`` — a single ``statement`` column."""
-        return self._show_parser()._parse_create_table(result.data, table)
+        return self._show_parser().parse_create_table(result.data, table)
 
     def _parse_create_view_result(self, result, view_name: str):
         """Parse ``SHOW CREATE VIEW`` — a single ``statement`` column, as above."""
-        return self._show_parser()._parse_create_view(result.data, view_name)
+        return self._show_parser().parse_create_view(result.data, view_name)
 
     def _parse_columns_result(self, result):
         """Parse ``SHOW [FULL] COLUMNS`` — ``field`` / ``type`` / ``null`` /
         ``key`` / ``default`` / ``extra``, plus the three ``FULL`` columns."""
-        return self._show_parser()._parse_columns(result.data)
+        return self._show_parser().parse_columns(result.data)
 
     def _parse_indexes_result(self, result):
         """Parse ``SHOW INDEX`` — ``table`` / ``key_name`` / ``pk_col`` / ..."""
-        return self._show_parser()._parse_indexes(result.data)
+        return self._show_parser().parse_indexes(result.data)
 
     def _parse_tables_result(self, result):
         """Parse ``SHOW [FULL] TABLES`` — columns ``name`` and, under ``FULL``, ``engine``.
@@ -238,7 +238,7 @@ class ClickHouseShowFunctionality:
 
     def _parse_processlist_result(self, result):
         """Parse ``SHOW PROCESSLIST`` — ``system.processes``' own columns."""
-        return self._show_parser()._parse_processlist(result.data)
+        return self._show_parser().parse_processlist(result.data)
 
     def _parse_warnings_result(self, result):
         """Parse SHOW WARNINGS result."""
@@ -268,7 +268,7 @@ class ClickHouseShowFunctionality:
 
     def _parse_engines_result(self, result):
         """Parse ``SHOW ENGINES`` — ``name`` plus the eight ``supports_*`` flags."""
-        return self._show_parser()._parse_engines(result.data)
+        return self._show_parser().parse_engines(result.data)
 
     def _parse_charset_result(self, result):
         """Parse SHOW CHARACTER SET result."""
@@ -302,7 +302,7 @@ class ClickHouseShowFunctionality:
 
     def _parse_grants_result(self, result):
         """Parse ``SHOW GRANTS`` — one column, named after the statement text."""
-        return self._show_parser()._parse_grants(result.data)
+        return self._show_parser().parse_grants(result.data)
 
     def _parse_plugins_result(self, result):
         """Parse SHOW PLUGINS result."""
@@ -334,9 +334,7 @@ class ClickHouseShowFunctionality:
             ShowCreateTableResult with table name and CREATE statement,
             or None if table doesn't exist.
         """
-        expr = ShowCreateTableExpression(self.dialect, table)
-        if schema:
-            expr.schema(schema)
+        expr = ShowCreateTableStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_table_result(result, table)
@@ -353,9 +351,7 @@ class ClickHouseShowFunctionality:
         Returns:
             ShowCreateViewResult with view details, or None if view doesn't exist.
         """
-        expr = ShowCreateViewExpression(self.dialect, view_name)
-        if schema:
-            expr.schema(schema)
+        expr = ShowCreateViewStatement(self.dialect, view_name, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_create_view_result(result, view_name)
@@ -375,13 +371,9 @@ class ClickHouseShowFunctionality:
         and reads ClickHouse's own output columns. See
         ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        expr = ShowColumnsExpression(self.dialect, table)
-        if schema:
-            expr.schema(schema)
-        if full:
-            expr.full()
-        if like:
-            expr.like(like)
+        expr = ShowColumnsStatement(
+            self.dialect, table, full=full, like_pattern=like, schema=schema
+        )
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_columns_result(result)
@@ -395,9 +387,7 @@ class ClickHouseShowFunctionality:
         output columns — the primary key columns plus one row per data skipping
         index. See ``https://clickhouse.com/docs/reference/statements/show``.
         """
-        expr = ShowIndexExpression(self.dialect, table)
-        if schema:
-            expr.schema(schema)
+        expr = ShowIndexStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_indexes_result(result)
@@ -420,13 +410,9 @@ class ClickHouseShowFunctionality:
         Returns:
             List of ShowTableResult objects.
         """
-        expr = ShowTablesExpression(self.dialect)
-        if schema:
-            expr.schema(schema)
-        if like:
-            expr.like(like)
-        if full:
-            expr.full()
+        expr = ShowTablesStatement(
+            self.dialect, schema=schema, like_pattern=like, full=full
+        )
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -443,9 +429,7 @@ class ClickHouseShowFunctionality:
         Returns:
             List of ShowDatabaseResult objects.
         """
-        expr = ShowDatabasesExpression(self.dialect)
-        if like:
-            expr.like(like)
+        expr = ShowDatabasesStatement(self.dialect, like_pattern=like)
 
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
@@ -529,9 +513,7 @@ class ClickHouseShowFunctionality:
         symmetry and ignored: the statement has no ``FULL`` variant and already
         reports the full query text in ``query``.
         """
-        expr = ShowProcessListExpression(self.dialect)
-        if full:
-            expr.full()
+        expr = ShowProcessListStatement(self.dialect, full=full)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_processlist_result(result)
@@ -572,7 +554,7 @@ class ClickHouseShowFunctionality:
         the eight ``supports_*`` capability flags and the engine's own
         ``description`` / ``syntax`` / ``introduced_in`` documentation columns.
         """
-        expr = ShowEnginesExpression(self.dialect)
+        expr = ShowEnginesStatement(self.dialect)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_engines_result(result)
@@ -620,9 +602,7 @@ class ClickHouseShowFunctionality:
         The statement returns a single column whose name follows the output
         format, so the parser reads the column's value rather than a named key.
         """
-        expr = ShowGrantsExpression(self.dialect)
-        if user:
-            expr.for_user(user, host)
+        expr = ShowGrantsStatement(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         result = self._backend.execute(sql, params)
         return self._parse_grants_result(result)

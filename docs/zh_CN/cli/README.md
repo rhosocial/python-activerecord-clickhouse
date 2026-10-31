@@ -59,11 +59,18 @@ $ python -m rhosocial.activerecord.backend.impl.clickhouse info \
 ```bash
 $ python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables \
     --host localhost --database test_db --user root --password password
+
+$ python -m rhosocial.activerecord.backend.impl.clickhouse introspect views daily_totals \
+    --host localhost --database test_db --user root --password password
 ```
 
-位置参数（自省类型）：`tables`/`views`/`table`/`columns`/`indexes`/`foreign-keys`/`triggers`/`database`。`foreign-keys`/`triggers` 对 ClickHouse 返回空（不支持）。
+位置参数（自省类型）：`tables` / `views` / `columns` / `indexes` / `partitions` / `table-engine` / `database`。
 
-专属参数：`--schema SCHEMA`、`--include-system`（含系统表）。
+`NAME` 对 `columns` / `indexes` / `partitions` / `table-engine` 是表名，对 `views` 是视图本身。`tables` / `database` 回答的是整个数据库，因此**拒绝**名字（退出 2），不会打印一份看起来被收窄过的列表。退出 1 表示运行失败——连接或查询出错，或指定的视图不存在。
+
+`foreign-keys` / `triggers` 根本不提供：ClickHouse 既没有外键也没有触发器，所以这两个类型不在本后端的词汇表里，而不是返回空列表。每个提供的类型都挂在 dialect 的能力开关上；服务端对该开关回答 `False` 时以退出 2 拒绝，并输出 `Error: <type> introspection is not supported by this server`。后端的 `show.*`（SHOW 直通）同样不从这里暴露：`SHOW` 与 `system.*` 并不等价，而所有自省类型都读 `system.*`。
+
+专属参数：`--include-system`（含系统表）。
 
 ## status — 服务器状态
 

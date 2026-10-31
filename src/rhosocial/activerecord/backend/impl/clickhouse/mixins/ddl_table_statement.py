@@ -11,6 +11,14 @@ class ClickHouseTableStatementMixin:
     ClickHouse exposes equivalent functionality through ``SELECT * FROM
     <table>`` and explicit ``SELECT ... UNION ALL ...`` row constructors.
     All methods fail fast.
+
+    Measured on 26.7.3: ClickHouse has a ``values`` *table function*, so
+    ``SELECT * FROM VALUES(1, 2)`` is accepted -- but that is a different
+    shape from the SQL standard's table value constructor, which is
+    ``VALUES (1), (2)``, and the standard spelling is a syntax error there
+    ("failed at position 21"). The framework renders the standard shape, so
+    the answer is False: the capability is not the one this probe asks
+    about.
     """
 
     def supports_table_statement(self) -> bool:
