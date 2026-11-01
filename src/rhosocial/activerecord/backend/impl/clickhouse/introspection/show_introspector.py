@@ -7,14 +7,14 @@ Provides ClickHouse-specific SHOW commands as sub-introspectors accessible via
 keeping the class I/O-free except for the executor calls.
 
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncShowIntrospector: for synchronous backends (method names without _async suffix)
+- ShowIntrospector: for synchronous backends (method names without _async suffix)
 - AsyncShowIntrospector: for asynchronous backends (method names without _async suffix)
 """
 
 from typing import Any, Dict, List, Optional
 
 from rhosocial.activerecord.backend.introspection.executor import (
-    SyncIntrospectorExecutor,
+    IntrospectorExecutor,
     AsyncIntrospectorExecutor,
 )
 from ..expression.show import (
@@ -43,7 +43,7 @@ from ..expression.show import (
 class ShowMixin:
     """Mixin providing shared SHOW command logic.
 
-    Both SyncShowIntrospector and AsyncShowIntrospector inherit
+    Both ShowIntrospector and AsyncShowIntrospector inherit
     from this mixin to share:
     - Dialect access
     - SQL generation helpers
@@ -488,7 +488,7 @@ class ShowMixin:
         ]
 
 
-class SyncShowIntrospector(ShowMixin):
+class ShowIntrospector(ShowMixin):
     """Synchronous SHOW command sub-introspector for ClickHouse backends.
 
     All methods are synchronous. Method names do NOT have an _async suffix.
@@ -500,7 +500,7 @@ class SyncShowIntrospector(ShowMixin):
         variables = backend.introspector.show.variables(like="max_%")
     """
 
-    def __init__(self, backend: Any, executor: SyncIntrospectorExecutor) -> None:
+    def __init__(self, backend: Any, executor: IntrospectorExecutor) -> None:
         self._backend = backend
         self._executor = executor
 

@@ -48,7 +48,7 @@ import pytest
 from rhosocial.activerecord.backend.errors import DatabaseError
 from rhosocial.activerecord.backend.impl.clickhouse.introspection.status_introspector import (
     ClickHouseStatusIntrospectorMixin,
-    SyncClickHouseStatusIntrospector,
+    ClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
     CLICKHOUSE_CONFIG_SETTINGS,
     CLICKHOUSE_SERVER_SETTINGS,
@@ -337,7 +337,7 @@ class TestListPerformanceMetrics:
         import inspect
 
         sync_names = {
-            n for n, _ in inspect.getmembers(SyncClickHouseStatusIntrospector, inspect.isfunction)
+            n for n, _ in inspect.getmembers(ClickHouseStatusIntrospector, inspect.isfunction)
         }
         async_names = {
             n for n, _ in inspect.getmembers(AsyncClickHouseStatusIntrospector, inspect.isfunction)
@@ -356,7 +356,7 @@ class TestSyncAsyncParity:
         }
 
     def test_same_method_names(self):
-        assert set(self._public_methods(SyncClickHouseStatusIntrospector)) == set(
+        assert set(self._public_methods(ClickHouseStatusIntrospector)) == set(
             self._public_methods(AsyncClickHouseStatusIntrospector)
         )
 
@@ -364,12 +364,12 @@ class TestSyncAsyncParity:
         "name",
         sorted(
             name
-            for name, fn in vars(SyncClickHouseStatusIntrospector).items()
+            for name, fn in vars(ClickHouseStatusIntrospector).items()
             if not name.startswith("_") and inspect.isfunction(fn)
         ),
     )
     def test_same_parameters(self, name):
-        sync = getattr(SyncClickHouseStatusIntrospector, name)
+        sync = getattr(ClickHouseStatusIntrospector, name)
         asyn = getattr(AsyncClickHouseStatusIntrospector, name)
         assert inspect.iscoroutinefunction(asyn), f"{name} is not a coroutine"
         assert not inspect.iscoroutinefunction(sync), f"{name} is unexpectedly a coroutine"
@@ -387,7 +387,7 @@ class TestSyncAsyncParity:
             "get_session_info",
             "list_processes",
         ):
-            sync = inspect.getsource(getattr(SyncClickHouseStatusIntrospector, attr))
+            sync = inspect.getsource(getattr(ClickHouseStatusIntrospector, attr))
             asyn = inspect.getsource(getattr(AsyncClickHouseStatusIntrospector, attr))
             for const in (
                 "CLICKHOUSE_CONFIG_SETTINGS",

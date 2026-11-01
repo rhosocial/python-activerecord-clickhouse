@@ -7,7 +7,7 @@ ClickHouse backend mixins for the ``show()`` factory method.
     ``ClickHouseBackend`` nor ``AsyncClickHouseBackend`` lists them in its MRO,
     so ``backend.show()`` raises ``AttributeError``; verified by introspection,
     not by reading. The reachable path into this package is
-    ``backend.introspector.show`` (``SyncShowIntrospector`` /
+    ``backend.introspector.show`` (``ShowIntrospector`` /
     ``AsyncShowIntrospector`` in ``..introspection.show_introspector``), which
     builds the same expressions through the same dialect mixin and carries its
     own parsers.

@@ -33,7 +33,7 @@ from rhosocial.activerecord.backend.expression.introspection import (
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.introspection import (
-    SyncClickHouseIntrospector,
+    ClickHouseIntrospector,
 )
 from rhosocial.activerecord.backend.introspection.types import TableType
 
@@ -51,7 +51,7 @@ class _StubBackend:
 
 
 def _introspector(dialect, database="analytics", cached_version=None):
-    return SyncClickHouseIntrospector(
+    return ClickHouseIntrospector(
         _StubBackend(dialect, database, cached_version), executor=None
     )
 

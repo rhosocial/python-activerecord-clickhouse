@@ -3,11 +3,11 @@
 ClickHouse introspection package.
 
 Provides:
-  SyncClickHouseIntrospector   — synchronous introspector for ClickHouse databases
+  ClickHouseIntrospector   — synchronous introspector for ClickHouse databases
   AsyncClickHouseIntrospector  — asynchronous introspector for ClickHouse databases
-  SyncShowIntrospector    — synchronous ClickHouse-specific SHOW command sub-introspector
+  ShowIntrospector    — synchronous ClickHouse-specific SHOW command sub-introspector
   AsyncShowIntrospector   — asynchronous ClickHouse-specific SHOW command sub-introspector
-  SyncClickHouseStatusIntrospector  — synchronous ClickHouse status introspector
+  ClickHouseStatusIntrospector  — synchronous ClickHouse status introspector
   AsyncClickHouseStatusIntrospector -- asynchronous ClickHouse status introspector
 
 Also re-exports the ClickHouse-specific result types (`ClickHousePartitionInfo`,
@@ -15,15 +15,15 @@ Also re-exports the ClickHouse-specific result types (`ClickHousePartitionInfo`,
 """
 
 from .introspector import (
-    SyncClickHouseIntrospector,
+    ClickHouseIntrospector,
     AsyncClickHouseIntrospector,
 )
 from .show_introspector import (
-    SyncShowIntrospector,
+    ShowIntrospector,
     AsyncShowIntrospector,
 )
 from .status_introspector import (
-    SyncClickHouseStatusIntrospector,
+    ClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
 )
 from .types import (
@@ -32,11 +32,11 @@ from .types import (
 )
 
 __all__ = [
-    "SyncClickHouseIntrospector",
+    "ClickHouseIntrospector",
     "AsyncClickHouseIntrospector",
-    "SyncShowIntrospector",
+    "ShowIntrospector",
     "AsyncShowIntrospector",
-    "SyncClickHouseStatusIntrospector",
+    "ClickHouseStatusIntrospector",
     "AsyncClickHouseStatusIntrospector",
     "ClickHousePartitionInfo",
     "ClickHouseTableEngineInfo",

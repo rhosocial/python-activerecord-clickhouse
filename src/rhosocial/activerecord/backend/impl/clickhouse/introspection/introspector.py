@@ -2,7 +2,7 @@
 """
 ClickHouse concrete introspectors.
 
-Implements SyncAbstractIntrospector and AsyncAbstractIntrospector for ClickHouse
+Implements AbstractIntrospector and AsyncAbstractIntrospector for ClickHouse
 databases using the ClickHouse system.* tables for metadata queries.
 
 The introspectors are exposed via ``backend.introspector`` and also provide
@@ -20,7 +20,7 @@ Key behaviours:
   - parse_* methods are pure Python — shared by sync and async introspectors
 
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncClickHouseIntrospector: for synchronous backends
+- ClickHouseIntrospector: for synchronous backends
 - AsyncClickHouseIntrospector: for asynchronous backends
 """
 
@@ -29,12 +29,12 @@ from typing import Any, Dict, List, Optional
 
 from rhosocial.activerecord.backend.introspection.base import (
     IntrospectorMixin,
-    SyncAbstractIntrospector,
+    AbstractIntrospector,
     AsyncAbstractIntrospector,
 )
 from rhosocial.activerecord.backend.introspection.cache import IntrospectionCache
 from rhosocial.activerecord.backend.introspection.executor import (
-    SyncIntrospectorExecutor,
+    IntrospectorExecutor,
     AsyncIntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import (
@@ -54,11 +54,11 @@ from rhosocial.activerecord.backend.introspection.types import (
 )
 from rhosocial.activerecord.backend.expression.types import DataType
 from .show_introspector import (
-    SyncShowIntrospector,
+    ShowIntrospector,
     AsyncShowIntrospector,
 )
 from .status_introspector import (
-    SyncClickHouseStatusIntrospector,
+    ClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
 )
 from .types import (
@@ -74,7 +74,7 @@ from ..expression.introspection import (
 class ClickHouseIntrospectorMixin(IntrospectorMixin):
     """Mixin providing shared ClickHouse-specific introspection logic.
 
-    Both SyncClickHouseIntrospector and AsyncClickHouseIntrospector inherit
+    Both ClickHouseIntrospector and AsyncClickHouseIntrospector inherit
     from this mixin to share:
     - Default schema handling
     - ClickHouse version detection
@@ -378,10 +378,10 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
         )
 
 
-class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntrospector):
+class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     """Synchronous introspector for ClickHouse backends.
 
-    In addition to the standard SyncAbstractIntrospector interface, exposes the
+    In addition to the standard AbstractIntrospector interface, exposes the
     ``.show`` sub-introspector for direct SHOW command access::
 
         # Standard API
@@ -395,25 +395,25 @@ class SyncClickHouseIntrospector(ClickHouseIntrospectorMixin, SyncAbstractIntros
     def __init__(
         self,
         backend: Any,
-        executor: SyncIntrospectorExecutor,
+        executor: IntrospectorExecutor,
         cache: Optional[IntrospectionCache] = None,
     ) -> None:
         super().__init__(backend, executor, cache)
-        self._show_instance: Optional[SyncShowIntrospector] = None
-        self._status_instance: Optional[SyncClickHouseStatusIntrospector] = None
+        self._show_instance: Optional[ShowIntrospector] = None
+        self._status_instance: Optional[ClickHouseStatusIntrospector] = None
 
     @property
-    def show(self) -> SyncShowIntrospector:
+    def show(self) -> ShowIntrospector:
         """ClickHouse-specific SHOW sub-introspector (lazily created)."""
         if self._show_instance is None:
-            self._show_instance = SyncShowIntrospector(self._backend, self._executor)
+            self._show_instance = ShowIntrospector(self._backend, self._executor)
         return self._show_instance
 
     @property
-    def status(self) -> SyncClickHouseStatusIntrospector:
+    def status(self) -> ClickHouseStatusIntrospector:
         """ClickHouse status introspector (lazily created)."""
         if self._status_instance is None:
-            self._status_instance = SyncClickHouseStatusIntrospector(self._backend)
+            self._status_instance = ClickHouseStatusIntrospector(self._backend)
         return self._status_instance
 
     # ------------------------------------------------------------------ #
@@ -588,7 +588,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
 
         The asynchronous counterpart of the synchronous method: same parameters,
         same result, same cache key. See
-        :meth:`SyncClickHouseIntrospector.list_partitions` for the naming rule
+        :meth:`ClickHouseIntrospector.list_partitions` for the naming rule
         (``database`` is ClickHouse's own top-level namespace) and the scope.
         """
         target = database if database is not None else self.default_schema
