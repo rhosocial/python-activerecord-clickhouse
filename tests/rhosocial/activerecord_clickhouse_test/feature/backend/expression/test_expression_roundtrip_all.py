@@ -144,7 +144,7 @@ from typing import Dict
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.dialect.exceptions import (ProtocolNotImplementedError, UnsupportedFeatureError)
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
     WindowClause,
@@ -1094,7 +1094,18 @@ def _no_dialect_formatter(format_method: str) -> str:
 
 
 LEGITIMATE_NON_RENDERS = {
-    # ---- bases that name an expression category, not a renderable thing ----
+        # ---- core introspection families this dialect does not answer ----
+    #  ClickHouse has no secondary indexes at all -- its MergeTree stores are ordered, not indexed -- so an
+    # unused-index listing is not merely unanswered but meaningless. TableStats likewise has no per-table access
+    # counter. The probes answer False.
+    "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+
+# ---- bases that name an expression category, not a renderable thing ----
     # Each is a base class that deliberately declares no ``format_method``, so
     # ``to_sql()`` reports that there is nothing to dispatch. They are not
     # ``inspect.isabstract`` -- they are concrete enough to construct -- so the
