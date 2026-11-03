@@ -24,13 +24,16 @@ hold a ClickHouse database name, the same string the server reports in
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
+
+from rhosocial.activerecord.backend.introspection.types import ColumnDataProfile
 
 __all__ = [
     "ClickHousePartitionInfo",
     "ClickHouseTableEngineInfo",
+    "ClickHouseColumnDataProfile",
 ]
 
 
@@ -112,3 +115,40 @@ class ClickHouseTableEngineInfo:
     total_rows: Optional[int] = None
     total_bytes: Optional[int] = None
     comment: Optional[str] = None
+
+
+@dataclass
+class ClickHouseColumnDataProfile(ColumnDataProfile):
+    """A column profile carrying the runtime types ClickHouse reports.
+
+    Named fields rather than ``extra`` entries, for the reason the PostgreSQL
+    subclass states: these are this engine's own facts, and a consumer that
+    knows it asked ClickHouse should read them off the object instead of
+    guessing at dictionary keys.
+
+    ``runtime_types`` is the fact no other engine in this family has, and it
+    belongs here because of how ClickHouse stores a value. Elsewhere a column's
+    type is a property of the *column*: PostgreSQL will not let a row hold
+    something the declaration does not name, and SQLite's dynamic typing has no
+    name to report at all. ClickHouse types compose -- ``Nullable``,
+    ``LowCardinality``, ``Enum8``, ``DateTime64(3, 'UTC')``, ``Array(Tuple(...))``
+    -- and the engine will name the type of the expression it evaluated rather
+    than describe the declaration it stored. Grouping that name over the column
+    is therefore a query about the *data*: on an ordinary column the set holds
+    the one type the engine resolved for every row, and on a column whose values
+    do not all resolve the same way it holds each of them, which is exactly what
+    a reader of the declaration cannot see.
+
+    The core profile keeps this slot out on purpose -- it is a real dialect
+    difference, and the comment on
+    :class:`~rhosocial.activerecord.backend.introspection.types.ColumnDataProfile`
+    says so -- so the fact lives on the backend's own subclass, where a caller
+    who asked ClickHouse can find it and a caller who asked PostgreSQL never
+    has to ignore it.
+
+    The list is sorted by the parser, because the aggregate's own order is not
+    defined and two runs of the same profile must compare equal.
+    """
+
+    #: The type names the engine reported for the column's values, sorted.
+    runtime_types: List[str] = field(default_factory=list)

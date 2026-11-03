@@ -11,22 +11,24 @@ Provides:
   AsyncClickHouseStatusIntrospector -- asynchronous ClickHouse status introspector
 
 Also re-exports the ClickHouse-specific result types (`ClickHousePartitionInfo`,
-`ClickHouseTableEngineInfo`) the two introspectors return.
+`ClickHouseTableEngineInfo`, `ClickHouseColumnDataProfile`) the two introspectors
+return.
 """
 
 from .introspector import (
-    ClickHouseIntrospector,
     AsyncClickHouseIntrospector,
+    ClickHouseIntrospector,
 )
 from .show_introspector import (
-    ShowIntrospector,
     AsyncShowIntrospector,
+    ShowIntrospector,
 )
 from .status_introspector import (
-    ClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
+    ClickHouseStatusIntrospector,
 )
 from .types import (
+    ClickHouseColumnDataProfile,
     ClickHousePartitionInfo,
     ClickHouseTableEngineInfo,
 )
@@ -40,4 +42,5 @@ __all__ = [
     "AsyncClickHouseStatusIntrospector",
     "ClickHousePartitionInfo",
     "ClickHouseTableEngineInfo",
+    "ClickHouseColumnDataProfile",
 ]

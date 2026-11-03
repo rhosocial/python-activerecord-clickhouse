@@ -27,48 +27,69 @@ Design principle: Sync and Async are separate and cannot coexist.
 import copy
 from typing import Any, Dict, List, Optional
 
+from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.introspection.base import (
-    IntrospectorMixin,
     AbstractIntrospector,
     AsyncAbstractIntrospector,
+    IntrospectorMixin,
 )
 from rhosocial.activerecord.backend.introspection.cache import IntrospectionCache
 from rhosocial.activerecord.backend.introspection.executor import (
-    IntrospectorExecutor,
     AsyncIntrospectorExecutor,
+    IntrospectorExecutor,
 )
 from rhosocial.activerecord.backend.introspection.types import (
-    IntrospectionDatabaseInfo,
-    IntrospectionTableInfo,
-    TableType,
-    IntrospectionColumnInfo,
     ColumnNullable,
-    IndexInfo,
     IndexColumnInfo,
+    IndexInfo,
     IndexType,
+    IntrospectionColumnInfo,
+    IntrospectionDatabaseInfo,
     IntrospectionForeignKeyInfo,
-    ReferentialAction,
-    IntrospectionViewInfo,
-    IntrospectionTriggerInfo,
     IntrospectionScope,
+    IntrospectionTableInfo,
+    IntrospectionTriggerInfo,
+    IntrospectionViewInfo,
+    ReferentialAction,
+    TableType,
 )
-from rhosocial.activerecord.backend.expression.types import DataType
+
+from ..expression.introspection import (
+    ClickHouseTableEngineQuery,
+    ClickHouseTablePartitionsQuery,
+)
 from .show_introspector import (
-    ShowIntrospector,
     AsyncShowIntrospector,
+    ShowIntrospector,
 )
 from .status_introspector import (
-    ClickHouseStatusIntrospector,
     AsyncClickHouseStatusIntrospector,
+    ClickHouseStatusIntrospector,
 )
 from .types import (
     ClickHousePartitionInfo,
     ClickHouseTableEngineInfo,
 )
-from ..expression.introspection import (
-    ClickHouseTableEngineQuery,
-    ClickHouseTablePartitionsQuery,
-)
+
+
+def _runtime_type_names(value: Any) -> List[str]:
+    """The type names out of the array ``groupUniqArray(typeof(...))`` returned.
+
+    Sorted here rather than in SQL: the aggregate's own order is not defined,
+    and a profile is read as a set, so two runs of the same query must compare
+    equal. A driver that hands the array back as a list and one that hands back
+    a tuple both work; a bare string is treated as the single-entry set it is,
+    which is what makes a one-type column read the same either way.
+
+    ``None`` is an empty list, not a missing slot: the array exists on every row
+    the statement returns, so ``None`` can only mean the column produced no
+    values -- an empty table -- and there is no type to name.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return sorted(str(name) for name in value)
 
 
 class ClickHouseIntrospectorMixin(IntrospectorMixin):
@@ -132,7 +153,9 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             extra=extra,
         )
 
-    def parse_tables(self, rows: List[Dict[str, Any]], schema: Optional[str]) -> List[IntrospectionTableInfo]:
+    def parse_tables(
+        self, rows: List[Dict[str, Any]], schema: Optional[str]
+    ) -> List[IntrospectionTableInfo]:
         """Read the kind of each relation from the engine that stores it.
 
         ``system.tables`` has no table-type column: what it reports is the
@@ -148,7 +171,9 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
         for row in rows:
             row_db = row.get("database") or target_db
             engine = row.get("ENGINE") or ""
-            kind = TableType.SYSTEM_TABLE if row_db == "system" else self.dialect.engine_kind(engine)
+            kind = (
+                TableType.SYSTEM_TABLE if row_db == "system" else self.dialect.engine_kind(engine)
+            )
             extra: Dict[str, Any] = {"engine": engine} if engine else {}
             tables.append(
                 IntrospectionTableInfo(
@@ -174,7 +199,11 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
     ) -> List[IntrospectionColumnInfo]:
         columns = []
         for row in rows:
-            nullable = ColumnNullable.NULLABLE if row.get("IS_NULLABLE") == "YES" else ColumnNullable.NOT_NULL
+            nullable = (
+                ColumnNullable.NULLABLE
+                if row.get("IS_NULLABLE") == "YES"
+                else ColumnNullable.NOT_NULL
+            )
             col_type = row.get("COLUMN_TYPE") or row.get("DATA_TYPE") or "VARCHAR"
             parsed = DataType.parse_data_type_str(self._backend.dialect, col_type)
             columns.append(
@@ -302,7 +331,9 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             is_updatable=row.get("IS_UPDATABLE") == "YES",
         )
 
-    def parse_triggers(self, rows: List[Dict[str, Any]], schema: str) -> List[IntrospectionTriggerInfo]:
+    def parse_triggers(
+        self, rows: List[Dict[str, Any]], schema: str
+    ) -> List[IntrospectionTriggerInfo]:
         return [
             IntrospectionTriggerInfo(
                 name=row.get("TRIGGER_NAME", ""),
@@ -377,6 +408,71 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             comment=row.get("comment"),
         )
 
+    def parse_column_data_profiles(
+        self,
+        rows: List[Dict[str, Any]],
+        schema: str,
+        table_name: str,
+    ) -> List[Any]:
+        """Project the aggregate profile rows, with the runtime types attached.
+
+        The figures are the core parser's job -- it is the one place that turns
+        a null count and a row count into a fraction, and duplicating that here
+        would give the two shapes a chance to drift apart. So each row is
+        handed to the core parser one at a time and the profile it produces is
+        then rebuilt as :class:`~.types.ClickHouseColumnDataProfile`, which is
+        the same dataclass plus this engine's own slot.
+
+        ``runtime_types`` is lifted out of the row before the core parser sees
+        it, because it is not one of the five figures and would otherwise land
+        in ``extra`` -- a dictionary key a caller would have to know about by
+        reading this file. As a named field it is visible to anyone who knows
+        they asked ClickHouse.
+
+        The keys are lower-cased first. The statement writes them lower case
+        already, so this is not a repair; it is what keeps the parser reading
+        one shape if a driver ever decides to report the manifest name instead
+        of the spelled one, which is exactly the ambiguity Snowflake's parser
+        has to live with.
+
+        A row the core parser refuses -- no column name -- is skipped rather
+        than rebuilt with an invented one, and it takes its runtime types with
+        it.
+        """
+        from rhosocial.activerecord.backend.introspection.base import (
+            IntrospectorBase,
+        )
+
+        from .types import ClickHouseColumnDataProfile
+
+        profiles: List[Any] = []
+        for row in rows or []:
+            normalized = {str(key).lower(): value for key, value in row.items()}
+            runtime_types = normalized.pop("runtime_types", None)
+            base = IntrospectorBase.parse_column_data_profiles(
+                self, [normalized], schema, table_name
+            )
+            if not base:
+                continue
+            found = base[0]
+            profiles.append(
+                ClickHouseColumnDataProfile(
+                    schema=found.schema,
+                    table_name=found.table_name,
+                    column_name=found.column_name,
+                    null_fraction=found.null_fraction,
+                    distinct_count=found.distinct_count,
+                    min_value=found.min_value,
+                    max_value=found.max_value,
+                    row_count=found.row_count,
+                    source=found.source,
+                    collected_at=found.collected_at,
+                    extra=found.extra,
+                    runtime_types=_runtime_type_names(runtime_types),
+                )
+            )
+        return profiles
+
 
 class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     """Synchronous introspector for ClickHouse backends.
@@ -420,7 +516,9 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     # get_table_info override
     # ------------------------------------------------------------------ #
 
-    def get_table_info(self, table: str, schema: Optional[str] = None) -> Optional[IntrospectionTableInfo]:
+    def get_table_info(
+        self, table: str, schema: Optional[str] = None
+    ) -> Optional[IntrospectionTableInfo]:
         key = self._cache.key(IntrospectionScope.TABLE, table, schema=schema)
         cached = self._cache.get(key)
         if cached is not None:
@@ -471,11 +569,15 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
             is invented.
         """
         target = database if database is not None else self.default_schema
-        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="partition")
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=target, extra="partition"
+        )
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        sql, params = ClickHouseTablePartitionsQuery(self._backend.dialect, target, table_name).to_sql()
+        sql, params = ClickHouseTablePartitionsQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
         result = self.parse_partitions(self._executor.execute(sql, params), table_name, target)
         self._cache.set(key, result)
         return result
@@ -557,7 +659,9 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     # get_table_info override
     # ------------------------------------------------------------------ #
 
-    async def get_table_info(self, table: str, schema: Optional[str] = None) -> Optional[IntrospectionTableInfo]:
+    async def get_table_info(
+        self, table: str, schema: Optional[str] = None
+    ) -> Optional[IntrospectionTableInfo]:
         key = self._cache.key(IntrospectionScope.TABLE, table, schema=schema)
         cached = self._cache.get(key)
         if cached is not None:
@@ -592,12 +696,18 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         (``database`` is ClickHouse's own top-level namespace) and the scope.
         """
         target = database if database is not None else self.default_schema
-        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="partition")
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=target, extra="partition"
+        )
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        sql, params = ClickHouseTablePartitionsQuery(self._backend.dialect, target, table_name).to_sql()
-        result = self.parse_partitions(await self._executor.execute(sql, params), table_name, target)
+        sql, params = ClickHouseTablePartitionsQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        result = self.parse_partitions(
+            await self._executor.execute(sql, params), table_name, target
+        )
         self._cache.set(key, result)
         return result
 
@@ -618,7 +728,9 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         if cached is not None:
             return cached
         sql, params = ClickHouseTableEngineQuery(self._backend.dialect, target, table_name).to_sql()
-        result = self.parse_table_engine(await self._executor.execute(sql, params), table_name, target)
+        result = self.parse_table_engine(
+            await self._executor.execute(sql, params), table_name, target
+        )
         if result is not None:
             self._cache.set(key, result)
         return result
