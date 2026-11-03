@@ -1094,6 +1094,17 @@ def _no_dialect_formatter(format_method: str) -> str:
 
 
 LEGITIMATE_NON_RENDERS = {
+    # ---- core data-profile families this dialect does not answer ----
+    #  ClickHouse keeps no per-column statistics; `system.parts` and `system.columns` describe storage rather than data distribution. The probes answer False.
+    "rhosocial.activerecord.backend.expression.introspection.ColumnDataProfileQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.ColumnValueSampleQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.JoinCoverageQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
         # ---- core introspection families this dialect does not answer ----
     #  ClickHouse has no secondary indexes at all -- its MergeTree stores are ordered, not indexed -- so an
     # unused-index listing is not merely unanswered but meaningless. TableStats likewise has no per-table access
