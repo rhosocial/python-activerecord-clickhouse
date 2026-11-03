@@ -1104,6 +1104,26 @@ LEGITIMATE_NON_RENDERS = {
     "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
         ProtocolNotImplementedError, 'does not implement ',
     ),
+    # Runtime and index usage: ClickHouse's MergeTree engines keep no
+    # per-index or per-table access counters either -- `system.query_log` is
+    # a *query* log, not an object-use stat, and answering these from it
+    # would be a different fact wearing a familiar name. Dependencies and
+    # DDL: `system.tables` records no dependency edges, and ClickHouse has
+    # no ALTER-equivalent DDL retrieval to quote. All four probes answer
+    # False, and these classes stay declared gaps with a reason rather than
+    # being quietly absent.
+    "rhosocial.activerecord.backend.expression.introspection.RuntimeMetricsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.ObjectDependencyQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
+    "rhosocial.activerecord.backend.expression.introspection.DDLStatementQueryStatement": (
+        ProtocolNotImplementedError, 'does not implement ',
+    ),
 
 # ---- bases that name an expression category, not a renderable thing ----
     # Each is a base class that deliberately declares no ``format_method``, so
