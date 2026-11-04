@@ -36,6 +36,14 @@ that no other engine in this family will answer.
 The listing and the coverage measurement are ordinary aggregates: ClickHouse
 groups NULLs into a real row, so a column holding NULLs has a NULL entry in its
 listing, and coverage is counted over distinct non-NULL values on both sides.
+
+The one thing this file can settle with no server at all is the *spelling* of
+the function names, because the failure it guards against -- an upper-cased
+camelCase name the server then reports as not existing -- is visible in the
+rendered SQL. ``TestFunctionNameCase`` pins that: every name that reaches SQL is
+written the way ClickHouse's function factories register it, so a future edit
+that hands a camelCase name back to the shared renderer's ``.upper()`` fails
+here instead of on five CI jobs.
 """
 
 from decimal import Decimal
@@ -43,6 +51,8 @@ from decimal import Decimal
 import pytest
 from rhosocial.activerecord.backend.expression.introspection import (
     ColumnDataProfileQueryStatement,
+    ColumnValueSampleQueryStatement,
+    JoinCoverageQueryStatement,
 )
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
@@ -335,6 +345,134 @@ class TestJoinCoverage:
             _teardown(clickhouse_backend)
 
 
+class TestFunctionNameCase:
+    """Every function name is spelled the way ClickHouse registers it.
+
+    No connection is used, because the failure this guards against is visible
+    in the text: the shared function renderer upper-cases every name, and
+    ClickHouse resolves a name through its function factories by exact match
+    first and then a *lowercased* match against a map that holds only the names
+    registered ``Case::Insensitive``. An upper-cased camelCase name therefore
+    matches neither and the server answers ``Function with name `MINORNULL`
+    does not exist`` -- which is what five CI jobs did, before
+    ``groupUniqArray``/``typeof`` were given their engine spelling and the
+    endpoints fell back to ``MIN``/``MAX``.
+
+    The scan is over the *rendered SQL*, not over the source, so it also covers
+    a name introduced through some other path than the one this class knows
+    about.
+    """
+
+    def _statement(self, statement):
+        return statement.to_sql()[0]
+
+    def test_the_profile_names_every_function_the_engine_accepts(self):
+        sql = self._statement(
+            ColumnDataProfileQueryStatement(
+                ClickHouseDialect(version=(26, 7, 1)),
+                table_name=TABLE,
+                schema="analytics",
+                columns=("id", "note"),
+            )
+        )
+
+        # ``groupUniqArray`` and ``typeof`` are registered ``Case::Sensitive``,
+        # so the camelCase spelling is the only one that resolves.
+        assert "groupUniqArray(typeof(`id`))" in sql
+        assert "groupUniqArray(typeof(`note`))" in sql
+
+        # The endpoints are the upper-case-safe SQL-standard spellings, which
+        # is the whole cost of the ``*OrNull`` fallback: see the docstring of
+        # the profile mixin's endpoint helper.
+        assert "CAST(MIN(`id`)" in sql
+        assert "CAST(MAX(`note`)" in sql
+
+        # No camelCase name may reach SQL upper-cased.
+        assert "MINORNULL" not in sql
+        assert "MAXORNULL" not in sql
+        assert "GROUPUNIQARRAY" not in sql
+        assert "TYPEOF" not in sql
+
+    def test_no_upper_cased_camel_case_name_survives_anywhere(self):
+        """A guard over all three statements, not only the one that broke.
+
+        ClickHouse's function words are camelCase where they are not the SQL
+        standard, so an all-caps run of letters inside a call is either a
+        standard name or a name the server will refuse. This asserts the
+        rendered statements carry no camelCase name upper-cased -- the exact
+        shape of ``MINORNULL``.
+
+        ``NULLIF`` is deliberately absent from the rejected list: ClickHouse
+        registers ``nullIf`` ``Case::Insensitive``, so the upper-case spelling
+        is the one it documents and the shared renderer happens to be right
+        about it. The others are all ``Case::Sensitive`` registrations.
+        """
+        statements = [
+            ColumnDataProfileQueryStatement(
+                ClickHouseDialect(version=(26, 7, 1)),
+                table_name=TABLE,
+                schema="analytics",
+                columns=("id",),
+            ),
+            ColumnValueSampleQueryStatement(
+                ClickHouseDialect(version=(26, 7, 1)),
+                table_name=TABLE,
+                schema="analytics",
+                column_name="code",
+                limit=5,
+            ),
+            JoinCoverageQueryStatement(
+                ClickHouseDialect(version=(26, 7, 1)),
+                schema="analytics",
+                left_table=TABLE,
+                left_column="id",
+                right_table=CUSTOMERS,
+                right_column="id",
+            ),
+        ]
+        for statement in statements:
+            sql = self._statement(statement)
+            for rejected in (
+                "MINORNULL",
+                "MAXORNULL",
+                "GROUPUNIQARRAY",
+                "TOTYPENAME",
+                "CURRENTUSER",
+            ):
+                assert rejected not in sql, (
+                    f"{rejected} is an upper-cased name the shared renderer "
+                    "would emit for a camelCase function; ClickHouse resolves "
+                    "names by exact match first and by a lowercased match "
+                    "against the Case::Insensitive map only, so it answers "
+                    "'Function with name ... does not exist'."
+                )
+
+        # The coverage statement's NULLIF is the documented upper-case
+        # spelling of a Case::Insensitive registration, so it stays as the
+        # shared renderer writes it.
+        assert "NULLIF(COUNT(DISTINCT `l`.`id`)" in self._statement(statements[2])
+
+    def test_the_status_queries_name_the_engine_functions(self):
+        """``currentUser`` is camelCase and registered ``Case::Sensitive``.
+
+        The same renderer broke the data-profile family; these two status reads
+        carry camelCase names too, and ``currentUser`` upper-cased is exactly
+        the ``MINORNULL`` shape.
+        """
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+            ClickHouseCurrentUserQuery,
+            ClickHouseVersionQuery,
+        )
+
+        user_sql = self._statement(ClickHouseCurrentUserQuery(ClickHouseDialect(version=(26, 7, 1))))
+        assert user_sql == "SELECT currentUser()"
+        assert "CURRENTUSER" not in user_sql
+
+        version_sql = self._statement(ClickHouseVersionQuery(ClickHouseDialect(version=(26, 7, 1))))
+        assert version_sql == "SELECT version()"
+        assert "CURRENTUSER" not in version_sql
+
+
 class TestProjectionShape:
     """The statement's projection and the row shape the parser reads.
 
@@ -366,7 +504,8 @@ class TestProjectionShape:
             assert "AS `runtime_types`" in arm
         # The endpoints are the union's one forced cast: ClickHouse refuses
         # arms whose types disagree, so both are Nullable(String) everywhere.
-        assert "CAST(MINORNULL(" in sql
+        assert "CAST(MIN(`id`)" in sql
+        assert "CAST(MAX(`id`)" in sql
         assert "AS Nullable(String))" in sql
 
     def test_the_parser_attaches_the_runtime_types(self):

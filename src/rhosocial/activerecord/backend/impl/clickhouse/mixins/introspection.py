@@ -629,11 +629,25 @@ class ClickHouseIntrospectionMixin:
         aggregate over the same scan, so the fact costs no extra pass, and the
         order it returns is not defined -- the parser sorts it so two runs
         compare equal.
+
+        Why the aggregates are spelled as they are is the rule this whole arm
+        turns on: ClickHouse resolves a function name through its
+        ``FunctionFactory`` / ``AggregateFunctionFactory``, which try an exact
+        match first and then a *lowercased* match against a map holding only the
+        names registered ``Case::Insensitive``. So ``SUM`` / ``COUNT`` / ``MIN``
+        / ``MAX`` upper-case happily -- those four are registered insensitive,
+        among a handful of SQL-standard spellings -- while ``GROUPUNIQARRAY``
+        does not: ``groupUniqArray`` is registered ``Case::Sensitive``, the
+        default, and every combinator suffix (``OrNull``, ``If``, ``State``) is
+        matched against the tail of the name *as written*. An upper-cased
+        camelCase name therefore matches neither map, and the server answers
+        ``Function with name `MINORNULL` does not exist``. The renderer cannot
+        know which map a name lands in, so this arm asks for the spellings that
+        are registered, verbatim, through :meth:`_engine_function`.
         """
         from rhosocial.activerecord.backend.expression import (
             CaseExpression,
             Column,
-            FunctionCall,
             IsNullPredicate,
             Literal,
             QueryStatement,
@@ -643,6 +657,8 @@ class ClickHouseIntrospectionMixin:
         from rhosocial.activerecord.backend.expression.core import CastExpression
         from rhosocial.activerecord.backend.expression.functions import (
             CountFunction,
+            max_,
+            min_,
         )
         from rhosocial.activerecord.backend.expression.objects import Table
 
@@ -651,18 +667,31 @@ class ClickHouseIntrospectionMixin:
         column = Column(self, column_name)
         endpoint_type = ClickHouseNullableType(self, inner_type=ClickHouseStringType(self))
 
-        def endpoint(function: str, alias: str):
+        def endpoint(aggregate, alias: str):
             """An endpoint as ``Nullable(String)``, for the union's sake.
 
-            ``minOrNull``/``maxOrNull`` rather than ``min``/``max``: over an
-            empty table the plain aggregates answer the type's default (``0``,
-            ``''``) rather than NULL, and the profile must be able to say "no
-            value" instead of reporting a zero it never measured. The cast is
-            the union's price, explained on the statement formatter.
+            The cast is the union's price, explained on the statement formatter.
+
+            ``MIN``/``MAX`` rather than ``minOrNull``/``maxOrNull``, and the
+            difference is one figure for one kind of column: the plain
+            aggregates answer with the *default of the result type* when no
+            non-NULL value was ever accumulated, while the ``OrNull``
+            combinator forces the NULL answer. So for a column that is
+            entirely NULL -- ``note`` in the profile test, if every row were
+            NULL rather than 40% of them -- ``MIN``/``MAX`` produce ``''`` and
+            the cast leaves it as the empty string, where ``minOrNull`` would
+            have produced NULL and the parser would have read ``None``. The
+            profile's other two figures still say what happened: ``null_count``
+            equals ``row_count`` and ``null_fraction`` is ``1.0``, so "every
+            value is NULL" survives; what is lost is the endpoints' own claim
+            to have measured no value. An empty table costs the same figure.
+
+            The spellings are ``MIN``/``MAX`` because those two ``Case``-safe
+            names are the ones the aggregate factory registers
+            ``Case::Insensitive``, which is why the shared renderer's
+            upper-casing is right here and nowhere else in this arm.
             """
-            return CastExpression(
-                self, FunctionCall(self, function, column), endpoint_type, alias=alias
-            )
+            return CastExpression(self, aggregate, endpoint_type, alias=alias)
 
         return QueryStatement(
             self,
@@ -682,14 +711,13 @@ class ClickHouseIntrospectionMixin:
                     ),
                 ).as_("null_count"),
                 CountFunction(self, column, distinct=True).as_("distinct_count"),
-                endpoint("minOrNull", "min_value"),
-                endpoint("maxOrNull", "max_value"),
+                endpoint(min_(self, column), "min_value"),
+                endpoint(max_(self, column), "max_value"),
                 CountFunction(self, RowCountWildcard(self)).as_("row_count"),
                 self._profile_label("aggregate", "source"),
-                FunctionCall(
-                    self,
+                self._engine_function(
                     "groupUniqArray",
-                    FunctionCall(self, "typeof", column),
+                    self._engine_function("typeof", column),
                     alias="runtime_types",
                 ),
             ],
