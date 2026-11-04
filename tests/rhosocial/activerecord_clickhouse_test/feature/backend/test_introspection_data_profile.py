@@ -30,7 +30,7 @@ left to be discovered. First, the rows are aggregated, so every figure is
 ``max_value`` are cast to ``Nullable(String)`` in every arm, and a numeric
 endpoint is read back through ``Decimal`` rather than compared to a number.
 Third, and only here, each profile carries ``runtime_types`` -- the type names
-the engine grouped over ``typeof(column)`` -- which is a fact about the data
+the engine grouped over ``toTypeName(column)`` -- which is a fact about the data
 that no other engine in this family will answer.
 
 The listing and the coverage measurement are ordinary aggregates: ClickHouse
@@ -355,7 +355,7 @@ class TestFunctionNameCase:
     registered ``Case::Insensitive``. An upper-cased camelCase name therefore
     matches neither and the server answers ``Function with name `MINORNULL`
     does not exist`` -- which is what five CI jobs did, before
-    ``groupUniqArray``/``typeof`` were given their engine spelling and the
+    ``groupUniqArray``/``toTypeName`` were given their engine spelling and the
     endpoints fell back to ``MIN``/``MAX``.
 
     The scan is over the *rendered SQL*, not over the source, so it also covers
@@ -376,10 +376,10 @@ class TestFunctionNameCase:
             )
         )
 
-        # ``groupUniqArray`` and ``typeof`` are registered ``Case::Sensitive``,
+        # ``groupUniqArray`` and ``toTypeName`` are registered ``Case::Sensitive``,
         # so the camelCase spelling is the only one that resolves.
-        assert "groupUniqArray(typeof(`id`))" in sql
-        assert "groupUniqArray(typeof(`note`))" in sql
+        assert "groupUniqArray(toTypeName(`id`))" in sql
+        assert "groupUniqArray(toTypeName(`note`))" in sql
 
         # The endpoints are the upper-case-safe SQL-standard spellings, which
         # is the whole cost of the ``*OrNull`` fallback: see the docstring of
@@ -391,7 +391,7 @@ class TestFunctionNameCase:
         assert "MINORNULL" not in sql
         assert "MAXORNULL" not in sql
         assert "GROUPUNIQARRAY" not in sql
-        assert "TYPEOF" not in sql
+        assert "TOTYPENAME" not in sql
 
     def test_no_upper_cased_camel_case_name_survives_anywhere(self):
         """A guard over all three statements, not only the one that broke.

@@ -73,7 +73,7 @@ from .types import (
 
 
 def _runtime_type_names(value: Any) -> List[str]:
-    """The type names out of the array ``groupUniqArray(typeof(...))`` returned.
+    """The type names out of the array ``groupUniqArray(toTypeName(...))`` returned.
 
     Sorted here rather than in SQL: the aggregate's own order is not defined,
     and a profile is read as a set, so two runs of the same query must compare

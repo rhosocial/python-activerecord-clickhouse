@@ -539,8 +539,8 @@ class ClickHouseIntrospectionMixin:
         uniqueness signal, which no estimate can carry.
 
         The profile also reports ``runtime_types`` -- the type names grouped
-        over ``typeof(column)`` -- which is a fact only this backend can answer
-        of the data; see
+        over ``toTypeName(column)`` -- which is a fact about the data that only
+        this backend can answer; see
         :class:`~..introspection.types.ClickHouseColumnDataProfile`.
         """
         return True
@@ -625,7 +625,7 @@ class ClickHouseIntrospectionMixin:
         halves of one fraction; reading the table twice for them would double
         the cost of the cheapest part of the answer.
 
-        ``groupUniqArray(typeof(...))`` is the runtime-type set. It is an
+        ``groupUniqArray(toTypeName(...))`` is the runtime-type set. It is an
         aggregate over the same scan, so the fact costs no extra pass, and the
         order it returns is not defined -- the parser sorts it so two runs
         compare equal.
@@ -717,7 +717,7 @@ class ClickHouseIntrospectionMixin:
                 self._profile_label("aggregate", "source"),
                 self._engine_function(
                     "groupUniqArray",
-                    self._engine_function("typeof", column),
+                    self._engine_function("toTypeName", column),
                     alias="runtime_types",
                 ),
             ],
