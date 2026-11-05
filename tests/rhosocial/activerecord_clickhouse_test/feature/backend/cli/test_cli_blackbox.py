@@ -141,6 +141,27 @@ _NAME_FOR = {
     "indexes": "users",
     "partitions": "users",
     "table-engine": "users",
+    # The one-object families: the NAME is the left table and the column and
+    # the right-hand pair arrive as flags, exactly as the branch reads them.
+    "ddl": "orders",
+    "column-profiles": "orders",
+    "value-samples": "orders",
+    "join-coverage": "orders",
+}
+
+#: The extra argv a type needs beyond NAME, keyed by type. A family that takes
+#: none is absent rather than mapped to an empty list, so adding a type here
+#: is a deliberate statement that it needs an argument.
+_FLAGS_FOR = {
+    "value-samples": ["--column", "status"],
+    "join-coverage": [
+        "--column",
+        "buyer_id",
+        "--right-table",
+        "customers",
+        "--right-column",
+        "id",
+    ],
 }
 
 
@@ -191,6 +212,79 @@ class FakeIntrospector:
         self.calls.append(("get_database_info",))
         return {"name": "app", "version": "26.7.1"}
 
+    # ---- the nine families this change wired ----
+
+    def list_unused_indexes(self, schema=None):
+        self.calls.append(("list_unused_indexes", schema))
+        return []
+
+    def list_table_usage_stats(self, schema=None):
+        self.calls.append(("list_table_usage_stats", schema))
+        return []
+
+    def list_runtime_metrics(self, schema=None):
+        self.calls.append(("list_runtime_metrics", schema))
+        return []
+
+    def list_index_usage_stats(self, schema=None):
+        self.calls.append(("list_index_usage_stats", schema))
+        return []
+
+    def list_object_dependencies(self, object_name=None, schema=None):
+        self.calls.append(("list_object_dependencies", object_name, schema))
+        return []
+
+    def get_ddl_statement(self, object_name, object_type=None, schema=None):
+        self.calls.append(("get_ddl_statement", object_name, object_type, schema))
+        if object_name != "orders":
+            return None
+        return {
+            "object_type": "TABLE",
+            "object_name": "orders",
+            "ddl": "CREATE TABLE orders (id Int64) ENGINE = MergeTree ORDER BY id",
+            "native": False,
+        }
+
+    def list_column_data_profiles(self, table_name, schema=None):
+        self.calls.append(("list_column_data_profiles", table_name, schema))
+        return [
+            {
+                "table_name": table_name,
+                "column_name": "code",
+                "null_fraction": 0.0,
+                "distinct_count": 3,
+                "row_count": 100,
+                "source": "aggregate",
+                "runtime_types": ["String", "LowCardinality(String)"],
+            }
+        ]
+
+    def sample_column_values(self, table_name, column_name, limit=100, schema=None):
+        self.calls.append(("sample_column_values", table_name, column_name, limit, schema))
+        return [{"value": "paid", "count": 7}]
+
+    def estimate_join_coverage(
+        self,
+        left_table,
+        left_column,
+        right_table,
+        right_column,
+        schema=None,
+    ):
+        self.calls.append(
+            ("estimate_join_coverage", left_table, left_column, right_table, right_column, schema)
+        )
+        if left_column == "buyer_id":
+            return {
+                "left_table": left_table,
+                "left_column": left_column,
+                "right_table": right_table,
+                "right_column": right_column,
+                "left_coverage": 1.0,
+                "right_coverage": 0.75,
+            }
+        return None
+
 
 class FakeAsyncIntrospector:
     """The same questions, answered as coroutines.
@@ -228,6 +322,43 @@ class FakeAsyncIntrospector:
 
     async def get_database_info(self):
         return self._sync.get_database_info()
+
+    async def list_unused_indexes(self, schema=None):
+        return self._sync.list_unused_indexes(schema=schema)
+
+    async def list_table_usage_stats(self, schema=None):
+        return self._sync.list_table_usage_stats(schema=schema)
+
+    async def list_runtime_metrics(self, schema=None):
+        return self._sync.list_runtime_metrics(schema=schema)
+
+    async def list_index_usage_stats(self, schema=None):
+        return self._sync.list_index_usage_stats(schema=schema)
+
+    async def list_object_dependencies(self, object_name=None, schema=None):
+        return self._sync.list_object_dependencies(object_name=object_name, schema=schema)
+
+    async def get_ddl_statement(self, object_name, object_type=None, schema=None):
+        return self._sync.get_ddl_statement(
+            object_name, object_type=object_type, schema=schema
+        )
+
+    async def list_column_data_profiles(self, table_name, schema=None):
+        return self._sync.list_column_data_profiles(table_name, schema=schema)
+
+    async def sample_column_values(
+        self, table_name, column_name, limit=100, schema=None
+    ):
+        return self._sync.sample_column_values(
+            table_name, column_name, limit=limit, schema=schema
+        )
+
+    async def estimate_join_coverage(
+        self, left_table, left_column, right_table, right_column, schema=None
+    ):
+        return self._sync.estimate_join_coverage(
+            left_table, left_column, right_table, right_column, schema=schema
+        )
 
 
 class FakeBackend:
@@ -291,6 +422,7 @@ class TestIntrospectBranches:
         argv = ["introspect", introspect_type]
         if introspect_type in _NAME_FOR:
             argv.append(_NAME_FOR[introspect_type])
+        argv += _FLAGS_FOR.get(introspect_type, [])
         if use_async:
             argv.append("--async")
         argv += ["--database", "app", "-o", "json"]
@@ -339,7 +471,10 @@ class TestIntrospectName:
         assert excinfo.value.code == 1
         assert "View 'nope' not found" in capsys.readouterr().err
 
-    @pytest.mark.parametrize("introspect_type", ["tables", "database"])
+    @pytest.mark.parametrize(
+        "introspect_type",
+        ["tables", "database", "unused-indexes", "table-stats", "index-stats", "runtime"],
+    )
     def test_a_name_the_type_cannot_use_exits_2(self, monkeypatch, capsys, introspect_type):
         """A NAME that would be ignored is refused instead of swallowed.
 
