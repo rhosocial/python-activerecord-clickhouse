@@ -12,6 +12,11 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 
 ## What it can ask about
 
+Sixteen types, in the order `--help` prints them. Ten answer True for this
+dialect — the seven catalogue families and the three that read the rows — and
+the remaining six are offered and gated on a switch that answers False here, so
+a run is refused (exit 2) rather than reached and answered with an empty list.
+
 | Type | Reads | `NAME` | Notes |
 | :--- | :--- | :--- | :--- |
 | `tables` | `system.tables` | refused | Tables, with the relation kind in `table_type` (`BASE_TABLE` / `VIEW` / `MATERIALIZED_VIEW` / `SYSTEM_TABLE`) and the storage engine in `extra`. `--include-system` adds the engine's own tables. |
@@ -21,12 +26,26 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 | `partitions` | `system.parts` | table, required | One table's partitions and subpartitions, in the engine's own order, aggregated from the parts currently active. |
 | `table-engine` | `system.tables` | table, required | The engine of one table, with its sorting, primary and sampling keys, plus row and byte totals. |
 | `database` | `system.build_options`, `system.databases` | refused | Server version and the databases visible to this role. |
+| `unused-indexes` | refused here | — | Offered and gated: `supports_unused_indexes_detection` answers False here, so the run is refused rather than answered empty. |
+| `table-stats` | refused here | — | Offered and gated on `supports_table_stats`, which answers False here. |
+| `runtime` | refused here | — | Offered and gated on `supports_runtime_stats`, which answers False here. |
+| `index-stats` | refused here | — | Offered and gated on `supports_index_stats`, which answers False here. |
+| `dependencies` | refused here | object, optional | Offered and gated on `supports_object_dependencies` (False here); a name narrows the graph to that object's edges. |
+| `ddl` | refused here | table, required | Offered and gated on `supports_ddl_extraction`, which answers False here. |
+| `column-profiles` | the rows themselves | table, required | Answers True here: the profile is one aggregate over the rows, so every figure is exact and paid for with a full scan per column. |
+| `value-samples` | the rows themselves | table, required | Answers True here, read from the rows; `--column` names the column and `--limit` caps the count (default 100). |
+| `join-coverage` | the rows themselves | left table, required | Answers True here: how much two columns' value domains overlap. `--column`, `--right-table` and `--right-column` are required. |
 
-`NAME` is a table name for `columns`, `indexes`, `partitions` and
-`table-engine`, and the view itself for `views`. `tables` and `database` answer
+`NAME` is a table name for `columns`, `indexes`, `partitions`,
+`table-engine`, `ddl`, `column-profiles`, `value-samples` and
+`join-coverage`, and the view itself for `views`. `tables` and `database` answer
 for the whole database, so they **refuse** a name rather than drop it: a run
 that accepted one and printed the full listing would read as though it had been
-narrowed. The two exit codes say which kind of refusal happened:
+narrowed. The four operational families — `unused-indexes`, `table-stats`,
+`runtime` and `index-stats` — describe the server rather than one object, so a
+name is refused there for the same reason. `dependencies` is the exception: a
+name narrows the graph to the edges that object carries, which is a real
+answer. The two exit codes say which kind of refusal happened:
 
 *   **1** — the request was well formed but did not succeed: the connection
     failed, a query failed, or a named view does not exist.
@@ -41,6 +60,9 @@ narrowed. The two exit codes say which kind of refusal happened:
 | `-o, --output` | `table` | `table` (rich), `json`, `csv`, `tsv`. |
 | `--database` | required (env: `CLICKHOUSE_DATABASE`) | The database to connect to **and** the database to read. ClickHouse's namespace level is a *database* and the flag says so. |
 | `--include-system` | off | Include system tables. |
+| `--column` | _None_ | The column a `value-samples` or `join-coverage` question is about. |
+| `--right-table`, `--right-column` | _None_ | The right-hand side of a `join-coverage` question. |
+| `--limit` | `100` | How many values `value-samples` lists when not given. |
 | `--host`, `--port`, `--database`, `--user`, `--password` | env or defaults | Connection. `CLICKHOUSE_*` env vars are honoured, and arguments override them. |
 | `--ssl` | off | Use SSL for the connection. |
 | `--async` | off | **Not available**: ClickHouse is a synchronous-only backend, so this path cannot serve a request. |
@@ -84,6 +106,14 @@ narrowed. The two exit codes say which kind of refusal happened:
     one question two readings, one of which depends on session context.
 *   **One question per invocation.** A CLI process is one connection that
     opens, answers, and closes — there is no cache carried between runs.
+*   **The six gated families say "this server cannot answer", not "none".**
+    `unused-indexes`, `table-stats`, `runtime`, `index-stats`, `dependencies`
+    and `ddl` are offered rather than omitted, and each is refused by its
+    switch before the introspector is reached. An offered-but-unanswered type
+    is a contract the CLI keeps by refusing; printing an empty list instead
+    would read as an answer of zero. `ddl` is refused because ClickHouse has no
+    `SHOW CREATE` equivalent this backend reads, not because the family is
+    unknown to it.
 
 ## Examples
 
@@ -101,4 +131,13 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables event
 
 # Another database, including its system tables
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect tables --database reports --include-system
+
+# What the rows hold, not what the columns declare -- read from the rows, so exact and paid for
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect column-profiles events
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect value-samples events --column status --limit 50
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect join-coverage events --column user_id --right-table users --right-column id
+
+# Questions this dialect declines -- exit 2, "not supported by this server", not an empty list
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect unused-indexes
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect dependencies
 ```

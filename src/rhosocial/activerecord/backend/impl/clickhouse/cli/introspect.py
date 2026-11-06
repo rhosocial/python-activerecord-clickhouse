@@ -9,11 +9,11 @@ database. An earlier version accepted ``--schema`` and had to explain in
 its help text that the value named a database anyway; the flag is gone
 rather than aliased.
 
-The ten families ``_TYPE_CAPABILITIES`` names are the ones this dialect
+The sixteen families ``_TYPE_CAPABILITIES`` names are the ones this dialect
 answers or declares it does not, and the advertised list is derived from the
 mapping rather than written a second time -- so a family cannot be offered
 without saying which switch decides whether the connected server can answer
-it. Six of the ten answer ``False`` here, because ClickHouse has no
+it. Six of the sixteen answer ``False`` here, because ClickHouse has no
 statistics collector, no dependency graph and no native DDL retrieval: the
 gate refuses those before the introspector is reached, which is what keeps
 "this server cannot report it" apart from "this database has none". The
