@@ -226,7 +226,10 @@ from rhosocial.activerecord.backend.expression.statements.ddl_view import (
     DropMaterializedViewStatement,
     RefreshMaterializedViewStatement,
 )
-from rhosocial.activerecord.backend.expression.statements.dql import QueryStatement
+from rhosocial.activerecord.backend.expression.statements.dql import (
+    QueryStatement,
+    SetOperationStatement,
+)
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
@@ -600,6 +603,20 @@ def register_specials():
             op="union",
             left=_ddl_dml_query(d, "t1"),
             right=_ddl_dml_query(d, "t2"),
+        ),
+    )
+    # The statement half of the same pair: the word-form enum refuses the
+    # guess's bare string at construction, and ClickHouse spells a compound
+    # SELECT, so a factory turns it into an instance the matrix can assert.
+    register_special_constructor(
+        "statements.dql.SetOperationStatement",
+        lambda d: SetOperationStatement(
+            d,
+            op="union_all",
+            parts=[
+                _ddl_dml_query(d, "t1"),
+                _ddl_dml_query(d, "t2"),
+            ],
         ),
     )
 
@@ -2487,3 +2504,101 @@ class TestMatrixIntegrity:
             print(f"  not constructible: {fqn}")
         for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):
             print(f"  not modelled: {feature} ({len(methods)} formatters)")
+
+
+# ---------------------------------------------------------------------------
+# The set-operation statement, rendered
+# ---------------------------------------------------------------------------
+#
+# The matrix says ``SetOperationStatement`` renders, which is a verdict about
+# the dialect rather than a claim about the bytes, so the bytes are pinned here.
+# ClickHouse back-quotes its identifiers, and this dialect answers all four
+# set operators, none of them version-gated at the version the fixture pins.
+
+
+def _compound_arms(dialect):
+    """Two single-column SELECTs over two tables, no bind parameters."""
+    return [_ddl_dml_query(dialect, "t1"), _ddl_dml_query(dialect, "t2")]
+
+
+class TestSetOperationStatementRenders:
+    """Pin the SQL the compound SELECT actually renders on ClickHouse."""
+
+    def test_union_all_renders_the_pinned_sql(self, clickhouse_matrix_dialect):
+        node = SetOperationStatement(
+            clickhouse_matrix_dialect,
+            op="union_all",
+            parts=_compound_arms(clickhouse_matrix_dialect),
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            "SELECT `id` FROM `t1` UNION ALL SELECT `id` FROM `t2`"
+        )
+        assert params == ()
+
+    def test_union_renders_a_different_keyword(self, clickhouse_matrix_dialect):
+        """Same arms, different word, different SQL."""
+        node = SetOperationStatement(
+            clickhouse_matrix_dialect,
+            op="union",
+            parts=_compound_arms(clickhouse_matrix_dialect),
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == "SELECT `id` FROM `t1` UNION SELECT `id` FROM `t2`"
+        assert params == ()
+
+    def test_parameters_concatenate_in_part_order(
+        self, clickhouse_matrix_dialect
+    ):
+        """Each arm's parameters arrive in the order the operator joins them."""
+        dialect = clickhouse_matrix_dialect
+        parts = [
+            QueryStatement(
+                dialect,
+                select=[Column(dialect, "id"), Literal(dialect, 1)],
+                from_=Table(dialect, "t1"),
+                where=ComparisonPredicate(
+                    dialect, "=", Column(dialect, "id"), Literal(dialect, 5)
+                ),
+            ),
+            QueryStatement(
+                dialect,
+                select=[Column(dialect, "id"), Literal(dialect, 2)],
+                from_=Table(dialect, "t2"),
+            ),
+        ]
+        node = SetOperationStatement(dialect, op="union_all", parts=parts)
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            "SELECT `id`, %s FROM `t1` WHERE `id` = %s "
+            "UNION ALL "
+            "SELECT `id`, %s FROM `t2`"
+        )
+        assert params == (1, 5, 2)
+
+    @pytest.mark.parametrize("op, keyword", [
+        ("intersect", "INTERSECT"),
+        ("except", "EXCEPT"),
+    ])
+    def test_the_other_two_operators_render(
+        self, clickhouse_matrix_dialect, op, keyword
+    ):
+        """Both spell the keyword directly, with no version gate at 24.3."""
+        node = SetOperationStatement(
+            clickhouse_matrix_dialect,
+            op=op,
+            parts=_compound_arms(clickhouse_matrix_dialect),
+        )
+
+        rendered, params = node.to_sql()
+
+        assert rendered == (
+            f"SELECT `id` FROM `t1` {keyword} SELECT `id` FROM `t2`"
+        )
+        assert params == ()
