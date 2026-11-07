@@ -592,14 +592,88 @@ class TestTheJoinCoverageBranch:
         assert "no coverage could be measured" in capsys.readouterr().err
 
 
+class TestTheNameRuleTable:
+    """The NAME rule is a table, and a table nobody asserts is a guess.
+
+    Three pinning levels: the whole table as data (so editing one type's rule
+    is a visible change to a literal, not a drift), the set (so a type cannot
+    be advertised without someone deciding what NAME means for it), and the
+    behaviour (so the table is what a run actually applies rather than text
+    that happens to sit beside the code that ignores it). The set-level one
+    is what the cross-repository clause of ``.claude/rules/constants.md``
+    asks for: a private table read in several places earns its name because
+    the readings are asserted.
+    """
+
+    def test_every_advertised_type_has_a_rule(self):
+        assert set(introspect_cli._NAME_RULE) == set(introspect_cli.INTROSPECT_TYPES)
+
+    def test_the_table_says_what_each_types_name_means(self):
+        assert introspect_cli._NAME_RULE == {
+            "tables": "forbidden",
+            "views": "optional",
+            "columns": "required",
+            "indexes": "required",
+            "partitions": "required",
+            "table-engine": "required",
+            "unused-indexes": "forbidden",
+            "table-stats": "forbidden",
+            "runtime": "forbidden",
+            "index-stats": "forbidden",
+            "dependencies": "optional",
+            "ddl": "required",
+            "column-profiles": "required",
+            "value-samples": "required",
+            "join-coverage": "required",
+            "database": "forbidden",
+        }
+
+    def test_the_table_covers_no_type_the_parser_does_not_offer(self):
+        assert set(introspect_cli._NAME_RULE) - set(introspect_cli.INTROSPECT_TYPES) == set()
+
+    @pytest.mark.parametrize("type_", ["tables", "database"] + list(WHOLE_SCOPE_FAMILIES))
+    def test_a_refused_type_is_refused_by_the_table(self, type_, capsys):
+        with pytest.raises(SystemExit) as excinfo:
+            introspect_cli._validate_name(
+                build_parser().parse_args(["introspect", type_, "events"] + CONNECTION)
+            )
+
+        assert excinfo.value.code == 2
+        assert "takes no name" in capsys.readouterr().err
+
+    @pytest.mark.parametrize(
+        "type_",
+        ["columns", "indexes", "partitions", "table-engine", "ddl",
+         "column-profiles", "value-samples", "join-coverage"],
+    )
+    def test_a_required_name_is_required_by_the_table(self, type_, capsys):
+        """A missing required NAME is an incomplete invocation, not a refusal."""
+        with pytest.raises(SystemExit) as excinfo:
+            introspect_cli._validate_name(
+                build_parser().parse_args(["introspect", type_] + CONNECTION)
+            )
+
+        assert excinfo.value.code == 1
+        assert "required" in capsys.readouterr().err
+
+    @pytest.mark.parametrize("type_", ["views", "dependencies"])
+    def test_an_optional_name_may_be_given_or_not(self, type_):
+        introspect_cli._validate_name(
+            build_parser().parse_args(["introspect", type_] + CONNECTION)
+        )
+        introspect_cli._validate_name(
+            build_parser().parse_args(["introspect", type_, "events"] + CONNECTION)
+        )
+
+
 class TestTheArgumentRules:
     """The rules the CLI owns: a NAME and a flag are read, refused or required."""
 
     @pytest.mark.parametrize(
         "type_", ["ddl", "column-profiles", "value-samples", "join-coverage"]
     )
-    def test_a_missing_name_is_refused_by_the_branch(self, type_, capsys, monkeypatch):
-        """A NAME the type cannot do without is an incomplete invocation."""
+    def test_a_missing_name_is_an_incomplete_invocation(self, type_, capsys, monkeypatch):
+        """A NAME the type cannot do without is refused by the rule table."""
         with pytest.raises(SystemExit) as excinfo:
             _run_sync(monkeypatch, _RecordingIntrospector(), ["introspect", type_] + CONNECTION)
         assert excinfo.value.code == 1

@@ -24,6 +24,12 @@ introspection genuinely ends there.
 it belongs to the profile row and not to a shared column: the CLI prints the
 row the introspector returns with the field on it, because dropping a
 backend's own fact would be a quieter kind of wrong than not having it.
+
+``NAME`` is required, optional or refused per type, and the rule for each
+lives in ``_NAME_RULE`` rather than inside the question that needs it:
+``_validate_name`` reads the table once, so a name a type has no question
+for is refused with exit 2 rather than parsed and dropped, and a type added
+without a rule is a type nobody has decided for.
 """
 
 import argparse
@@ -97,6 +103,11 @@ INTROSPECT_TYPES = list(_TYPE_CAPABILITIES)
 #: here. ``tables`` must stay one: answering for one table would fill in its
 #: columns and indexes, which is the aggregate this command deliberately
 #: dropped.
+#:
+#: The order is the order ``_TYPE_CAPABILITIES`` declares and the parser and
+#: ``--help`` print, and the two tables cover the same keys: a type offered
+#: without a rule is a type whose NAME decision nobody has made. The tests
+#: assert both halfs of that -- the set, and the table's contents.
 _NAME_RULE = {
     "tables": "forbidden",
     "views": "optional",
@@ -511,27 +522,18 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
                 provider.display_results(data, title="Views")
 
         elif args.type == "columns":
-            if not args.name:
-                print("Error: Table name is required for 'columns' introspection", file=sys.stderr)
-                sys.exit(1)
+            # ``_validate_name`` has already refused a run without a name:
+            # every figure below is that table's own.
             columns = introspector.list_columns(args.name, schema=None)
             data = _serialize_for_output(columns)
             provider.display_results(data, title=f"Columns of {args.name}")
 
         elif args.type == "indexes":
-            if not args.name:
-                print("Error: Table name is required for 'indexes' introspection", file=sys.stderr)
-                sys.exit(1)
             indexes = introspector.list_indexes(args.name, schema=None)
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
 
         elif args.type == "partitions":
-            if not args.name:
-                print(
-                    "Error: Table name is required for 'partitions' introspection", file=sys.stderr
-                )
-                sys.exit(1)
             # This backend has no schema layer, so the method's parameter is
             # named ``database`` and ``None`` means the connected database.
             partitions = introspector.list_partitions(args.name, database=None)
@@ -539,12 +541,6 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             provider.display_results(data, title=f"Partitions of {args.name}")
 
         elif args.type == "table-engine":
-            if not args.name:
-                print(
-                    "Error: Table name is required for 'table-engine' introspection",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
             engine = introspector.get_table_engine(args.name, database=None)
             if engine is None:
                 print(f"Error: Table '{args.name}' not found", file=sys.stderr)
@@ -703,27 +699,18 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
                 provider.display_results(data, title="Views")
 
         elif args.type == "columns":
-            if not args.name:
-                print("Error: Table name is required for 'columns' introspection", file=sys.stderr)
-                sys.exit(1)
+            # The same rule as the synchronous handler: ``_validate_name``
+            # has already refused a run without a name.
             columns = await introspector.list_columns(args.name, schema=None)
             data = _serialize_for_output(columns)
             provider.display_results(data, title=f"Columns of {args.name}")
 
         elif args.type == "indexes":
-            if not args.name:
-                print("Error: Table name is required for 'indexes' introspection", file=sys.stderr)
-                sys.exit(1)
             indexes = await introspector.list_indexes(args.name, schema=None)
             data = _serialize_for_output(indexes)
             provider.display_results(data, title=f"Indexes of {args.name}")
 
         elif args.type == "partitions":
-            if not args.name:
-                print(
-                    "Error: Table name is required for 'partitions' introspection", file=sys.stderr
-                )
-                sys.exit(1)
             # This backend has no schema layer, so the method's parameter is
             # named ``database`` and ``None`` means the connected database.
             partitions = await introspector.list_partitions(args.name, database=None)
@@ -731,12 +718,6 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             provider.display_results(data, title=f"Partitions of {args.name}")
 
         elif args.type == "table-engine":
-            if not args.name:
-                print(
-                    "Error: Table name is required for 'table-engine' introspection",
-                    file=sys.stderr,
-                )
-                sys.exit(1)
             engine = await introspector.get_table_engine(args.name, database=None)
             if engine is None:
                 print(f"Error: Table '{args.name}' not found", file=sys.stderr)
