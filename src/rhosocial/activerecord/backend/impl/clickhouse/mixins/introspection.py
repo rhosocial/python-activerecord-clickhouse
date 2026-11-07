@@ -1,6 +1,8 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/introspection.py
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
+from rhosocial.activerecord.backend.introspection.types import ProfileSource
+
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.introspection import (
         ColumnDataProfileQueryStatement,
@@ -714,7 +716,7 @@ class ClickHouseIntrospectionMixin:
                 endpoint(min_(self, column), "min_value"),
                 endpoint(max_(self, column), "max_value"),
                 CountFunction(self, RowCountWildcard(self)).as_("row_count"),
-                self._profile_label("aggregate", "source"),
+                self._profile_label(ProfileSource.AGGREGATE.value, "source"),
                 self._engine_function(
                     "groupUniqArray",
                     self._engine_function("toTypeName", column),
