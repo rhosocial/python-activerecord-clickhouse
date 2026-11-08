@@ -20,6 +20,7 @@ from rhosocial.activerecord.backend.expression import (
     Column,
     Literal,
     QueryStatement,
+    cast,
     seconds_between,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
@@ -35,8 +36,10 @@ def _millisecond_instant(dialect, value: str):
     The cast is part of the operand, not the node: ``dateDiff`` needs a
     temporal type, and ``DateTime64(3)`` is the resolution these cases assert.
     """
-    return Literal(dialect, value).cast(
-        ClickHouseDateTime64Type(dialect, precision=3)
+    return cast(
+        dialect,
+        Literal(dialect, value),
+        ClickHouseDateTime64Type(dialect, precision=3),
     )
 
 
