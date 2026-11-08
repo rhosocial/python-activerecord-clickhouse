@@ -15,6 +15,8 @@ https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partit
 https://clickhouse.com/docs/sql-reference/statements/alter/partition
 """
 
+import socket
+
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
@@ -40,8 +42,25 @@ def dialect():
     return ClickHouseDialect(version=(26, 7, 3))
 
 
+@pytest.fixture(scope="module")
+def live_server():
+    """Skip the whole live group when no configured server is reachable."""
+    from providers.scenarios import get_enabled_scenarios
+
+    scenarios = get_enabled_scenarios()
+    if not scenarios:
+        pytest.skip("No ClickHouse scenarios configured")
+    config = next(iter(scenarios.values()))
+    try:
+        with socket.create_connection((config["host"], int(config["port"])), timeout=2):
+            pass
+    except OSError as error:
+        pytest.skip(f"ClickHouse unreachable at {config['host']}:{config['port']}: {error}")
+    return config
+
+
 @pytest.fixture
-def partitioned_backend(clickhouse_backend_single):
+def partitioned_backend(live_server, clickhouse_backend_single):
     """Backend on a MergeTree table partitioned by ``toYYYYMM(created_at)``.
 
     ``toYYYYMM`` is how ClickHouse partitions by month: the partition key is an
@@ -127,6 +146,68 @@ class TestPartitionMaintenanceClausesExecute:
         assert _row_count(partitioned_backend) == 1
 
 
+class TestPartitionMaintenanceService:
+    """The backend-level helpers, against the server."""
+
+    def test_list_matches_the_introspector(self, partitioned_backend):
+        service = partitioned_backend.partition_maintenance
+        entries = service.list(TABLE)
+
+        assert [p.partition_id for p in entries] == ["202601", "202602"]
+        assert {p.partition_id: p.row_count for p in entries} == {
+            "202601": 2,
+            "202602": 1,
+        }
+        assert entries == partitioned_backend.introspector.list_partitions(TABLE)
+
+    def test_detach_then_attach_round_trips(self, partitioned_backend):
+        service = partitioned_backend.partition_maintenance
+        # Warm the cached listing so the post-detach read proves invalidation.
+        assert [p.partition_id for p in service.list(TABLE)] == ["202601", "202602"]
+
+        service.detach(TABLE, "202601")
+        assert [p.partition_id for p in service.list(TABLE)] == ["202602"]
+        assert _row_count(partitioned_backend) == 1
+
+        service.attach(TABLE, "202601")
+        assert [p.partition_id for p in service.list(TABLE)] == ["202601", "202602"]
+        assert _row_count(partitioned_backend) == 3
+
+    def test_drop_removes_the_partition(self, partitioned_backend):
+        service = partitioned_backend.partition_maintenance
+        assert [p.partition_id for p in service.list(TABLE)] == ["202601", "202602"]
+
+        service.drop(TABLE, "202601")
+        assert [p.partition_id for p in service.list(TABLE)] == ["202602"]
+        assert _row_count(partitioned_backend) == 1
+
+    def test_database_argument_names_the_clickhouse_database(self, partitioned_backend):
+        service = partitioned_backend.partition_maintenance
+        database = partitioned_backend.config.database
+
+        service.drop(TABLE, "202601", database=database)
+        assert _partition_ids(partitioned_backend) == ["202602"]
+
+    def test_execute_dispatches_by_verb(self, partitioned_backend):
+        service = partitioned_backend.partition_maintenance
+
+        service.execute("detach", TABLE, "202601")
+        assert _partition_ids(partitioned_backend) == ["202602"]
+
+        service.execute("attach", TABLE, "202601")
+        assert _partition_ids(partitioned_backend) == ["202601", "202602"]
+
+    def test_refresh_reads_past_a_cached_answer(self, partitioned_backend):
+        service = partitioned_backend.partition_maintenance
+        assert [p.partition_id for p in service.list(TABLE)] == ["202601", "202602"]
+
+        # A change made outside the service leaves the cached listing stale;
+        # refresh is how a caller says "read the server again".
+        partitioned_backend.execute(f"ALTER TABLE {TABLE} DETACH PARTITION ID '202601'")
+        assert [p.partition_id for p in service.list(TABLE)] == ["202601", "202602"]
+        assert [p.partition_id for p in service.list(TABLE, refresh=True)] == ["202602"]
+
+
 class TestMySQLPartitionStatementsAreRejectedByTheServer:
     """The statements the backend used to stub, checked against the server itself.
 
@@ -162,7 +243,9 @@ class TestMySQLPartitionStatementsAreRejectedByTheServer:
         assert "TRUNCATE" not in expected
 
     def test_subpartition_by_is_not_a_clickhouse_clause(self, partitioned_backend):
-        message = self._refused(partitioned_backend, f"ALTER TABLE {TABLE} SUBPARTITION BY HASH(id)")
+        message = self._refused(
+            partitioned_backend, f"ALTER TABLE {TABLE} SUBPARTITION BY HASH(id)"
+        )
         assert "SUBPARTITION" in message
         assert "Expected one of" in message
 

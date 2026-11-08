@@ -49,7 +49,11 @@ from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 from ..config import ClickHouseConnectionConfig
 from ..dialect import ClickHouseDialect
 from ..transaction import ClickHouseTransactionManager
-from ..mixins import ClickHouseBackendMixin, ClickHouseConcurrencyMixin
+from ..mixins import (
+    ClickHouseBackendMixin,
+    ClickHouseConcurrencyMixin,
+    ClickHousePartitionMaintenanceMixin,
+)
 from ..id_generator import generate_id, generate_id_sequence
 
 
@@ -57,6 +61,7 @@ class ClickHouseBackend(
     SyncExplainBackendMixin,
     IntrospectorBackendMixin,
     ClickHouseBackendMixin,
+    ClickHousePartitionMaintenanceMixin,
     ClickHouseConcurrencyMixin,
     StorageBackend,
 ):

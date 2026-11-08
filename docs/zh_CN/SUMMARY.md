@@ -33,6 +33,7 @@
 ## DDL
 
 * [表引擎与排序键](ddl/table_engine.md)
+* [分区维护](ddl/partition_maintenance.md)
 * [跳数索引](ddl/skip_indexes.md)
 
 ## 能力特性

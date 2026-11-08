@@ -33,6 +33,7 @@
 ## DDL
 
 * [Table engines & sorting key](ddl/table_engine.md)
+* [Partition maintenance](ddl/partition_maintenance.md)
 * [Skip indexes](ddl/skip_indexes.md)
 
 ## Capabilities
