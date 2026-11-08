@@ -1,21 +1,27 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/introspection.py
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Tuple
+
+from rhosocial.activerecord.backend.introspection.types import ProfileSource
 
 if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.introspection import (
+        ColumnDataProfileQueryStatement,
+        ColumnInfoQueryStatement,
+        ColumnValueSampleQueryStatement,
+        DatabaseInfoQueryStatement,
+        ForeignKeyQueryStatement,
+        IndexInfoQueryStatement,
+        JoinCoverageQueryStatement,
+        TableListQueryStatement,
+        TriggerListQueryStatement,
+        ViewInfoQueryStatement,
+        ViewListQueryStatement,
+    )
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
+
     from ..expression.introspection import (
         ClickHouseTableEngineQuery,
         ClickHouseTablePartitionsQuery,
-    )
-    from rhosocial.activerecord.backend.expression.introspection import (
-        DatabaseInfoQueryStatement,
-        TableListQueryStatement,
-        ColumnInfoQueryStatement,
-        IndexInfoQueryStatement,
-        ForeignKeyQueryStatement,
-        ViewListQueryStatement,
-        ViewInfoQueryStatement,
-        TriggerListQueryStatement,
     )
 
 
@@ -112,6 +118,21 @@ class ClickHouseIntrospectionMixin:
     def supports_trigger_introspection(self) -> bool:
         """ClickHouse does not support triggers, so no trigger introspection."""
         return False
+
+    def supports_table_storage_introspection(self) -> bool:
+        """``system.tables.total_bytes`` answers a table's on-disk footprint.
+
+        The capability for the per-table storage family. ClickHouse's storage
+        is engine-shaped rather than row-plus-index shaped: bytes live in
+        parts on disk, and skipping indices are sparse structures the engine
+        maintains rather than a second copy of the data, so the common
+        minimum's ``size_bytes`` is answered while ``data_size_bytes`` and
+        ``index_size_bytes`` stay ``None`` -- which is the honest answer for a
+        split this engine does not keep, not a gap. Finer facts (per-part
+        ``bytes_on_disk``, the engine's own definition) stay on this
+        backend's own types (``.claude/rules/introspection.md`` §5).
+        """
+        return True
 
     def get_supported_introspection_scopes(self) -> List["IntrospectionScope"]:
         """Get list of supported introspection scopes."""
@@ -223,7 +244,9 @@ class ClickHouseIntrospectionMixin:
 
     # ========== Query Formatting ==========
 
-    def format_database_info_query_statement(self, expr: "DatabaseInfoQueryStatement") -> Tuple[str, tuple]:
+    def format_database_info_query_statement(
+        self, expr: "DatabaseInfoQueryStatement"
+    ) -> Tuple[str, tuple]:
         """Format database information query against ClickHouse system.databases.
 
         A ClickHouse database answers its name and its storage engine. It has
@@ -248,7 +271,9 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_table_list_query_statement(self, expr: "TableListQueryStatement") -> Tuple[str, tuple]:
+    def format_table_list_query_statement(
+        self, expr: "TableListQueryStatement"
+    ) -> Tuple[str, tuple]:
         """Format table list query against ClickHouse system.tables."""
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
@@ -298,7 +323,9 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_column_info_query_statement(self, expr: "ColumnInfoQueryStatement") -> Tuple[str, tuple]:
+    def format_column_info_query_statement(
+        self, expr: "ColumnInfoQueryStatement"
+    ) -> Tuple[str, tuple]:
         """Format column information query against ClickHouse system.columns.
 
         ``IS_NULLABLE`` is derived from the type name: ClickHouse encodes
@@ -374,7 +401,9 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_index_info_query_statement(self, expr: "IndexInfoQueryStatement") -> Tuple[str, tuple]:
+    def format_index_info_query_statement(
+        self, expr: "IndexInfoQueryStatement"
+    ) -> Tuple[str, tuple]:
         """Format index information query against ClickHouse system.data_skipping_indices.
 
         ClickHouse's only index rows are the primary key (reported through
@@ -383,6 +412,7 @@ class ClickHouseIntrospectionMixin:
         prefixes, no packed form, no per-index nullability.
         """
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
         from ..expression.types import ClickHouseNullableType, ClickHouseStringType
 
         params = expr.get_params()
@@ -413,13 +443,14 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_foreign_key_query_statement(self, expr: "ForeignKeyQueryStatement") -> Tuple[str, tuple]:
+    def format_foreign_key_query_statement(
+        self, expr: "ForeignKeyQueryStatement"
+    ) -> Tuple[str, tuple]:
         """ClickHouse has no foreign keys; raise UnsupportedFeatureError."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
         raise UnsupportedFeatureError(
-            "ClickHouse", "foreign key introspection",
-            "ClickHouse does not support foreign keys."
+            "ClickHouse", "foreign key introspection", "ClickHouse does not support foreign keys."
         )
 
     def format_view_list_query_statement(self, expr: "ViewListQueryStatement") -> Tuple[str, tuple]:
@@ -478,14 +509,490 @@ class ClickHouseIntrospectionMixin:
         )
         return query.to_sql()
 
-    def format_trigger_list_query_statement(self, expr: "TriggerListQueryStatement") -> Tuple[str, tuple]:
+    def format_trigger_list_query_statement(
+        self, expr: "TriggerListQueryStatement"
+    ) -> Tuple[str, tuple]:
         """ClickHouse has no triggers; raise UnsupportedFeatureError."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
         raise UnsupportedFeatureError(
-            "ClickHouse", "trigger introspection",
-            "ClickHouse does not support triggers."
+            "ClickHouse", "trigger introspection", "ClickHouse does not support triggers."
         )
+
+    # ========== Data Profiles (row-shaped answers) ==========
+
+    def supports_column_data_profile(self) -> bool:
+        """ClickHouse answers a column profile by aggregating the rows.
+
+        Nothing in ``system.*`` holds a per-column distribution to read.
+        ``system.columns`` describes a column's declaration -- type, default,
+        codec, comment -- ``system.parts`` describes how the data is stored on
+        disk (part sizes, row counts, min/max *partition* values), and neither
+        answers how many rows are NULL in one column or how many distinct values
+        it holds. So the answer is computed from the rows, exact, and paid for
+        in time: one arm per column, each a scan of the table.
+
+        ``COUNT(DISTINCT ...)``, exact, rather than ``uniq`` or
+        ``uniqCombined``. Those are this engine's approximate distinct counts,
+        and the profile has no word for what they produce: ``aggregate`` would
+        claim an exact count and ``sample`` would claim a subset of rows was
+        read, while the approximation reads every row and rounds the answer.
+        The exact form also keeps ``distinct_count == row_count`` usable as the
+        uniqueness signal, which no estimate can carry.
+
+        The profile also reports ``runtime_types`` -- the type names grouped
+        over ``toTypeName(column)`` -- which is a fact about the data that only
+        this backend can answer; see
+        :class:`~..introspection.types.ClickHouseColumnDataProfile`.
+        """
+        return True
+
+    def supports_column_value_sample(self) -> bool:
+        """ClickHouse answers a value listing with a grouped scan and a limit.
+
+        Nothing is precomputed, so this costs a ``GROUP BY`` over the column
+        plus a sort of the groups. Kept a separate probe from the profile
+        because the two are priced differently and one probe for both would
+        make the cheap question pay the expensive answer's rate.
+        """
+        return True
+
+    def supports_join_coverage(self) -> bool:
+        """ClickHouse answers overlap by counting distinct values on both sides.
+
+        Exact, and paid for with a scan of each column twice: once for the
+        intersection, once for the denominator. ``COUNT(DISTINCT ...)`` is the
+        engine's exact spelling, for the reason the profile probe records --
+        ``uniq`` would be cheaper and would answer a different question.
+        Answering ``True`` says the engine *can* answer, not that it answers
+        cheaply.
+
+        One limitation belongs with the probe rather than in a ``False``:
+        ClickHouse compares values by their own type, so two columns with
+        unrelated types compare as never equal and the fractions come back
+        zero rather than failing. The number is then a correct statement about
+        a join that would not match, not a measurement of one that would.
+        """
+        return True
+
+    # ---- The profile's own building blocks ----
+
+    def _user_relation(self, table_name: str, alias: str, database: Optional[str]):
+        """A user table as a ``FROM`` source, quoted by the dialect.
+
+        The opposite of :meth:`_system_relation`: a user table is whatever its
+        owner declared, so the name and the database are left to the dialect's
+        identifier renderer, and the alias is what tells the two sides of a
+        coverage measurement apart.
+        """
+        from rhosocial.activerecord.backend.expression import NamedRelationRef
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        return NamedRelationRef(
+            self,
+            Table(self, table_name, catalog_name=database or None),
+            alias=alias,
+        )
+
+    def _profile_label(self, text: Optional[str], alias: str):
+        """A constant label as a named select-list entry.
+
+        ``Literal`` is deliberately unaliasable -- a value has nothing to name
+        -- so the constant is cast to ``String``, which is the smallest node
+        that produces a named result. The cast is not there for its type: it is
+        there so the label can be called ``column_name`` or ``source``, which
+        is what the parser reads. ``None`` is the same node carrying SQL NULL,
+        which is how the empty profile says "the column name is absent" without
+        inventing one.
+        """
+        return self._text_constant(text, alias)
+
+    def _profile_arm(self, table_name: str, database: Optional[str], column_name: str):
+        """One column's arm of the profile, as a node.
+
+        The eight entries are the family's contract plus this engine's own
+        fact: the column's own name, the null count, the distinct count, the
+        two endpoints, the row count the parser divides by, the provenance, and
+        the runtime types.
+
+        The null count is a ``SUM`` over a ``CASE`` rather than ``countIf``: the
+        shared function formatter renders a name in upper case, and ``SUM`` and
+        ``CASE`` are both spelled that way by the engine, while the conditional
+        aggregates this engine spells in camel case are not names this
+        formatter is known to produce correctly. ``SUM`` also makes an empty
+        table answer 0, which the parser reads as "no fraction" because the row
+        count is zero -- not as a column that holds no NULLs.
+
+        ``COUNT(*)`` and the null count share a scan because they are two
+        halves of one fraction; reading the table twice for them would double
+        the cost of the cheapest part of the answer.
+
+        ``groupUniqArray(toTypeName(...))`` is the runtime-type set. It is an
+        aggregate over the same scan, so the fact costs no extra pass, and the
+        order it returns is not defined -- the parser sorts it so two runs
+        compare equal.
+
+        Why the aggregates are spelled as they are is the rule this whole arm
+        turns on: ClickHouse resolves a function name through its
+        ``FunctionFactory`` / ``AggregateFunctionFactory``, which try an exact
+        match first and then a *lowercased* match against a map holding only the
+        names registered ``Case::Insensitive``. So ``SUM`` / ``COUNT`` / ``MIN``
+        / ``MAX`` upper-case happily -- those four are registered insensitive,
+        among a handful of SQL-standard spellings -- while ``GROUPUNIQARRAY``
+        does not: ``groupUniqArray`` is registered ``Case::Sensitive``, the
+        default, and every combinator suffix (``OrNull``, ``If``, ``State``) is
+        matched against the tail of the name *as written*. An upper-cased
+        camelCase name therefore matches neither map, and the server answers
+        ``Function with name `MINORNULL` does not exist``. The renderer cannot
+        know which map a name lands in, so this arm asks for the spellings that
+        are registered, verbatim, through :meth:`_engine_function`.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            CaseExpression,
+            Column,
+            IsNullPredicate,
+            Literal,
+            QueryStatement,
+            RowCountWildcard,
+            SumFunction,
+        )
+        from rhosocial.activerecord.backend.expression.core import CastExpression
+        from rhosocial.activerecord.backend.expression.functions import (
+            CountFunction,
+            max_,
+            min_,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        from ..expression.types import ClickHouseNullableType, ClickHouseStringType
+
+        column = Column(self, column_name)
+        endpoint_type = ClickHouseNullableType(self, inner_type=ClickHouseStringType(self))
+
+        def endpoint(aggregate, alias: str):
+            """An endpoint as ``Nullable(String)``, for the union's sake.
+
+            The cast is the union's price, explained on the statement formatter.
+
+            ``MIN``/``MAX`` rather than ``minOrNull``/``maxOrNull``, and the
+            difference is one figure for one kind of column: the plain
+            aggregates answer with the *default of the result type* when no
+            non-NULL value was ever accumulated, while the ``OrNull``
+            combinator forces the NULL answer. So for a column that is
+            entirely NULL -- ``note`` in the profile test, if every row were
+            NULL rather than 40% of them -- ``MIN``/``MAX`` produce ``''`` and
+            the cast leaves it as the empty string, where ``minOrNull`` would
+            have produced NULL and the parser would have read ``None``. The
+            profile's other two figures still say what happened: ``null_count``
+            equals ``row_count`` and ``null_fraction`` is ``1.0``, so "every
+            value is NULL" survives; what is lost is the endpoints' own claim
+            to have measured no value. An empty table costs the same figure.
+
+            The spellings are ``MIN``/``MAX`` because those two ``Case``-safe
+            names are the ones the aggregate factory registers
+            ``Case::Insensitive``, which is why the shared renderer's
+            upper-casing is right here and nowhere else in this arm.
+            """
+            return CastExpression(self, aggregate, endpoint_type, alias=alias)
+
+        return QueryStatement(
+            self,
+            select=[
+                self._profile_label(column_name, "column_name"),
+                SumFunction(
+                    self,
+                    CaseExpression(
+                        self,
+                        cases=[
+                            (
+                                IsNullPredicate(self, column),
+                                Literal(self, 1, inline=True),
+                            )
+                        ],
+                        else_result=Literal(self, 0, inline=True),
+                    ),
+                ).as_("null_count"),
+                CountFunction(self, column, distinct=True).as_("distinct_count"),
+                endpoint(min_(self, column), "min_value"),
+                endpoint(max_(self, column), "max_value"),
+                CountFunction(self, RowCountWildcard(self)).as_("row_count"),
+                self._profile_label(ProfileSource.AGGREGATE.value, "source"),
+                self._engine_function(
+                    "groupUniqArray",
+                    self._engine_function("toTypeName", column),
+                    alias="runtime_types",
+                ),
+            ],
+            from_=Table(self, table_name, catalog_name=database or None),
+        )
+
+    def format_column_data_profile_query_statement(
+        self, expr: "ColumnDataProfileQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format a per-column profile by aggregating the rows themselves.
+
+        One arm per column, over the column list the expression carries: SQL
+        cannot pivot ``SUM(CASE WHEN col IS NULL ...)`` across columns it was
+        never told about, so an aggregating backend genuinely needs that list
+        where a catalogue-based one does not.
+
+        The one place in this module where a set operator is written as text.
+        Every arm is a real :class:`~...statements.dql.QueryStatement` -- it
+        owns its projection, its identifiers and its relation -- because a
+        ``UNION ALL`` over a column list known only at run time has no node to
+        represent it: the list is a tuple on the expression, not an operand in
+        the tree. So each arm renders on its own, its parameters are
+        concatenated in arm order, and the rendered arms are joined by the set
+        operator's word.
+
+        The aliases are lower case, unlike the catalogue statements above.
+        ClickHouse keeps an identifier's case, so an alias comes back spelled
+        exactly as it was written -- which makes the spelling a choice rather
+        than something the engine decides, and the choice is the one the core
+        parser reads. The catalogue statements are upper case because their
+        parsers were written against the engine's own column names.
+
+        An empty column list answers with no rows, read from ``system.one``
+        rather than a bare ``SELECT``: ClickHouse allows a ``WHERE`` only over a
+        source, and there is no user table to name here. A real table always has
+        at least one column, so the branch exists for a statement that has to
+        render, not for a case a caller can hit.
+
+        Two consequences of the union are worth reading before the figures are.
+        ClickHouse refuses a ``UNION ALL`` whose arms disagree on a column's
+        type -- it looks for a supertype and raises when there is none -- so
+        ``min_value``/``max_value`` are cast to ``Nullable(String)`` in every
+        arm rather than left to be the column's own type. The figures are
+        exact; the endpoints arrive as text, and the test reads a numeric one
+        back through ``Decimal`` for that reason. One query per column would
+        keep each type, at the price of a round trip per column, which is the
+        loop this family exists to avoid. And one column whose type these
+        aggregates refuse -- ``Array``, ``Map``, ``Tuple`` have no
+        ``MIN``/``MAX`` and no ``COUNT(DISTINCT)`` in ClickHouse -- fails the
+        whole statement rather than dropping that column's arm; a silently
+        missing column would be a profile claiming a table has fewer columns
+        than it does.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Literal,
+            QueryStatement,
+        )
+
+        params = expr.get_params()
+        database = params.get("schema")
+
+        arms = []
+        parameters: list = []
+        for name in expr.columns:
+            sql, arm_parameters = self._profile_arm(
+                params.get("table_name"), database, name
+            ).to_sql()
+            arms.append(sql)
+            parameters.extend(arm_parameters)
+
+        if not arms:
+            return QueryStatement(
+                self,
+                select=[self._profile_label(None, "column_name")],
+                from_=self._system_relation("one"),
+                where=self._where(
+                    self._equals(Literal(self, 1, inline=True), Literal(self, 0, inline=True))
+                ),
+            ).to_sql()
+
+        return " UNION ALL ".join(arms), tuple(parameters)
+
+    def format_column_value_sample_query_statement(
+        self, expr: "ColumnValueSampleQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format a most-frequent-values listing with a grouped scan.
+
+        Nothing is precomputed, so this costs a ``GROUP BY`` over the column
+        plus a sort of the groups -- the same order as the profile, which is why
+        the two are separate probes rather than one call that would make the
+        cheap half pay for the dear one.
+
+        ``ORDER BY COUNT(*) DESC`` is what makes the answer "the most frequent
+        values" rather than "the first values"; ties break by the value so two
+        runs of the same query agree. ClickHouse groups NULLs into a real row,
+        so a column holding NULLs has a NULL entry in its listing -- usually
+        the most frequent one -- which is a shape the core parser accepts and
+        the test pins, rather than a value this formatter filters out.
+
+        The ``LIMIT`` is a bind parameter, as it is everywhere else in this
+        dialect: the caller's integer is never spliced into statement text.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            Column,
+            GroupByHavingClause,
+            LimitOffsetClause,
+            OrderByClause,
+            QueryStatement,
+            RowCountWildcard,
+        )
+        from rhosocial.activerecord.backend.expression.functions import (
+            CountFunction,
+        )
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        column = Column(self, expr.column_name)
+        rows = CountFunction(self, RowCountWildcard(self))
+
+        return QueryStatement(
+            self,
+            select=[column.as_("value"), rows.as_("count")],
+            from_=Table(self, expr.table_name, catalog_name=expr.schema or None),
+            group_by_having=GroupByHavingClause(self, group_by=[column]),
+            order_by=OrderByClause(
+                self,
+                expressions=[
+                    (CountFunction(self, RowCountWildcard(self)), "DESC"),
+                    (Column(self, expr.column_name), "ASC"),
+                ],
+            ),
+            limit_offset=LimitOffsetClause(self, limit=int(expr.limit)),
+        ).to_sql()
+
+    def _coverage_fraction(self, column, source, other_column, other_source):
+        """One side of the overlap: the share of *column* the other side holds.
+
+        The numerator counts the *distinct* values of *column* that also occur
+        in *other_column*, as a ``COUNT(*)`` over a derived table of those
+        distinct values; the denominator counts *column*'s distinct non-NULL
+        values. Distinct on both sides is what makes the figure a coverage of
+        values rather than of rows -- a key repeated a thousand times that
+        matches once would otherwise read as well covered.
+
+        ``IS NOT NULL`` is written on both halves rather than relied upon. In
+        the numerator it is load-bearing: a DISTINCT treats a NULL as one
+        value, so counting it would credit the tested side with a match it does
+        not have. In the divisor ``COUNT(DISTINCT ...)`` skips NULLs on its
+        own, but the statement says so explicitly, because the share is of the
+        values that could join and that is the fact being measured.
+        ``NULLIF(..., 0)`` then makes a column with no value at all answer NULL
+        rather than 0, which the parser reads as "no fraction": the difference
+        between "nothing matched" and "nothing to match" survives to the
+        caller.
+
+        No ``* 1.0`` here: ClickHouse's ``/`` over two integers already answers
+        a floating-point share, so multiplying first would only add noise.
+        """
+        from rhosocial.activerecord.backend.expression import (
+            FunctionCall,
+            InPredicate,
+            Literal,
+            QueryStatement,
+            RowCountWildcard,
+            SelectModifier,
+            Subquery,
+        )
+        from rhosocial.activerecord.backend.expression.functions import (
+            CountFunction,
+        )
+        from rhosocial.activerecord.backend.expression.sources import (
+            DerivedTableSource,
+        )
+
+        overlap = QueryStatement(
+            self,
+            select=[column],
+            from_=source,
+            where=self._where(
+                column.is_not_null(),
+                InPredicate(
+                    self,
+                    column,
+                    Subquery(
+                        self,
+                        QueryStatement(
+                            self,
+                            select=[other_column],
+                            from_=other_source,
+                            where=self._where(other_column.is_not_null()),
+                        ),
+                    ),
+                ),
+            ),
+            select_modifier=SelectModifier.DISTINCT,
+        )
+        covered = Subquery(
+            self,
+            QueryStatement(
+                self,
+                select=[CountFunction(self, RowCountWildcard(self))],
+                from_=DerivedTableSource(self, overlap, alias="covered"),
+            ),
+        )
+        total = Subquery(
+            self,
+            QueryStatement(
+                self,
+                select=[
+                    FunctionCall(
+                        self,
+                        "NULLIF",
+                        CountFunction(self, column, distinct=True),
+                        Literal(self, 0, inline=True),
+                    )
+                ],
+                from_=source,
+                where=self._where(column.is_not_null()),
+            ),
+        )
+        return covered / total
+
+    def format_join_coverage_query_statement(
+        self, expr: "JoinCoverageQueryStatement"
+    ) -> Tuple[str, tuple]:
+        """Format a two-sided measurement of two columns' value domains.
+
+        Unlike every statement above, this one names two user tables rather
+        than one ``system.*`` relation: the question is a relation between two
+        objects, so both sides are carried explicitly and their identifiers are
+        the dialect's to quote (see :meth:`_user_relation`). The aliases ``l``
+        and ``r`` are what keep the two columns apart.
+
+        The row carries both fractions because neither is meaningful alone: a
+        left share of 1.0 beside a right share of 0.2 says every tested value
+        exists on the other side while most of that other domain is
+        unaccounted for, and one similarity score would average the two and
+        describe neither.
+
+        Both figures are counted over distinct values with NULLs excluded from
+        the numerators and the denominators alike -- a NULL is not a value that
+        could ever join -- and the denominators are ``NULLIF``-guarded so a
+        column with nothing to match answers NULL, which the parser reports as
+        "no measurement" instead of a zero overlap that would read as a real
+        answer.
+
+        The cost is each side read for its distinct domain plus the
+        intersection of the two, which is why the probe is an explicit call and
+        belongs in no automatic pass. Types are not reconciled: ClickHouse
+        compares values by their own type, so unrelated types simply never
+        match and the fractions are a genuine zero for that join, not a
+        measurement of a conversion the engine did not perform.
+        """
+        from rhosocial.activerecord.backend.expression import Column, QueryStatement
+
+        params = expr.get_params()
+        database = params.get("schema")
+
+        left_source = self._user_relation(params.get("left_table"), "l", database)
+        right_source = self._user_relation(params.get("right_table"), "r", database)
+        left_column = Column(self, params.get("left_column"), table="l")
+        right_column = Column(self, params.get("right_column"), table="r")
+
+        return QueryStatement(
+            self,
+            select=[
+                self._coverage_fraction(left_column, left_source, right_column, right_source).as_(
+                    "left_coverage"
+                ),
+                self._coverage_fraction(right_column, right_source, left_column, left_source).as_(
+                    "right_coverage"
+                ),
+            ],
+        ).to_sql()
 
     # ========== Backend-specific reads ==========
 

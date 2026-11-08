@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/function.py
-from typing import Dict, Tuple, TYPE_CHECKING
+from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.bases import BaseExpression
@@ -7,6 +7,56 @@ if TYPE_CHECKING:
 
 class ClickHouseFunctionMixin:
     """ClickHouse function version support."""
+
+    def _engine_function(
+        self, name: str, *operands, alias: Optional[str] = None
+    ) -> "BaseExpression":
+        """``name(operands...)`` with the name spelled the way ClickHouse spells it.
+
+        The shared :meth:`~...dialect.mixins.function.format_function_call`
+        upper-cases every function name it renders, and on this engine that is
+        right for exactly the SQL-standard spellings -- ``SUM``, ``COUNT``,
+        ``MIN``, ``MAX``, which the aggregate factory registers
+        ``Case::Insensitive`` so any casing resolves. It is wrong for every
+        camelCase name: ``groupUniqArray``, ``toTypeName`` and ``currentUser``
+        are registered ``Case::Sensitive`` (the default), and the combinator
+        suffixes (``OrNull``, ``If``, ``State`` ...) are matched against the
+        tail of the name *as written*. So ``GROUPUNIQARRAY`` and
+        ``CURRENTUSER`` land in neither the exact map nor the lowercased one,
+        and the server answers ``Function with name `X` does not exist`` --
+        which is how ``MINORNULL`` failed all five data-profile CI jobs.
+
+        A name the renderer cannot case correctly is therefore handed to SQL as
+        text, and the node is a
+        :class:`~...expression.operators.RawSQL` rather than a
+        :class:`~...expression.core.FunctionCall` precisely so no companion
+        code path re-applies the case rule to it. The *operands* still render
+        through their own nodes -- a column is quoted and catalog-qualified by
+        the dialect's identifier renderer, and a literal binds where
+        ``Literal`` says it binds -- so only the optional operator text is
+        raw; the whole call never is.
+
+        Args:
+            name: The function name, in the engine's own spelling.
+            *operands: Expression nodes for the arguments.
+            alias: Optional result alias.
+
+        Returns:
+            A ``RawSQL`` node rendering ``name(operand_sql, ...)``, carrying
+            the parameters the operands collected, in argument order.
+        """
+        parts: List[str] = []
+        collected: List = []
+        for operand in operands:
+            part_sql, part_params = operand.to_sql()
+            parts.append(part_sql)
+            collected.extend(part_params)
+        sql = f"{name}({', '.join(parts)})"
+        if alias:
+            sql = f"{sql} AS {self.format_identifier(alias)}"
+        from rhosocial.activerecord.backend.expression.operators import RawSQL
+
+        return RawSQL(self, sql, tuple(collected))
 
     # ClickHouse function version support: function_name -> (min_version, max_version)
     _CLICKHOUSE_FUNCTION_VERSIONS = {

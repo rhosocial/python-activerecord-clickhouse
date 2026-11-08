@@ -33,7 +33,7 @@ from rhosocial.activerecord.backend.expression.introspection import (
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.introspection import (
-    SyncClickHouseIntrospector,
+    ClickHouseIntrospector,
 )
 from rhosocial.activerecord.backend.introspection.types import TableType
 
@@ -51,7 +51,7 @@ class _StubBackend:
 
 
 def _introspector(dialect, database="analytics", cached_version=None):
-    return SyncClickHouseIntrospector(
+    return ClickHouseIntrospector(
         _StubBackend(dialect, database, cached_version), executor=None
     )
 
@@ -231,3 +231,47 @@ class TestTableTypeFilter:
         ).to_sql()
         assert "`engine` IN (%s, %s, %s)" in sql
         assert params == ("analytics", "View", "LiveView", "WindowView")
+
+class TestTableStorageSlots:
+    """`total_bytes` answers `size_bytes`; the engine-shaped split does not.
+
+    ClickHouse stores bytes in parts on disk, and its skipping indices are
+    sparse structures the engine maintains rather than a second copy of the
+    data. So the common minimum's `size_bytes` is answered -- the listing
+    projects `total_bytes` as `DATA_LENGTH` and the parser reads it --
+    while `data_size_bytes` and `index_size_bytes` stay `None`: the
+    honest answer for a split this engine does not keep, which is a different
+    statement from a gap.
+    """
+
+    def test_the_probe_declares_the_family(self, dialect):
+        assert dialect.supports_table_storage_introspection() is True
+
+    def test_total_bytes_lands_on_size_bytes(self, dialect):
+        introspector = _introspector(dialect)
+        rows = [
+            {
+                "TABLE_NAME": "events",
+                "database": "analytics",
+                "ENGINE": "MergeTree",
+                "TABLE_ROWS": 120,
+                "DATA_LENGTH": 4096,
+            }
+        ]
+        table = introspector.parse_tables(rows, "analytics")[0]
+        assert table.size_bytes == 4096
+        assert table.row_count == 120
+
+    def test_the_engine_shaped_split_slots_stay_none(self, dialect):
+        introspector = _introspector(dialect)
+        rows = [
+            {
+                "TABLE_NAME": "events",
+                "database": "analytics",
+                "ENGINE": "MergeTree",
+                "DATA_LENGTH": 4096,
+            }
+        ]
+        table = introspector.parse_tables(rows, "analytics")[0]
+        assert table.data_size_bytes is None
+        assert table.index_size_bytes is None

@@ -351,13 +351,17 @@ class ClickHouseStatusQueryMixin:
     def format_clickhouse_current_user_query(
         self, expr: "ClickHouseCurrentUserQuery"
     ) -> Tuple[str, tuple]:
-        """The user this session authenticates as."""
-        from rhosocial.activerecord.backend.expression import FunctionCall, QueryStatement
+        """The user this session authenticates as.
 
-        query = QueryStatement(
-            self,
-            select=[FunctionCall(self, "currentUser")],
-        )
+        The name is spelled the engine's own way, because the engine registers
+        ``currentUser`` ``Case::Sensitive`` (see :meth:`_engine_function`); the
+        shared renderer's upper case would produce ``CURRENTUSER``, which
+        resolves in neither the exact map nor the insensitive one -- the same
+        wall ``MINORNULL`` hit.
+        """
+        from rhosocial.activerecord.backend.expression import QueryStatement
+
+        query = QueryStatement(self, select=[self._engine_function("currentUser")])
         return query.to_sql()
 
     def format_clickhouse_setting_query(
@@ -396,13 +400,18 @@ class ClickHouseStatusQueryMixin:
         return query.to_sql()
 
     def format_clickhouse_version_query(self, expr: "ClickHouseVersionQuery") -> Tuple[str, tuple]:
-        """The server's own version string."""
-        from rhosocial.activerecord.backend.expression import FunctionCall, QueryStatement
+        """The server's own version string.
 
-        query = QueryStatement(
-            self,
-            select=[FunctionCall(self, "version")],
-        )
+        ``version`` is spelled through :meth:`_engine_function` for the same
+        reason as ``currentUser`` one formatter above: the shared renderer's
+        upper case is right for the names ClickHouse registers
+        ``Case::Insensitive`` and wrong for the rest, and this is the read the
+        whole backend's version detection rests on -- so the name that reaches
+        SQL is the one the server registers.
+        """
+        from rhosocial.activerecord.backend.expression import QueryStatement
+
+        query = QueryStatement(self, select=[self._engine_function("version")])
         return query.to_sql()
 
     def format_clickhouse_process_list_query(

@@ -132,11 +132,11 @@ class ClickHouseBackend(
         self.log(logging.INFO, "ClickHouseBackend initialized")
 
     def _create_introspector(self) -> Any:
-        """Create a SyncClickHouseIntrospector backed by a SyncIntrospectorExecutor."""
-        from rhosocial.activerecord.backend.introspection.executor import SyncIntrospectorExecutor
-        from ..introspection import SyncClickHouseIntrospector
+        """Create a ClickHouseIntrospector backed by a IntrospectorExecutor."""
+        from rhosocial.activerecord.backend.introspection.executor import IntrospectorExecutor
+        from ..introspection import ClickHouseIntrospector
 
-        return SyncClickHouseIntrospector(self, SyncIntrospectorExecutor(self))
+        return ClickHouseIntrospector(self, IntrospectorExecutor(self))
 
     def introspect_and_adapt(self) -> None:
         """Introspect backend and adapt backend instance to actual server capabilities.

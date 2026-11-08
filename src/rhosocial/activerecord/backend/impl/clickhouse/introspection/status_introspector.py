@@ -57,7 +57,7 @@ consistency, under ``PERFORMANCE`` if it is a throughput limit or switch, and
 under ``CONFIGURATION`` otherwise.
 
 Design principle: Sync and Async are separate and cannot coexist.
-- SyncClickHouseStatusIntrospector: for synchronous backends
+- ClickHouseStatusIntrospector: for synchronous backends
 - AsyncClickHouseStatusIntrospector: for asynchronous backends
 """
 from __future__ import annotations
@@ -74,7 +74,7 @@ from rhosocial.activerecord.backend.introspection.status import (
     StorageInfo,
     SessionInfo,
     ProcessInfo,
-    SyncAbstractStatusIntrospector,
+    AbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
@@ -722,7 +722,7 @@ class ClickHouseStatusIntrospectorMixin:
         )
 
 
-class SyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, SyncAbstractStatusIntrospector):
+class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractStatusIntrospector):
     """Synchronous ClickHouse status introspector.
 
     Reads configuration from ``system.settings`` / ``system.server_settings``

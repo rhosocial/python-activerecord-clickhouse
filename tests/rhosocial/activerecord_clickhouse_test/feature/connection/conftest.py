@@ -5,8 +5,6 @@ Pytest configuration for connection pool tests.
 This module provides fixtures for testing connection pools with ClickHouse backends.
 """
 
-import asyncio
-import sys
 import os
 from typing import Dict, Any, Generator
 
@@ -26,16 +24,15 @@ from rhosocial.activerecord.connection.pool import (
 from providers.pooling import resolve_database_name
 
 
-def ensure_compatible_event_loop():
-    """Ensure event loop compatibility on Windows."""
-    if sys.platform == "win32":
-        policy = asyncio.get_event_loop_policy()
-        if not isinstance(policy, asyncio.WindowsSelectorEventLoopPolicy):
-            new_policy = asyncio.WindowsSelectorEventLoopPolicy()
-            asyncio.set_event_loop_policy(new_policy)
-
-
-ensure_compatible_event_loop()
+# No event loop workaround is needed on Windows -- this backend has no async
+# path at all (clickhouse-connect is synchronous-only and
+# AsyncClickHouseBackend refuses instantiation), so there is nothing for an
+# event loop to serve. A `WindowsSelectorEventLoopPolicy` switch used to sit
+# here, copied from the postgres suite: deprecated for removal in Python
+# 3.16, and switching it would take asyncio subprocess and pipe I/O down with
+# it. Do not reintroduce it: if a future async driver needs a selector loop,
+# follow the postgres suite's pytest_asyncio_loop_factories hook instead,
+# which scopes the choice to the tests rather than the process.
 
 # --- Scenario Loading Logic ---
 
