@@ -5,3 +5,5 @@ ClickHouse's columnar composite types and the JSON function family.
 
 - [JSON queries](json.md): the `JSONExtract*` function family
 - [Arrays, Maps, Tuples](arrays_maps.md): querying columnar composite types
+- [Signed seconds between two instants](seconds_between.md): the
+  `seconds_between` node rendered as `dateDiff` over milliseconds

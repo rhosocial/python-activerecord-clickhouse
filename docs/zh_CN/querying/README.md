@@ -4,3 +4,4 @@
 
 - [JSON 查询](json.md)：`JSONExtract*` 函数族
 - [数组、Map、Tuple](arrays_maps.md)：列式复合类型查询
+- [两个时刻之间的带符号秒数](seconds_between.md)：`seconds_between` 节点以毫秒 `dateDiff` 渲染
