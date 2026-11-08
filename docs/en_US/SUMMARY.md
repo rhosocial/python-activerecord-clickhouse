@@ -28,6 +28,7 @@
 
 * [JSON queries](querying/json.md)
 * [Arrays, Maps, Tuples](querying/arrays_maps.md)
+* [Signed seconds between two instants](querying/seconds_between.md)
 
 ## DDL
 

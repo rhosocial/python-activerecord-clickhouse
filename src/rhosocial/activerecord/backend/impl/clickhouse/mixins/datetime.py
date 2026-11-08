@@ -36,3 +36,24 @@ class ClickHouseDateTimeMixin:
         end_sql, end_params = expr.end.to_sql()
         sql = f"dateDiff({self.p()}, {start_sql}, {end_sql})"
         return self.apply_alias(sql, start_params + end_params + (expr.unit.value.upper(),), expr)
+
+    def format_seconds_between_expression(self, expr: "Any") -> Tuple[str, tuple]:
+        """Format signed elapsed seconds using ClickHouse's ``dateDiff``.
+
+        ``dateDiff`` counts whole units only, so the finest unit it can count
+        is the millisecond; dividing that count by ``1000.0`` returns the
+        fraction as a Float64 rather than an integer number of seconds. The
+        sign comes from the argument order -- ``dateDiff(unit, start, end)``
+        is ``end - start`` -- so an ``end`` earlier than the start renders the
+        same SQL and subtracts to a negative value. A ``DateTime64(6)`` value
+        is counted to the millisecond: its microseconds are truncated, which
+        is the finest resolution this engine's ``dateDiff`` offers.
+
+        The rendered SQL writes ``start`` before ``end``, so its parameters
+        are collected in that order as well -- bind order follows the SQL, not
+        the node's argument order.
+        """
+        start_sql, start_params = expr.start.to_sql()
+        end_sql, end_params = expr.end.to_sql()
+        sql = f"dateDiff('millisecond', {start_sql}, {end_sql}) / 1000.0"
+        return self.apply_alias(sql, start_params + end_params, expr)

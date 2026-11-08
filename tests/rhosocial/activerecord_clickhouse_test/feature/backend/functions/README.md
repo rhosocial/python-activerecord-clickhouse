@@ -10,3 +10,6 @@ expression-level).
 - `test_json_functions.py` — JSON function capability flags
   (JSONExtract/JSONValue supported, JSONType, JSON_TABLE never) and
   formatting of extract/unquote/object/array function calls.
+- `test_seconds_between_live.py` — `seconds_between` executed for real:
+  sign, fraction, month/year boundaries and two-column spans. **Requires a
+  live ClickHouse**.
