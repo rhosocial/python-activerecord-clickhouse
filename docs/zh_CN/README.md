@@ -41,10 +41,13 @@ ClickHouse 后端是 [rhosocial-activerecord](https://github.com/rhosocial/pytho
     * **[变更（UPDATE/DELETE）](capabilities/mutations.md)**：`mutations_sync=1` 与 `affected_rows` 语义
     * **[不支持的功能](capabilities/unsupported.md)**：完整 fail-fast 清单与替代方案
 
-8. **[命令行 (CLI)](cli/README.md)**
+8. **[自省 (Introspection)](introspection/README.md)**
+    * **[数据库自省](introspection/README.md)**：十六个 CLI 类型各自问什么、三个数据家族的聚合与 `runtime_types`，以及为什么函数名绝不转大写
+
+9. **[命令行 (CLI)](cli/README.md)**
     * **[CLI 用法](cli/README.md)**：`python -m rhosocial.activerecord.backend.impl.clickhouse`
 
-9. **[测试 (Testing)](testing/README.md)**
+10. **[测试 (Testing)](testing/README.md)**
     * **[测试配置](testing/README.md)**：场景配置与 CI 矩阵
 
 ---

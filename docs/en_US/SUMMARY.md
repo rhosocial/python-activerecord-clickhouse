@@ -40,6 +40,10 @@
 * [Mutations (UPDATE/DELETE)](capabilities/mutations.md)
 * [Unsupported features](capabilities/unsupported.md)
 
+## Introspection
+
+* [Database introspection](introspection/README.md)
+
 ## Command Line
 
 * [CLI usage](cli/README.md)

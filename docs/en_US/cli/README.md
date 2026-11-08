@@ -68,7 +68,7 @@ Positional argument (introspection type): `tables` / `views` / `columns` / `inde
 
 `NAME` is a table for `columns` / `indexes` / `partitions` / `table-engine` / `ddl` / `column-profiles` / `value-samples` / `join-coverage`, and the view itself for `views`. `tables` / `database` answer for the whole database and **refuse** a name (exit 2) rather than print a listing that looks narrowed. Exit 1 means the run failed — a connection or query error, or a view name that does not exist.
 
-`foreign-keys` / `triggers` are not offered at all: ClickHouse has neither, so the type is absent from this backend's vocabulary instead of being answered with an empty list. Every offered type is gated on a dialect capability switch; a server that answers `False` for it is refused with exit 2 and `Error: <type> introspection is not supported by this server`. The backend's `show.*` SHOW passthrough is not exposed here either: `SHOW` and `system.*` are not equivalent, and every introspection type reads `system.*`.
+`foreign-keys` / `triggers` are not offered at all: ClickHouse has neither, so the type is absent from this backend's vocabulary instead of being answered with an empty list. Every offered type is gated on a dialect capability switch; a server that answers `False` for it is refused with exit 2 and `Error: <type> introspection is not supported by this server`. The backend's `show.*` SHOW passthrough is not exposed here either: `SHOW` and `system.*` are not equivalent, and every introspection type reads `system.*`. The families behind these types, their sources and their traps are described in [Database introspection](../introspection/README.md).
 
 Specific arguments: `--include-system` (include system tables).
 

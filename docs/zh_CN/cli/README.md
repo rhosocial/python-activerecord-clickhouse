@@ -68,7 +68,7 @@ $ python -m rhosocial.activerecord.backend.impl.clickhouse introspect views dail
 
 `NAME` 对 `columns` / `indexes` / `partitions` / `table-engine` / `ddl` / `column-profiles` / `value-samples` / `join-coverage` 是表名，对 `views` 是视图本身，对 `dependencies` 可选收窄到该对象的边。`tables` / `database` 以及四个 operational 家族（`unused-indexes` / `table-stats` / `runtime` / `index-stats`）回答的是整个数据库，因此**拒绝**名字（退出 2），不会打印一份看起来被收窄过的列表。退出 1 表示运行失败——连接或查询出错，或指定的视图不存在。
 
-`foreign-keys` / `triggers` 根本不提供：ClickHouse 既没有外键也没有触发器，所以这两个类型不在本后端的词汇表里，而不是返回空列表。每个提供的类型都挂在 dialect 的能力开关上；服务端对该开关回答 `False` 时以退出 2 拒绝，并输出 `Error: <type> introspection is not supported by this server`。后端的 `show.*`（SHOW 直通）同样不从这里暴露：`SHOW` 与 `system.*` 并不等价，而所有自省类型都读 `system.*`。
+`foreign-keys` / `triggers` 根本不提供：ClickHouse 既没有外键也没有触发器，所以这两个类型不在本后端的词汇表里，而不是返回空列表。每个提供的类型都挂在 dialect 的能力开关上；服务端对该开关回答 `False` 时以退出 2 拒绝，并输出 `Error: <type> introspection is not supported by this server`。后端的 `show.*`（SHOW 直通）同样不从这里暴露：`SHOW` 与 `system.*` 并不等价，而所有自省类型都读 `system.*`。这些类型背后的家族、各自的数据来源与陷阱，见 [数据库自省](../introspection/README.md)。
 
 专属参数：`--include-system`（含系统表）。
 

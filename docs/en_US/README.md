@@ -48,10 +48,13 @@ fail fast with `UnsupportedFeatureError` rather than being silently emulated.
     * **[Mutations (UPDATE/DELETE)](capabilities/mutations.md)**: `enable_block_number_column`/`enable_block_offset_column` settings & `affected_rows` semantics
     * **[Unsupported features](capabilities/unsupported.md)**: Complete fail-fast list with alternatives
 
-8. **[Command Line (CLI)](cli/README.md)**
+8. **[Introspection](introspection/README.md)**
+    * **[Database introspection](introspection/README.md)**: What the sixteen CLI types ask, the three data families' aggregates and `runtime_types`, and why function names are never upper-cased
+
+9. **[Command Line (CLI)](cli/README.md)**
     * **[CLI usage](cli/README.md)**: `python -m rhosocial.activerecord.backend.impl.clickhouse`
 
-9. **[Testing](testing/README.md)**
+10. **[Testing](testing/README.md)**
     * **[Test configuration](testing/README.md)**: Scenario config & CI matrix
 
 ---

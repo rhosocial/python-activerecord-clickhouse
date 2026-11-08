@@ -40,6 +40,10 @@
 * [变更（UPDATE/DELETE）](capabilities/mutations.md)
 * [不支持的功能](capabilities/unsupported.md)
 
+## 自省
+
+* [数据库自省](introspection/README.md)
+
 ## 命令行
 
 * [CLI 用法](cli/README.md)
