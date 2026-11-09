@@ -1,15 +1,16 @@
 # Database Introspection
 
-The ClickHouse backend answers three layers of questions: what the database
+The ClickHouse backend answers four layers of questions: what the database
 declares (from `system.tables`, `system.columns` and their neighbours), what
-the server keeps about itself (six operational families it is offered and
+the server publishes as server-wide catalogues (`system.functions`,
+`system.dictionaries`, `system.clusters` and the access-control relations),
+what the server keeps about itself (six operational families it is offered and
 declines), and what a column's rows actually hold (three families that read
-them). `backend.introspector` is the entry point for all three, and every
-answer on this page is ClickHouse's own: what this engine says, not the shape
-a cross-dialect consumer can expect. The contract those answers are shaped
-against — what a probe promises, what a data profile carries, what an
-operational family means — is the core library's to state, and this page does
-not restate it.
+them). `backend.introspector` is the entry point for all four, and every answer
+on this page is ClickHouse's own: what this engine says, not the shape a
+cross-dialect consumer can expect. The contract those answers are shaped against
+— what a probe promises, what a data profile carries, what an operational family
+means — is the core library's to state, and this page does not restate it.
 
 ## What ClickHouse Answers
 
@@ -19,13 +20,14 @@ product. Run `backend.introspect_and_adapt()` before asking: it reads the
 server's version and adapts the dialect the probes are evaluated on, so a
 capability below a floor is answered for the connection in hand.
 
-The CLI derives its type list from the same mapping, so the sixteen types it
-offers and the switches behind them cannot drift apart. Ten answer `True` for
-this dialect — the seven catalogue families and the three that read the rows.
-The other six are offered and refused, because ClickHouse has no statistics
-collector, no dependency graph and no native DDL retrieval this backend reads.
-Read the `False` rows first: `False` says the question cannot be asked of this
-server, never that the answer was empty or zero.
+The CLI derives its type list from the same mapping, so the twenty-two types it
+offers and the switches behind them cannot drift apart. Sixteen answer `True`
+for this dialect — the seven table-scoped catalogue families, the six
+server-wide catalogue families, and the three that read the rows. The other six
+are offered and refused, because ClickHouse has no statistics collector, no
+dependency graph and no native DDL retrieval this backend reads. Read the
+`False` rows first: `False` says the question cannot be asked of this server,
+never that the answer was empty or zero.
 
 | Type | Probe | Answer | Reads | `NAME` |
 |------|-------|--------|-------|--------|
@@ -36,6 +38,12 @@ server, never that the answer was empty or zero.
 | `partitions` | `supports_partition_introspection()` | `True` | `system.parts`, active parts only | table, required |
 | `table-engine` | `supports_table_engine_introspection()` | `True` | `system.tables` | table, required |
 | `database` | `supports_database_info()` | `True` | `system.databases` | refused |
+| `functions` | `supports_function_introspection()` | `True` | `system.functions` | name, optional |
+| `dictionaries` | `supports_dictionary_introspection()` | `True` | `system.dictionaries` | name, optional |
+| `clusters` | `supports_cluster_introspection()` | `True` | `system.clusters` | cluster, optional |
+| `quotas` | `supports_quota_introspection()` | `True` | `system.quotas` | name, optional |
+| `users` | `supports_user_introspection()` | `True` | `system.users` | name, optional |
+| `roles` | `supports_role_introspection()` | `True` | `system.roles` | name, optional |
 | `unused-indexes` | `supports_unused_indexes_detection()` | `False` | — | refused |
 | `table-stats` | `supports_table_stats()` | `False` | — | refused |
 | `runtime` | `supports_runtime_stats()` | `False` | — | refused |
@@ -51,6 +59,30 @@ each is gated on the switch declared beside it in the mixin, and each has a
 result type of its own. Core's `supports_partition_info()` stays `False` by
 inheritance, because there is no core partition method here for a `True` to
 oblige; the CLI reads the backend's switch, not core's.
+
+The six server-wide catalogue families are backend-local too. Each is gated on
+its own switch and each has its own result type, because none of them is a
+table with columns and an engine. `functions` reads `system.functions` and
+reports the built-in and user-defined flavours together, distinguished by
+`origin`; a name narrows the listing rather than selecting a single row, since
+one name can also be an alias row. `dictionaries` reads `system.dictionaries`,
+keeps the dotted `key.names` / `attribute.names` columns as named list fields,
+and reports `database=''` exactly as the server does for a configuration-file
+dictionary. `clusters` reads `system.clusters` and returns one record per
+shard/replica member, not per cluster, so the one-based member numbers survive.
+`quotas`, `users` and `roles` read their namesake `system.*` relations; the
+users family reports authentication *types* and deliberately does not project
+`auth_params`, so no credential parameter becomes part of an introspection
+answer. Reading those access-control relations still depends on the connected
+account's rights: a refusal is a query error, not an empty listing.
+
+Two object families stay out of the vocabulary rather than being offered empty.
+`constraints` and `tablespaces` have no ClickHouse `system.*` catalogue behind
+them — ClickHouse's constraint support is a DDL-declared CHECK clause with no
+catalogue table, and its storage is disks/parts plus storage policies rather
+than SQL tablespaces (both of which the `status` introspector already reads).
+Offering either family would invent a source the engine does not expose, so the
+absence is documented here and the CLI does not accept the word.
 
 Probes with no CLI type say something too. `supports_foreign_key_introspection()`
 and `supports_trigger_introspection()` answer `False` because the engine
@@ -294,11 +326,13 @@ the endpoints' own claim to have measured no value.
 
 `python -m rhosocial.activerecord.backend.impl.clickhouse introspect` asks the
 same introspector, so what the CLI prints is what the library sees rather than
-a second implementation. The sixteen types are listed above with their switches
-and their `NAME` rule. `NAME` is the table for `columns`, `indexes`,
+a second implementation. The twenty-two types are listed above with their
+switches and their `NAME` rule. `NAME` is the table for `columns`, `indexes`,
 `partitions`, `table-engine`, `ddl`, `column-profiles`, `value-samples` and
 `join-coverage`, and the view itself for `views`; `dependencies` takes an
-optional object name that narrows the graph; `tables`, `database` and the four
+optional object name that narrows the graph, and the six server-wide catalogue
+families take an optional member name that narrows their listing (a cluster
+name narrows to that cluster's members); `tables`, `database` and the four
 whole-scope operational families refuse a name rather than parse and drop it.
 A required name that is missing is an incomplete invocation (exit 1); a name
 the type cannot use is a request the command declines (exit 2); a switch that
@@ -333,11 +367,12 @@ belong in a slot every engine must fill.
 
 ## Version and Availability Floors
 
-There is no version floor established for these families. The sixteen types
+There is no version floor established for these families. The twenty-two types
 are gated on capability switches evaluated against the connected server's
-adapted dialect, not on a version number written here, and the three data
-families need only ordinary aggregates and `system.*` relations that every
-version this backend declares — 25.8, 26.3 and 26.7 — provides. A probe that
+adapted dialect, not on a version number written here, and the six catalogue
+families and three data families need only ordinary aggregates and `system.*`
+relations that every version this backend declares — 25.8, 26.3 and 26.7 —
+provides. A probe that
 answers `False` remains the complete answer: it says the question cannot be
 asked here, which is a different statement from a database that has nothing
 to report.

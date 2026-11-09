@@ -1,12 +1,12 @@
 # 数据库自省
 
-ClickHouse 后端回答三层问题：数据库**声明**了什么（读 `system.tables`、`system.columns` 及其邻表），服务端**留着**哪些关于自己的事实（六个 operational 家族被提供、被拒绝），以及一列的**行里实际放着什么**（三个读取行的家族）。三层都从 `backend.introspector` 进入，本页每个答案都是 ClickHouse 自己的答案：这个引擎怎么说，而不是一个跨方言消费者可以期待的形态。这些答案所依附的契约——探针承诺什么、数据画像携带什么、operational 家族是什么意思——由核心库陈述，本页不重复。
+ClickHouse 后端回答四层问题：数据库**声明**了什么（读 `system.tables`、`system.columns` 及其邻表），服务端以服务端级目录发布了什么（`system.functions`、`system.dictionaries`、`system.clusters` 以及访问控制相关表），服务端**留着**哪些关于自己的事实（六个 operational 家族被提供、被拒绝），以及一列的**行里实际放着什么**（三个读取行的家族）。四层都从 `backend.introspector` 进入，本页每个答案都是 ClickHouse 自己的答案：这个引擎怎么说，而不是一个跨方言消费者可以期待的形态。这些答案所依附的契约——探针承诺什么、数据画像携带什么、operational 家族是什么意思——由核心库陈述，本页不重复。
 
 ## ClickHouse 回答什么
 
 自省契约里的每个问题在 dialect 上都有一个探针，而探针问的是**你面前这台服务器**，不是产品本身。提问之前先跑 `backend.introspect_and_adapt()`：它读取服务端版本并（据此）适配 dialect，而探针正是在适配后的 dialect 上求值的，因此低于版本下限的能力会按当前连接如实回答。
 
-CLI 的类型表也由同一份映射派生，所以它提供的十六个类型与背后的开关不会彼此漂移。本 dialect 有十个回答 `True`——七个 catalogue 家族加三个读取行的家族。另外六个被提供但被拒绝，因为 ClickHouse 没有统计收集器、没有依赖图，也没有本后端会读取的原生 DDL 获取途径。请先读 `False` 那几行：`False` 说的是"这台服务器无法回答这个问题"，绝不是"答案为空或为零"。
+CLI 的类型表也由同一份映射派生，所以它提供的二十二个类型与背后的开关不会彼此漂移。本 dialect 有十六个回答 `True`——七个表级 catalogue 家族、六个服务端级 catalogue 家族加三个读取行的家族。另外六个被提供但被拒绝，因为 ClickHouse 没有统计收集器、没有依赖图，也没有本后端会读取的原生 DDL 获取途径。请先读 `False` 那几行：`False` 说的是"这台服务器无法回答这个问题"，绝不是"答案为空或为零"。
 
 | 类型 | 探针 | 答案 | 读取 | `NAME` |
 |------|------|------|------|--------|
@@ -17,6 +17,12 @@ CLI 的类型表也由同一份映射派生，所以它提供的十六个类型�
 | `partitions` | `supports_partition_introspection()` | `True` | `system.parts`，仅 active part | 表，必填 |
 | `table-engine` | `supports_table_engine_introspection()` | `True` | `system.tables` | 表，必填 |
 | `database` | `supports_database_info()` | `True` | `system.databases` | 拒绝 |
+| `functions` | `supports_function_introspection()` | `True` | `system.functions` | 名称，可选 |
+| `dictionaries` | `supports_dictionary_introspection()` | `True` | `system.dictionaries` | 名称，可选 |
+| `clusters` | `supports_cluster_introspection()` | `True` | `system.clusters` | 集群，可选 |
+| `quotas` | `supports_quota_introspection()` | `True` | `system.quotas` | 名称，可选 |
+| `users` | `supports_user_introspection()` | `True` | `system.users` | 名称，可选 |
+| `roles` | `supports_role_introspection()` | `True` | `system.roles` | 名称，可选 |
 | `unused-indexes` | `supports_unused_indexes_detection()` | `False` | — | 拒绝 |
 | `table-stats` | `supports_table_stats()` | `False` | — | 拒绝 |
 | `runtime` | `supports_runtime_stats()` | `False` | — | 拒绝 |
@@ -28,6 +34,10 @@ CLI 的类型表也由同一份映射派生，所以它提供的十六个类型�
 | `join-coverage` | `supports_join_coverage()` | `True` | 行本身，两张表 | 左表，必填 |
 
 `partitions` 与 `table-engine` 是本后端自己的家族，不是核心的：它们各自挂在本后端 mixin 里声明的开关上，也各有自己的结果类型。核心的 `supports_partition_info()` 按继承保持 `False`，因为这里没有可供 `True` 承诺的核心分区方法；CLI 读的是本后端自己的开关，不是核心的。
+
+六个服务端级 catalogue 家族同样是后端本地的。每一个都有自己的开关和结果类型，因为它们都不是带列和引擎的表。`functions` 读 `system.functions`，把内置函数和用户定义函数放在同一份清单里，用 `origin` 区分；名称是收窄条件而不是单行键，因为一个名称也可能对应一行别名。`dictionaries` 读 `system.dictionaries`，把带点的 `key.names` / `attribute.names` 列保留为具名列表字段，并原样报告配置文件中字典的 `database=''`。`clusters` 读 `system.clusters`，每个分片/副本成员一条记录而不是每个集群一条，因此从 1 开始的成员编号得以保留。`quotas`、`users` 与 `roles` 读各自的 `system.*` 表；users 家族报告认证**类型**，并且有意不投影 `auth_params`，因此凭据参数不会进入自省答案。读取这些访问控制表仍然取决于当前账号的权限：被拒绝时是查询错误，不是空清单。
+
+有两个对象家族保持不在词汇表里，而不是提供后返回空。`constraints` 与 `tablespaces` 在 ClickHouse 背后没有 `system.*` 目录——ClickHouse 的约束支持是 DDL 中声明的 CHECK 子句，没有目录表；它的存储是磁盘/part 加存储策略，而不是 SQL 表空间（这两者已由 `status` 自省器读取）。提供任一家庭都会凭空造出一个引擎并未暴露的数据源，因此这里记录其缺席，CLI 不接受该词。
 
 没有对应 CLI 类型的探针也在说话。`supports_foreign_key_introspection()` 与 `supports_trigger_introspection()` 回答 `False`，因为本引擎既不声明也不强制外键，且根本没有触发器——它们的类型**不在** CLI 词汇表里，而不是"提供后再拒绝"：回答 `False` 的开关说的是"这台服务器无法回答"，词汇表里缺席的词说的是"本后端从不问"。同一条区分也让 `show.*` 不进入 `introspect`：`SHOW` 与 `system.*` 并不等价，而这里每个类型都读 `system.*`。`supports_table_storage_introspection()` 回答 `True`，这正是表行携带 `size_bytes` 的原因，它读自 `system.tables.total_bytes`；`data_size_bytes` 与 `index_size_bytes` 保持 `None`，因为 ClickHouse 的数据以磁盘上的 part 形式存放，跳数索引是引擎自己维护的稀疏结构、不是数据的第二份副本——这个拆分是本引擎不保留的事实，不是缺口。`supports_extensions()` 保持 `False`：本后端没有声明任何附加组件目录。
 
@@ -120,7 +130,7 @@ CAST(MIN(`id`) AS Nullable(String)) AS `min_value`
 
 ## 命令行
 
-`python -m rhosocial.activerecord.backend.impl.clickhouse introspect` 问的是同一个自省器，因此 CLI 打印的就是库看到的东西，而不是第二份实现。十六个类型及其开关、`NAME` 规则见上表。`NAME` 对 `columns`、`indexes`、`partitions`、`table-engine`、`ddl`、`column-profiles`、`value-samples` 与 `join-coverage` 是表名，对 `views` 是视图本身；`dependencies` 收一个可选的对象名以收窄图；`tables`、`database` 与四个全库范围的 operational 家族**拒绝**名字，而不是解析后丢掉。必填名字缺失属于调用不完整（退出 1）；类型用不上的名字是命令拒绝的请求（退出 2）；开关回答 `False` 是以退出 2 拒绝并输出 `Error: <type> introspection is not supported by this server`；连接失败或视图不存在是退出 1。
+`python -m rhosocial.activerecord.backend.impl.clickhouse introspect` 问的是同一个自省器，因此 CLI 打印的就是库看到的东西，而不是第二份实现。二十二个类型及其开关、`NAME` 规则见上表。`NAME` 对 `columns`、`indexes`、`partitions`、`table-engine`、`ddl`、`column-profiles`、`value-samples` 与 `join-coverage` 是表名，对 `views` 是视图本身；`dependencies` 收一个可选的对象名以收窄图；六个服务端级 catalogue 家族收一个可选的成员名以收窄清单（集群名收窄到该集群的成员行）；`tables`、`database` 与四个全库范围的 operational 家族**拒绝**名字，而不是解析后丢掉。必填名字缺失属于调用不完整（退出 1）；类型用不上的名字是命令拒绝的请求（退出 2）；开关回答 `False` 是以退出 2 拒绝并输出 `Error: <type> introspection is not supported by this server`；连接失败或视图不存在是退出 1。
 
 `--column` 为 `value-samples` 指定列，也为 `join-coverage` 指定左列；`--right-table` 与 `--right-column` 只被 `join-coverage` 读取。类型不读的旗标会被拒绝（退出 2），理由与"没人读的名字"相同：被静默丢掉的参数会产生一次成功的运行，却读起来像回答了一个更窄的问题。`--limit` 只在给出时才转发，数字归属于自省器自己的默认值。`column-profiles` 向 stderr 打一行提示——画像由行聚合而来，`source='aggregate'`，并按每列一次全扫描计价——从而让机器可读格式保持可解析。
 
@@ -136,6 +146,6 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect value-sample
 
 ## 版本与可用性下限
 
-这些家族没有确立版本下限。十六个类型挂在按当前连接适配后的 dialect 求值的能力开关上，而不是这里写死的版本号；三个数据家族只需要普通的聚合与 `system.*` 关系，本后端声明的每个版本——25.8、26.3 与 26.7——都提供它们。回答 `False` 的探针仍是完整的答案：它说的是这里无法提问，这与"数据库没有任何东西可报告"是不同的陈述。
+这些家族没有确立版本下限。二十二个类型挂在按当前连接适配后的 dialect 求值的能力开关上，而不是这里写死的版本号；六个 catalogue 家族与三个数据家族只需要普通的聚合与 `system.*` 关系，本后端声明的每个版本——25.8、26.3 与 26.7——都提供它们。回答 `False` 的探针仍是完整的答案：它说的是这里无法提问，这与"数据库没有任何东西可报告"是不同的陈述。
 
 其余子命令见 [CLI 用法](../cli/README.md)；本后端选择拒绝而非模拟的边界见 [不支持的功能](../capabilities/unsupported.md)。

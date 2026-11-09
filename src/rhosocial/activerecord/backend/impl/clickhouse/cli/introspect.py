@@ -9,16 +9,24 @@ database. An earlier version accepted ``--schema`` and had to explain in
 its help text that the value named a database anyway; the flag is gone
 rather than aliased.
 
-The sixteen families ``_TYPE_CAPABILITIES`` names are the ones this dialect
+The twenty-two families ``_TYPE_CAPABILITIES`` names are the ones this dialect
 answers or declares it does not, and the advertised list is derived from the
 mapping rather than written a second time -- so a family cannot be offered
 without saying which switch decides whether the connected server can answer
-it. Six of the sixteen answer ``False`` here, because ClickHouse has no
+it. Six of the twenty-two answer ``False`` here, because ClickHouse has no
 statistics collector, no dependency graph and no native DDL retrieval: the
 gate refuses those before the introspector is reached, which is what keeps
 "this server cannot report it" apart from "this database has none". The
-three that read the rows are the ones the branches run, and this backend's
+sixteen that answer answer the question; the nine catalogue families read
+``system.*``, the three data families read the rows, and this backend's
 introspection genuinely ends there.
+
+The six server-wide catalogue families -- ``functions``, ``dictionaries``,
+``clusters``, ``quotas``, ``users`` and ``roles`` -- are not scoped to a
+database. Each takes an optional NAME that narrows the listing to one member;
+``clusters`` narrows to one cluster's member rows rather than to a single
+server, and ``functions`` narrows to the rows carrying one name, which can
+include an alias beside the function it names.
 
 ``runtime_types`` is the one cell no other engine in this family can fill, so
 it belongs to the profile row and not to a shared column: the CLI prints the
@@ -70,6 +78,18 @@ _TYPE_CAPABILITIES = {
     "partitions": "supports_partition_introspection",
     "table-engine": "supports_table_engine_introspection",
     "database": "supports_database_info",
+    # ---- the server-wide catalogue families ----
+    # None of these is scoped to one database: functions, clusters, quotas,
+    # users and roles are server-wide relations, and dictionaries carries its
+    # own database field (the empty string for configuration-file entries).
+    # Each accepts an optional NAME that narrows the listing rather than
+    # selecting a single row.
+    "functions": "supports_function_introspection",
+    "dictionaries": "supports_dictionary_introspection",
+    "clusters": "supports_cluster_introspection",
+    "quotas": "supports_quota_introspection",
+    "users": "supports_user_introspection",
+    "roles": "supports_role_introspection",
     # ---- the operational families ----
     # Each is a listing over the connection's scope, so none takes a NAME
     # except ``dependencies``, which one name narrows to the edges that
@@ -115,6 +135,16 @@ _NAME_RULE = {
     "indexes": "required",
     "partitions": "required",
     "table-engine": "required",
+    # The server-wide catalogue families all take an optional NAME: a name
+    # narrows the listing to that member. ``clusters`` narrows to one cluster's
+    # member rows, and ``functions`` narrows to the rows carrying one name
+    # (which can include an alias beside the function it names).
+    "functions": "optional",
+    "dictionaries": "optional",
+    "clusters": "optional",
+    "quotas": "optional",
+    "users": "optional",
+    "roles": "optional",
     # The four operational families answer for the whole database. A NAME
     # would read as a narrowing the question has no way to express.
     "unused-indexes": "forbidden",
@@ -288,6 +318,17 @@ def create_parser(subparsers):
   # Show a table's engine and key expressions (from system.tables)
   %(prog)s table-engine events --database mydb
 
+  # The server-wide catalogue families: built-in and user-defined functions,
+  # dictionaries, cluster members, quotas, accounts and roles. A NAME narrows
+  # each listing; no NAME lists the whole catalogue.
+  %(prog)s functions --database mydb
+  %(prog)s functions myFunction --database mydb
+  %(prog)s dictionaries --database mydb
+  %(prog)s clusters --database mydb
+  %(prog)s quotas --database mydb
+  %(prog)s users --database mydb
+  %(prog)s roles --database mydb
+
   # Operational readings over the whole database: indexes with no recorded
   # use, per-table and per-index counters, live runtime facts, and the
   # dependency graph (which a NAME narrows to one object's edges)
@@ -355,9 +396,9 @@ def create_parser(subparsers):
         help=(
             "Object name: a table for columns/indexes/partitions/table-engine/"
             "ddl/column-profiles/value-samples/join-coverage (required), the "
-            "object itself for views and dependencies (optional); refused for "
-            "tables, database, unused-indexes, table-stats, index-stats and "
-            "runtime"
+            "object itself for views, dependencies and the server-wide catalogue "
+            "families (optional); refused for tables, database, unused-indexes, "
+            "table-stats, index-stats and runtime"
         ),
     )
     # The three families that ask about a column or a second table carry the
@@ -554,6 +595,47 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             data = _serialize_for_output(info)
             provider.display_results([data], title="Database Info")
 
+        # ---- the server-wide catalogue families ----------------------------
+        # None is scoped to one database; each takes an optional NAME that
+        # narrows the listing to that member (a cluster name narrows to that
+        # cluster's members, and a function name to the rows carrying it).
+
+        elif args.type == "functions":
+            functions = introspector.list_functions(name=args.name)
+            data = _serialize_for_output(functions)
+            title = f"Function {args.name}" if args.name else "Functions"
+            provider.display_results(data, title=title)
+
+        elif args.type == "dictionaries":
+            dictionaries = introspector.list_dictionaries(name=args.name)
+            data = _serialize_for_output(dictionaries)
+            title = f"Dictionary {args.name}" if args.name else "Dictionaries"
+            provider.display_results(data, title=title)
+
+        elif args.type == "clusters":
+            clusters = introspector.list_clusters(name=args.name)
+            data = _serialize_for_output(clusters)
+            title = f"Cluster {args.name}" if args.name else "Clusters"
+            provider.display_results(data, title=title)
+
+        elif args.type == "quotas":
+            quotas = introspector.list_quotas(name=args.name)
+            data = _serialize_for_output(quotas)
+            title = f"Quota {args.name}" if args.name else "Quotas"
+            provider.display_results(data, title=title)
+
+        elif args.type == "users":
+            users = introspector.list_users(name=args.name)
+            data = _serialize_for_output(users)
+            title = f"User {args.name}" if args.name else "Users"
+            provider.display_results(data, title=title)
+
+        elif args.type == "roles":
+            roles = introspector.list_roles(name=args.name)
+            data = _serialize_for_output(roles)
+            title = f"Role {args.name}" if args.name else "Roles"
+            provider.display_results(data, title=title)
+
         # ---- the operational families -------------------------------------
         # These read a statistics collector or a catalogue rather than the
         # schema structure: each one is a listing of the whole database's
@@ -730,6 +812,42 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             info = await introspector.get_database_info()
             data = _serialize_for_output(info)
             provider.display_results([data], title="Database Info")
+
+        elif args.type == "functions":
+            functions = await introspector.list_functions(name=args.name)
+            data = _serialize_for_output(functions)
+            title = f"Function {args.name}" if args.name else "Functions"
+            provider.display_results(data, title=title)
+
+        elif args.type == "dictionaries":
+            dictionaries = await introspector.list_dictionaries(name=args.name)
+            data = _serialize_for_output(dictionaries)
+            title = f"Dictionary {args.name}" if args.name else "Dictionaries"
+            provider.display_results(data, title=title)
+
+        elif args.type == "clusters":
+            clusters = await introspector.list_clusters(name=args.name)
+            data = _serialize_for_output(clusters)
+            title = f"Cluster {args.name}" if args.name else "Clusters"
+            provider.display_results(data, title=title)
+
+        elif args.type == "quotas":
+            quotas = await introspector.list_quotas(name=args.name)
+            data = _serialize_for_output(quotas)
+            title = f"Quota {args.name}" if args.name else "Quotas"
+            provider.display_results(data, title=title)
+
+        elif args.type == "users":
+            users = await introspector.list_users(name=args.name)
+            data = _serialize_for_output(users)
+            title = f"User {args.name}" if args.name else "Users"
+            provider.display_results(data, title=title)
+
+        elif args.type == "roles":
+            roles = await introspector.list_roles(name=args.name)
+            data = _serialize_for_output(roles)
+            title = f"Role {args.name}" if args.name else "Roles"
+            provider.display_results(data, title=title)
 
         # The async twins of the nine branches above: same method, same
         # argument and same title, awaited. They are written out rather than

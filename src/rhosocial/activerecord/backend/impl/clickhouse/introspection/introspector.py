@@ -55,8 +55,14 @@ from rhosocial.activerecord.backend.introspection.types import (
 )
 
 from ..expression.introspection import (
+    ClickHouseClusterListQuery,
+    ClickHouseDictionaryListQuery,
+    ClickHouseFunctionListQuery,
+    ClickHouseQuotaListQuery,
+    ClickHouseRoleListQuery,
     ClickHouseTableEngineQuery,
     ClickHouseTablePartitionsQuery,
+    ClickHouseUserListQuery,
 )
 from .show_introspector import (
     AsyncShowIntrospector,
@@ -67,9 +73,76 @@ from .status_introspector import (
     ClickHouseStatusIntrospector,
 )
 from .types import (
+    ClickHouseClusterInfo,
+    ClickHouseDictionaryInfo,
+    ClickHouseFunctionInfo,
     ClickHousePartitionInfo,
+    ClickHouseQuotaInfo,
+    ClickHouseRoleInfo,
     ClickHouseTableEngineInfo,
+    ClickHouseUserInfo,
 )
+
+
+def _string_list(value: Any) -> List[str]:
+    """A catalogue array as a list of strings, without inventing members.
+
+    ClickHouse arrays arrive as lists or tuples from the driver; a bare
+    string is what a one-element array can look like when a projection came
+    back through a client that unwraps it, so it is treated as that one
+    member. ``None`` is the empty list: the column is an array on every row,
+    and an absent value means the server had nothing to list.
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [value]
+    return [str(getattr(item, "value", item)) for item in value]
+
+
+def _int_list(value: Any) -> List[int]:
+    """A catalogue integer array as a list of ints.
+
+    The same shape rule as :func:`_string_list`, with the conversion the
+    field's declared type needs. A driver that hands back strings for an
+    integer array is tolerated because the value is still the member the
+    server reported.
+    """
+    if value is None:
+        return []
+    if isinstance(value, (str, bytes)):
+        return [int(value)]
+    return [int(item) for item in value]
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    """``None`` stays ``None``; anything else is converted with ``int``."""
+    return None if value is None else int(value)
+
+
+def _optional_bool(value: Any) -> Optional[bool]:
+    """``None`` stays ``None``; a catalogue ``UInt8`` becomes a boolean."""
+    return None if value is None else bool(value)
+
+
+def _bool(value: Any) -> bool:
+    """A non-nullable catalogue ``UInt8`` flag as a boolean."""
+    return bool(value)
+
+
+def _optional_text(value: Any) -> Optional[str]:
+    """An empty catalogue string as ``None``, and an enum as its value.
+
+    ClickHouse reports ``''`` rather than ``NULL`` for a text column with no
+    value, so the empty string is the server saying "nothing to report".
+    Turning it into ``None`` keeps that distinct from a genuinely empty
+    answer; passing ``''`` through would look like a value. A driver that
+    hands back the enum member rather than its string value is unwrapped so
+    the record's type stays ``Optional[str]``.
+    """
+    if not value:
+        return None
+    return str(getattr(value, "value", value))
 
 
 def _runtime_type_names(value: Any) -> List[str]:
@@ -111,6 +184,22 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
         if hasattr(self._backend, "config") and hasattr(self._backend.config, "database"):
             return self._backend.config.database or ""
         return ""
+
+    def _catalog_key(self, family: str, *parts: str) -> str:
+        """A cache key for a server-wide catalogue family.
+
+        ``IntrospectionScope`` has no member for a function, dictionary, cluster,
+        quota, user or role, and core is not the place to add one in this
+        round. The families still share the ``DATABASE`` scope because they
+        describe the server rather than one table, and each passes its own
+        family name as ``extra`` so one catalogue cannot answer another's
+        question.
+        """
+        from rhosocial.activerecord.backend.introspection.types import (
+            IntrospectionScope,
+        )
+
+        return self._cache.key(IntrospectionScope.DATABASE, *parts, schema=None, extra=family)
 
     # ------------------------------------------------------------------ #
     # Parse methods — pure Python, no I/O
@@ -408,6 +497,159 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             comment=row.get("comment"),
         )
 
+    def parse_functions(self, rows: List[Dict[str, Any]]) -> List[ClickHouseFunctionInfo]:
+        """Read ``system.functions`` rows into function records.
+
+        The aliases are the field names, so each row is read by name and
+        nothing is inferred from a position. The two flags are ``UInt8`` on
+        the server; the text columns use the empty-string convention, which
+        is reported as ``None``.
+        """
+        return [
+            ClickHouseFunctionInfo(
+                name=row.get("name", ""),
+                is_aggregate=_bool(row.get("is_aggregate")),
+                case_insensitive=_bool(row.get("case_insensitive")),
+                alias_to=_optional_text(row.get("alias_to")),
+                origin=_optional_text(row.get("origin")),
+                description=_optional_text(row.get("description")),
+                syntax=_optional_text(row.get("syntax")),
+                arguments=_optional_text(row.get("arguments")),
+                categories=_optional_text(row.get("categories")),
+            )
+            for row in rows
+        ]
+
+    def parse_dictionaries(
+        self, rows: List[Dict[str, Any]]
+    ) -> List[ClickHouseDictionaryInfo]:
+        """Read ``system.dictionaries`` rows into dictionary records.
+
+        The driver may hand back ``DateTime`` columns as their native values
+        or as strings, and both are passed through unchanged: the catalogue
+        answered, and this parser does not restate it as a different type.
+        The dotted catalogue columns were aliased by the statement.
+        """
+        return [
+            ClickHouseDictionaryInfo(
+                name=row.get("name", ""),
+                database=row.get("database") or "",
+                uuid=str(row["uuid"]) if row.get("uuid") is not None else None,
+                status=_optional_text(row.get("status")),
+                is_lazy=_bool(row.get("is_lazy")),
+                origin=_optional_text(row.get("origin")),
+                type=_optional_text(row.get("type")),
+                key_names=_string_list(row.get("key_names")),
+                key_types=_string_list(row.get("key_types")),
+                attribute_names=_string_list(row.get("attribute_names")),
+                attribute_types=_string_list(row.get("attribute_types")),
+                bytes_allocated=_optional_int(row.get("bytes_allocated")) or 0,
+                element_count=_optional_int(row.get("element_count")) or 0,
+                query_count=_optional_int(row.get("query_count")) or 0,
+                hit_rate=row.get("hit_rate"),
+                found_rate=row.get("found_rate"),
+                lifetime_min=_optional_int(row.get("lifetime_min")),
+                lifetime_max=_optional_int(row.get("lifetime_max")),
+                loading_start_time=row.get("loading_start_time"),
+                last_successful_update_time=row.get("last_successful_update_time"),
+                error_count=_optional_int(row.get("error_count")) or 0,
+                last_exception=_optional_text(row.get("last_exception")),
+                comment=_optional_text(row.get("comment")),
+            )
+            for row in rows
+        ]
+
+    def parse_clusters(self, rows: List[Dict[str, Any]]) -> List[ClickHouseClusterInfo]:
+        """Read ``system.clusters`` rows into cluster-member records.
+
+        A row is one member, not one cluster, so the one-based shard and
+        replica numbers are fields on the record and the listing keeps them.
+        ``is_local`` and ``internal_replication`` are booleans here.
+        """
+        return [
+            ClickHouseClusterInfo(
+                cluster=row.get("cluster", ""),
+                shard_num=_optional_int(row.get("shard_num")) or 0,
+                replica_num=_optional_int(row.get("replica_num")) or 0,
+                shard_name=_optional_text(row.get("shard_name")),
+                shard_weight=_optional_int(row.get("shard_weight")),
+                internal_replication=_bool(row.get("internal_replication")),
+                host_name=_optional_text(row.get("host_name")),
+                host_address=_optional_text(row.get("host_address")),
+                port=_optional_int(row.get("port")),
+                is_local=_bool(row.get("is_local")),
+                user=_optional_text(row.get("user")),
+                default_database=_optional_text(row.get("default_database")),
+                errors_count=_optional_int(row.get("errors_count")) or 0,
+                slowdowns_count=_optional_int(row.get("slowdowns_count")) or 0,
+                estimated_recovery_time=_optional_int(row.get("estimated_recovery_time")),
+            )
+            for row in rows
+        ]
+
+    def parse_quotas(self, rows: List[Dict[str, Any]]) -> List[ClickHouseQuotaInfo]:
+        """Read ``system.quotas`` rows into quota records.
+
+        ``keys`` is an ``Array(Enum8)`` and ``durations`` an ``Array(UInt32)``;
+        both are normalised to plain Python lists so a consumer does not have
+        to know which driver shape arrived.
+        """
+        return [
+            ClickHouseQuotaInfo(
+                name=row.get("name", ""),
+                id=str(row["id"]) if row.get("id") is not None else None,
+                storage=_optional_text(row.get("storage")),
+                keys=_string_list(row.get("keys")),
+                durations=_int_list(row.get("durations")),
+                apply_to_all=_bool(row.get("apply_to_all")),
+                apply_to_list=_string_list(row.get("apply_to_list")),
+                apply_to_except=_string_list(row.get("apply_to_except")),
+                ipv4_prefix_bits=_optional_int(row.get("ipv4_prefix_bits")),
+                ipv6_prefix_bits=_optional_int(row.get("ipv6_prefix_bits")),
+            )
+            for row in rows
+        ]
+
+    def parse_users(self, rows: List[Dict[str, Any]]) -> List[ClickHouseUserInfo]:
+        """Read ``system.users`` rows into account records.
+
+        The authentication *type* list is reported and the credential
+        parameters are not: the catalogue's ``auth_params`` column is
+        deliberately not projected. The role and grantee arrays are
+        normalised to lists of strings.
+        """
+        return [
+            ClickHouseUserInfo(
+                name=row.get("name", ""),
+                id=str(row["id"]) if row.get("id") is not None else None,
+                storage=_optional_text(row.get("storage")),
+                auth_type=_string_list(row.get("auth_type")),
+                default_roles_all=_bool(row.get("default_roles_all")),
+                default_roles_list=_string_list(row.get("default_roles_list")),
+                default_roles_except=_string_list(row.get("default_roles_except")),
+                grantees_any=_bool(row.get("grantees_any")),
+                grantees_list=_string_list(row.get("grantees_list")),
+                grantees_except=_string_list(row.get("grantees_except")),
+                default_database=_optional_text(row.get("default_database")),
+                host_ip=_string_list(row.get("host_ip")),
+                host_names=_string_list(row.get("host_names")),
+                host_names_regexp=_string_list(row.get("host_names_regexp")),
+                host_names_like=_string_list(row.get("host_names_like")),
+            )
+            for row in rows
+        ]
+
+    def parse_roles(self, rows: List[Dict[str, Any]]) -> List[ClickHouseRoleInfo]:
+        """Read ``system.roles`` rows into role records."""
+        return [
+            ClickHouseRoleInfo(
+                name=row.get("name", ""),
+                id=str(row["id"]) if row.get("id") is not None else None,
+                storage=_optional_text(row.get("storage")),
+            )
+            for row in rows
+        ]
+
     def parse_column_data_profiles(
         self,
         rows: List[Dict[str, Any]],
@@ -616,6 +858,104 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
             self._cache.set(key, result)
         return result
 
+    # ------------------------------------------------------------------ #
+    # Server-wide catalogue families
+    # ------------------------------------------------------------------ #
+
+    def list_functions(self, name: Optional[str] = None) -> List[ClickHouseFunctionInfo]:
+        """List the functions ``system.functions`` exposes.
+
+        ``name`` narrows the listing to the rows carrying that name; it does
+        not select one row, because a name can be an alias of another function.
+        The result includes built-ins and user-defined functions together, and
+        ``origin`` on each row says which is which.
+        """
+        key = self._catalog_key("functions", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseFunctionListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_functions(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    def list_dictionaries(
+        self,
+        name: Optional[str] = None,
+        database: Optional[str] = None,
+    ) -> List[ClickHouseDictionaryInfo]:
+        """List dictionaries from ``system.dictionaries``.
+
+        ``name`` narrows the listing to one dictionary name. ``database``
+        narrows it to one ClickHouse database; ``None`` means the whole
+        catalogue, which also includes configuration-file dictionaries whose
+        database is the empty string.
+        """
+        key = self._catalog_key(
+            "dictionaries", name or "", "*" if database is None else database
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseDictionaryListQuery(
+            self._backend.dialect, name=name, database=database
+        ).to_sql()
+        result = self.parse_dictionaries(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    def list_clusters(self, name: Optional[str] = None) -> List[ClickHouseClusterInfo]:
+        """List cluster members from ``system.clusters``.
+
+        The listing is one row per shard/replica member; ``name`` narrows it
+        to the members of one cluster rather than to a single server.
+        """
+        key = self._catalog_key("clusters", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseClusterListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_clusters(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    def list_quotas(self, name: Optional[str] = None) -> List[ClickHouseQuotaInfo]:
+        """List quotas from ``system.quotas``, optionally one name."""
+        key = self._catalog_key("quotas", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseQuotaListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_quotas(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    def list_users(self, name: Optional[str] = None) -> List[ClickHouseUserInfo]:
+        """List accounts from ``system.users``, optionally one name.
+
+        Credentials are not reported; see
+        :class:`~.types.ClickHouseUserInfo` for the line this family keeps.
+        """
+        key = self._catalog_key("users", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseUserListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_users(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    def list_roles(self, name: Optional[str] = None) -> List[ClickHouseRoleInfo]:
+        """List roles from ``system.roles``, optionally one name."""
+        key = self._catalog_key("roles", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseRoleListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_roles(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
 
 class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntrospector):
     """Asynchronous introspector for ClickHouse backends.
@@ -733,4 +1073,116 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         )
         if result is not None:
             self._cache.set(key, result)
+        return result
+
+    # ------------------------------------------------------------------ #
+    # Server-wide catalogue families
+    # ------------------------------------------------------------------ #
+
+    async def list_functions(
+        self, name: Optional[str] = None
+    ) -> List[ClickHouseFunctionInfo]:
+        """List functions from ``system.functions``, asynchronously.
+
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector.list_functions`: same parameters, same
+        result, same cache key.
+        """
+        key = self._catalog_key("functions", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseFunctionListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_functions(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    async def list_dictionaries(
+        self,
+        name: Optional[str] = None,
+        database: Optional[str] = None,
+    ) -> List[ClickHouseDictionaryInfo]:
+        """List dictionaries from ``system.dictionaries``, asynchronously.
+
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector.list_dictionaries`: same parameters, same
+        result, same cache key.
+        """
+        key = self._catalog_key(
+            "dictionaries", name or "", "*" if database is None else database
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseDictionaryListQuery(
+            self._backend.dialect, name=name, database=database
+        ).to_sql()
+        result = self.parse_dictionaries(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    async def list_clusters(
+        self, name: Optional[str] = None
+    ) -> List[ClickHouseClusterInfo]:
+        """List cluster members from ``system.clusters``, asynchronously.
+
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector.list_clusters`: same parameters, same
+        result, same cache key.
+        """
+        key = self._catalog_key("clusters", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseClusterListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_clusters(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    async def list_quotas(self, name: Optional[str] = None) -> List[ClickHouseQuotaInfo]:
+        """List quotas from ``system.quotas``, asynchronously.
+
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector.list_quotas`: same parameters, same
+        result, same cache key.
+        """
+        key = self._catalog_key("quotas", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseQuotaListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_quotas(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    async def list_users(self, name: Optional[str] = None) -> List[ClickHouseUserInfo]:
+        """List accounts from ``system.users``, asynchronously.
+
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector.list_users`: same parameters, same
+        result, same cache key.
+        """
+        key = self._catalog_key("users", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseUserListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_users(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    async def list_roles(self, name: Optional[str] = None) -> List[ClickHouseRoleInfo]:
+        """List roles from ``system.roles``, asynchronously.
+
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector.list_roles`: same parameters, same
+        result, same cache key.
+        """
+        key = self._catalog_key("roles", name or "")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseRoleListQuery(self._backend.dialect, name=name).to_sql()
+        result = self.parse_roles(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
         return result
