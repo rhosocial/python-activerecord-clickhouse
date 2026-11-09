@@ -20,8 +20,14 @@ if TYPE_CHECKING:
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
 
     from ..expression.introspection import (
+        ClickHouseClusterListQuery,
+        ClickHouseDictionaryListQuery,
+        ClickHouseFunctionListQuery,
+        ClickHouseQuotaListQuery,
+        ClickHouseRoleListQuery,
         ClickHouseTableEngineQuery,
         ClickHouseTablePartitionsQuery,
+        ClickHouseIntrospectionUserListQuery,
     )
 
 
@@ -83,6 +89,44 @@ class ClickHouseIntrospectionMixin:
         a table was created with and the key expressions it declares, which
         on this engine are the closest thing a schema has to a primary key.
         """
+        return True
+
+    def supports_function_introspection(self) -> bool:
+        """The server publishes its function catalogue in ``system.functions``.
+
+        The capability for the ``introspect functions`` family. The catalogue
+        carries built-ins and the user-defined flavours in the same relation,
+        distinguished by ``origin``; a server that has no functions at all still
+        answers an empty list, which is an answer rather than an unsupported
+        family.
+        """
+        return True
+
+    def supports_dictionary_introspection(self) -> bool:
+        """The server publishes loaded dictionaries in ``system.dictionaries``."""
+        return True
+
+    def supports_cluster_introspection(self) -> bool:
+        """The server publishes configured clusters in ``system.clusters``."""
+        return True
+
+    def supports_quota_introspection(self) -> bool:
+        """The server publishes quotas in ``system.quotas``."""
+        return True
+
+    def supports_user_introspection(self) -> bool:
+        """The server publishes accounts in ``system.users``.
+
+        Reading this relation needs the account to hold the relevant access
+        rights; a server that refuses the query answers with an error rather
+        than with an empty listing, and the CLI reports it as a failed query.
+        The switch states that the catalogue exists, not that every caller may
+        read it.
+        """
+        return True
+
+    def supports_role_introspection(self) -> bool:
+        """The server publishes roles in ``system.roles``."""
         return True
 
     # ========== Capability Detection ==========
@@ -1077,5 +1121,224 @@ class ClickHouseIntrospectionMixin:
                 self._equals(self._column("database"), Literal(self, expr.database)),
                 self._equals(self._column("name"), Literal(self, expr.table)),
             ),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_function_list_query(
+        self, expr: "ClickHouseFunctionListQuery"
+    ) -> Tuple[str, tuple]:
+        """The function catalogue, or one name's rows, from ``system.functions``.
+
+        A name is a filter, not a key: ``alias_to`` means a single name can
+        match an alias row beside the canonical one, and the catalogue is the
+        only place that fact lives.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        conditions = []
+        if expr.name:
+            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("is_aggregate"),
+                self._column("case_insensitive"),
+                self._column("alias_to"),
+                self._column("origin"),
+                self._column("description"),
+                self._column("syntax"),
+                self._column("arguments"),
+                self._column("categories"),
+            ],
+            from_=self._system_relation("functions"),
+            where=self._where(*conditions),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_dictionary_list_query(
+        self, expr: "ClickHouseDictionaryListQuery"
+    ) -> Tuple[str, tuple]:
+        """Dictionary rows, from ``system.dictionaries``.
+
+        The four dotted catalogue columns are aliased to the field names the
+        parser reads. Quoting the whole dotted name is what keeps
+        ``key.names`` one identifier on ClickHouse rather than a qualification
+        the engine would try to resolve.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        conditions = []
+        if expr.name:
+            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+        if expr.database is not None:
+            conditions.append(
+                self._equals(self._column("database"), Literal(self, expr.database))
+            )
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("database"),
+                self._column("name"),
+                self._column("uuid"),
+                self._column("status"),
+                self._column("is_lazy"),
+                self._column("origin"),
+                self._column("type"),
+                self._column("key.names", alias="key_names"),
+                self._column("key.types", alias="key_types"),
+                self._column("attribute.names", alias="attribute_names"),
+                self._column("attribute.types", alias="attribute_types"),
+                self._column("bytes_allocated"),
+                self._column("element_count"),
+                self._column("query_count"),
+                self._column("hit_rate"),
+                self._column("found_rate"),
+                self._column("lifetime_min"),
+                self._column("lifetime_max"),
+                self._column("loading_start_time"),
+                self._column("last_successful_update_time"),
+                self._column("error_count"),
+                self._column("last_exception"),
+                self._column("comment"),
+            ],
+            from_=self._system_relation("dictionaries"),
+            where=self._where(*conditions),
+            order_by=self._order_by("database", "name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_cluster_list_query(
+        self, expr: "ClickHouseClusterListQuery"
+    ) -> Tuple[str, tuple]:
+        """Cluster members, from ``system.clusters``.
+
+        ``system.clusters`` is one row per shard/replica, so the ordering keeps
+        a cluster's members adjacent and in the engine's own numbered order.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        conditions = []
+        if expr.name:
+            conditions.append(self._equals(self._column("cluster"), Literal(self, expr.name)))
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("cluster"),
+                self._column("shard_num"),
+                self._column("shard_name"),
+                self._column("shard_weight"),
+                self._column("internal_replication"),
+                self._column("replica_num"),
+                self._column("host_name"),
+                self._column("host_address"),
+                self._column("port"),
+                self._column("is_local"),
+                self._column("user"),
+                self._column("default_database"),
+                self._column("errors_count"),
+                self._column("slowdowns_count"),
+                self._column("estimated_recovery_time"),
+            ],
+            from_=self._system_relation("clusters"),
+            where=self._where(*conditions),
+            order_by=self._order_by("cluster", "shard_num", "replica_num"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_quota_list_query(
+        self, expr: "ClickHouseQuotaListQuery"
+    ) -> Tuple[str, tuple]:
+        """Quota rows, from ``system.quotas``, optionally one name."""
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        conditions = []
+        if expr.name:
+            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("id"),
+                self._column("storage"),
+                self._column("keys"),
+                self._column("durations"),
+                self._column("apply_to_all"),
+                self._column("apply_to_list"),
+                self._column("apply_to_except"),
+                self._column("ipv4_prefix_bits"),
+                self._column("ipv6_prefix_bits"),
+            ],
+            from_=self._system_relation("quotas"),
+            where=self._where(*conditions),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_introspection_user_list_query(
+        self, expr: "ClickHouseIntrospectionUserListQuery"
+    ) -> Tuple[str, tuple]:
+        """Account rows, from ``system.users``, optionally one name.
+
+        Credential material is not projected: the family reports which
+        authentication methods an account accepts, not the parameters that
+        would describe a secret.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        conditions = []
+        if expr.name:
+            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("id"),
+                self._column("storage"),
+                self._column("auth_type"),
+                self._column("default_roles_all"),
+                self._column("default_roles_list"),
+                self._column("default_roles_except"),
+                self._column("grantees_any"),
+                self._column("grantees_list"),
+                self._column("grantees_except"),
+                self._column("default_database"),
+                self._column("host_ip"),
+                self._column("host_names"),
+                self._column("host_names_regexp"),
+                self._column("host_names_like"),
+            ],
+            from_=self._system_relation("users"),
+            where=self._where(*conditions),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_role_list_query(
+        self, expr: "ClickHouseRoleListQuery"
+    ) -> Tuple[str, tuple]:
+        """Role rows, from ``system.roles``, optionally one name."""
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        conditions = []
+        if expr.name:
+            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("id"),
+                self._column("storage"),
+            ],
+            from_=self._system_relation("roles"),
+            where=self._where(*conditions),
+            order_by=self._order_by("name"),
         )
         return query.to_sql()

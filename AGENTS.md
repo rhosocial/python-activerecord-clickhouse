@@ -66,16 +66,19 @@ and raise `UnsupportedFeatureError` instead of being emulated:
 - Mutations run with `mutations_sync=1`; `affected_rows` for UPDATE/DELETE is a
   pre-count of rows matching the WHERE predicate.
 - Optional model fields must map to `Nullable(T)` columns.
-- The CLI's `introspect` offers sixteen types — `tables`, `views`, `columns`,
-  `indexes`, `partitions`, `table-engine`, `database`, `unused-indexes`,
-  `table-stats`, `runtime`, `index-stats`, `dependencies`, `ddl`,
-  `column-profiles`, `value-samples`, `join-coverage` — and each is gated on a
-  dialect `supports_*` switch (exit 2 when the connected server answers False).
-  Ten of the sixteen answer True here: the seven catalogue families plus the
-  three row families, which read the rows themselves. The other six answer
-  False, because ClickHouse has no statistics collector, no dependency graph and
-  no native DDL retrieval, so the gate refuses them before the introspector is
-  reached. `foreign-keys` / `triggers` are absent from the vocabulary because
+- The CLI's `introspect` offers twenty-one types — `tables`, `views`, `columns`,
+  `indexes`, `partitions`, `table-engine`, `database`, `functions`,
+  `dictionaries`, `clusters`, `quotas`, `users`, `roles`, `unused-indexes`,
+  `table-stats`, `runtime`, `index-stats`, `dependencies`, `column-profiles`,
+  `value-samples`, `join-coverage` — and each is gated on a dialect
+  `supports_*` switch (exit 2 when the connected server answers False).
+  Sixteen of the twenty-one answer True here: the seven table-scoped catalogue
+  families, the six server-wide catalogue families, and the three row families,
+  which read the rows themselves. The other five answer False, because
+  ClickHouse has no statistics collector and no dependency graph, so the gate
+  refuses them before the introspector is reached. DDL extraction is not offered
+  at all, because the backend has no reader for it. `foreign-keys` / `triggers`
+  are absent from the vocabulary because
   the engine has neither, which is a different statement from a capability
   switch. The SHOW passthrough (`introspector.show`, 19 methods) is
   library-only and deliberately not wired into `introspect`: SHOW and

@@ -2,9 +2,10 @@
 """ClickHouse-specific introspection results.
 
 The core introspection types describe what every backend can be asked about —
-tables, columns, indexes. ClickHouse exposes two further facts that those
-shapes cannot carry: how a MergeTree table's data is divided into partitions on
-disk, and the storage definition a table was created with. Both are read here
+tables, columns, indexes. ClickHouse exposes further facts that those shapes
+cannot carry: how a MergeTree table's data is divided into partitions on disk,
+the storage definition a table was created with, and six server-wide catalogues
+(functions, dictionaries, clusters, quotas, users and roles). All are read here
 as frozen dataclasses, one row per answer.
 
 Naming, stated once and not translated anywhere below:
@@ -34,6 +35,12 @@ __all__ = [
     "ClickHousePartitionInfo",
     "ClickHouseTableEngineInfo",
     "ClickHouseColumnDataProfile",
+    "ClickHouseFunctionInfo",
+    "ClickHouseDictionaryInfo",
+    "ClickHouseClusterInfo",
+    "ClickHouseQuotaInfo",
+    "ClickHouseUserInfo",
+    "ClickHouseRoleInfo",
 ]
 
 
@@ -152,3 +159,186 @@ class ClickHouseColumnDataProfile(ColumnDataProfile):
 
     #: The type names the engine reported for the column's values, sorted.
     runtime_types: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ClickHouseFunctionInfo:
+    """One row of ``system.functions``.
+
+    ClickHouse exposes its built-in functions and the functions a user or the
+    server configuration added through the same catalogue. ``origin`` is the
+    column that tells them apart — ``System`` for a built-in and a
+    ``*UserDefined`` value for every other flavour — and it is passed through
+    unchanged rather than normalised into a boolean, because the engine names
+    four kinds.
+
+    The optional text fields are ``''`` on the server when a function has no
+    description, syntax, arguments or category, and are reported here as
+    ``None`` so "the catalogue did not answer" is distinguishable from a
+    function whose syntax really is empty. ``is_aggregate`` and
+    ``case_insensitive`` are ``UInt8`` flags on the server and booleans here.
+    """
+
+    name: str
+    is_aggregate: bool = False
+    case_insensitive: bool = False
+    alias_to: Optional[str] = None
+    origin: Optional[str] = None
+    description: Optional[str] = None
+    syntax: Optional[str] = None
+    arguments: Optional[str] = None
+    categories: Optional[str] = None
+
+    @property
+    def is_user_defined(self) -> bool:
+        """Whether ``origin`` names one of the user-defined flavours.
+
+        The four origins ClickHouse documents are ``System``,
+        ``SQLUserDefined``, ``ExecutableUserDefined`` and
+        ``WasmUserDefined``. A ``System`` row is a built-in; the other three
+        are functions the deployment added. ``None`` is not called
+        user-defined: the server did not answer, and guessing would be worse
+        than leaving the raw origin to speak for itself.
+        """
+        origin = getattr(self.origin, "value", self.origin)
+        return origin in (
+            "SQLUserDefined",
+            "ExecutableUserDefined",
+            "WasmUserDefined",
+        )
+
+
+@dataclass(frozen=True)
+class ClickHouseDictionaryInfo:
+    """One row of ``system.dictionaries``.
+
+    ``database`` is ``''`` for a dictionary configured outside DDL (a
+    configuration-file dictionary has no database); the empty string is the
+    server's own answer and is kept rather than turned into ``None``. The four
+    list fields are the key and attribute names/types the dictionary declares,
+    read from the dotted catalogue columns ``key.names``, ``key.types``,
+    ``attribute.names`` and ``attribute.types``.
+
+    ``hit_rate`` and ``found_rate`` are ``Float64`` on the server; ``None``
+    means the server did not report a rate (the dictionary has not served a
+    query), not a rate of zero.
+    """
+
+    name: str
+    database: str = ""
+    uuid: Optional[str] = None
+    status: Optional[str] = None
+    is_lazy: bool = False
+    origin: Optional[str] = None
+    type: Optional[str] = None
+    key_names: List[str] = field(default_factory=list)
+    key_types: List[str] = field(default_factory=list)
+    attribute_names: List[str] = field(default_factory=list)
+    attribute_types: List[str] = field(default_factory=list)
+    bytes_allocated: int = 0
+    element_count: int = 0
+    query_count: int = 0
+    hit_rate: Optional[float] = None
+    found_rate: Optional[float] = None
+    lifetime_min: Optional[int] = None
+    lifetime_max: Optional[int] = None
+    loading_start_time: Optional[datetime] = None
+    last_successful_update_time: Optional[datetime] = None
+    error_count: int = 0
+    last_exception: Optional[str] = None
+    comment: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class ClickHouseClusterInfo:
+    """One server in one cluster, from ``system.clusters``.
+
+    ``system.clusters`` is a row per shard/replica member, not a row per
+    cluster, so the family is a listing of members and the cluster name is a
+    field on each. ``shard_num`` and ``replica_num`` are one-based, as the
+    engine reports them. The two flags are ``UInt8`` on the server and
+    booleans here.
+    """
+
+    cluster: str
+    shard_num: int
+    replica_num: int
+    shard_name: Optional[str] = None
+    shard_weight: Optional[int] = None
+    internal_replication: bool = False
+    host_name: Optional[str] = None
+    host_address: Optional[str] = None
+    port: Optional[int] = None
+    is_local: bool = False
+    user: Optional[str] = None
+    default_database: Optional[str] = None
+    errors_count: int = 0
+    slowdowns_count: int = 0
+    estimated_recovery_time: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class ClickHouseQuotaInfo:
+    """One quota, from ``system.quotas``.
+
+    ``keys`` and ``durations`` are arrays on the server. ``apply_to_all`` is
+    the flag that says whether ``apply_to_list`` or ``apply_to_except`` is
+    the meaningful side; both lists are kept exactly as the server answered.
+    The prefix-bit fields are ``Nullable`` and stay ``None`` when the engine
+    has nothing to report.
+    """
+
+    name: str
+    id: Optional[str] = None
+    storage: Optional[str] = None
+    keys: List[str] = field(default_factory=list)
+    durations: List[int] = field(default_factory=list)
+    apply_to_all: bool = False
+    apply_to_list: List[str] = field(default_factory=list)
+    apply_to_except: List[str] = field(default_factory=list)
+    ipv4_prefix_bits: Optional[int] = None
+    ipv6_prefix_bits: Optional[int] = None
+
+
+@dataclass(frozen=True)
+class ClickHouseUserInfo:
+    """One account, from ``system.users``.
+
+    The catalogue reports authentication *types* but not credentials, and
+    that is the line this type follows: ``auth_type`` is the list of methods
+    the account accepts, while the parameters that would describe a
+    credential are deliberately not projected. The role and grant lists are
+    the account's default roles and its grantee limits, not an expansion of
+    every effective privilege.
+    """
+
+    name: str
+    id: Optional[str] = None
+    storage: Optional[str] = None
+    auth_type: List[str] = field(default_factory=list)
+    default_roles_all: bool = False
+    default_roles_list: List[str] = field(default_factory=list)
+    default_roles_except: List[str] = field(default_factory=list)
+    grantees_any: bool = False
+    grantees_list: List[str] = field(default_factory=list)
+    grantees_except: List[str] = field(default_factory=list)
+    default_database: Optional[str] = None
+    host_ip: List[str] = field(default_factory=list)
+    host_names: List[str] = field(default_factory=list)
+    host_names_regexp: List[str] = field(default_factory=list)
+    host_names_like: List[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class ClickHouseRoleInfo:
+    """One role, from ``system.roles``.
+
+    ``system.roles`` answers the role's name, id and storage path and nothing
+    else; what the role grants lives in ``system.grants`` and is deliberately
+    a different family. ``storage`` is the access-control storage path the
+    server reports, not a location this backend assembled.
+    """
+
+    name: str
+    id: Optional[str] = None
+    storage: Optional[str] = None

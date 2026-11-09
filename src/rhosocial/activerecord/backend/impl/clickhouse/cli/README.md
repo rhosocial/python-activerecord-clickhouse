@@ -12,10 +12,12 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 
 ## What it can ask about
 
-Sixteen types, in the order `--help` prints them. Ten answer True for this
-dialect — the seven catalogue families and the three that read the rows — and
-the remaining six are offered and gated on a switch that answers False here, so
-a run is refused (exit 2) rather than reached and answered with an empty list.
+Twenty-one types, in the order `--help` prints them. Sixteen answer True for
+this dialect — the seven table-scoped catalogue families, the six server-wide
+catalogue families, and the three that read the rows — and the remaining five
+are offered and gated on a switch that answers False here, so a run is refused
+(exit 2) rather than reached and answered with an empty list. DDL extraction is
+not offered at all: the dialect carries no reader for it.
 
 | Type | Reads | `NAME` | Notes |
 | :--- | :--- | :--- | :--- |
@@ -26,22 +28,31 @@ a run is refused (exit 2) rather than reached and answered with an empty list.
 | `partitions` | `system.parts` | table, required | One table's partitions and subpartitions, in the engine's own order, aggregated from the parts currently active. |
 | `table-engine` | `system.tables` | table, required | The engine of one table, with its sorting, primary and sampling keys, plus row and byte totals. |
 | `database` | `system.build_options`, `system.databases` | refused | Server version and the databases visible to this role. |
+| `functions` | `system.functions` | name, optional | Built-in and user-defined functions in one catalogue; `origin` distinguishes `System` from the user-defined flavours. A name narrows the listing (and can match an alias row). |
+| `dictionaries` | `system.dictionaries` | name, optional | Loaded dictionaries with their status, type, key/attribute names and types, sizes and lifetimes. `database` is `''` for configuration-file dictionaries. |
+| `clusters` | `system.clusters` | cluster, optional | One record per shard/replica member; a cluster name narrows the listing to its members rather than to one server. |
+| `quotas` | `system.quotas` | name, optional | Quotas with their sharing keys, durations and apply-to lists. |
+| `users` | `system.users` | name, optional | Accounts with authentication *types*, default roles, host restrictions and grantee limits. Credential parameters are not projected. |
+| `roles` | `system.roles` | name, optional | Roles with their id and access-control storage path. |
 | `unused-indexes` | refused here | — | Offered and gated: `supports_unused_indexes_detection` answers False here, so the run is refused rather than answered empty. |
 | `table-stats` | refused here | — | Offered and gated on `supports_table_stats`, which answers False here. |
 | `runtime` | refused here | — | Offered and gated on `supports_runtime_stats`, which answers False here. |
 | `index-stats` | refused here | — | Offered and gated on `supports_index_stats`, which answers False here. |
 | `dependencies` | refused here | object, optional | Offered and gated on `supports_object_dependencies` (False here); a name narrows the graph to that object's edges. |
-| `ddl` | refused here | table, required | Offered and gated on `supports_ddl_extraction`, which answers False here. |
 | `column-profiles` | the rows themselves | table, required | Answers True here: the profile is one aggregate over the rows, so every figure is exact and paid for with a full scan per column. |
 | `value-samples` | the rows themselves | table, required | Answers True here, read from the rows; `--column` names the column and `--limit` caps the count (default 100). |
 | `join-coverage` | the rows themselves | left table, required | Answers True here: how much two columns' value domains overlap. `--column`, `--right-table` and `--right-column` are required. |
 
 `NAME` is a table name for `columns`, `indexes`, `partitions`,
-`table-engine`, `ddl`, `column-profiles`, `value-samples` and
-`join-coverage`, and the view itself for `views`. `tables` and `database` answer
-for the whole database, so they **refuse** a name rather than drop it: a run
-that accepted one and printed the full listing would read as though it had been
-narrowed. The four operational families — `unused-indexes`, `table-stats`,
+`table-engine`, `column-profiles`, `value-samples` and `join-coverage`, and the
+view itself for `views`. The six server-wide catalogue
+families — `functions`, `dictionaries`, `clusters`, `quotas`, `users` and
+`roles` — take an optional member name that narrows their listing; for
+`clusters` that means one cluster's member rows, and for `functions` it means
+the rows carrying one name, which can include an alias. `tables` and `database`
+answer for the whole database, so they **refuse** a name rather than drop it: a
+run that accepted one and printed the full listing would read as though it had
+been narrowed. The four operational families — `unused-indexes`, `table-stats`,
 `runtime` and `index-stats` — describe the server rather than one object, so a
 name is refused there for the same reason. `dependencies` is the exception: a
 name narrows the graph to the edges that object carries, which is a real
@@ -87,7 +98,10 @@ answer. The two exit codes say which kind of refusal happened:
     derived from the declared view-engine set (`View` and friends are views,
     `MaterializedView` its own kind, `system`-database rows system tables) and
     the engine string accompanies it instead of standing in for it.
-*   **No `triggers`, no `foreign-keys`.** ClickHouse has neither, so the CLI
+*   **No `triggers`, no `foreign-keys`, no `constraints`, no `tablespaces`.**
+    ClickHouse has neither triggers nor foreign keys, its CHECK constraints are
+    DDL-declared clauses with no `system.*` catalogue table, and its storage is
+    disks/parts plus storage policies rather than SQL tablespaces. So the CLI
     does not offer those types at all — they are missing from `TYPE` instead of
     accepted and then refused. An empty list from a type that was offered would
     read as "none declared", which is a different and wrong answer; the same
@@ -106,14 +120,14 @@ answer. The two exit codes say which kind of refusal happened:
     one question two readings, one of which depends on session context.
 *   **One question per invocation.** A CLI process is one connection that
     opens, answers, and closes — there is no cache carried between runs.
-*   **The six gated families say "this server cannot answer", not "none".**
-    `unused-indexes`, `table-stats`, `runtime`, `index-stats`, `dependencies`
-    and `ddl` are offered rather than omitted, and each is refused by its
+*   **The five gated families say "this server cannot answer", not "none".**
+    `unused-indexes`, `table-stats`, `runtime`, `index-stats` and
+    `dependencies` are offered rather than omitted, and each is refused by its
     switch before the introspector is reached. An offered-but-unanswered type
     is a contract the CLI keeps by refusing; printing an empty list instead
-    would read as an answer of zero. `ddl` is refused because ClickHouse has no
-    `SHOW CREATE` equivalent this backend reads, not because the family is
-    unknown to it.
+    would read as an answer of zero. DDL extraction is not offered at all,
+    because ClickHouse has no `SHOW CREATE` equivalent this backend reads, so
+    the CLI does not advertise a type whose capability is permanently False.
 
 ## Examples
 
@@ -137,7 +151,19 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect column-profi
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect value-samples events --column status --limit 50
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect join-coverage events --column user_id --right-table users --right-column id
 
+# The server-wide catalogue families, whole or narrowed by a member name
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect functions -o json
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect functions cityHash64
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect dictionaries
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect clusters
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect quotas
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect users
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect roles
+
 # Questions this dialect declines -- exit 2, "not supported by this server", not an empty list
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect unused-indexes
 python -m rhosocial.activerecord.backend.impl.clickhouse introspect dependencies
+
+# Object families this engine does not expose are absent from TYPE entirely
+python -m rhosocial.activerecord.backend.impl.clickhouse introspect constraints    # argparse refuses
 ```

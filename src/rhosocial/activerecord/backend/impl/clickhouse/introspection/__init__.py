@@ -12,7 +12,9 @@ Provides:
 
 Also re-exports the ClickHouse-specific result types (`ClickHousePartitionInfo`,
 `ClickHouseTableEngineInfo`, `ClickHouseColumnDataProfile`) the two introspectors
-return.
+return, plus the server-wide catalogue result types (`ClickHouseFunctionInfo`,
+`ClickHouseDictionaryInfo`, `ClickHouseClusterInfo`, `ClickHouseQuotaInfo`,
+`ClickHouseUserInfo`, `ClickHouseRoleInfo`).
 """
 
 from .introspector import (
@@ -28,9 +30,15 @@ from .status_introspector import (
     ClickHouseStatusIntrospector,
 )
 from .types import (
+    ClickHouseClusterInfo,
     ClickHouseColumnDataProfile,
+    ClickHouseDictionaryInfo,
+    ClickHouseFunctionInfo,
     ClickHousePartitionInfo,
+    ClickHouseQuotaInfo,
+    ClickHouseRoleInfo,
     ClickHouseTableEngineInfo,
+    ClickHouseUserInfo,
 )
 
 __all__ = [
@@ -43,4 +51,10 @@ __all__ = [
     "ClickHousePartitionInfo",
     "ClickHouseTableEngineInfo",
     "ClickHouseColumnDataProfile",
+    "ClickHouseFunctionInfo",
+    "ClickHouseDictionaryInfo",
+    "ClickHouseClusterInfo",
+    "ClickHouseQuotaInfo",
+    "ClickHouseUserInfo",
+    "ClickHouseRoleInfo",
 ]
