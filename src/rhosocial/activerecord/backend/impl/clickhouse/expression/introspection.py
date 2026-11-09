@@ -36,7 +36,7 @@ __all__ = [
     "ClickHouseDictionaryListQuery",
     "ClickHouseClusterListQuery",
     "ClickHouseQuotaListQuery",
-    "ClickHouseUserListQuery",
+    "ClickHouseIntrospectionUserListQuery",
     "ClickHouseRoleListQuery",
 ]
 
@@ -143,7 +143,7 @@ class ClickHouseQuotaListQuery(BaseExpression):
         return "format_clickhouse_quota_list_query"
 
 
-class ClickHouseUserListQuery(BaseExpression):
+class ClickHouseIntrospectionUserListQuery(BaseExpression):
     """Every account in ``system.users``, optionally narrowed by name."""
 
     def __init__(self, dialect: "SQLDialectBase", name: Optional[str] = None):

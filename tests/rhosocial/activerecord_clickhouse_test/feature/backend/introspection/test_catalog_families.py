@@ -25,7 +25,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection imp
     ClickHouseFunctionListQuery,
     ClickHouseQuotaListQuery,
     ClickHouseRoleListQuery,
-    ClickHouseUserListQuery,
+    ClickHouseIntrospectionUserListQuery,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.introspection.introspector import (
     AsyncClickHouseIntrospector,
@@ -160,7 +160,7 @@ class TestTheStatementsAreTrees:
         assert params == ()
 
     def test_users_project_no_credential_parameters(self, dialect):
-        sql, params = ClickHouseUserListQuery(dialect).to_sql()
+        sql, params = ClickHouseIntrospectionUserListQuery(dialect).to_sql()
         assert "FROM `system`.`users`" in sql
         assert "`auth_type`" in sql
         assert "auth_params" not in sql

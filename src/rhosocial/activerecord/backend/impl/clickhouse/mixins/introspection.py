@@ -27,7 +27,7 @@ if TYPE_CHECKING:
         ClickHouseRoleListQuery,
         ClickHouseTableEngineQuery,
         ClickHouseTablePartitionsQuery,
-        ClickHouseUserListQuery,
+        ClickHouseIntrospectionUserListQuery,
     )
 
 
@@ -1281,7 +1281,7 @@ class ClickHouseIntrospectionMixin:
         return query.to_sql()
 
     def format_clickhouse_introspection_user_list_query(
-        self, expr: "ClickHouseUserListQuery"
+        self, expr: "ClickHouseIntrospectionUserListQuery"
     ) -> Tuple[str, tuple]:
         """Account rows, from ``system.users``, optionally one name.
 

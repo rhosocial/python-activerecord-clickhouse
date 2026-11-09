@@ -62,7 +62,7 @@ from ..expression.introspection import (
     ClickHouseRoleListQuery,
     ClickHouseTableEngineQuery,
     ClickHouseTablePartitionsQuery,
-    ClickHouseUserListQuery,
+    ClickHouseIntrospectionUserListQuery,
 )
 from .show_introspector import (
     AsyncShowIntrospector,
@@ -940,7 +940,7 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        sql, params = ClickHouseUserListQuery(self._backend.dialect, name=name).to_sql()
+        sql, params = ClickHouseIntrospectionUserListQuery(self._backend.dialect, name=name).to_sql()
         result = self.parse_users(self._executor.execute(sql, params))
         self._cache.set(key, result)
         return result
@@ -1166,7 +1166,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        sql, params = ClickHouseUserListQuery(self._backend.dialect, name=name).to_sql()
+        sql, params = ClickHouseIntrospectionUserListQuery(self._backend.dialect, name=name).to_sql()
         result = self.parse_users(await self._executor.execute(sql, params))
         self._cache.set(key, result)
         return result
