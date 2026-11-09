@@ -161,11 +161,21 @@ partition id:
 
 ```python
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
-    ClickHouseDetachPartitionExpression,   # ... also DROP / ATTACH
+    ClickHouseDropPartitionStatement,
+    ClickHouseDetachPartitionStatement,
+    ClickHouseAttachPartitionStatement,
 )
-sql, params = ClickHouseDetachPartitionExpression(dialect, "visits", "202601").to_sql()
+sql, params = ClickHouseDetachPartitionStatement(dialect, "visits", "202601").to_sql()
 # ALTER TABLE `visits` DETACH PARTITION ID '202601'
 ```
+
+Against a connection, `backend.partition_maintenance` wraps those clauses and
+the `system.parts` read: `list()`, `drop()`, `detach()` and `attach()` take a
+partition id, and `execute(verb, ...)` dispatches by name. A successful mutation
+invalidates the table's cached introspection, and `list(refresh=True)` re-reads
+the server after a change made outside the helper. No table name and no
+retention policy is built in — which tables to maintain and what to keep belong
+to the application.
 
 `DROP` / `DETACH` / `ATTACH` partition are the only partition clauses this
 backend renders. ClickHouse has no `ADD PARTITION`, `TRUNCATE PARTITION`,
