@@ -1,5 +1,5 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/cli/test_introspect_families_cli.py
-"""The nine families the dialect answers, as the CLI asks for them.
+"""The families this change adds, as the CLI asks for them.
 
 No server is needed here. What is checked is the wiring the CLI owns: that
 each type reaches its introspector method, that NAME and the type-specific
@@ -11,14 +11,14 @@ The stub introspector records one call per run, so a branch that calls two
 methods, or calls the right one with a dropped argument, fails here rather
 than showing up as a plausible-looking listing.
 
-Six of the nine are families this dialect cannot answer -- the switch is
+Five of the eight are families this dialect cannot answer -- the switch is
 inherited as ``False`` -- so the gate is what the run meets, and the tests
 hold both sides of it: the refusal before anything connects, and the branch
-that does run once a stub dialect answers ``True``. Six families answering
+that does run once a stub dialect answers ``True``. Five families answering
 ``False`` is the honest state of this backend: ClickHouse has no statistics
-collector, no dependency graph and no native DDL retrieval, so a CLI that ran
-those branches anyway would render a statement on a catalogue it does not
-have.
+collector and no dependency graph, so a CLI that ran those branches anyway
+would render a statement on a catalogue it does not have. DDL extraction is
+not offered at all, because the dialect carries no reader for it.
 
 Every type is driven through the real parser rather than a hand-built
 namespace, so a flag the subparser does not declare fails here rather than
@@ -39,13 +39,12 @@ from rhosocial.activerecord.backend.impl.clickhouse.introspection.types import (
 from rhosocial.activerecord.backend.introspection.types import (
     ColumnDataProfile,
     ColumnValueFrequency,
-    DDLStatement,
     JoinCoverage,
 )
 
-#: The nine families this change wires, and the switch that gates each. The
-#: dialect declares the three data families and inherits the other six as
-#: ``False``, so the three are asked and the six are refused -- both of which
+#: The eight families this change wires, and the switch that gates each. The
+#: dialect declares the three data families and inherits the other five as
+#: ``False``, so the three are asked and the five are refused -- both of which
 #: the CLI must be able to do.
 NEW_FAMILIES = {
     "unused-indexes": "supports_unused_indexes_detection",
@@ -53,7 +52,6 @@ NEW_FAMILIES = {
     "runtime": "supports_runtime_stats",
     "index-stats": "supports_index_stats",
     "dependencies": "supports_object_dependencies",
-    "ddl": "supports_ddl_extraction",
     "column-profiles": "supports_column_data_profile",
     "value-samples": "supports_column_value_sample",
     "join-coverage": "supports_join_coverage",
@@ -76,7 +74,6 @@ GATED_FAMILIES = (
     "runtime",
     "index-stats",
     "dependencies",
-    "ddl",
 )
 
 #: The families a real dialect answers, so their branch is reachable live.
@@ -314,49 +311,6 @@ class TestTheDependenciesBranch:
         assert introspector.calls == [
             ("list_object_dependencies", (), {"object_name": None, "schema": None})
         ]
-
-
-class TestTheDdlBranch:
-    """The schema object, not a name, is what a caller parses."""
-
-    def _statement(self) -> DDLStatement:
-        return DDLStatement(
-            schema="app",
-            object_type="TABLE",
-            object_name="events",
-            ddl="CREATE TABLE app.events (id Int64) ENGINE = MergeTree ORDER BY id",
-            native=False,
-        )
-
-    def test_the_table_is_asked_for_by_name(self, monkeypatch):
-        introspector = _RecordingIntrospector({"get_ddl_statement": self._statement()})
-
-        _run_sync(monkeypatch, introspector, _name_required_argv("ddl"))
-
-        assert introspector.calls == [
-            ("get_ddl_statement", ("events",), {"object_type": None, "schema": None})
-        ]
-
-    def test_the_engine_text_reaches_json_with_its_native_flag(self, monkeypatch, capsys):
-        introspector = _RecordingIntrospector({"get_ddl_statement": self._statement()})
-
-        _run_with_real_provider(
-            monkeypatch, introspector, _name_required_argv("ddl", ["-o", "json"])
-        )
-
-        payload = json.loads(capsys.readouterr().out)
-        assert payload[0]["object_name"] == "events"
-        assert payload[0]["ddl"].startswith("CREATE TABLE app.events")
-        assert payload[0]["native"] is False
-
-    def test_no_ddl_is_an_error_not_an_empty_listing(self, monkeypatch, capsys):
-        introspector = _RecordingIntrospector({"get_ddl_statement": None})
-
-        with pytest.raises(SystemExit) as excinfo:
-            _run_sync(monkeypatch, introspector, _name_required_argv("ddl"))
-
-        assert excinfo.value.code == 1
-        assert "no DDL available" in capsys.readouterr().err
 
 
 class TestTheColumnProfilesBranch:
@@ -627,7 +581,6 @@ class TestTheNameRuleTable:
             "runtime": "forbidden",
             "index-stats": "forbidden",
             "dependencies": "optional",
-            "ddl": "required",
             "column-profiles": "required",
             "value-samples": "required",
             "join-coverage": "required",
@@ -649,7 +602,7 @@ class TestTheNameRuleTable:
 
     @pytest.mark.parametrize(
         "type_",
-        ["columns", "indexes", "partitions", "table-engine", "ddl",
+        ["columns", "indexes", "partitions", "table-engine",
          "column-profiles", "value-samples", "join-coverage"],
     )
     def test_a_required_name_is_required_by_the_table(self, type_, capsys):
@@ -676,7 +629,7 @@ class TestTheArgumentRules:
     """The rules the CLI owns: a NAME and a flag are read, refused or required."""
 
     @pytest.mark.parametrize(
-        "type_", ["ddl", "column-profiles", "value-samples", "join-coverage"]
+        "type_", ["column-profiles", "value-samples", "join-coverage"]
     )
     def test_a_missing_name_is_an_incomplete_invocation(self, type_, capsys, monkeypatch):
         """A NAME the type cannot do without is refused by the rule table."""
@@ -740,7 +693,7 @@ class TestTheArgumentRules:
 class TestTheCapabilityGate:
     """The switch is what the run consults, and it is consulted before the work.
 
-    Six of the nine families are ones this dialect cannot answer, and the
+    Five of the eight families are ones this dialect cannot answer, and the
     earlier behaviour was to run the branch anyway -- which produced an empty
     listing that read as "this database has none". Refusing first is what makes
     the two answers distinguishable, so the gate is asserted against the live
@@ -799,7 +752,7 @@ class TestTheCapabilityGate:
         introspector = _RecordingIntrospector()
 
         argv = ["introspect", type_] + CONNECTION
-        if type_ in ("ddl", "column-profiles", "value-samples", "join-coverage"):
+        if type_ in ("column-profiles", "value-samples", "join-coverage"):
             argv += ["events"]
         if type_ in ("value-samples", "join-coverage"):
             argv += ["--column", "buyer_id"]
@@ -863,12 +816,6 @@ class TestTheAsyncPath:
                 ((), {"object_name": "events", "schema": None}),
             ),
             (
-                "ddl",
-                "get_ddl_statement",
-                ["events"],
-                (("events",), {"object_type": None, "schema": None}),
-            ),
-            (
                 "column-profiles",
                 "list_column_data_profiles",
                 ["events"],
@@ -900,16 +847,8 @@ class TestTheAsyncPath:
         self, type_, method, extra, expected, monkeypatch
     ):
         # The one family whose answer is a single row rather than a listing
-        # needs an actual statement, because the branch reads a field off it.
+        # needs an actual result, because the branch reads a field off it.
         results = {method: []}
-        if method == "get_ddl_statement":
-            results[method] = DDLStatement(
-                schema="app",
-                object_type="TABLE",
-                object_name="events",
-                ddl="CREATE TABLE app.events (id Int64) ENGINE = MergeTree ORDER BY id",
-                native=False,
-            )
         if method == "estimate_join_coverage":
             results[method] = JoinCoverage(
                 left_schema="app",
@@ -953,10 +892,21 @@ class TestTheTypeSurfaceExtension:
         )
         assert (args.column, args.limit) == ("code", 3)
 
+    def test_ddl_stays_out_of_the_vocabulary(self):
+        """DDL extraction is not offered, because the dialect cannot read it.
+
+        A type the CLI refuses to name never reaches the capability gate: the
+        parser rejects the word as an invalid choice, which is exit 2.
+        """
+        assert "ddl" not in introspect_cli.INTROSPECT_TYPES
+        with pytest.raises(SystemExit) as excinfo:
+            build_parser().parse_args(["introspect", "ddl", "events"] + CONNECTION)
+        assert excinfo.value.code == 2
+
     def test_foreign_keys_and_triggers_stay_out_of_the_vocabulary(self):
         """Their absence is "this engine has no such object", not a switch.
 
-        Adding nine families is not an invitation to add every family core
+        Adding these families is not an invitation to add every family core
         names: the two this engine does not have at all stay out of the
         parser's choices, and argparse refuses the word.
         """

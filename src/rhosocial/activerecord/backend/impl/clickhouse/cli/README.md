@@ -12,11 +12,12 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect <TYPE> [NAME
 
 ## What it can ask about
 
-Twenty-two types, in the order `--help` prints them. Sixteen answer True for
+Twenty-one types, in the order `--help` prints them. Sixteen answer True for
 this dialect — the seven table-scoped catalogue families, the six server-wide
-catalogue families, and the three that read the rows — and the remaining six
+catalogue families, and the three that read the rows — and the remaining five
 are offered and gated on a switch that answers False here, so a run is refused
-(exit 2) rather than reached and answered with an empty list.
+(exit 2) rather than reached and answered with an empty list. DDL extraction is
+not offered at all: the dialect carries no reader for it.
 
 | Type | Reads | `NAME` | Notes |
 | :--- | :--- | :--- | :--- |
@@ -38,14 +39,13 @@ are offered and gated on a switch that answers False here, so a run is refused
 | `runtime` | refused here | — | Offered and gated on `supports_runtime_stats`, which answers False here. |
 | `index-stats` | refused here | — | Offered and gated on `supports_index_stats`, which answers False here. |
 | `dependencies` | refused here | object, optional | Offered and gated on `supports_object_dependencies` (False here); a name narrows the graph to that object's edges. |
-| `ddl` | refused here | table, required | Offered and gated on `supports_ddl_extraction`, which answers False here. |
 | `column-profiles` | the rows themselves | table, required | Answers True here: the profile is one aggregate over the rows, so every figure is exact and paid for with a full scan per column. |
 | `value-samples` | the rows themselves | table, required | Answers True here, read from the rows; `--column` names the column and `--limit` caps the count (default 100). |
 | `join-coverage` | the rows themselves | left table, required | Answers True here: how much two columns' value domains overlap. `--column`, `--right-table` and `--right-column` are required. |
 
 `NAME` is a table name for `columns`, `indexes`, `partitions`,
-`table-engine`, `ddl`, `column-profiles`, `value-samples` and
-`join-coverage`, and the view itself for `views`. The six server-wide catalogue
+`table-engine`, `column-profiles`, `value-samples` and `join-coverage`, and the
+view itself for `views`. The six server-wide catalogue
 families — `functions`, `dictionaries`, `clusters`, `quotas`, `users` and
 `roles` — take an optional member name that narrows their listing; for
 `clusters` that means one cluster's member rows, and for `functions` it means
@@ -120,14 +120,14 @@ answer. The two exit codes say which kind of refusal happened:
     one question two readings, one of which depends on session context.
 *   **One question per invocation.** A CLI process is one connection that
     opens, answers, and closes — there is no cache carried between runs.
-*   **The six gated families say "this server cannot answer", not "none".**
-    `unused-indexes`, `table-stats`, `runtime`, `index-stats`, `dependencies`
-    and `ddl` are offered rather than omitted, and each is refused by its
+*   **The five gated families say "this server cannot answer", not "none".**
+    `unused-indexes`, `table-stats`, `runtime`, `index-stats` and
+    `dependencies` are offered rather than omitted, and each is refused by its
     switch before the introspector is reached. An offered-but-unanswered type
     is a contract the CLI keeps by refusing; printing an empty list instead
-    would read as an answer of zero. `ddl` is refused because ClickHouse has no
-    `SHOW CREATE` equivalent this backend reads, not because the family is
-    unknown to it.
+    would read as an answer of zero. DDL extraction is not offered at all,
+    because ClickHouse has no `SHOW CREATE` equivalent this backend reads, so
+    the CLI does not advertise a type whose capability is permanently False.
 
 ## Examples
 

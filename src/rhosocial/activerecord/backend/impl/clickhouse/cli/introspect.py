@@ -9,17 +9,18 @@ database. An earlier version accepted ``--schema`` and had to explain in
 its help text that the value named a database anyway; the flag is gone
 rather than aliased.
 
-The twenty-two families ``_TYPE_CAPABILITIES`` names are the ones this dialect
+The twenty-one families ``_TYPE_CAPABILITIES`` names are the ones this dialect
 answers or declares it does not, and the advertised list is derived from the
 mapping rather than written a second time -- so a family cannot be offered
 without saying which switch decides whether the connected server can answer
-it. Six of the twenty-two answer ``False`` here, because ClickHouse has no
-statistics collector, no dependency graph and no native DDL retrieval: the
-gate refuses those before the introspector is reached, which is what keeps
-"this server cannot report it" apart from "this database has none". The
-sixteen that answer answer the question; the nine catalogue families read
-``system.*``, the three data families read the rows, and this backend's
-introspection genuinely ends there.
+it. Five of the twenty-one answer ``False`` here, because ClickHouse has no
+statistics collector and no dependency graph: the gate refuses those before
+the introspector is reached, which is what keeps "this server cannot report
+it" apart from "this database has none". The sixteen that answer answer the
+question; the nine catalogue families read ``system.*``, the three data
+families read the rows, and this backend's introspection genuinely ends
+there. DDL extraction is not part of the vocabulary: the dialect carries no
+reader for it, so the CLI does not offer the type.
 
 The six server-wide catalogue families -- ``functions``, ``dictionaries``,
 ``clusters``, ``quotas``, ``users`` and ``roles`` -- are not scoped to a
@@ -103,10 +104,8 @@ _TYPE_CAPABILITIES = {
     "index-stats": "supports_index_stats",
     "dependencies": "supports_object_dependencies",
     # ---- the one-object families ----
-    # The DDL that recreates a named table, the profiles of one table and the
-    # samples of one of its columns. Three of the four read the rows
-    # themselves, so every figure is exact and paid for in time.
-    "ddl": "supports_ddl_extraction",
+    # The profiles of one table and the samples of one of its columns. Both
+    # read the rows themselves, so every figure is exact and paid for in time.
     "column-profiles": "supports_column_data_profile",
     "value-samples": "supports_column_value_sample",
     "join-coverage": "supports_join_coverage",
@@ -157,7 +156,6 @@ _NAME_RULE = {
     # The one-object families: the name is the table, and the column is
     # named on its own flag. ``join-coverage`` asks about two tables; the
     # left one is NAME and the right one is a flag.
-    "ddl": "required",
     "column-profiles": "required",
     "value-samples": "required",
     "join-coverage": "required",
@@ -339,9 +337,8 @@ def create_parser(subparsers):
   %(prog)s dependencies --database mydb
   %(prog)s dependencies events --database mydb
 
-  # The DDL that recreates one table, the exact per-column profiles, and the
-  # values one column holds. All three read every row, so they are paid for.
-  %(prog)s ddl events --database mydb
+  # The exact per-column profiles and the values one column holds. Both
+  # read every row, so they are paid for.
   %(prog)s column-profiles events --database mydb
   %(prog)s value-samples events --column code --limit 20 --database mydb
 
@@ -395,7 +392,7 @@ def create_parser(subparsers):
         default=None,
         help=(
             "Object name: a table for columns/indexes/partitions/table-engine/"
-            "ddl/column-profiles/value-samples/join-coverage (required), the "
+            "column-profiles/value-samples/join-coverage (required), the "
             "object itself for views, dependencies and the server-wide catalogue "
             "families (optional); refused for tables, database, unused-indexes, "
             "table-stats, index-stats and runtime"
@@ -504,28 +501,6 @@ def _serialize_for_output(obj: Any) -> Any:
     if isinstance(obj, (str, int, float, bool)):
         return obj
     return str(obj)
-
-
-def _display_ddl(args, provider, statement) -> None:
-    """Show one object's DDL as the engine handed it back.
-
-    A DDL text is a block, not a field of a row: a bordered cell wraps every
-    one of its lines and reads worse than the text itself. So the terminal
-    format prints the engine's own text, and the formats a caller parses keep
-    the record -- schema, object type, object name, ``native`` and the text --
-    which is what ``native`` is for: it says the engine retrieved this rather
-    than the library assembling it.
-
-    ClickHouse itself has no ``SHOW CREATE`` equivalent this backend reads,
-    so the answer here is ``None`` and the branch exits rather than printing
-    an empty block that would read as an object with no definition.
-    """
-    record = _serialize_for_output(statement)
-    if args.output != "table":
-        provider.display_results([record], title=f"DDL of {args.name}")
-        return
-    print(f"-- {record.get('object_type') or 'OBJECT'} {record.get('object_name') or args.name}")
-    print(record["ddl"])
 
 
 def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
@@ -674,19 +649,8 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             provider.display_results(data, title=title)
 
         # ---- the one-object families --------------------------------------
-        # The DDL that recreates a table, and the profiles of one table or one
-        # column of it: the name is the table and the column is named on its
-        # own flag.
-
-        elif args.type == "ddl":
-            statement = introspector.get_ddl_statement(args.name, object_type=None, schema=None)
-            if statement is None:
-                # ClickHouse has no DDL retrieval this backend reads, so the
-                # answer is "cannot be measured" rather than an assembled
-                # fragment that would read as authoritative.
-                print(f"Error: no DDL available for '{args.name}'", file=sys.stderr)
-                sys.exit(1)
-            _display_ddl(args, provider, statement)
+        # The profiles of one table or one column of it: the name is the table
+        # and the column is named on its own flag.
 
         elif args.type == "column-profiles":
             # The note goes to stderr so the machine formats stay parseable,
@@ -882,15 +846,6 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             data = _serialize_for_output(dependencies)
             title = f"Dependencies of {args.name}" if args.name else "Object Dependencies"
             provider.display_results(data, title=title)
-
-        elif args.type == "ddl":
-            statement = await introspector.get_ddl_statement(
-                args.name, object_type=None, schema=None
-            )
-            if statement is None:
-                print(f"Error: no DDL available for '{args.name}'", file=sys.stderr)
-                sys.exit(1)
-            _display_ddl(args, provider, statement)
 
         elif args.type == "column-profiles":
             print(

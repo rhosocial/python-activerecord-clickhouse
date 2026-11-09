@@ -6,7 +6,7 @@ ClickHouse 后端回答四层问题：数据库**声明**了什么（读 `system
 
 自省契约里的每个问题在 dialect 上都有一个探针，而探针问的是**你面前这台服务器**，不是产品本身。提问之前先跑 `backend.introspect_and_adapt()`：它读取服务端版本并（据此）适配 dialect，而探针正是在适配后的 dialect 上求值的，因此低于版本下限的能力会按当前连接如实回答。
 
-CLI 的类型表也由同一份映射派生，所以它提供的二十二个类型与背后的开关不会彼此漂移。本 dialect 有十六个回答 `True`——七个表级 catalogue 家族、六个服务端级 catalogue 家族加三个读取行的家族。另外六个被提供但被拒绝，因为 ClickHouse 没有统计收集器、没有依赖图，也没有本后端会读取的原生 DDL 获取途径。请先读 `False` 那几行：`False` 说的是"这台服务器无法回答这个问题"，绝不是"答案为空或为零"。
+CLI 的类型表也由同一份映射派生，所以它提供的二十一个类型与背后的开关不会彼此漂移。本 dialect 有十六个回答 `True`——七个表级 catalogue 家族、六个服务端级 catalogue 家族加三个读取行的家族。另外五个被提供但被拒绝，因为 ClickHouse 没有统计收集器、没有依赖图。DDL 获取则完全不提供，因为本后端没有读取它的实现。请先读 `False` 那几行：`False` 说的是"这台服务器无法回答这个问题"，绝不是"答案为空或为零"。
 
 | 类型 | 探针 | 答案 | 读取 | `NAME` |
 |------|------|------|------|--------|
@@ -28,7 +28,6 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十二个类�
 | `runtime` | `supports_runtime_stats()` | `False` | — | 拒绝 |
 | `index-stats` | `supports_index_stats()` | `False` | — | 拒绝 |
 | `dependencies` | `supports_object_dependencies()` | `False` | — | 对象，可选 |
-| `ddl` | `supports_ddl_extraction()` | `False` | — | 表，必填 |
 | `column-profiles` | `supports_column_data_profile()` | `True` | 行本身 | 表，必填 |
 | `value-samples` | `supports_column_value_sample()` | `True` | 行本身 | 表，必填 |
 | `join-coverage` | `supports_join_coverage()` | `True` | 行本身，两张表 | 左表，必填 |
@@ -41,7 +40,7 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十二个类�
 
 没有对应 CLI 类型的探针也在说话。`supports_foreign_key_introspection()` 与 `supports_trigger_introspection()` 回答 `False`，因为本引擎既不声明也不强制外键，且根本没有触发器——它们的类型**不在** CLI 词汇表里，而不是"提供后再拒绝"：回答 `False` 的开关说的是"这台服务器无法回答"，词汇表里缺席的词说的是"本后端从不问"。同一条区分也让 `show.*` 不进入 `introspect`：`SHOW` 与 `system.*` 并不等价，而这里每个类型都读 `system.*`。`supports_table_storage_introspection()` 回答 `True`，这正是表行携带 `size_bytes` 的原因，它读自 `system.tables.total_bytes`；`data_size_bytes` 与 `index_size_bytes` 保持 `None`，因为 ClickHouse 的数据以磁盘上的 part 形式存放，跳数索引是引擎自己维护的稀疏结构、不是数据的第二份副本——这个拆分是本引擎不保留的事实，不是缺口。`supports_extensions()` 保持 `False`：本后端没有声明任何附加组件目录。
 
-### 回答 False 的六个
+### 回答 False 的五个
 
 `unused-indexes` 没有东西可读。ClickHouse 不保留按索引计数的访问计数器：它仅有的索引行是主键与跳数索引，两者都没有"是否被用过"的埋点，因此没有哪种视图的行可以被称作未使用。回答 `True` 就会要求一个这里并不存在的查询格式化器。
 
@@ -53,7 +52,7 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十二个类�
 
 `dependencies` 需要一个记录"谁依赖谁"的目录。ClickHouse 不声明外键，本后端也不从它读取依赖图，因此没有边可返回，一个名字也无法收窄一张不存在的图。
 
-`ddl` 需要引擎保留的文本。本后端没有读取 `SHOW CREATE` 语句的实现，因此 `get_ddl_statement()` 没有东西可交回，CLI 的分支若真被走到就会以退出 1 结束。开关保持 `False`，正常运行时这个分支根本到不了；`supports_ddl_extraction_native()` 也随之保持 `False`。
+DDL 获取完全不进入 CLI。本后端没有读取 `SHOW CREATE` 语句的实现，因此 `get_ddl_statement()` 没有东西可交回；与其提供一个能力永远为 `False` 的类型，CLI 干脆不把 `ddl` 放进词汇表。dialect 的 `supports_ddl_extraction()` 与 `supports_ddl_extraction_native()` 都保持 `False`，格式化器仍留在原处，供将来的读取实现使用。
 
 ## 数据家族是聚合
 
@@ -130,7 +129,7 @@ CAST(MIN(`id`) AS Nullable(String)) AS `min_value`
 
 ## 命令行
 
-`python -m rhosocial.activerecord.backend.impl.clickhouse introspect` 问的是同一个自省器，因此 CLI 打印的就是库看到的东西，而不是第二份实现。二十二个类型及其开关、`NAME` 规则见上表。`NAME` 对 `columns`、`indexes`、`partitions`、`table-engine`、`ddl`、`column-profiles`、`value-samples` 与 `join-coverage` 是表名，对 `views` 是视图本身；`dependencies` 收一个可选的对象名以收窄图；六个服务端级 catalogue 家族收一个可选的成员名以收窄清单（集群名收窄到该集群的成员行）；`tables`、`database` 与四个全库范围的 operational 家族**拒绝**名字，而不是解析后丢掉。必填名字缺失属于调用不完整（退出 1）；类型用不上的名字是命令拒绝的请求（退出 2）；开关回答 `False` 是以退出 2 拒绝并输出 `Error: <type> introspection is not supported by this server`；连接失败或视图不存在是退出 1。
+`python -m rhosocial.activerecord.backend.impl.clickhouse introspect` 问的是同一个自省器，因此 CLI 打印的就是库看到的东西，而不是第二份实现。二十一个类型及其开关、`NAME` 规则见上表。`NAME` 对 `columns`、`indexes`、`partitions`、`table-engine`、`column-profiles`、`value-samples` 与 `join-coverage` 是表名，对 `views` 是视图本身；`dependencies` 收一个可选的对象名以收窄图；六个服务端级 catalogue 家族收一个可选的成员名以收窄清单（集群名收窄到该集群的成员行）；`tables`、`database` 与四个全库范围的 operational 家族**拒绝**名字，而不是解析后丢掉。必填名字缺失属于调用不完整（退出 1）；类型用不上的名字是命令拒绝的请求（退出 2）；开关回答 `False` 是以退出 2 拒绝并输出 `Error: <type> introspection is not supported by this server`；连接失败或视图不存在是退出 1。
 
 `--column` 为 `value-samples` 指定列，也为 `join-coverage` 指定左列；`--right-table` 与 `--right-column` 只被 `join-coverage` 读取。类型不读的旗标会被拒绝（退出 2），理由与"没人读的名字"相同：被静默丢掉的参数会产生一次成功的运行，却读起来像回答了一个更窄的问题。`--limit` 只在给出时才转发，数字归属于自省器自己的默认值。`column-profiles` 向 stderr 打一行提示——画像由行聚合而来，`source='aggregate'`，并按每列一次全扫描计价——从而让机器可读格式保持可解析。
 
@@ -146,6 +145,6 @@ python -m rhosocial.activerecord.backend.impl.clickhouse introspect value-sample
 
 ## 版本与可用性下限
 
-这些家族没有确立版本下限。二十二个类型挂在按当前连接适配后的 dialect 求值的能力开关上，而不是这里写死的版本号；六个 catalogue 家族与三个数据家族只需要普通的聚合与 `system.*` 关系，本后端声明的每个版本——25.8、26.3 与 26.7——都提供它们。回答 `False` 的探针仍是完整的答案：它说的是这里无法提问，这与"数据库没有任何东西可报告"是不同的陈述。
+这些家族没有确立版本下限。二十一个类型挂在按当前连接适配后的 dialect 求值的能力开关上，而不是这里写死的版本号；六个 catalogue 家族与三个数据家族只需要普通的聚合与 `system.*` 关系，本后端声明的每个版本——25.8、26.3 与 26.7——都提供它们。回答 `False` 的探针仍是完整的答案：它说的是这里无法提问，这与"数据库没有任何东西可报告"是不同的陈述。
 
 其余子命令见 [CLI 用法](../cli/README.md)；本后端选择拒绝而非模拟的边界见 [不支持的功能](../capabilities/unsupported.md)。

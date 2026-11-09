@@ -20,14 +20,15 @@ product. Run `backend.introspect_and_adapt()` before asking: it reads the
 server's version and adapts the dialect the probes are evaluated on, so a
 capability below a floor is answered for the connection in hand.
 
-The CLI derives its type list from the same mapping, so the twenty-two types it
+The CLI derives its type list from the same mapping, so the twenty-one types it
 offers and the switches behind them cannot drift apart. Sixteen answer `True`
 for this dialect — the seven table-scoped catalogue families, the six
-server-wide catalogue families, and the three that read the rows. The other six
-are offered and refused, because ClickHouse has no statistics collector, no
-dependency graph and no native DDL retrieval this backend reads. Read the
-`False` rows first: `False` says the question cannot be asked of this server,
-never that the answer was empty or zero.
+server-wide catalogue families, and the three that read the rows. The other
+five are offered and refused, because ClickHouse has no statistics collector
+and no dependency graph. DDL extraction is not offered at all, because the
+backend has no reader for it. Read the `False` rows first: `False` says the
+question cannot be asked of this server, never that the answer was empty or
+zero.
 
 | Type | Probe | Answer | Reads | `NAME` |
 |------|-------|--------|-------|--------|
@@ -49,7 +50,6 @@ never that the answer was empty or zero.
 | `runtime` | `supports_runtime_stats()` | `False` | — | refused |
 | `index-stats` | `supports_index_stats()` | `False` | — | refused |
 | `dependencies` | `supports_object_dependencies()` | `False` | — | object, optional |
-| `ddl` | `supports_ddl_extraction()` | `False` | — | table, required |
 | `column-profiles` | `supports_column_data_profile()` | `True` | the rows themselves | table, required |
 | `value-samples` | `supports_column_value_sample()` | `True` | the rows themselves | table, required |
 | `join-coverage` | `supports_join_coverage()` | `True` | the rows themselves, two tables | left table, required |
@@ -99,7 +99,7 @@ are sparse structures the engine maintains, not a second copy of the data —
 the split is a fact this engine does not keep, not a gap. `supports_extensions()`
 stays `False`: this backend declares no catalogue of add-on components.
 
-### The Six That Answer False
+### The Five That Answer False
 
 `unused-indexes` has nothing to read. ClickHouse keeps no per-index access
 counter: its only index rows are the primary key and data skipping indices,
@@ -127,11 +127,12 @@ ClickHouse declares no foreign keys, and this backend reads no dependency
 graph from it, so there is no edge to return and a name cannot narrow a graph
 that does not exist.
 
-`ddl` needs text the engine retained. This backend has no reader for a
-`SHOW CREATE` statement, so `get_ddl_statement()` has nothing to hand back and
-the CLI's handler exits 1 when it reaches that branch. The switch stays `False`
-so the branch is normally never reached; `supports_ddl_extraction_native()`
-stays `False` with it.
+DDL extraction does not appear in the CLI at all. This backend has no reader
+for a `SHOW CREATE` statement, so `get_ddl_statement()` has nothing to hand
+back; rather than offer a type whose capability is permanently `False`, the
+CLI leaves `ddl` out of its vocabulary. The dialect's `supports_ddl_extraction()`
+and `supports_ddl_extraction_native()` both stay `False`, and the formatter
+remains in place for a future reader to use.
 
 ## The Data Families Are Aggregates
 
@@ -326,9 +327,9 @@ the endpoints' own claim to have measured no value.
 
 `python -m rhosocial.activerecord.backend.impl.clickhouse introspect` asks the
 same introspector, so what the CLI prints is what the library sees rather than
-a second implementation. The twenty-two types are listed above with their
+a second implementation. The twenty-one types are listed above with their
 switches and their `NAME` rule. `NAME` is the table for `columns`, `indexes`,
-`partitions`, `table-engine`, `ddl`, `column-profiles`, `value-samples` and
+`partitions`, `table-engine`, `column-profiles`, `value-samples` and
 `join-coverage`, and the view itself for `views`; `dependencies` takes an
 optional object name that narrows the graph, and the six server-wide catalogue
 families take an optional member name that narrows their listing (a cluster
@@ -367,7 +368,7 @@ belong in a slot every engine must fill.
 
 ## Version and Availability Floors
 
-There is no version floor established for these families. The twenty-two types
+There is no version floor established for these families. The twenty-one types
 are gated on capability switches evaluated against the connected server's
 adapted dialect, not on a version number written here, and the six catalogue
 families and three data families need only ordinary aggregates and `system.*`

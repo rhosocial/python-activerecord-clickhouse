@@ -143,7 +143,6 @@ _NAME_FOR = {
     "table-engine": "users",
     # The one-object families: the NAME is the left table and the column and
     # the right-hand pair arrive as flags, exactly as the branch reads them.
-    "ddl": "orders",
     "column-profiles": "orders",
     "value-samples": "orders",
     "join-coverage": "orders",
@@ -233,17 +232,6 @@ class FakeIntrospector:
     def list_object_dependencies(self, object_name=None, schema=None):
         self.calls.append(("list_object_dependencies", object_name, schema))
         return []
-
-    def get_ddl_statement(self, object_name, object_type=None, schema=None):
-        self.calls.append(("get_ddl_statement", object_name, object_type, schema))
-        if object_name != "orders":
-            return None
-        return {
-            "object_type": "TABLE",
-            "object_name": "orders",
-            "ddl": "CREATE TABLE orders (id Int64) ENGINE = MergeTree ORDER BY id",
-            "native": False,
-        }
 
     def list_column_data_profiles(self, table_name, schema=None):
         self.calls.append(("list_column_data_profiles", table_name, schema))
@@ -337,11 +325,6 @@ class FakeAsyncIntrospector:
 
     async def list_object_dependencies(self, object_name=None, schema=None):
         return self._sync.list_object_dependencies(object_name=object_name, schema=schema)
-
-    async def get_ddl_statement(self, object_name, object_type=None, schema=None):
-        return self._sync.get_ddl_statement(
-            object_name, object_type=object_type, schema=schema
-        )
 
     async def list_column_data_profiles(self, table_name, schema=None):
         return self._sync.list_column_data_profiles(table_name, schema=schema)
@@ -550,6 +533,13 @@ class TestIntrospectCapabilities:
         assert "table" not in INTROSPECT_TYPES
         with pytest.raises(SystemExit) as excinfo:
             parse_introspect_args(["introspect", "table", "users"])
+        assert excinfo.value.code == 2
+
+    def test_the_ddl_type_is_gone(self):
+        """DDL extraction is not offered, so the parser rejects the word."""
+        assert "ddl" not in INTROSPECT_TYPES
+        with pytest.raises(SystemExit) as excinfo:
+            parse_introspect_args(["introspect", "ddl", "orders"])
         assert excinfo.value.code == 2
 
     @pytest.mark.parametrize("use_async", [False, True], ids=["sync", "async"])
