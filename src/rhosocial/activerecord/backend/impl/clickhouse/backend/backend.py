@@ -7,45 +7,44 @@ handling connections, queries, transactions, and type adaptations tailored for C
 specific behaviors and SQL dialect.
 """
 
-import datetime
 import logging
+import time
 from typing import Any, List, Optional, Tuple
 
 try:
     import clickhouse_connect
     from clickhouse_connect.dbapi import connect as clickhouse_connect_dbapi_connect
     from clickhouse_connect.driver.exceptions import (
-        DatabaseError as ClickHouseDatabaseError,
         Error as ClickHouseError,
-        IntegrityError as ClickHouseIntegrityError,
         OperationalError as ClickHouseOperationalError,
     )
 except ImportError:  # pragma: no cover
     clickhouse_connect = None  # type: ignore
     clickhouse_connect_dbapi_connect = None  # type: ignore
-    ClickHouseDatabaseError = Exception
     ClickHouseError = Exception
-    ClickHouseIntegrityError = Exception
     ClickHouseOperationalError = Exception
 
 from rhosocial.activerecord.backend.base import StorageBackend
-from rhosocial.activerecord.backend.errors import (
-    ConnectionError,
-    DatabaseError,
-    IntegrityError,
-    QueryError,
+from rhosocial.activerecord.backend.base.execution_logging import (
+    log_batch_start,
+    log_batch_summary,
+    log_execution_error,
 )
+from rhosocial.activerecord.backend.base.operations import execution_log_context
+from rhosocial.activerecord.backend.errors import ConnectionError, DatabaseError
 from rhosocial.activerecord.backend.options import (
     BulkInsertOptions,
     BulkUpdateOptions,
     DeleteOptions,
     ExecutionOptions,
     InsertOptions,
+    StatementType,
     UpdateOptions,
 )
 from rhosocial.activerecord.backend.result import QueryResult
 from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
+from rhosocial.activerecord.logging.redaction import unwrap_sensitive
 from ..config import ClickHouseConnectionConfig
 from ..dialect import ClickHouseDialect
 from ..transaction import ClickHouseTransactionManager
@@ -211,6 +210,7 @@ class ClickHouseBackend(
                 returning_columns=options.returning_columns,
                 auto_commit=options.auto_commit,
                 primary_key=options.primary_key,
+                log_context=execution_log_context(options, "bulk_insert"),
             )
 
         result = super().bulk_insert(options)
@@ -245,6 +245,7 @@ class ClickHouseBackend(
                     returning_columns=options.returning_columns,
                     auto_commit=options.auto_commit,
                     primary_key=options.primary_key,
+                    log_context=execution_log_context(options, "update"),
                 )
         # ClickHouse cannot report how many rows a mutation affected, so capture
         # the matching-row count BEFORE running the mutation (the WHERE columns
@@ -422,7 +423,10 @@ class ClickHouseBackend(
             )
             self._fetch_concurrency_hint()
         except ClickHouseError as e:
-            self.log(logging.ERROR, f"Failed to connect to ClickHouse database: {str(e)}")
+            self.log(
+                logging.DEBUG,
+                f"Failed to connect to ClickHouse database, exception will be re-raised: {str(e)}",
+            )
             raise ConnectionError(f"Failed to connect to ClickHouse: {str(e)}") from e
 
     def disconnect(self) -> None:
@@ -479,21 +483,33 @@ class ClickHouseBackend(
 
         return self._connection.cursor()
 
-    def execute_many(self, sql: str, params_list: List[Tuple]) -> QueryResult:
-        """Execute the same SQL statement multiple times with different parameters."""
+    def execute_many(
+        self,
+        sql: str,
+        params_list: List[Tuple],
+        *,
+        options: Optional[ExecutionOptions] = None,
+    ) -> QueryResult:
+        """Execute the same SQL statement multiple times with different parameters.
+
+        ClickHouse executes the statement once per parameter set, because the
+        driver's ``executemany`` path does not report per-row counts. The batch
+        DEBUG record and its INFO summary come from the shared execution-logging
+        helpers, so the canonical SQL line is not duplicated here.
+        """
+        if options is None:
+            options = ExecutionOptions(stmt_type=StatementType.DML)
+        params_list = [unwrap_sensitive(params) for params in params_list]
+        log_batch_start(self, sql, params_list, options)
+
         if not self._connection:
             self.connect()
 
         cursor = None
-        start_time = datetime.datetime.now()
+        start_time = time.perf_counter()
 
         try:
             cursor = self._get_cursor()
-
-            # Log the batch operation if logging is enabled
-            if getattr(self.config, "log_queries", False):
-                self.log(logging.DEBUG, f"Executing batch operation: {sql}")
-                self.log(logging.DEBUG, f"With {len(params_list)} parameter sets")
 
             # Execute multiple statements
             escaped_sql = self._escape_literal_percent(sql)
@@ -502,24 +518,17 @@ class ClickHouseBackend(
                 cursor.execute(escaped_sql, params)
                 affected_rows += cursor.rowcount
 
-            duration = (datetime.datetime.now() - start_time).total_seconds()
+            duration = time.perf_counter() - start_time
 
             result = QueryResult(affected_rows=affected_rows, data=None, duration=duration)
 
-            self.log(
-                logging.INFO, f"Batch operation completed, affected {affected_rows} rows, duration={duration:.3f}s"
-            )
+            log_batch_summary(self, sql, params_list, affected_rows, duration, options)
             return result
 
-        except ClickHouseIntegrityError as e:
-            self.log(logging.ERROR, f"Integrity error in batch: {str(e)}")
-            raise IntegrityError(str(e)) from e
-        except ClickHouseError as e:
-            self.log(logging.ERROR, f"ClickHouse error in batch: {str(e)}")
-            raise DatabaseError(str(e)) from e
         except Exception as e:
-            self.log(logging.ERROR, f"Unexpected error during batch execution: {str(e)}")
-            raise QueryError(str(e)) from e
+            log_execution_error(self, e, options)
+            self._handle_error(e)
+            return None
         finally:
             if cursor:
                 cursor.close()
@@ -700,8 +709,6 @@ class ClickHouseBackend(
         Raises:
             DatabaseError: If execution fails after all retries
         """
-        from rhosocial.activerecord.backend.options import StatementType
-
         # If no options provided, create default options from kwargs
         if options is None:
             # Determine statement type based on SQL
@@ -748,7 +755,7 @@ class ClickHouseBackend(
                     if self._reconnect():
                         continue
                     else:
-                        self.log(logging.ERROR, "Reconnection failed, aborting retry")
+                        self.log(logging.DEBUG, "Reconnection failed, aborting retry")
                         break
                 else:
                     # Not a connection error or max retries reached
@@ -772,9 +779,7 @@ class ClickHouseBackend(
             sql_script: A string containing one or more SQL statements separated
                        by semicolons.
         """
-        import time
-
-        self.log(logging.INFO, "Executing SQL script.")
+        self.log(logging.DEBUG, "Executing SQL script.")
         start_time = time.perf_counter()
 
         if not self._connection:
@@ -791,7 +796,10 @@ class ClickHouseBackend(
             self.log(logging.INFO, f"SQL script executed successfully, duration={duration:.3f}s")
 
         except ClickHouseError as e:
-            self.log(logging.ERROR, f"Error executing SQL script: {str(e)}")
+            self.log(
+                logging.DEBUG,
+                f"Error executing SQL script, exception will be re-raised: {str(e)}",
+            )
             self._handle_error(e)
         finally:
             if cursor:

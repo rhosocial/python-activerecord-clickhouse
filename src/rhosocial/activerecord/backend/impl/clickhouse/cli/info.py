@@ -8,8 +8,9 @@ falling back to --version flag when no connection is available.
 import argparse
 import inspect
 import json
-import logging
 from typing import Any, Dict, List, Tuple
+
+from rhosocial.activerecord.logging.defaults import get_logger
 
 from rhosocial.activerecord.backend.dialect.protocols import (
     WindowFunctionSupport,
@@ -52,7 +53,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.protocols import (
 from .connection import add_connection_args, add_version_arg, resolve_connection_config_from_args
 from .output import INFO_OUTPUT_CHOICES, create_provider, RICH_AVAILABLE
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 # Groups that are specific to ClickHouse dialect
 DIALECT_SPECIFIC_GROUPS = {"ClickHouse-specific"}

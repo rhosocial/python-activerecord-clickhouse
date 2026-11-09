@@ -27,16 +27,14 @@ class ClickHouseTransactionMixin:
 
         self.log(logging.DEBUG, f"Setting isolation level to {level}")
         if self.is_active:
-            self.log(logging.ERROR, "Cannot change isolation level during active transaction")
             raise IsolationLevelError("Cannot change isolation level during active transaction")
 
         if level is not None and level not in self._ISOLATION_LEVELS:
             error_msg = f"Unsupported isolation level: {level}"
-            self.log(logging.ERROR, error_msg)
             raise IsolationLevelError(error_msg)
 
         self._isolation_level = level
-        self.log(logging.INFO, f"Isolation level set to {level}")
+        self.log(logging.DEBUG, f"Isolation level set to {level}")
 
     def _build_set_isolation_sql(self, level: IsolationLevel) -> Tuple[str, tuple]:
         """Build SET TRANSACTION ISOLATION LEVEL SQL statement."""

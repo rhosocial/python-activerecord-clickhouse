@@ -124,13 +124,6 @@ class ClickHouseBackendMixin:
 
         return suggestions
 
-    def log(self, level: int, message: str):
-        """Log a message with the specified level."""
-        if hasattr(self, "_logger") and self._logger:
-            self._logger.log(level, message)
-        else:
-            print(f"[{logging.getLevelName(level)}] {message}")
-
     CONNECTION_ERROR_CODES = {
         503,
         504,
@@ -178,19 +171,13 @@ class ClickHouseBackendMixin:
 
         if isinstance(error, ClickHouseIntegrityError):
             if "UNIQUE constraint" in error_msg or "Violates unique constraint" in error_msg:
-                self.log(logging.ERROR, f"Unique constraint violation: {error_msg}")
                 raise IntegrityError(f"Unique constraint violation: {error_msg}")
-            self.log(logging.ERROR, f"Integrity error: {error_msg}")
             raise IntegrityError(error_msg)
         elif isinstance(error, ClickHouseDatabaseError):
-            self.log(logging.ERROR, f"Database error: {error_msg}")
             raise DatabaseError(error_msg)
         elif isinstance(error, ClickHouseOperationalError):
-            self.log(logging.ERROR, f"Operational error: {error_msg}")
             raise OperationalError(error_msg)
         elif isinstance(error, ClickHouseError):
-            self.log(logging.ERROR, f"ClickHouse error: {error_msg}")
             raise DatabaseError(error_msg)
         else:
-            self.log(logging.ERROR, f"Unexpected error: {error_msg}")
             raise error
