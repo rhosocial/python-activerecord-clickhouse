@@ -211,6 +211,32 @@ class FakeIntrospector:
         self.calls.append(("get_database_info",))
         return {"name": "app", "version": "26.7.1"}
 
+    # ---- the server-wide catalogue families ----
+
+    def list_functions(self, name=None):
+        self.calls.append(("list_functions", name))
+        return [{"name": name or "count"}]
+
+    def list_dictionaries(self, name=None):
+        self.calls.append(("list_dictionaries", name))
+        return [{"name": name or "dict"}]
+
+    def list_clusters(self, name=None):
+        self.calls.append(("list_clusters", name))
+        return [{"name": name or "cluster"}]
+
+    def list_quotas(self, name=None):
+        self.calls.append(("list_quotas", name))
+        return [{"name": name or "default"}]
+
+    def list_users(self, name=None):
+        self.calls.append(("list_users", name))
+        return [{"name": name or "default"}]
+
+    def list_roles(self, name=None):
+        self.calls.append(("list_roles", name))
+        return [{"name": name or "default"}]
+
     # ---- the nine families this change wired ----
 
     def list_unused_indexes(self, schema=None):
@@ -310,6 +336,24 @@ class FakeAsyncIntrospector:
 
     async def get_database_info(self):
         return self._sync.get_database_info()
+
+    async def list_functions(self, name=None):
+        return self._sync.list_functions(name=name)
+
+    async def list_dictionaries(self, name=None):
+        return self._sync.list_dictionaries(name=name)
+
+    async def list_clusters(self, name=None):
+        return self._sync.list_clusters(name=name)
+
+    async def list_quotas(self, name=None):
+        return self._sync.list_quotas(name=name)
+
+    async def list_users(self, name=None):
+        return self._sync.list_users(name=name)
+
+    async def list_roles(self, name=None):
+        return self._sync.list_roles(name=name)
 
     async def list_unused_indexes(self, schema=None):
         return self._sync.list_unused_indexes(schema=schema)
