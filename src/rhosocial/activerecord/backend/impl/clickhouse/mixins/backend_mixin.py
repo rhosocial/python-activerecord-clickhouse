@@ -174,6 +174,13 @@ class ClickHouseBackendMixin:
                 raise IntegrityError(f"Unique constraint violation: {error_msg}")
             raise IntegrityError(error_msg)
         elif isinstance(error, ClickHouseDatabaseError):
+            # ClickHouse enforces NOT NULL through its type system, so a
+            # assignment of NULL to a non-nullable column arrives as a generic
+            # database error (CANNOT_CONVERT_TYPE) rather than as an integrity
+            # error.  Preserve the cross-backend contract and classify it as a
+            # not-null violation.
+            if "Cannot convert NULL to a non-nullable type" in error_msg:
+                raise IntegrityError(f"cannot be null: {error_msg}")
             raise DatabaseError(error_msg)
         elif isinstance(error, ClickHouseOperationalError):
             raise OperationalError(error_msg)
