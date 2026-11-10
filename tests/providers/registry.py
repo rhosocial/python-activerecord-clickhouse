@@ -26,6 +26,10 @@ that don't support those features.
 """
 
 from rhosocial.activerecord.testsuite.core.registry import ProviderRegistry
+from rhosocial.activerecord.testsuite.feature.cli.providers import (
+    GenericAsyncCLIProvider,
+    GenericSyncCLIProvider,
+)
 from .basic import BasicSyncProvider, BasicAsyncProvider
 from .events import EventsSyncProvider, EventsAsyncProvider
 from .mixins import MixinsSyncProvider, MixinsAsyncProvider
@@ -99,3 +103,7 @@ provider_registry.register(
 )
 provider_registry.register("benchmark.mixin.IMixinBenchmarkProvider", MixinBenchmarkProvider)
 provider_registry.register("benchmark.fastapi.IFastAPIBenchmarkProvider", FastAPIBenchmarkProvider)
+
+# Register CLI providers, assembled from the basic and mixins providers above.
+provider_registry.register("feature.cli.ICLISyncProvider", GenericSyncCLIProvider)
+provider_registry.register("feature.cli.ICLIAsyncProvider", GenericAsyncCLIProvider)
