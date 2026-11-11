@@ -207,8 +207,13 @@ class ClickHouseBackendMixin:
     def _handle_error(self, error: Exception) -> None:
         """Handle ClickHouse-specific errors.
 
-        Recognition order: driver exception class, ClickHouse server error
-        code, then message text.
+        A framework :class:`DatabaseError` is re-raised unchanged: it was
+        already translated once, and re-classifying it here would rewrite a
+        ``QueryError`` or ``TransactionError`` produced by a later stage of the
+        execution pipeline into a generic driver failure.
+
+        Recognition order for driver exceptions: driver exception class,
+        ClickHouse server error code, then message text.
 
         ClickHouse has no general-purpose transactions and no deadlock
         detector: the server cannot report a deadlock, so no ``DeadlockError``
@@ -232,6 +237,9 @@ class ClickHouseBackendMixin:
             QueryError,
             attach_diagnostics,
         )
+
+        if isinstance(error, DatabaseError):
+            raise error
 
         error_msg = str(error)
         error_lower = error_msg.lower()
