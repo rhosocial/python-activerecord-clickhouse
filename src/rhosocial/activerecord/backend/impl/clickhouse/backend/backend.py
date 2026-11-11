@@ -31,7 +31,11 @@ from rhosocial.activerecord.backend.base.execution_logging import (
     log_execution_error,
 )
 from rhosocial.activerecord.backend.base.operations import execution_log_context
-from rhosocial.activerecord.backend.errors import ConnectionError, DatabaseError
+from rhosocial.activerecord.backend.errors import (
+    ConnectionError,
+    DatabaseError,
+    attach_diagnostics,
+)
 from rhosocial.activerecord.backend.options import (
     BulkInsertOptions,
     BulkUpdateOptions,
@@ -427,7 +431,13 @@ class ClickHouseBackend(
                 logging.DEBUG,
                 f"Failed to connect to ClickHouse database, exception will be re-raised: {str(e)}",
             )
-            raise ConnectionError(f"Failed to connect to ClickHouse: {str(e)}") from e
+            raise attach_diagnostics(
+                ConnectionError(f"Failed to connect to ClickHouse: {str(e)}"),
+                operation="connect",
+                driver_code=getattr(e, "code", None),
+                backend="clickhouse",
+                transient=False,
+            ) from e
 
     def disconnect(self) -> None:
         """Close connection to ClickHouse database."""
