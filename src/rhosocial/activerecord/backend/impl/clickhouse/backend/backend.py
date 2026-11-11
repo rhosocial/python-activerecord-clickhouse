@@ -16,13 +16,11 @@ try:
     from clickhouse_connect.dbapi import connect as clickhouse_connect_dbapi_connect
     from clickhouse_connect.driver.exceptions import (
         Error as ClickHouseError,
-        OperationalError as ClickHouseOperationalError,
     )
 except ImportError:  # pragma: no cover
     clickhouse_connect = None  # type: ignore
     clickhouse_connect_dbapi_connect = None  # type: ignore
     ClickHouseError = Exception
-    ClickHouseOperationalError = Exception
 
 from rhosocial.activerecord.backend.base import StorageBackend
 from rhosocial.activerecord.backend.base.execution_logging import (
@@ -31,7 +29,13 @@ from rhosocial.activerecord.backend.base.execution_logging import (
     log_execution_error,
 )
 from rhosocial.activerecord.backend.base.operations import execution_log_context
-from rhosocial.activerecord.backend.errors import ConnectionError, DatabaseError
+from rhosocial.activerecord.backend.errors import (
+    ConnectionError,
+    DatabaseError,
+    OperationalError,
+    TransactionError,
+    attach_diagnostics,
+)
 from rhosocial.activerecord.backend.options import (
     BulkInsertOptions,
     BulkUpdateOptions,
@@ -427,7 +431,13 @@ class ClickHouseBackend(
                 logging.DEBUG,
                 f"Failed to connect to ClickHouse database, exception will be re-raised: {str(e)}",
             )
-            raise ConnectionError(f"Failed to connect to ClickHouse: {str(e)}") from e
+            raise attach_diagnostics(
+                ConnectionError(f"Failed to connect to ClickHouse: {str(e)}"),
+                operation="connect",
+                driver_code=getattr(e, "code", None),
+                backend="clickhouse",
+                transient=False,
+            ) from e
 
     def disconnect(self) -> None:
         """Close connection to ClickHouse database."""
@@ -496,6 +506,12 @@ class ClickHouseBackend(
         driver's ``executemany`` path does not report per-row counts. The batch
         DEBUG record and its INFO summary come from the shared execution-logging
         helpers, so the canonical SQL line is not duplicated here.
+
+        Every failure goes through ``_handle_error`` like ``execute`` does, so a
+        driver timeout or syntax error carries the same semantic type on both
+        paths. The batch is auto-committed before the result is returned, and a
+        cursor that refuses to close cannot replace the error already
+        propagating.
         """
         if options is None:
             options = ExecutionOptions(stmt_type=StatementType.DML)
@@ -518,6 +534,11 @@ class ClickHouseBackend(
                 cursor.execute(escaped_sql, params)
                 affected_rows += cursor.rowcount
 
+            # Auto-commit before reporting success: a commit failure must abort
+            # the batch instead of returning a result for rows that were never
+            # persisted.
+            self._handle_auto_commit_if_needed()
+
             duration = time.perf_counter() - start_time
 
             result = QueryResult(affected_rows=affected_rows, data=None, duration=duration)
@@ -527,11 +548,21 @@ class ClickHouseBackend(
 
         except Exception as e:
             log_execution_error(self, e, options)
+            if isinstance(e, DatabaseError):
+                raise
             self._handle_error(e)
-            return None
+            # _handle_error() is required to raise. Keep a defensive fallback so
+            # a handler that returns cannot turn a failure into a None result.
+            raise DatabaseError(str(e)) from e
         finally:
             if cursor:
-                cursor.close()
+                try:
+                    cursor.close()
+                except Exception as close_error:
+                    self.log(
+                        logging.WARNING,
+                        f"Failed to close cursor after execute_many: {str(close_error)}",
+                    )
 
     def get_server_version(self) -> Tuple[int, int, int]:
         """Get ClickHouse server version."""
@@ -643,40 +674,50 @@ class ClickHouseBackend(
             return False
 
     def _handle_auto_commit(self) -> None:
-        """Handle auto commit based on ClickHouse connection and transaction state.
+        """Commit the connection when autocommit is off and no transaction is active.
 
         This method will commit the current connection if:
         1. The connection exists and is open
         2. There is no active transaction managed by transaction_manager
+        3. The connection config has ``autocommit`` disabled
 
         It's used by insert/update/delete operations to ensure changes are
         persisted immediately when auto_commit=True is specified.
-        """
-        try:
-            # Check if connection exists
-            if not self._connection:
-                return
 
-            # Check if we're not in an active transaction
-            if not self.in_transaction:
-                # For ClickHouse, if autocommit is disabled, we need to commit explicitly
-                if not getattr(self.config, "autocommit", True):
-                    self._connection.commit()
-                    self.log(logging.DEBUG, "Auto-committed operation (not in active transaction)")
-        except Exception as e:
-            # Just log the error but don't raise - this is a convenience feature
-            self.log(logging.WARNING, f"Failed to auto-commit: {str(e)}")
+        A failed commit is not swallowed: the statement already ran, so
+        returning a successful result for rows that were never persisted would
+        report data loss as success. The driver failure is raised as
+        :class:`TransactionError` with the original exception as its cause.
+        """
+        if not self._connection:
+            return
+
+        if self.in_transaction:
+            return
+
+        # For ClickHouse, if autocommit is disabled, we need to commit explicitly
+        if getattr(self.config, "autocommit", True):
+            return
+
+        try:
+            self._connection.commit()
+        except Exception as exc:
+            raise attach_diagnostics(
+                TransactionError(f"Auto-commit failed: {str(exc)}"),
+                operation="commit",
+                backend="clickhouse",
+            ) from exc
+        self.log(logging.DEBUG, "Auto-committed operation (not in active transaction)")
 
     def _handle_auto_commit_if_needed(self) -> None:
         """
         Handle auto-commit for ClickHouse.
 
-        ClickHouse respects the autocommit setting, but we also need to handle explicit commits.
+        ClickHouse respects the autocommit setting, but we also need to handle
+        explicit commits. Delegates to :meth:`_handle_auto_commit` so that the
+        commit-failure contract is identical on both call paths.
         """
-        if not self.in_transaction and self._connection:
-            if not getattr(self.config, "autocommit", True):
-                self._connection.commit()
-                self.log(logging.DEBUG, "Auto-committed operation (not in active transaction)")
+        self._handle_auto_commit()
 
     def execute(
         self,
@@ -691,10 +732,11 @@ class ClickHouseBackend(
 
         This method combines:
         1. Automatic ExecutionOptions construction when none is provided
-        2. Retry logic for connection errors (Plan B error recovery)
+        2. Retry logic for transient connection failures (Plan B error recovery)
 
-        Plan B: If a connection error occurs during execution, it will automatically
-        attempt to reconnect and retry the query up to max_retries times.
+        Plan B: If a transient connection failure occurs during execution, it
+        will automatically attempt to reconnect and retry the query up to
+        ``max_retries`` times.
 
         Args:
             sql: The SQL statement to execute
@@ -707,7 +749,8 @@ class ClickHouseBackend(
             QueryResult object containing execution results
 
         Raises:
-            DatabaseError: If execution fails after all retries
+            DatabaseError: the translated framework error, raised unchanged once
+                retries are exhausted or the failure is not transient.
         """
         # If no options provided, create default options from kwargs
         if options is None:
@@ -738,34 +781,30 @@ class ClickHouseBackend(
             if "column_adapters" in kwargs:
                 options.column_adapters = kwargs["column_adapters"]
 
-        # Execute with retry logic for connection errors
-        last_error = None
-
+        # Execute with retry logic for transient connection failures.
+        #
+        # ``super().execute()`` already translates driver exceptions through
+        # ``_handle_error``, so the errors reaching this loop are framework
+        # ``DatabaseError`` subclasses. Catching driver exception types here
+        # never matched, and translating the framework error a second time
+        # rewrote a type that was already correct. Retry only when the
+        # framework error declares itself transient, and stop after the last
+        # attempt without touching the type.
         for attempt in range(max_retries + 1):
             try:
                 return super().execute(sql, params, options=options)
-            except (ClickHouseOperationalError, ClickHouseError) as e:
-                last_error = e
+            except (ConnectionError, OperationalError) as exc:
+                if exc.transient is True and attempt < max_retries and self._reconnect():
+                    self.log(
+                        logging.WARNING,
+                        f"Transient error on attempt {attempt + 1}/{max_retries + 1}, "
+                        f"reconnected and retrying: {str(exc)}",
+                    )
+                    continue
+                raise
 
-                # Check if this is a connection error that warrants retry
-                if self._is_connection_error(e) and attempt < max_retries:
-                    self.log(logging.WARNING, f"Connection error on attempt {attempt + 1}/{max_retries + 1}: {str(e)}")
-
-                    # Attempt to reconnect
-                    if self._reconnect():
-                        continue
-                    else:
-                        self.log(logging.DEBUG, "Reconnection failed, aborting retry")
-                        break
-                else:
-                    # Not a connection error or max retries reached
-                    break
-
-        # All retries exhausted or non-connection error
-        if last_error:
-            self._handle_error(last_error)
-
-        # This should not be reached, but for type safety
+        # Unreachable for max_retries >= 0 (the loop always returns or raises);
+        # kept so a negative max_retries cannot turn a failure into ``None``.
         raise DatabaseError(f"Execution failed after {max_retries + 1} attempts")
 
     def executescript(self, sql_script: str) -> None:
