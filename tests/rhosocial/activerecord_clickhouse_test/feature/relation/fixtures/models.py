@@ -16,7 +16,7 @@ from rhosocial.activerecord.base import DerivedField, FieldProxy
 from rhosocial.activerecord.backend.expression import Column, Literal
 from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation
 from rhosocial.activerecord.backend.expression.functions import (
-    json_extract_text, length, concat, coalesce
+    json_extract_text, length, coalesce
 )
 from rhosocial.activerecord.relation.descriptors import BelongsTo, HasMany, HasOne
 from rhosocial.activerecord.relation.async_descriptors import AsyncBelongsTo, AsyncHasMany, AsyncHasOne
@@ -25,7 +25,9 @@ from rhosocial.activerecord.relation.async_descriptors import AsyncBelongsTo, As
 # ── Basic Relation Models ────────────────────────────────
 
 class Employee(ActiveRecord):
-    __table_name__ = "employees"
+    @classmethod
+    def table_name(cls):
+        return "employees"
 
     id: Optional[int] = None
     username: str
@@ -38,7 +40,9 @@ class Employee(ActiveRecord):
 
 
 class Department(ActiveRecord):
-    __table_name__ = "departments"
+    @classmethod
+    def table_name(cls):
+        return "departments"
 
     id: Optional[int] = None
     name: str
@@ -51,7 +55,9 @@ class Department(ActiveRecord):
 
 
 class Author(ActiveRecord):
-    __table_name__ = "authors"
+    @classmethod
+    def table_name(cls):
+        return "authors"
 
     id: Optional[int] = None
     name: str
@@ -67,7 +73,9 @@ class Author(ActiveRecord):
 
 
 class Book(ActiveRecord):
-    __table_name__ = "books"
+    @classmethod
+    def table_name(cls):
+        return "books"
 
     id: Optional[int] = None
     title: str
@@ -84,7 +92,9 @@ class Book(ActiveRecord):
 
 
 class Chapter(ActiveRecord):
-    __table_name__ = "chapters"
+    @classmethod
+    def table_name(cls):
+        return "chapters"
 
     id: Optional[int] = None
     title: str
@@ -97,7 +107,9 @@ class Chapter(ActiveRecord):
 
 
 class Profile(ActiveRecord):
-    __table_name__ = "profiles"
+    @classmethod
+    def table_name(cls):
+        return "profiles"
 
     id: Optional[int] = None
     bio: str
@@ -112,7 +124,9 @@ class Profile(ActiveRecord):
 # ── Advanced Relation Models (with FieldProxy, DerivedField, JSON) ──
 
 class User(ActiveRecord):
-    __table_name__ = "users"
+    @classmethod
+    def table_name(cls):
+        return "users"
 
     c: ClassVar[FieldProxy] = FieldProxy()
     id: Optional[int] = None
@@ -143,7 +157,9 @@ class User(ActiveRecord):
 
 
 class Post(ActiveRecord):
-    __table_name__ = "posts"
+    @classmethod
+    def table_name(cls):
+        return "posts"
 
     c: ClassVar[FieldProxy] = FieldProxy()
     id: Optional[int] = None
@@ -185,7 +201,9 @@ class Post(ActiveRecord):
 
 
 class Comment(ActiveRecord):
-    __table_name__ = "comments"
+    @classmethod
+    def table_name(cls):
+        return "comments"
 
     c: ClassVar[FieldProxy] = FieldProxy()
     id: Optional[int] = None
@@ -213,7 +231,9 @@ class Comment(ActiveRecord):
 # ── Async Models ─────────────────────────────────────────
 
 class AsyncUser(AsyncActiveRecord):
-    __table_name__ = "users"
+    @classmethod
+    def table_name(cls):
+        return "users"
 
     c: ClassVar[FieldProxy] = FieldProxy()
     id: Optional[int] = None
@@ -240,7 +260,9 @@ class AsyncUser(AsyncActiveRecord):
 
 
 class AsyncPost(AsyncActiveRecord):
-    __table_name__ = "posts"
+    @classmethod
+    def table_name(cls):
+        return "posts"
 
     c: ClassVar[FieldProxy] = FieldProxy()
     id: Optional[int] = None
@@ -277,7 +299,9 @@ class AsyncPost(AsyncActiveRecord):
 
 
 class AsyncComment(AsyncActiveRecord):
-    __table_name__ = "comments"
+    @classmethod
+    def table_name(cls):
+        return "comments"
 
     c: ClassVar[FieldProxy] = FieldProxy()
     id: Optional[int] = None
@@ -302,7 +326,9 @@ class AsyncComment(AsyncActiveRecord):
 # ── Relation Boundary Models ──────────────────────────────
 
 class BoundaryOwner(ActiveRecord):
-    __table_name__ = "relation_boundary_owners"
+    @classmethod
+    def table_name(cls):
+        return "relation_boundary_owners"
 
     id: Optional[int] = None
     name: str
@@ -318,7 +344,9 @@ class BoundaryOwner(ActiveRecord):
 
 
 class BoundaryProfile(ActiveRecord):
-    __table_name__ = "relation_boundary_profiles"
+    @classmethod
+    def table_name(cls):
+        return "relation_boundary_profiles"
 
     id: Optional[int] = None
     bio: str
@@ -331,7 +359,9 @@ class BoundaryProfile(ActiveRecord):
 
 
 class BoundaryPost(ActiveRecord):
-    __table_name__ = "relation_boundary_posts"
+    @classmethod
+    def table_name(cls):
+        return "relation_boundary_posts"
 
     id: Optional[int] = None
     title: str
@@ -344,7 +374,9 @@ class BoundaryPost(ActiveRecord):
 
 
 class AsyncBoundaryOwner(AsyncActiveRecord):
-    __table_name__ = "relation_boundary_owners"
+    @classmethod
+    def table_name(cls):
+        return "relation_boundary_owners"
 
     id: Optional[int] = None
     name: str
@@ -360,7 +392,9 @@ class AsyncBoundaryOwner(AsyncActiveRecord):
 
 
 class AsyncBoundaryProfile(AsyncActiveRecord):
-    __table_name__ = "relation_boundary_profiles"
+    @classmethod
+    def table_name(cls):
+        return "relation_boundary_profiles"
 
     id: Optional[int] = None
     bio: str
@@ -373,7 +407,9 @@ class AsyncBoundaryProfile(AsyncActiveRecord):
 
 
 class AsyncBoundaryPost(AsyncActiveRecord):
-    __table_name__ = "relation_boundary_posts"
+    @classmethod
+    def table_name(cls):
+        return "relation_boundary_posts"
 
     id: Optional[int] = None
     title: str
