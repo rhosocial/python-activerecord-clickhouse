@@ -1,0 +1,338 @@
+{
+  "entries": {
+    "026ace9a84110350": 4,
+    "08634c72c7c03ffd": 1,
+    "101e4e4ceaf350c2": 1,
+    "10b329845f0a95e1": 1,
+    "229b011f5326852a": 1,
+    "27e1690b06964630": 1,
+    "285d9c5405fcd9be": 1,
+    "2aefe6ab12519a69": 2,
+    "328190b943908678": 1,
+    "35f151866fd2651c": 1,
+    "3929e20fec133d8c": 1,
+    "582274b3d3e7fc7d": 1,
+    "5a73d2dc16bed3bb": 1,
+    "67c56830f44cac3c": 1,
+    "6bbb1e98a9ffa49b": 1,
+    "7c38ab02e49d6163": 1,
+    "8132a551dac6d30f": 1,
+    "84d77124137947d7": 1,
+    "8541f179750ff3e4": 1,
+    "890c8c39d0ccc05f": 2,
+    "8fcccebae913b0f2": 1,
+    "9a2939ab62d884b6": 1,
+    "9ba5cf8c8342b987": 1,
+    "9fa9e594ac9ad72a": 1,
+    "a364172778448536": 1,
+    "a66353108ab90fd1": 1,
+    "b49dfcb296596f61": 1,
+    "bc1426a305c31762": 1,
+    "c0c7daaefb145ef8": 1,
+    "c8b203e065d56f04": 1,
+    "ca66f9dc69f5df00": 1,
+    "d4aeca39d6235650": 1,
+    "d9ec27a02a72eea8": 1,
+    "dc15d9bf96e96abc": 2,
+    "e430c99cc97b4b34": 1,
+    "e8de5da02bd250a1": 1,
+    "f2d496e0cad2c2f3": 11,
+    "fd7c4fd11c523124": 1,
+    "fed74ba84bcc339d": 1,
+    "ff4e2a4b2db9cb63": 1,
+    "fffd502e479e25c2": 2
+  },
+  "findings": [
+    {
+      "found": "if_not_exists: Optional[bool]",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/expression/alter_column.py",
+      "rule": "ED-10.2"
+    },
+    {
+      "found": "kwargs: Any",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/expression/json.py",
+      "rule": "ED-KWARGS"
+    },
+    {
+      "found": "getattr(action, \"if_not_exists\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action, \"after\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action.operation, \"value\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(action, \"new_value\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"engine\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_database.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"on_cluster\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_database.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"sync\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_database.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr.action, 'value', expr.action)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_database.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"table_options\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"table_options\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(table_options, \"comment\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(t_const, \"foreign_key_table\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"replace\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/dml.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"ignore\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/dml.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"pairs\", [])",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"values\", [])",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"path\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"all\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"path\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"alias\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"view\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, 'view', None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"to_table\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"engine\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"or_replace\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"if_not_exists\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"on_cluster\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"to_columns\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"engine\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"populate\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"refresh\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"empty\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"comment\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"view\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"cascade\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"restrict\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"if_exists\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"view\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"concurrent\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"with_data\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"no_data\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"wait\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"view\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(getattr(expr, \"schedule\", None), \"depends_on\", ())",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"schedule\", None)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    },
+    {
+      "found": "getattr(expr, \"if_exists\", False)",
+      "path": "src/rhosocial/activerecord/backend/impl/clickhouse/mixins/materialized_view.py",
+      "rule": "ED-11.2"
+    }
+  ],
+  "format": 1
+}
