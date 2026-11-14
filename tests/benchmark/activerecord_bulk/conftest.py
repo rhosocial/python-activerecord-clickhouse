@@ -3,7 +3,7 @@
 from rhosocial.activerecord.testsuite.benchmark.conftest import (  # noqa: F401
     benchmark_size,
 )
-from rhosocial.activerecord.testsuite.benchmark.crud.conftest import (  # noqa: F401
+from rhosocial.activerecord.testsuite.benchmark.crud.core.conftest import (  # noqa: F401
     crud_sync_context,
     crud_async_context,
 )

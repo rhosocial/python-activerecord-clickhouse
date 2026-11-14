@@ -1,0 +1,682 @@
+# tests/rhosocial/activerecord_clickhouse_test/feature/backend/construct/dialect/test_dialect_security.py
+"""
+Tests for ClickHouse dialect SQL injection security fixes.
+
+This test module verifies that string escaping and validation
+methods properly sanitize user input to prevent SQL injection.
+Tests are run against the actual ClickHouse dialect.
+"""
+
+import pytest
+
+from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.expression.statements import (
+    ColumnDefinition,
+    ColumnConstraint,
+    ColumnDefaultConstraint,
+)
+from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
+from rhosocial.activerecord.backend.expression.objects import Table
+from rhosocial.activerecord.backend.expression.types import VarCharType
+from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
+    ClickHouseJSONTableExpression,
+    JSONTableColumn,
+)
+
+
+@pytest.fixture
+def dialect():
+    """Create a ClickHouse test dialect."""
+    return ClickHouseDialect()
+
+
+def test_clickhouse_format_column_definition_default_string_escaping(dialect):
+    """Test DEFAULT constraint string is escaped in ClickHouse."""
+    constraint = ColumnConstraint(dialect,
+                 branch=ColumnDefaultConstraint(dialect, "test's value"))
+
+    col_def = ColumnDefinition(
+        dialect,
+        "test_col",
+        VarCharType(length=255, dialect=dialect),
+        constraints=[constraint],
+    )
+
+    sql, params = dialect.format_column_definition(col_def)
+    assert "test''s value" in sql
+
+
+def test_clickhouse_format_column_definition_comment_string_escaping(dialect):
+    """Test COMMENT string is escaped in ClickHouse column definition."""
+    col_def = ColumnDefinition(
+        dialect,
+        "test_col",
+        VarCharType(length=255, dialect=dialect),
+        comment=ColumnCommentClause(dialect, "Comment with 'single quote'"),
+    )
+
+    sql, params = dialect.format_column_definition(col_def)
+    assert "Comment with ''single quote''" in sql
+
+
+def test_clickhouseescape_sql_string(dialect):
+    """Test ClickHouse inherits escape_sql_string."""
+    result = dialect.escape_sql_string("Table's comment")
+    assert result == "Table''s comment"
+
+
+def test_clickhousea_type_position_refuses_a_payload(dialect):
+    """A type name is a name, and the grammar is what says so.
+
+    The backend has no character filter of its own any more: the type
+    position is guarded by the grammar, which is the framework's rule for
+    what a name may be, and the server decides whether the type exists.
+    """
+    from rhosocial.activerecord.backend.expression import Literal
+    from rhosocial.activerecord.backend.expression.statements import (
+        AlterColumnAction,
+    )
+    from rhosocial.activerecord.backend.expression.type_name import (
+        InvalidTypeNameError,
+    )
+    from rhosocial.activerecord.backend.expression.xml import (
+        XMLSerializeExpression,
+    )
+
+    # A name is a name: the position takes it.
+    XMLSerializeExpression(dialect, Literal(dialect, "x"), "TEXT")
+    AlterColumnAction(dialect, "c", "SET DATA TYPE", new_value="TEXT")
+
+    # A value that is not a name is refused, and refused before the
+    # statement is ever rendered.
+    with pytest.raises(InvalidTypeNameError):
+        XMLSerializeExpression(
+            dialect, Literal(dialect, "x"), "TEXT; DROP TABLE users--"
+        )
+    with pytest.raises(InvalidTypeNameError):
+        AlterColumnAction(
+            dialect, "c", "SET DATA TYPE", new_value="TEXT; DROP TABLE users--"
+        )
+
+
+def test_clickhouse_format_column_definition_data_type_validation(dialect):
+    """Test column definition validates data_type (VarChar maps to String)."""
+    col_def = ColumnDefinition(
+        dialect,
+        "test_col",
+        VarCharType(length=255, dialect=dialect),
+    )
+
+    sql, params = dialect.format_column_definition(col_def)
+    assert "String" in sql
+
+
+def test_clickhouse_format_column_definition_data_type_rejects_injection(dialect):
+    """Test that malicious data_type is rejected at construction time."""
+    with pytest.raises(TypeError, match="data_type must be a DataType instance"):
+        ColumnDefinition(
+            dialect,
+            "test_col",
+            data_type="VARCHAR(255); DROP TABLE users--",
+        )
+
+
+def test_clickhouse_json_table_unsupported(dialect):
+    """ClickHouse does not support JSON_TABLE; formatting fails fast."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+    expr = ClickHouseJSONTableExpression(
+        dialect=dialect,
+        json_doc='{"key": "value"}',
+        path="$.key's",
+        columns=[
+            JSONTableColumn(
+                name="col1",
+                type="VARCHAR(255)",
+                path="$.name",
+            ),
+        ],
+    )
+
+    with pytest.raises(UnsupportedFeatureError):
+        expr.to_sql()
+
+    assert dialect.supports_json_table() is False
+
+
+def test_clickhouse_json_table_unsupported_validates_expression(dialect):
+    """JSON_TABLE expression is rejected via validate when unsupported."""
+    from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+    expr = ClickHouseJSONTableExpression(
+        dialect=dialect,
+        json_doc='{"data": "test"}',
+        path="$.data",
+        columns=[
+            JSONTableColumn(
+                name="col1",
+                type="VARCHAR(255)",
+                path="$.field's",
+            ),
+        ],
+        alias="test_alias",
+    )
+
+    with pytest.raises(UnsupportedFeatureError):
+        expr.to_sql()
+
+
+def test_clickhouse_format_cast_expression_valid(dialect):
+    """A CAST target is a DataType, and the dialect renders what it says.
+
+    ClickHouse's own type rather than a CustomType: it implements none of the
+    generic format_data_type_* names, so a target it does not model is a target
+    it cannot render. That is the capability difference, not a gap in the test.
+    """
+    from rhosocial.activerecord.backend.expression.core import CastExpression, Column
+    from rhosocial.activerecord.backend.impl.clickhouse.types import ClickHouseInt64Type
+
+    expr = CastExpression(dialect, Column(dialect, "column"), ClickHouseInt64Type(dialect))
+    sql, params = dialect.format_cast_expression(expr)
+    assert "Int64" in sql
+
+
+def test_clickhouse_format_cast_expression_rejects_injection(dialect):
+    """A string in the type position is refused at construction.
+
+    The type position cannot be bound as a parameter, so whatever lands there is
+    rendered into the statement text. That is why a string is not accepted at
+    all rather than being escaped: there is nothing to escape it into, since it
+    is code and not data."""
+    from rhosocial.activerecord.backend.expression.core import CastExpression, Column
+
+    with pytest.raises(TypeError, match="takes a DataType instance"):
+        CastExpression(dialect, Column(dialect, "column"),
+                       "INTEGER; DROP TABLE users--")
+
+
+class TestEscapeSqlStringBackslash:
+    """Tests for ClickHouse escape_sql_string with backslash escaping."""
+
+    def testescape_sql_string_backslash_escaped(self, dialect):
+        """Test backslash is properly escaped in ClickHouse."""
+        result = dialect.escape_sql_string("test\\value")
+        assert "\\\\" in result
+
+    def testescape_sql_string_backslash_and_quote(self, dialect):
+        """Test both backslash and single quote are escaped."""
+        result = dialect.escape_sql_string("test\\'value")
+        assert "\\\\" in result
+        assert "''" in result
+
+    def testescape_sql_string_preserves_others(self, dialect):
+        """Test other characters are preserved."""
+        result = dialect.escape_sql_string('test"double"value')
+        assert 'test"double"value' in result
+
+
+class TestJSONTableTypeValidation:
+    """Tests for JSON_TABLE col.type validation (fast-fail on unsupported)."""
+
+    def test_json_table_valid_data_type(self, dialect):
+        """Test valid data type in JSON_TABLE column still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_json_table_invalid_data_type_rejected(self, dialect):
+        """Test invalid data type in JSON_TABLE column fails fast as unsupported."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255); DROP TABLE users--",
+                    path="$.col1",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+
+class TestJSONTableErrorHandling:
+    """Tests for JSON_TABLE col.error_handling validation (fast-fail on unsupported)."""
+
+    def test_json_table_valid_error_handling_null(self, dialect):
+        """Test valid error_handling: NULL still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                    error_handling="NULL",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_json_table_valid_error_handling_error(self, dialect):
+        """Test valid error_handling: ERROR still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                    error_handling="ERROR",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_json_table_valid_error_handling_default(self, dialect):
+        """Test valid error_handling: DEFAULT with default_value still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                    error_handling="DEFAULT",
+                    default_value="fallback",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_json_table_invalid_error_handling_rejected(self, dialect):
+        """Test invalid error_handling fails fast as unsupported."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                    error_handling="INVALID",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+
+class TestJSONTableDefaultValueEscaping:
+    """Tests for JSON_TABLE col.default_value escaping (fast-fail on unsupported)."""
+
+    def test_json_table_default_value_escaped(self, dialect):
+        """Test default_value with single quotes still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"data": "test"}',
+            path="$.data",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                    error_handling="DEFAULT",
+                    default_value="it's broken",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+
+class TestJSONTableJsonDocSecurity:
+    """Tests for JSON_TABLE json_doc type validation (fast-fail on unsupported)."""
+
+    def test_json_table_json_doc_string(self, dialect):
+        """Test json_doc as string still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc='{"key": "value"}',
+            path="$.key",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_json_table_json_doc_to_sql_protocol_rejected_by_validate(self, dialect):
+        """Test json_doc as ToSQLProtocol still constructs, then fails fast.
+
+        Note: The dialect previously rejected ToSQLProtocol json_doc in strict
+        mode, but JSON_TABLE itself is unsupported so formatting always fails fast.
+        """
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+        from rhosocial.activerecord.backend.expression.core import Literal
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc=Literal(dialect, "JSON_COLUMN"),
+            path="$.key",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_json_table_json_doc_invalid_type_rejected(self, dialect):
+        """Test json_doc with invalid type still constructs, then fails fast."""
+        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+        expr = ClickHouseJSONTableExpression(
+            dialect=dialect,
+            json_doc={"key": "value"},
+            path="$.key",
+            columns=[
+                JSONTableColumn(
+                    name="col1",
+                    type="VARCHAR(255)",
+                    path="$.col1",
+                ),
+            ],
+        )
+
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+
+class TestCreateTableCommentEscaping:
+    """Tests for CREATE TABLE COMMENT escaping."""
+
+    def test_create_table_comment_escaped(self, dialect):
+        """Test table-level COMMENT is properly escaped."""
+        from rhosocial.activerecord.backend.expression.statements import (
+            CreateTableStatement,
+            CreateTableOptions,
+        )
+
+        expr = CreateTableStatement(
+            dialect=dialect,
+            table=Table(dialect, "test_table"),
+            columns=[],
+            table_options=CreateTableOptions(
+                dialect, comment=TableCommentClause(dialect, "Table's comment with 'quotes'")
+            ),
+        )
+
+        sql, params = dialect.format_create_table_statement(expr)
+
+        assert "Table''s comment" in sql
+        assert "quotes''" in sql
+        assert "'; DROP" not in sql
+
+    def test_create_table_comment_with_backslash(self, dialect):
+        """Test table-level COMMENT with backslash is properly escaped."""
+        from rhosocial.activerecord.backend.expression.statements import (
+            CreateTableStatement,
+            CreateTableOptions,
+        )
+
+        expr = CreateTableStatement(
+            dialect=dialect,
+            table=Table(dialect, "test_table"),
+            columns=[],
+            table_options=CreateTableOptions(dialect, comment=TableCommentClause(dialect, "Test\\value")),
+        )
+
+        sql, params = dialect.format_create_table_statement(expr)
+
+        assert "\\\\" in sql
+
+
+# ============================================================
+# storage clauses — ClickHouse's ENGINE / ORDER BY / SETTINGS nodes
+# ============================================================
+
+
+def _clause(dialect, option, value):
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseTableStorageOption,
+    )
+
+    return ClickHouseTableStorageOption(dialect, option, value=value)
+
+
+def test_storage_clause_engine_is_emitted_unquoted(dialect):
+    """An engine name is vocabulary, not a string: no quotes, no escaping."""
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseEngineSpec,
+        ClickHouseStorageOptionKind,
+    )
+
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.ENGINE,
+            ClickHouseEngineSpec(dialect, "MergeTree"),
+        )
+    )
+    assert sql == "ENGINE = MergeTree"
+    assert params == ()
+    assert "'" not in sql
+
+
+def test_storage_clause_order_by_places_each_expression(dialect):
+    """A sort key is expression nodes; a single one is not parenthesised."""
+    from rhosocial.activerecord.backend.expression import Column
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseStorageOptionKind,
+    )
+
+    single = _clause(
+        dialect,
+        ClickHouseStorageOptionKind.ORDER_BY,
+        [Column(dialect, "id")],
+    )
+    assert dialect.format_clickhouse_table_storage_option(single) == ("ORDER BY `id`", ())
+
+    composite = _clause(
+        dialect,
+        ClickHouseStorageOptionKind.ORDER_BY,
+        [Column(dialect, "a"), Column(dialect, "b")],
+    )
+    assert dialect.format_clickhouse_table_storage_option(composite) == (
+        "ORDER BY (`a`, `b`)",
+        (),
+    )
+
+
+def test_storage_clause_setting_int_value_is_unquoted(dialect):
+    """An integer setting reaches the SQL as a number, not as text."""
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseSetting,
+        ClickHouseStorageOptionKind,
+    )
+
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.SETTINGS,
+            [ClickHouseSetting(dialect, "index_granularity", 8192)],
+        )
+    )
+    assert sql == "SETTINGS index_granularity = 8192"
+    assert params == ()
+
+
+def test_storage_clause_setting_string_value_is_a_literal(dialect):
+    """A string setting is formatted as a literal -- the caller's text is never pasted.
+
+    What holds for every other value in the tree holds here too: the caller
+    supplies data, the dialect decides how it is spelled. A quote in the value
+    is doubled by ``format_literal``, so it stays inside the literal instead of
+    ending it.
+    """
+    from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+        ClickHouseSetting,
+        ClickHouseStorageOptionKind,
+    )
+
+    payload = "x'; DROP TABLE users--"
+    sql, params = dialect.format_clickhouse_table_storage_option(
+        _clause(
+            dialect,
+            ClickHouseStorageOptionKind.SETTINGS,
+            [ClickHouseSetting(dialect, "storage_policy", payload)],
+        )
+    )
+    assert sql == "SETTINGS storage_policy = 'x''; DROP TABLE users--'"
+    assert sql.count("'") == 4
+
+
+# ============================================================
+# format_identifier — identifier quoting equivalence and injection immunity
+# ============================================================
+
+
+def test_format_identifier_normal(dialect):
+    """Normal identifier is backtick-quoted."""
+    result = dialect.format_identifier("users")
+    assert result == "`users`"
+
+
+def test_format_identifier_with_backtick(dialect):
+    """Identifier with embedded backtick is properly escaped."""
+    result = dialect.format_identifier("table`name")
+    assert result == "`table``name`"
+
+
+def test_format_identifier_injection_payload(dialect):
+    """Identifier with injection payload is safely contained (balanced backticks)."""
+    payload = "users`; DROP TABLE users--"
+    result = dialect.format_identifier(payload)
+    assert result.count("`") % 2 == 0, f"Unbalanced backticks: {result}"
+    assert result == "`users``; DROP TABLE users--`"
+
+
+def test_format_identifier_naive_vs_proper_safe(dialect):
+    """For safe input, naive and proper quoting produce same structure."""
+    names = ["users", "orders", "products", "table_1", "camelCase"]
+    for name in names:
+        naive = f"`{name}`"
+        proper = dialect.format_identifier(name)
+        assert naive == proper, f"Mismatch for '{name}': naive={naive}, proper={proper}"
+
+
+def test_format_identifier_naive_vs_proper_malicious(dialect):
+    """For malicious input, proper quoting prevents breakout that naive allows."""
+    payloads = [
+        "x`; DROP TABLE users--",
+        "y`; DELETE FROM t--",
+        "z`; UPDATE t SET a=1--",
+    ]
+    for payload in payloads:
+        naive = f"`{payload}`"
+        proper = dialect.format_identifier(payload)
+
+        assert naive.count("`") % 2 != 0, f"Naive should unbalance backticks for '{payload}': {naive}"
+        assert proper.count("`") % 2 == 0, f"Proper should balance backticks for '{payload}': {proper}"
+
+
+def test_format_identifier_empty_string(dialect):
+    """Empty identifier produces empty backticks."""
+    assert dialect.format_identifier("") == "``"
+
+
+# ── _escape_literal_percent ────────────────────────────────────────────
+
+
+def test_escape_literal_percent_preserves_placeholders():
+    """_escape_literal_percent escapes literal % but preserves %s markers."""
+    from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+
+    # %s placeholder → unchanged
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM users WHERE name = %s"
+    ) == "SELECT * FROM users WHERE name = %s"
+
+    # Literal % outside %s → %%
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM users WHERE name LIKE 'foo%' AND id = %s"
+    ) == "SELECT * FROM users WHERE name LIKE 'foo%%' AND id = %s"
+
+    # Multiple %s with literal % between
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM t WHERE a = %s AND b LIKE '100%' AND c = %s"
+    ) == "SELECT * FROM t WHERE a = %s AND b LIKE '100%%' AND c = %s"
+
+    # Pre-escaped %% → %%%% (preserved, then % formatting folds back to %%)
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM system.tables WHERE name LIKE '%%view%%'"
+    ) == "SELECT * FROM system.tables WHERE name LIKE '%%%%view%%%%'"
+
+    # No params → no %s → all % are literal and should be escaped
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT * FROM t WHERE name LIKE '100%'"
+    ) == "SELECT * FROM t WHERE name LIKE '100%%'"
+
+    # Empty string
+    assert ClickHouseBackend._escape_literal_percent("") == ""
+
+    # No % at all
+    assert ClickHouseBackend._escape_literal_percent(
+        "SELECT 1"
+    ) == "SELECT 1"

@@ -17,10 +17,27 @@ if TYPE_CHECKING:
     )
 
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    ColumnNotNullConstraint,
     ColumnPrimaryKeyConstraint,
+    ColumnUniqueConstraint,
+    TablePrimaryKeyConstraint,
+    TableUniqueConstraint,
 )
 
 from .ddl_table_engine import ClickHouseTableEngineMixin
+
+#: Table settings the fallback storage clause turns on.
+#:
+#: A portable declaration only names columns and a key, but the framework's
+#: save/update path issues ``UPDATE ... SET ... WHERE`` and ``DELETE ... WHERE``,
+#: and ClickHouse refuses both on a MergeTree table without a materialized
+#: block-number column (``Code: 48. Lightweight updates are not supported``).
+#: The offset column is the companion ClickHouse asks for alongside it; this
+#: backend's own fixtures have declared both since before the suite moved to
+#: portable tables.
+_LIGHTWEIGHT_MUTATION_SETTINGS = (
+    "SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1"
+)
 
 
 class ClickHouseTableMixin(ClickHouseTableEngineMixin):
@@ -32,6 +49,33 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
     table DDL protocol describes one surface, and the conformance suite pairs
     it with one mixin.
     """
+
+    #: Rendered types an auto-generated primary key does not fit in.
+    #:
+    #: The backend generates a 64-bit snowflake id for an auto-generated
+    #: integer key (:mod:`.id_generator`), so a key column declared at 32 bits
+    #: or less cannot hold it. ClickHouse's SQL path does not reject the
+    #: overflow -- it truncates the value to the column's width -- so the
+    #: mismatch is silent at write time and the row simply cannot be found by
+    #: its id afterwards. Widening the column is therefore part of rendering,
+    #: not a separate migration: values up to ``2**63-1`` are exactly what the
+    #: generator produces, and the signed/unsigned family is preserved.
+    _NARROW_KEY_TYPES = {
+        "Int8": "Int64",
+        "Int16": "Int64",
+        "Int32": "Int64",
+        "UInt8": "UInt64",
+        "UInt16": "UInt64",
+        "UInt32": "UInt64",
+    }
+
+    #: Rendered types that cannot sit inside ``Nullable``.
+    #:
+    #: ClickHouse answers ``Code: 43. Nested type Array(Int32) cannot be inside
+    #: Nullable type`` for each of the container families; an array or map is
+    #: already empty-or-not, and a ``Nullable`` is already nullable, so neither
+    #: needs (or accepts) wrapping.
+    _NON_NULLABLE_CONTAINER_PREFIXES = ("Array(", "Map(", "Tuple(", "Nullable(")
 
     def supports_create_table_like(self) -> bool:
         """ClickHouse expresses a structure copy with ``AS <source>``, not ``LIKE``.
@@ -90,6 +134,34 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         at ``other_db.users`` would create ``users`` in the connection's own
         database.
 
+        Two things this renderer supplies that the portable declaration cannot:
+
+        * **A storage clause.** ClickHouse refuses a table without an engine
+          (``Code: 62 ... Engine must be specified`` unless the server's
+          ``default_table_engine`` setting happens to cover it), so a
+          statement that declares no ``ClickHouseCreateTableOptions`` storage
+          options gets ``ENGINE = MergeTree()`` plus a sort key. The sort key
+          is the primary key -- a table-level ``PRIMARY KEY`` or the columns
+          carrying the ``PRIMARY KEY`` modifier -- because the column list's
+          ``PRIMARY KEY`` is an engine parameter and the server rejects a key
+          that is not a prefix of the sorting key (``Code: 36``). With no
+          primary key the sort key is ``tuple()``, the empty key. The clause
+          also turns on the block-number settings the framework's
+          ``UPDATE`` / ``DELETE`` path needs (see
+          :data:`_LIGHTWEIGHT_MUTATION_SETTINGS`).
+        * **Capability-based omission of markers ClickHouse cannot honour.**
+          ``AUTO_INCREMENT`` is not rendered at all (core never renders the
+          flag; this backend generates the value client-side, see
+          :mod:`id_generator`), and ``UNIQUE`` -- at either level -- is
+          dropped when :meth:`supports_unique_constraint` is ``False``, which
+          it is here. Uniqueness in ClickHouse is an engine characteristic
+          that deduplicates at merge time and never rejects a write, so a
+          ``UNIQUE`` clause is not a weaker guarantee but a syntax error;
+          rendering it would make every portable table declaration
+          unrepresentable. The strict per-constraint formatters still refuse
+          it when called directly, so a caller that asks for one clause gets
+          the refusal.
+
         Raises:
             TypeError: ``CreateTableStatement.table`` is not a Table. Any other
                 object kind carries its own ``format_method``, so the dialect
@@ -143,13 +215,30 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         if on_cluster is not None:
             parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
 
+        primary_key_columns = tuple(self._primary_key_columns(expr))
+        key_columns = tuple(
+            dict.fromkeys(
+                primary_key_columns
+                + tuple(self._declared_key_columns(expr.table_options))
+            )
+        )
+        widen_integers = any(
+            self._has_auto_increment_key(col_def) for col_def in expr.columns
+        )
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self.format_column_definition(col_def)
+            col_sql, col_params = self.format_column_definition(
+                col_def,
+                omit_unenforceable=True,
+                key_columns=key_columns,
+                widen_integers=widen_integers,
+            )
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
+            if isinstance(t_const.branch, TableUniqueConstraint) and not self.supports_unique_constraint():
+                continue
             const_sql, const_params = self.format_table_constraint(t_const)
             column_parts.append(const_sql)
             all_params.extend(const_params)
@@ -167,6 +256,10 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         if storage_sql:
             parts.append(storage_sql)
             all_params.extend(storage_params)
+        else:
+            default_storage = self._format_minimal_storage_clause(expr)
+            if default_storage:
+                parts.append(default_storage)
 
         if expr.table_options is not None and expr.table_options.comment is not None:
             comment_sql, _ = self.format_table_comment_clause(expr.table_options.comment)
@@ -179,6 +272,51 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
                 all_params.extend(partition_params)
 
         return " ".join(parts), tuple(all_params)
+
+    def _format_minimal_storage_clause(self, expr: "CreateTableStatement") -> str:
+        """Render the fallback storage clause for a portable declaration.
+
+        Used only when the statement declares no ClickHouse storage options:
+        such a statement names columns and a key but not an engine, and
+        ClickHouse cannot create a table without one. The sort key follows the
+        primary key so the column list's ``PRIMARY KEY`` modifier (an engine
+        parameter, not a constraint) stays a prefix of it; with no primary key
+        the key is ``tuple()``.
+        """
+        primary_key = self._primary_key_columns(expr)
+        if primary_key:
+            body = ", ".join(self.format_identifier(column) for column in primary_key)
+            return (
+                f"ENGINE = MergeTree() ORDER BY ({body}) "
+                f"{_LIGHTWEIGHT_MUTATION_SETTINGS}"
+            )
+        return f"ENGINE = MergeTree() ORDER BY tuple() {_LIGHTWEIGHT_MUTATION_SETTINGS}"
+
+    @staticmethod
+    def _primary_key_columns(expr: "CreateTableStatement") -> List[str]:
+        """Collect the primary-key columns in declaration order.
+
+        Both spellings of a portable declaration count: the column-level
+        ``PRIMARY KEY`` modifier and the table-level ``PRIMARY KEY (cols)``
+        constraint. A column named twice is listed once.
+        """
+        columns: List[str] = []
+
+        def add(name: str) -> None:
+            if name not in columns:
+                columns.append(name)
+
+        for col_def in expr.columns:
+            for constraint in col_def.constraints:
+                if isinstance(constraint.branch, ColumnPrimaryKeyConstraint):
+                    add(col_def.name)
+                    break
+        for t_const in expr.table_constraints:
+            branch = t_const.branch
+            if isinstance(branch, TablePrimaryKeyConstraint):
+                for column in branch.columns:
+                    add(column)
+        return columns
 
     def _format_table_storage_clauses(self, table_options: Any) -> Tuple[str, tuple]:
         """Render the storage clause run a ClickHouse options node declares.
@@ -327,12 +465,46 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         parts.append(f"CLONE AS {source}")
         return " ".join(parts), ()
 
-    def format_column_definition(self, col_def: "ColumnDefinition") -> Tuple[str, tuple]:
+    def format_column_definition(
+        self,
+        col_def: "ColumnDefinition",
+        *,
+        omit_unenforceable: bool = False,
+        key_columns: Tuple[str, ...] = (),
+        widen_integers: bool = False,
+    ) -> Tuple[str, tuple]:
         """Format a single column definition with ClickHouse-specific syntax.
 
         Accepts both the generic ``ColumnDefinition`` and the ClickHouse
         ``ClickHouseColumnDefinition``; the latter's ClickHouse-only attributes
         (``codec`` / ``materialized`` / ``alias`` / ``ttl``) are rendered here.
+
+        ``omit_unenforceable`` is set by :meth:`format_create_table_statement`
+        when composing a statement from a portable declaration. It drops the
+        two markers this engine has nowhere to put -- ``AUTO_INCREMENT`` (the
+        value is generated client-side, and core never renders the flag) and
+        ``UNIQUE`` (no engine enforces uniqueness at write time) -- instead of
+        refusing the whole table, widens a narrower-than-64-bit auto-generated
+        key so it can hold the generated id (see :attr:`_NARROW_KEY_TYPES`), and
+        makes a column nullable when the declaration does not say ``NOT NULL``
+        and the column is not part of the key. The last step is what an
+        ordinary SQL column means: a declaration that omits ``NOT NULL``
+        accepts the null, while ClickHouse's plain types do not -- they coerce
+        ``NULL`` to the type's default and read back a value, so an optional
+        field would silently become ``''`` / ``0``. ``Nullable(T)`` is the only
+        spelling that round-trips it. Array / Map / Tuple columns are left
+        alone (the server refuses ``Nullable`` around them), and
+        ``LowCardinality`` is wrapped from the inside. Direct calls keep the
+        strict behaviour.
+
+        ``widen_integers`` widens the table's other integer columns to 64 bits
+        alongside its auto-generated key. The declaration says "integer", not
+        "reference to a 64-bit key", so a column such as ``comments.post_ref``
+        would otherwise be 32 bits and truncate the key it stores (the SQL
+        path does not reject the overflow). ClickHouse's own fixtures pair
+        ``id Int64`` with ``user_id Int64`` for exactly this reason. A table
+        whose key is not auto-generated keeps the declared widths, so the
+        width-sensitive type tests are unaffected.
 
         Raises:
             TypeError: ``col_def.data_type`` is not a DataType. The generic
@@ -350,6 +522,14 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         )
 
         type_sql, type_params = col_def.data_type.to_sql()
+        if omit_unenforceable:
+            if widen_integers or self._has_auto_increment_key(col_def):
+                type_sql = self._NARROW_KEY_TYPES.get(type_sql, type_sql)
+            if (
+                col_def.name not in key_columns
+                and not self._declares_not_null(col_def)
+            ):
+                type_sql = self._nullable_type_sql(type_sql)
         parts = [self.format_identifier(col_def.name), type_sql]
         params: List[Any] = list(type_params)
 
@@ -357,15 +537,22 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             # S3: the branch names the kind and carries that kind's own fields.
             # ``is_auto_increment`` belongs to the PRIMARY KEY branch, so reading
             # it off the production would be a field the production does not
-            # declare.
+            # declare. Core renders the PRIMARY KEY modifier without the flag,
+            # so the marker is already absent from the SQL; the portable path
+            # only has to stop refusing it.
             if (
-                isinstance(constraint.branch, ColumnPrimaryKeyConstraint)
+                not omit_unenforceable
+                and isinstance(constraint.branch, ColumnPrimaryKeyConstraint)
                 and constraint.branch.is_auto_increment
             ):
                 raise UnsupportedFeatureError(
                     self.name, "AUTO_INCREMENT column",
                     suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
                 )
+            if omit_unenforceable and isinstance(
+                constraint.branch, ColumnUniqueConstraint
+            ):
+                continue
             suffix, cp = self.format_column_constraint(constraint)
             constraint_text = suffix.strip()
             if constraint_text:
@@ -398,6 +585,71 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             parts.append(comment_sql.strip())
 
         return " ".join(parts), tuple(params)
+
+    @staticmethod
+    def _declared_key_columns(table_options: Any) -> List[str]:
+        """Names the caller's own storage clauses sort or key on.
+
+        ``ORDER BY`` / ``PRIMARY KEY`` declared through
+        ``ClickHouseCreateTableOptions`` may name columns the column list
+        renders as nullable; ClickHouse refuses a nullable sorting key
+        (``Code: 44 ... Sorting key contains nullable column``). A clause that
+        names a column is proof the caller wants it in the key, so those
+        columns are excluded from the portable nullability wrapping.
+        """
+        from rhosocial.activerecord.backend.expression.column_types import ColumnBase
+
+        from ..expression.storage_option import ClickHouseStorageOptionKind
+
+        names: List[str] = []
+        for clause in getattr(table_options, "table_storage_options", ()):
+            if clause.option not in (
+                ClickHouseStorageOptionKind.ORDER_BY,
+                ClickHouseStorageOptionKind.PRIMARY_KEY,
+            ):
+                continue
+            value = clause.value
+            items = value if isinstance(value, (list, tuple)) else [value]
+            for item in items:
+                name = getattr(item, "name", None)
+                if isinstance(item, ColumnBase) and isinstance(name, str):
+                    names.append(name)
+        return names
+
+    @staticmethod
+    def _declares_not_null(col_def: "ColumnDefinition") -> bool:
+        """Whether the column's own declaration says ``NOT NULL``."""
+        return any(
+            isinstance(constraint.branch, ColumnNotNullConstraint)
+            for constraint in col_def.constraints
+        )
+
+    @classmethod
+    def _nullable_type_sql(cls, type_sql: str) -> str:
+        """Wrap a rendered type in ``Nullable`` where the server allows it.
+
+        ``LowCardinality`` is the one family that must be wrapped from the
+        inside (``Nullable(LowCardinality(String))`` is ``Code: 43``,
+        ``LowCardinality(Nullable(String))`` is accepted); the container
+        families accept no wrapper at all.
+        """
+        if type_sql.startswith("LowCardinality("):
+            return f"LowCardinality(Nullable({type_sql[len('LowCardinality('):-1]}))"
+        if type_sql.startswith(cls._NON_NULLABLE_CONTAINER_PREFIXES):
+            return type_sql
+        return f"Nullable({type_sql})"
+
+    @staticmethod
+    def _has_auto_increment_key(col_def: "ColumnDefinition") -> bool:
+        """Whether the column carries an auto-generated ``PRIMARY KEY`` marker."""
+        for constraint in col_def.constraints:
+            branch = constraint.branch
+            if (
+                isinstance(branch, ColumnPrimaryKeyConstraint)
+                and branch.is_auto_increment
+            ):
+                return True
+        return False
 
     def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
         """Format a table-level constraint, narrowing on the branch class.

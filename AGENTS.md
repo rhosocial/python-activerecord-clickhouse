@@ -63,6 +63,25 @@ and raise `UnsupportedFeatureError` instead of being emulated:
 
 - Primary keys are generated client-side (snowflake `Int64`) because ClickHouse
   has no AUTO_INCREMENT; requires core `>=1.0.0.dev30` (primary_key propagation).
+- A `CREATE TABLE` built from a portable (SQL-standard) declaration is adapted
+  by the table renderer, because the declaration cannot express ClickHouse's
+  storage model. The renderer appends `ENGINE = MergeTree()` plus
+  `ORDER BY (<primary key columns>)` (or `tuple()` with no key) and the
+  `enable_block_number_column` / `enable_block_offset_column` settings the
+  UPDATE/DELETE path needs. `AUTO_INCREMENT` is not rendered (the id is
+  generated client-side), and `UNIQUE` constraints are dropped because no
+  ClickHouse engine enforces uniqueness at write time — the strict
+  per-constraint formatters still refuse them when called directly. The verbose
+  form is still an `UnsupportedFeatureError` when the caller asks for the clause
+  itself.
+- The same renderer widens a narrower-than-64-bit auto-generated key, and the
+  table's other integer columns with it, to `Int64` / `UInt64`: ClickHouse's SQL
+  path truncates an overflowing value silently, so a 32-bit key or a 32-bit
+  reference to it would store a different value than the model reports.
+- A portable column that does not say `NOT NULL` is rendered `Nullable(T)`
+  (except for key columns and the Array/Map/Tuple families); ClickHouse's plain
+  types coerce `NULL` to a default instead of storing it, so an optional field
+  would read back as `''` / `0`.
 - Mutations run with `mutations_sync=1`; `affected_rows` for UPDATE/DELETE is a
   pre-count of rows matching the WHERE predicate.
 - Optional model fields must map to `Nullable(T)` columns.

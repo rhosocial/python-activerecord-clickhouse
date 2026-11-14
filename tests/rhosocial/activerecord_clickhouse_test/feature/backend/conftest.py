@@ -1,108 +1,89 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/conftest.py
+"""Fixtures for the backend-owned tests.
+
+The backend runs these against a real server. The scenario supplies the
+connection parameters; the database name is derived from the directory that
+owns the test, so two directories never share tables.
+
+These directories declare no testsuite contract: they drive the backend object
+directly instead of configuring models, so they never request ``environment``.
+"""
+from typing import Any, Dict, Tuple, Type
+
 import pytest
 import pytest_asyncio
-import yaml
-import os
-from typing import Dict, Any, Tuple, Type
+
+import support.clickhouse
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
 # --- Scenario Loading Logic ---
 
-SCENARIO_MAP: Dict[str, Dict[str, Any]] = {}
+SCENARIO_MAP: Dict[str, Dict[str, Any]] = dict(support.clickhouse.SCENARIO_MAP)
+
+_PREPARED_DATABASES = set()
 
 
-def register_scenario(name: str, config: Dict[str, Any]):
-    SCENARIO_MAP[name] = config
+def get_enabled_scenarios() -> Dict[str, Any]:
+    return SCENARIO_MAP
 
 
-def _load_scenarios_from_config():
+def get_scenario_names():
+    return list(get_enabled_scenarios().keys())
+
+
+def _database_for(request) -> str:
+    """Derive the logical database the directory owning the test runs in.
+
+    The category directory ``feature`` is not part of the name; ``backend``
+    leads it so the backend-owned databases are told apart from the feature
+    ones at a glance.
     """
-    Load scenarios from a configuration file with the following priority:
-    1. Environment variable specified path (highest priority)
-    2. Default path tests/config/clickhouse_scenarios.yaml (lowest priority)
-    If no valid configuration file is found, terminate with an error.
-    """
-    config_path = None
-    env_config_path = os.getenv("CLICKHOUSE_SCENARIOS_CONFIG_PATH")
-
-    if env_config_path and os.path.exists(env_config_path):
-        print(f"Loading ClickHouse scenarios from environment-specified path: {env_config_path}")
-        config_path = env_config_path
-    else:
-        default_path = os.path.join(os.path.dirname(__file__), "../../../../config", "clickhouse_scenarios.yaml")
-        if os.path.exists(default_path):
-            config_path = default_path
-        elif env_config_path:
-            # Path from env var was given but not found
-            print(f"Warning: Scenario file specified in CLICKHOUSE_SCENARIOS_CONFIG_PATH not found: {env_config_path}")
-            return
-
-    if not config_path:
-        raise FileNotFoundError(
-            "No ClickHouse scenarios configuration file found. "
-            "Either set CLICKHOUSE_SCENARIOS_CONFIG_PATH to a valid YAML file "
-            "or place clickhouse_scenarios.yaml in the tests/config directory."
-        )
-
+    parts = list(request.node.path.parts)
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
-
-        if "scenarios" not in config_data:
-            raise ValueError(f"Configuration file {config_path} does not contain 'scenarios' key")
-
-        for scenario_name, config in config_data["scenarios"].items():
-            register_scenario(scenario_name, config)
-
-        _apply_scenario_filter()
-
-    except ImportError:
-        raise ImportError("PyYAML is required to load ClickHouse scenario configuration files")  # noqa: B904
+        index = max(i for i, part in enumerate(parts) if part == "backend")
+        names = [part for part in parts[index + 1 : -1] if part]
+        return "test_backend" + "".join("_" + name for name in names)
+    except ValueError:
+        return "test_backend"
 
 
-def _apply_scenario_filter():
-    """Filter SCENARIO_MAP based on the active scenarios env var.
-
-    Keeps the backend-feature scenarios consistent with the scenarios active
-    for the rest of the test run (set via ``--scenarios``).
-    """
-    filter_str = os.getenv("CLICKHOUSE_ACTIVE_SCENARIOS") or os.getenv("TESTSUITE_ACTIVE_SCENARIOS")
-    if not filter_str:
+def _prepare_database(scenario_name: str, database: str) -> None:
+    """Create the directory's database once per scenario."""
+    key = (scenario_name, database)
+    if key in _PREPARED_DATABASES:
         return
-    allowed = set(s.strip() for s in filter_str.split(",") if s.strip())
-    if not allowed:
-        return
-    for name in [n for n in SCENARIO_MAP if n not in allowed]:
-        del SCENARIO_MAP[name]
+    support.clickhouse.scenario(scenario_name).reset_database(database)
+    _PREPARED_DATABASES.add(key)
 
 
-_load_scenarios_from_config()
-
-
-def get_scenario(name: str) -> Tuple[Type[ClickHouseBackend], ClickHouseConnectionConfig]:
+def get_scenario(
+    name: str, database: str = "test_backend"
+) -> Tuple[Type[ClickHouseBackend], ClickHouseConnectionConfig]:
+    """Return ``(backend_class, config)`` for one directory's database."""
     if name not in SCENARIO_MAP:
         if SCENARIO_MAP:
             name = next(iter(SCENARIO_MAP))
         else:
             raise ValueError("No scenarios registered")
-    scenario_config = SCENARIO_MAP[name].copy()
-    # Apply the pooled database name so parallel workers never share a schema.
-    from providers.pooling import resolve_database_name
-
-    pooled_db = resolve_database_name(name)
-    if pooled_db:
-        scenario_config["database"] = pooled_db
-    # Drop metadata fields not accepted by the connection config.
-    for meta_key in ("protocol", "ssl_disabled", "charset"):
-        scenario_config.pop(meta_key, None)
-    config = ClickHouseConnectionConfig(**scenario_config)
-    return ClickHouseBackend, config
+    _prepare_database(name, database)
+    return ClickHouseBackend, support.clickhouse.scenario(name).make_config(database)
 
 
-def get_enabled_scenarios() -> Dict[str, Any]:
-    return SCENARIO_MAP
+def pytest_collection_modifyitems(config, items):
+    """Pin a backend directory's tests to one worker.
+
+    These directories create and drop tables in the directory's own database,
+    so two workers must never run tests from the same directory at once.
+    """
+    for item in items:
+        parts = item.path.parts
+        if "backend" not in parts:
+            continue
+        item.add_marker(
+            pytest.mark.xdist_group("clickhouse-backend::" + str(item.path.parent))
+        )
 
 
 # --- Provider Logic ---
@@ -112,10 +93,10 @@ class BackendFeatureProvider:
     def __init__(self):
         self._backend = None
 
-    def setup_backend(self, scenario_name: str):
+    def setup_backend(self, scenario_name: str, database: str):
         if self._backend:
             return self._backend
-        backend_class, config = get_scenario(scenario_name)
+        backend_class, config = get_scenario(scenario_name, database)
         self._backend = backend_class(connection_config=config)
         self._backend.connect()
         self._backend.introspect_and_adapt()
@@ -130,21 +111,17 @@ class BackendFeatureProvider:
 # --- Fixtures ---
 
 
-def get_scenario_names():
-    return list(get_enabled_scenarios().keys())
-
-
 @pytest.fixture(scope="function", params=get_scenario_names())
 def clickhouse_backend(request):
     scenario_name = request.param
     provider = BackendFeatureProvider()
-    backend = provider.setup_backend(scenario_name)
+    backend = provider.setup_backend(scenario_name, _database_for(request))
     yield backend
     provider.cleanup()
 
 
 @pytest.fixture(scope="function")
-def clickhouse_backend_single():
+def clickhouse_backend_single(request):
     """Non-parameterized fixture using the first available scenario.
 
     Use this for tests whose results do not vary across database versions
@@ -157,7 +134,7 @@ def clickhouse_backend_single():
         pytest.skip("No ClickHouse scenarios configured")
     scenario_name = scenario_names[0]
     provider = BackendFeatureProvider()
-    backend = provider.setup_backend(scenario_name)
+    backend = provider.setup_backend(scenario_name, _database_for(request))
     yield backend
     provider.cleanup()
 
@@ -216,36 +193,17 @@ def clickhouse_control_backend_single(clickhouse_backend_single):
 @pytest_asyncio.fixture(scope="function")
 async def async_clickhouse_control_backend(async_clickhouse_backend):
     """
-    Dedicated async control backend that connects to the same scenario as async_clickhouse_backend.
-
-    This fixture provides an independent async backend instance for operations that
-    need to control or interfere with the main test backend, such as:
-    - KILL CONNECTION statements
-    - Setting global variables
-    - Monitoring other connections
-
-    Automatically follows the same scenario parametrization as async_clickhouse_backend.
+    Async control backend; ClickHouse has no async backend, so this always skips.
     """
-    backend = AsyncClickHouseBackend(connection_config=async_clickhouse_backend.config)
-    await backend.connect()
-    await backend.introspect_and_adapt()
-    yield backend
-    await backend.disconnect()
+    pytest.skip("rhosocial-activerecord-clickhouse does not provide an async backend")
 
 
 @pytest_asyncio.fixture(scope="function")
 async def async_clickhouse_control_backend_single(async_clickhouse_backend_single):
     """
-    Non-parameterized async control backend following async_clickhouse_backend_single.
-
-    See clickhouse_control_backend_single for the rationale: it must stay on the same
-    scenario as the pinned single backend.
+    Async control backend on the pinned single scenario; always skips.
     """
-    backend = AsyncClickHouseBackend(connection_config=async_clickhouse_backend_single.config)
-    await backend.connect()
-    await backend.introspect_and_adapt()
-    yield backend
-    await backend.disconnect()
+    pytest.skip("rhosocial-activerecord-clickhouse does not provide an async backend")
 
 
 # --- Type Adapters ---

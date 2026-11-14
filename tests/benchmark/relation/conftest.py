@@ -3,13 +3,13 @@
 Bridges ``user_post_comment_classes`` from the testsuite's relation conftest
 so that benchmarks can reuse the same model definitions and backend setup.
 
+This directory is a minimal test set of its own: it declares the users / posts /
+comments contract, so the testsuite prepares those tables in this directory's
+database before every test and drops them afterwards.
+
 Redis benchmark support is not introduced in this release.  The related
 source snippets are kept as comments for follow-up external cache design.
 """
-
-from rhosocial.activerecord.testsuite.feature.relation.conftest import (  # noqa: F401
-    user_post_comment_classes,
-)
 
 from dataclasses import dataclass
 from typing import Any
@@ -21,6 +21,64 @@ from rhosocial.activerecord.relation.cache_backends import InMemoryCache
 
 # Not introduced in this release; keep snippets for follow-up external cache design.
 # from rhosocial.activerecord.relation.cache_backends import CacheSerializer, RedisCache
+
+from rhosocial.activerecord.testsuite.feature.relation.conftest import (  # noqa: F401
+    user_post_comment_classes,
+)
+
+GROUP_TABLES = ("users", "posts", "comments")
+
+# This benchmark set keeps its own explicit ClickHouse DDL: the engine clause
+# and the block-number settings are part of the table definition, and the ids
+# are the backend's client-generated Int64 keys.
+_ENGINE = (
+    "ENGINE = MergeTree ORDER BY id "
+    "SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1"
+)
+
+TABLES = {
+    "users": f"""
+        CREATE TABLE users (
+            id Int64,
+            name String,
+            email Nullable(String),
+            settings Nullable(String)
+        ) {_ENGINE}
+    """,
+    "posts": f"""
+        CREATE TABLE posts (
+            id Int64,
+            title String,
+            body String,
+            user_id Int64,
+            view_count Int32,
+            metadata Nullable(String)
+        ) {_ENGINE}
+    """,
+    "comments": f"""
+        CREATE TABLE comments (
+            id Int64,
+            body String,
+            post_id Int64,
+            meta Nullable(String)
+        ) {_ENGINE}
+    """,
+}
+
+
+def ensure_database(environment):
+    environment.reset_database()
+
+
+def prepare(environment):
+    for name in GROUP_TABLES:
+        environment.execute(TABLES[name])
+
+
+def teardown(environment):
+    for name in reversed(GROUP_TABLES):
+        environment.execute(f"DROP TABLE IF EXISTS `{name}`")
+
 
 pytestmark = [
     pytest.mark.benchmark,
@@ -49,7 +107,7 @@ class RelationBenchmarkContext:
 # def _redis_client():
 #     redis = pytest.importorskip("redis")
 #     try:
-#         from providers.redis_scenarios import get_redis_scenario
+#         from support.clickhouse import get_redis_scenario
 #
 #         config = get_redis_scenario("benchmark")
 #     except (FileNotFoundError, KeyError):

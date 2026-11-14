@@ -1,0 +1,11 @@
+# tests/rhosocial/activerecord_clickhouse_test/feature/mixins/core/test_combined_articles.py
+"""
+Test combined article functionality (combining multiple mixins) for ClickHouse backend.
+
+This module imports and runs the shared tests from the testsuite package,
+ensuring ClickHouse backend compatibility.
+"""
+
+# Import shared tests from testsuite package
+from rhosocial.activerecord.testsuite.feature.mixins.core.test_combined_articles import *  # noqa: F403
+
