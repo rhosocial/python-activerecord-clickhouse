@@ -42,7 +42,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseStorageOptionKind,
     ClickHouseTableStorageOption,
 )
-from rhosocial.activerecord.testsuite.core.fixture_types import supports_drop_if_exists
+from rhosocial.activerecord.testsuite.fixture_types import supports_drop_if_exists
 
 
 class Definition:
