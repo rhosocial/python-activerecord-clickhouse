@@ -108,25 +108,25 @@ class TestAdapters:
         assert parsed.year == 2024 and parsed.hour == 10
         assert a.from_database(None, datetime) is None
 
-    def test_there_is_no_vector_adapter(self):
-        """``ClickHouseVectorAdapter`` adapted MySQL 9.0's ``VECTOR`` column.
+    def test_there_is_no_mysql_vector_adapter(self):
+        """ClickHouse has no MySQL 9.0 ``VECTOR(n)`` column, so no such adapter.
 
-        ClickHouse has no such type — ``CREATE TABLE t (a VECTOR(4))`` is
-        rejected with ``Unknown data type family: VECTOR`` on 26.7.3.19 — and the
-        adapter's only real content was MySQL's 16384-dimension ceiling. What
-        ClickHouse stores an embedding in is ``Array(Float32)``, which is a plain
-        Python ``list`` of floats and needs no adapter: the driver already returns
-        an array column as a list (``test_array_roundtrip`` in
-        ``types/test_native_types.py``).
-
-        Asserted as an absence, so re-adding the class does not quietly restore a
-        ``VECTOR(n)`` adapter.
+        ``CREATE TABLE t (a VECTOR(4))`` is rejected with
+        ``Unknown data type family: VECTOR`` on 26.7.3.19, and the MySQL
+        adapter's only real content was MySQL's 16384-dimension ceiling
+        (``MAX_VECTOR_DIMENSION``), which has no meaning here. What ClickHouse
+        stores an embedding in is ``Array(Float32)`` (a plain list of floats)
+        or a ``String`` carrier; the neutral ``Vector`` family is carried by
+        ``ClickHouseVectorAdapter``, which derives from the neutral
+        ``VectorAdapterBase`` rather than implementing a ``VECTOR(n)`` column.
         """
         import rhosocial.activerecord.backend.impl.clickhouse.adapters as adapters
+        from rhosocial.activerecord.backend.adapters.vector import VectorAdapterBase
 
-        assert "ClickHouseVectorAdapter" not in vars(adapters)
-        assert not [name for name in vars(adapters) if "Vector" in name]
         assert not hasattr(adapters, "MAX_VECTOR_DIMENSION")
+        vector_adapter = getattr(adapters, "ClickHouseVectorAdapter", None)
+        assert vector_adapter is not None, "the neutral Vector family needs an adapter"
+        assert issubclass(vector_adapter, VectorAdapterBase)
 
 
 class TestEnumAdapter:

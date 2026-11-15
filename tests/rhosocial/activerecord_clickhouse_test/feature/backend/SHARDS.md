@@ -33,6 +33,10 @@ The construction directories test rendering only, so they never ask for a
 backend and therefore never create a database. `construct/clickhouse/` is a
 namespace; its leaf `id_generation/` owns no database for the same reason.
 
+`core/` holds the backend's DB-free type adapter inventory test. It asks for
+no backend fixture either, so like the `construct/` directories it owns no
+database and never contacts a server.
+
 ## Directories with tests
 
 | Leaf directory | Database |

@@ -11,6 +11,10 @@ Redis benchmark support is not introduced in this release.  The related
 source snippets are kept as comments for follow-up external cache design.
 """
 
+from rhosocial.activerecord.backend.options import ExecutionOptions
+from rhosocial.activerecord.backend.schema import StatementType
+
+
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,7 +30,6 @@ from rhosocial.activerecord.testsuite.feature.relation.conftest import (  # noqa
     user_post_comment_classes,
 )
 
-GROUP_TABLES = ("users", "posts", "comments")
 
 # This benchmark set keeps its own explicit ClickHouse DDL: the engine clause
 # and the block-number settings are part of the table definition, and the ids
@@ -66,18 +69,10 @@ TABLES = {
 }
 
 
-def ensure_database(environment):
-    environment.reset_database()
 
 
-def prepare(environment):
-    for name in GROUP_TABLES:
-        environment.execute(TABLES[name])
 
 
-def teardown(environment):
-    for name in reversed(GROUP_TABLES):
-        environment.execute(f"DROP TABLE IF EXISTS `{name}`")
 
 
 pytestmark = [
@@ -214,3 +209,51 @@ def relation_benchmark_env(cache_scenario, _raw_models):
         )
     finally:
         InstanceCache.set_backend(original_backend)
+
+class RelationBenchmarkDefinition:
+    """The benchmark's tables, as deliberate raw DDL (engine clauses matter)."""
+
+    table_names = ("users", "posts", "comments")
+
+    def __init__(self, dialect):
+        self.dialect = dialect
+        self.create_statements = [TABLES[name] for name in self.table_names]
+        self.drop_statements = [
+            f"DROP TABLE IF EXISTS `{name}`" for name in reversed(self.table_names)
+        ]
+
+
+DDL = ExecutionOptions(stmt_type=StatementType.DDL)
+DEFINITIONS = (RelationBenchmarkDefinition,)
+
+
+@pytest.fixture(scope="session")
+def database_config(backend_scenario):
+    """The scenario, its connection configuration, and the database name."""
+    name = "test_benchmark_relation"
+    return backend_scenario, backend_scenario.make_config(name), name
+
+
+@pytest.fixture(scope="session")
+def database(database_config):
+    """The benchmark directory's database, prepared once."""
+    scenario, config, name = database_config
+    scenario.reset_database(name)
+    backend = scenario.backend_class(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    yield backend
+    backend.disconnect()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def schema(database):
+    """Create the benchmark tables once per module."""
+    fixtures = [definition(database.dialect) for definition in DEFINITIONS]
+    for fixture in fixtures:
+        for statement in fixture.create_statements:
+            database.execute(statement, options=DDL)
+    yield
+    for fixture in reversed(fixtures):
+        for statement in fixture.drop_statements:
+            database.execute(statement, options=DDL)

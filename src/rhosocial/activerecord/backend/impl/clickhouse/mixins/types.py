@@ -974,12 +974,27 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
         """``TIMESTAMP`` — an instant, which is what ClickHouse's ``DateTime`` is.
 
-        Sub-second precision is dropped: ClickHouse spells that
-        ``DateTime64(p)``, and choosing the word for the caller would silently
-        widen the value. ``ClickHouseDateTime64Type`` is the type that carries the
-        precision.
+        A declared sub-second precision is honoured as ``DateTime64(p)``
+        (``p`` = 0..9); without one the plain ``DateTime`` (whole seconds) is
+        rendered. Dropping a requested precision would make the column narrower
+        than the type the caller asked for, and a value written through it would
+        come back truncated — so the precision is rendered, not discarded.
+        ``ClickHouseDateTime64Type`` is the type that carries that parameter.
         """
-        return "DateTime", ()
+        precision = getattr(data_type, "precision", None)
+        if precision is None:
+            return "DateTime", ()
+        if (
+            isinstance(precision, bool)
+            or not isinstance(precision, int)
+            or not 0 <= precision <= 9
+        ):
+            raise ValueError(
+                f"TIMESTAMP precision must be an integer in 0..9, got {precision!r}"
+            )
+        return self.format_data_type_clickhouse_timestamp64(
+            ClickHouseDateTime64Type(precision=precision)
+        )
 
     def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
         """``TIME`` — time of day, with no date attached.
