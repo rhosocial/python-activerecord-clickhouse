@@ -206,6 +206,10 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     # when the mixin lands.
     dialect_protocols.UUIDSupport,
     # --- Intentional non-support ---
+    # ClickHouse has neither AUTO_INCREMENT nor an identity clause, and it
+    # generates primary keys client-side (snowflake Int64), so no integer
+    # column value is assigned by the database on INSERT.
+    dialect_protocols.DatabaseAssignedColumnSupport,
     # Every ClickHouse DDL statement auto-commits, so DDL cannot participate in
     # a surrounding transaction and the dialect has no atomicity to report.
     dialect_protocols.TransactionalDDLSupport,
