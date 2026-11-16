@@ -1,5 +1,5 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/construct/dialect/test_column_type.py
-"""ClickHouse's eighteen-entry column-type table.
+"""ClickHouse's twenty-four-entry column-type table.
 
 Pure dialect tests -- no server. What is asserted here is the *declaration*:
 that the dialect answers every entry of the protocol's common-type list, that
@@ -19,18 +19,33 @@ import enum
 import uuid
 
 import pytest
+from rhosocial.activerecord.backend.adapters import (
+    BitString,
+    Geometry,
+    MacAddress,
+    Multirange,
+    Range,
+    Vector,
+)
 from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
 from rhosocial.activerecord.backend.expression.column_types import (
     ArrayColumn,
     BinaryColumn,
+    BitStringColumn,
     BooleanColumn,
     ColumnBase,
+    GeometryColumn,
     IntegerColumn,
+    IntervalColumn,
     JSONColumn,
+    MacAddressColumn,
+    MultirangeColumn,
     NumericColumn,
+    RangeColumn,
     StringColumn,
     TimestampColumn,
     UUIDColumn,
+    VectorColumn,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins import (
@@ -58,7 +73,7 @@ _CLICKHOUSE_ANSWERS = [
     (datetime.date, TimestampColumn),
     (datetime.time, TimestampColumn),
     (datetime.datetime, TimestampColumn),
-    (datetime.timedelta, NumericColumn),
+    (datetime.timedelta, IntervalColumn),
     (uuid.UUID, UUIDColumn),
     (dict, JSONColumn),
     (list, ArrayColumn),
@@ -66,17 +81,23 @@ _CLICKHOUSE_ANSWERS = [
     (set, ArrayColumn),
     (frozenset, ArrayColumn),
     (enum.Enum, StringColumn),
+    (Geometry, GeometryColumn),
+    (Vector, VectorColumn),
+    (BitString, BitStringColumn),
+    (Range, RangeColumn),
+    (Multirange, MultirangeColumn),
+    (MacAddress, MacAddressColumn),
 ]
 
 _ENTRY_IDS = [getattr(entry, "__name__", str(entry)) for entry, _ in _CLICKHOUSE_ANSWERS]
 
 #: The entries this backend answers ``None`` for, each with the reason it was
 #: measured to be inexpressible. Empty: the 26.7.3.19 probe found a working
-#: pairing for all eighteen -- ClickHouse has a native array, a native JSON type
-#: and ``ILIKE``, which are exactly the three things the backends that *do*
-#: refuse lack. Kept as a declaration so that adding a ``None`` later means
-#: adding its reason here, and so a ``None`` nobody justified is a test failure
-#: rather than a quiet gap.
+#: pairing for all twenty-four -- ClickHouse has a native array, a native JSON
+#: type and ``ILIKE``, which are exactly the three things the backends that
+#: *do* refuse lack. Kept as a declaration so that adding a ``None`` later
+#: means adding its reason here, and so a ``None`` nobody justified is a test
+#: failure rather than a quiet gap.
 _REFUSALS: dict = {}
 
 
@@ -105,7 +126,7 @@ class TestTableCompleteness:
         assert mro.index(ClickHouseColumnTypeMixin) < mro.index(ColumnTypeMixin)
 
     def test_every_entry_of_the_contract_is_answered(self, dialect):
-        """All eighteen, by name -- an omission fails here rather than at lookup."""
+        """All twenty-four, by name -- an omission fails here rather than at lookup."""
         table = dialect.suggested_column_types()
         assert [e for e in COMMON_TYPES if e not in table] == []
 
@@ -127,7 +148,7 @@ class TestTableCompleteness:
     def test_no_entry_is_refused_without_a_reason(self, dialect):
         """``None`` is a last resort and must be justified, or answered as a class.
 
-        The probe found a pairing for all eighteen here, so the honest answer is
+        The probe found a pairing for all twenty-four here, so the honest answer is
         a class for all of them: Firebird's ``dict`` and ``list`` (no JSON
         functions, no arrays at all) and MySQL 5.6's (no JSON functions) have
         something to refuse and ClickHouse does not.
@@ -183,7 +204,7 @@ class TestMeasuredCells:
         assert resolve_column_class(dialect, int) is IntegerColumn
 
     def test_the_numeric_family_answers_the_one_numeric_class(self, dialect):
-        """``float``, ``Decimal`` and ``timedelta`` all answer NumericColumn.
+        """``float`` and ``Decimal`` answer NumericColumn; a duration is an interval.
 
         The measurement behind the float and Decimal cells is that they are
         genuinely different surfaces on this server: Float64 yields inf on
@@ -192,12 +213,12 @@ class TestMeasuredCells:
         *column* difference any more -- core carries one class for every numeric
         width and precision, and the difference between a ``Decimal(18, 4)`` and
         a ``Float64`` belongs to the DDL layer's DataType, which this table never
-        reads. A duration is a number of seconds here, so it answers the same
-        class as the other numbers.
+        reads. A duration is a span, so it answers ``IntervalColumn`` and
+        promises no numeric arithmetic.
         """
         assert resolve_column_class(dialect, float) is NumericColumn
         assert resolve_column_class(dialect, decimal.Decimal) is NumericColumn
-        assert resolve_column_class(dialect, datetime.timedelta) is NumericColumn
+        assert resolve_column_class(dialect, datetime.timedelta) is IntervalColumn
 
     def test_time_is_provisional(self, dialect):
         """Core has no TimeColumn yet, so the shared TimestampColumn stands.

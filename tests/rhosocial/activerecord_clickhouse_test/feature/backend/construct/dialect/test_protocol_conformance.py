@@ -148,7 +148,7 @@ CLICKHOUSE_PROTOCOLS = [
     # server rejects the clause with Code 62 (syntax error at GENERATED).
     dialect_protocols.IdentityColumnSupport,
     # The column-type table: `ClickHouseColumnTypeMixin` answers
-    # `suggested_column_types()` for all eighteen common Python types and
+    # `suggested_column_types()` for all twenty-four Python types and
     # `suggested_extra_column_types()` with nothing of its own, and the
     # dialect composes the mixin. The table is the model layer's source for
     # which column class a field's annotation resolves to, so ClickHouse
