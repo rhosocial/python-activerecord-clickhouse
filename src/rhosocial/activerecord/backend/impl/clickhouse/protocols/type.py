@@ -31,14 +31,14 @@ class ClickHouseTypeSupport(DataTypeSupport, Protocol):
     express: that this backend's own types are declared alongside the core ones
     in the same correspondence, and that a concept ClickHouse genuinely cannot
     spell is answered through
-    :meth:`~...dialect.mixins.data_type.DataTypeMixin.suggested_data_types`
+    :meth:`~...dialect.mixins.data_type.DataTypeMixin.substitute_data_types`
     rather than left silent. ``ClickHouseSetTypeSupport`` is *not* part of this —
     it covers ``FIND_IN_SET`` and the SET literal syntax, which are functions
     rather than a column type, and mixing the two would make ``isinstance`` true
     for a dialect that had one and not the other.
     """
 
-    def suggested_data_types(self) -> dict:
+    def substitute_data_types(self) -> dict:
         """Core concepts this dialect cannot spell, and the types it stores instead.
 
         Keys are core concept ``name``s; values are ``DataType`` subclasses this

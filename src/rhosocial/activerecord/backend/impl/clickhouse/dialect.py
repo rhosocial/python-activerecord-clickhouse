@@ -159,6 +159,7 @@ from .mixins import (
     ClickHouseJsonDualityViewMixin,
     ClickHouseOptimizerHintMixin,
     ClickHousePartitionMixin,
+    ClickHouseDataTypeSuggestionsMixin,
     ClickHouseTypeSupportMixin,
     ClickHouseRenameTableMixin,
     ClickHouseTruncateMixin,
@@ -342,6 +343,10 @@ class ClickHouseDialect(
     ClickHouseShowDialectMixin,
     ClickHouseModifyColumnMixin,
     ClickHouseJsonDualityViewMixin,
+    # Suggested data types: the DDL half of the type answer. Ahead of the
+    # mixin that supplies the DataType defaults, so this dialect's answers win
+    # the C3 lookup instead of core's NotImplementedError.
+    ClickHouseDataTypeSuggestionsMixin,
     ClickHouseTypeSupportMixin,
     UserDefinedTypeMixin,
     DomainMixin,

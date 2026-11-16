@@ -363,17 +363,17 @@ class TestSupportsDataTypes:
             assert issubclass(cls, DataType), f"{name}: {cls} is not a DataType subclass"
 
 
-# ── W3: suggested_data_types() ────────────────────────────────────────
+# ── W3: substitute_data_types() ────────────────────────────────────────
 
 class TestSuggestedDataTypes:
     def test_returns_dict(self):
         dialect = ClickHouseDialect()
-        suggested = dialect.suggested_data_types()
+        suggested = dialect.substitute_data_types()
         assert isinstance(suggested, dict)
 
     def test_suggests_string_for_byte_and_text_concepts(self):
         dialect = ClickHouseDialect()
-        suggested = dialect.suggested_data_types()
+        suggested = dialect.substitute_data_types()
         for key in ("binary", "varbinary", "custom", "enum", "jsonb"):
             assert suggested[key] is ClickHouseStringType, key
 
@@ -382,7 +382,7 @@ class TestSuggestedDataTypes:
         ``DateTime64``; a time of day has no ClickHouse type at all; XML is not in
         the manual's list of types."""
         dialect = ClickHouseDialect()
-        suggested = dialect.suggested_data_types()
+        suggested = dialect.substitute_data_types()
         assert suggested["interval"] is ClickHouseInt64Type
         assert suggested["timestamptz"] is ClickHouseDateTime64Type
         assert suggested["timetz"] is ClickHouseDateTimeType
@@ -391,17 +391,17 @@ class TestSuggestedDataTypes:
     def test_every_entry_has_a_reason(self):
         """A suggestion with no explanation is a guess the reader has to check."""
         dialect = ClickHouseDialect()
-        doc = (type(dialect).suggested_data_types.__doc__ or "")
-        for concept in dialect.suggested_data_types():
+        doc = (type(dialect).substitute_data_types.__doc__ or "")
+        for concept in dialect.substitute_data_types():
             assert concept in doc, (
-                f"suggested_data_types() offers {concept!r} but its docstring "
+                f"substitute_data_types() offers {concept!r} but its docstring "
                 f"never says why"
             )
 
     def test_no_overlap_with_supported(self):
         dialect = ClickHouseDialect()
         supported = set(dialect.supports_data_types().keys())
-        suggested = set(dialect.suggested_data_types().keys())
+        suggested = set(dialect.substitute_data_types().keys())
         overlap = supported & suggested
         assert not overlap, (
             f"suggested and supported keys overlap: {overlap}"
@@ -827,7 +827,7 @@ class TestCorrespondence:
     def test_every_core_concept_is_declared(self):
         dialect = ClickHouseDialect()
         supported = dialect.supports_data_types()
-        suggested = dialect.suggested_data_types()
+        suggested = dialect.substitute_data_types()
         undeclared = sorted(
             name for name in _core_concepts()
             if name not in supported and name not in suggested
@@ -836,14 +836,14 @@ class TestCorrespondence:
 
     def test_supported_and_suggested_are_disjoint(self):
         dialect = ClickHouseDialect()
-        overlap = set(dialect.supports_data_types()) & set(dialect.suggested_data_types())
+        overlap = set(dialect.supports_data_types()) & set(dialect.substitute_data_types())
         assert not overlap, overlap
 
     def test_every_suggested_substitute_is_renderable(self):
         """A substitute the dialect cannot render is advice nobody can take."""
         dialect = ClickHouseDialect()
         supported = dialect.supports_data_types()
-        for concept, substitute in dialect.suggested_data_types().items():
+        for concept, substitute in dialect.substitute_data_types().items():
             assert isinstance(substitute, type) and issubclass(substitute, DataType), (
                 f"{concept} -> {substitute!r} is not a DataType subclass"
             )
@@ -854,7 +854,7 @@ class TestCorrespondence:
 
     def test_concepts_clickhouse_cannot_spell_are_all_substituted(self):
         dialect = ClickHouseDialect()
-        suggested = dialect.suggested_data_types()
+        suggested = dialect.substitute_data_types()
         # ClickHouse's manual enumerates its types; these are the concepts that
         # are genuinely not among them.
         for concept in ("custom", "interval", "timestamptz", "timetz", "xml"):
@@ -865,7 +865,7 @@ class TestCorrespondence:
         """ClickHouse has a native ``UUID``, so the concept is rendered."""
         dialect = ClickHouseDialect()
         assert "uuid" in dialect.supports_data_types()
-        assert "uuid" not in dialect.suggested_data_types()
+        assert "uuid" not in dialect.substitute_data_types()
         assert dialect.format_data_type(UUIDType(dialect))[0] == "UUID"
 
     def test_error_for_an_unrendered_concept_names_the_substitute(self):

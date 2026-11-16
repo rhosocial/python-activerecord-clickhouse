@@ -759,10 +759,10 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         return True
 
     # ------------------------------------------------------------------
-    # DataTypeSupport — suggested_data_types()
+    # DataTypeSupport — substitute_data_types()
     # ------------------------------------------------------------------
 
-    def suggested_data_types(self) -> Dict[str, type]:
+    def substitute_data_types(self) -> Dict[str, type]:
         """Core concepts ClickHouse genuinely cannot spell, and what it stores.
 
         ClickHouse's data types are enumerated exhaustively in its manual, so a
@@ -1002,7 +1002,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ClickHouse has no time-only type; the closest storage is ``DateTime``,
         which is what is rendered. A column declared ``TIME`` on this backend
         therefore holds an instant, not a time of day. ``timetz`` is not rendered
-        at all — see :meth:`suggested_data_types`.
+        at all — see :meth:`substitute_data_types`.
         """
         return "DateTime", ()
 
@@ -1336,7 +1336,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         falls through to :class:`~...types.custom.CustomType`, which this
         dialect cannot render — a reported failure rather than a silently
         written type the caller may not have meant.  What a caller holding such
-        a name should use is answered by :meth:`suggested_data_types`, which is
+        a name should use is answered by :meth:`substitute_data_types`, which is
         also what the ``TypeError`` from an unrenderable ``CustomType`` points
         at.
 
@@ -1608,7 +1608,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         # writing ``data_type.raw`` back out would either fail at the server or
         # silently store a type the caller may not have meant. There is no
         # ``format_data_type_custom`` here, and
-        # ``suggested_data_types()["custom"]`` names ``ClickHouseStringType`` so
+        # ``substitute_data_types()["custom"]`` names ``ClickHouseStringType`` so
         # the ``TypeError`` says what to use instead.
         from rhosocial.activerecord.backend.expression.types import CustomType
         return CustomType(dialect=self, raw=stripped)

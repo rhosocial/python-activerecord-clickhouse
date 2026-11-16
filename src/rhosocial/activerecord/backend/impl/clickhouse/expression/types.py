@@ -119,7 +119,7 @@ class ClickHouseInt64Type(BigIntType):
 
     The 8-byte signed integer concept. ClickHouse also uses ``Int64`` as the
     storage for an interval expressed as a count of seconds, which is why
-    ``suggested_data_types()`` names this class as the stand-in for core's
+    ``substitute_data_types()`` names this class as the stand-in for core's
     ``IntervalType``.
     """
 
