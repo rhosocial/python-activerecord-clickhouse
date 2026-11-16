@@ -45,7 +45,9 @@ from rhosocial.activerecord.backend.expression.column_types import (
     StringColumn,
     TimestampColumn,
     UUIDColumn,
-    VectorColumn,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.column_types import (
+    ClickHouseVectorColumn,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins import (
@@ -82,7 +84,7 @@ _CLICKHOUSE_ANSWERS = [
     (frozenset, ArrayColumn),
     (enum.Enum, StringColumn),
     (Geometry, GeometryColumn),
-    (Vector, VectorColumn),
+    (Vector, ClickHouseVectorColumn),
     (BitString, BitStringColumn),
     (Range, RangeColumn),
     (Multirange, MultirangeColumn),

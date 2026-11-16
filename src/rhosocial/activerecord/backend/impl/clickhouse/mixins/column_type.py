@@ -102,8 +102,8 @@ from rhosocial.activerecord.backend.expression.column_types import (
     StringColumn,
     TimestampColumn,
     UUIDColumn,
-    VectorColumn,
 )
+from ..column_types import ClickHouseVectorColumn
 
 #: ClickHouse's full table: ``{common Python type: ColumnBase subclass}``.
 #:
@@ -226,7 +226,7 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     # subclass in this backend's extra table. Storage is answered in the
     # data-type suggestion module.
     Geometry: GeometryColumn,
-    Vector: VectorColumn,
+    Vector: ClickHouseVectorColumn,
     BitString: BitStringColumn,
     Range: RangeColumn,
     Multirange: MultirangeColumn,
