@@ -7,31 +7,27 @@ The shared test this directory runs asserts the fixture shape only: that
 own, and it configures the models against ``database_config``, so this
 directory owns the database and the tables the mapped models read and write.
 
-The definitions are the testsuite basic topic's: ClickHouse's storage clause
-is appended by the table renderer, so nothing ClickHouse-specific appears in
-this conftest.  Table definitions that need their own storage choices belong
-with the directory that actually creates them.
+The fixture definitions are the testsuite basic topic's: ClickHouse's storage
+clause is appended by the table renderer, so nothing ClickHouse-specific
+appears in this conftest.
 """
 
 from pathlib import Path
 
 import pytest
 
-from rhosocial.activerecord.backend.options import ExecutionOptions
-from rhosocial.activerecord.backend.schema import StatementType
-from rhosocial.activerecord.testsuite.feature.basic.fixtures.models import (
-    CommentDefinition,
-    PostDefinition,
-    UserDefinition,
+from rhosocial.activerecord.testsuite.feature.basic.fixtures.field_models import (
+    FIELD_FIXTURES,
+)
+from rhosocial.activerecord.testsuite.feature.basic.fixtures.operations import (
+    create_schema,
+    drop_schema,
+)
+from rhosocial.activerecord.testsuite.feature.basic.fixtures.user_models import (
+    USER_FIXTURES,
 )
 
-DDL = ExecutionOptions(stmt_type=StatementType.DDL)
-
-DEFINITIONS = (
-    UserDefinition,
-    PostDefinition,
-    CommentDefinition,
-)
+FIXTURES = USER_FIXTURES + FIELD_FIXTURES
 
 
 def _database_name() -> str:
@@ -63,9 +59,6 @@ def database(database_config):
 @pytest.fixture(scope="function", autouse=True)
 def schema(database):
     """Drop and recreate the tables this directory uses, before every test."""
-    fixtures = [definition(database.dialect) for definition in DEFINITIONS]
-    for fixture in fixtures:
-        database.execute(*fixture.create_table.to_sql(), options=DDL)
+    create_schema(database, FIXTURES)
     yield
-    for fixture in reversed(fixtures):
-        database.execute(*fixture.drop_table.to_sql(), options=DDL)
+    drop_schema(database, FIXTURES)

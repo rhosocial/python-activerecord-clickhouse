@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ColumnNotNullConstraint,
+    ColumnNullableConstraint,
     ColumnPrimaryKeyConstraint,
     ColumnUniqueConstraint,
     TablePrimaryKeyConstraint,
@@ -552,6 +553,18 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             if omit_unenforceable and isinstance(
                 constraint.branch, ColumnUniqueConstraint
             ):
+                continue
+            if omit_unenforceable and isinstance(
+                constraint.branch, (ColumnNotNullConstraint, ColumnNullableConstraint)
+            ):
+                # Nullability is part of the type on ClickHouse, never a text
+                # modifier. Emitting ``NULL``/``NOT NULL`` beside a ``Nullable(T)``
+                # column is rejected (Code 377, "Can't use [NOT] NULL modifier
+                # with Nullable type"), and beside a PRIMARY KEY column the
+                # parser refuses ``NOT NULL`` after ``PRIMARY KEY`` (Code 62).
+                # The portable renderer above already wraps optional columns in
+                # ``Nullable(...)`` and leaves keys / declared-NOT-NULL columns
+                # plain, so the modifier is redundant: drop it here.
                 continue
             suffix, cp = self.format_column_constraint(constraint)
             constraint_text = suffix.strip()

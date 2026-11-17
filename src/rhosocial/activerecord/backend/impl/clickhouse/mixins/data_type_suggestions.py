@@ -21,10 +21,12 @@ Four properties of this server shape the answers:
   sequence entries share the container, and the element is ``String``: a bare
   annotation does not say what the elements are, so the shared default is the
   text one. A field that knows its element type declares it with ``UseSqlType``.
-* **milliseconds are the timestamp default.** ``ClickHouseDateTime64Type(
-  precision=3)`` renders ``DateTime64(3)``; plain ``DateTime`` is whole
-  seconds and would truncate Python's microseconds. Three fractional digits is
-  what ``DateTime64`` below 9 digits and the usual client round-trips agree on.
+* **microseconds are the timestamp default.** ``ClickHouseDateTime64Type(
+  precision=6)`` renders ``DateTime64(6)``; plain ``DateTime`` is whole
+  seconds and ``DateTime64(3)`` keeps only milliseconds, both of which would
+  silently truncate Python's microseconds. The dialect answers
+  ``supports_microsecond_timestamp() == True``, so a bare ``datetime`` field
+  must be backed by a type that actually keeps the six fractional digits.
 
 The families this server cannot spell at all name a carrier rather than
 ``None``: ``dict`` is stored as text (the native ``JSON`` column type arrived
@@ -97,10 +99,11 @@ CLICKHOUSE_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
     int: ClickHouseInt64Type(),
     # Python's float is a double.
     float: ClickHouseFloat64Type(),
-    # ``ClickHouseDecimalType`` needs a precision (it enforces the 38-digit
-    # bound), and a bare annotation states none, so the core default renders
-    # ``Decimal(10, 0)``.
-    decimal.Decimal: DecimalType(),
+    # A bare ``Decimal`` must keep fractional digits: the core default
+    # ``Decimal(10, 0)`` truncates every value to an integer and silently
+    # loses money-like data such as ``Decimal("10.99")``. ``Decimal(10, 2)``
+    # renders through the same core concept but keeps two fractional digits.
+    decimal.Decimal: DecimalType(precision=10, scale=2),
     str: ClickHouseStringType(),
     bytes: ClickHouseStringType(),
     bytearray: ClickHouseStringType(),
@@ -108,7 +111,7 @@ CLICKHOUSE_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
     # ClickHouse has no time-of-day type; ``TimeType`` renders ``DateTime``
     # here, which is documented on ``format_data_type_time``.
     datetime.time: TimeType(),
-    datetime.datetime: ClickHouseDateTime64Type(precision=3),
+    datetime.datetime: ClickHouseDateTime64Type(precision=6),
     # No INTERVAL type; the adapter's text form is the carrier.
     datetime.timedelta: TextType(),
     uuid.UUID: ClickHouseUUIDType(),
