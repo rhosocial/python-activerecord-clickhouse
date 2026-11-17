@@ -17,6 +17,14 @@ import support.clickhouse
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
+DECLARATION = Declaration(
+    parallel=False,
+    purpose="Default scope for backend-owned tests: rendering checks that need no database.",
+    passes_means="expressions and literals render as expected without any I/O",
+    fails_means="a render differs from the expected SQL or an expression round-trip breaks",
+)
 
 # --- Scenario Loading Logic ---
 
@@ -69,21 +77,6 @@ def get_scenario(
             raise ValueError("No scenarios registered")
     _prepare_database(name, database)
     return ClickHouseBackend, support.clickhouse.scenario(name).make_config(database)
-
-
-def pytest_collection_modifyitems(config, items):
-    """Pin a backend directory's tests to one worker.
-
-    These directories create and drop tables in the directory's own database,
-    so two workers must never run tests from the same directory at once.
-    """
-    for item in items:
-        parts = item.path.parts
-        if "backend" not in parts:
-            continue
-        item.add_marker(
-            pytest.mark.xdist_group("clickhouse-backend::" + str(item.path.parent))
-        )
 
 
 # --- Provider Logic ---
