@@ -8,6 +8,7 @@ owns the test, so two directories never share tables.
 These directories declare no testsuite contract: they drive the backend object
 directly instead of configuring models, so they never request ``environment``.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 from typing import Any, Dict, Tuple, Type
 
 import pytest
@@ -17,7 +18,6 @@ import support.clickhouse
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
-from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 DECLARATION = Declaration(
     parallel=False,

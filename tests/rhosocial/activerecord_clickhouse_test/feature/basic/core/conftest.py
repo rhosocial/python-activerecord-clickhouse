@@ -11,6 +11,7 @@ The fixture definitions are the testsuite basic topic's: ClickHouse's storage
 clause is appended by the table renderer, so nothing ClickHouse-specific
 appears in this conftest.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 from pathlib import Path
 
@@ -36,6 +37,15 @@ def _database_name() -> str:
     start = parts.index("feature") + 1
     return "test_" + "_".join(parts[start:])
 
+
+
+
+# This directory owns a database shared by all its tests within a scenario;
+# pin them to one worker so setup/teardown never races on the same database.
+DECLARATION = Declaration(
+    parallel=True,
+    purpose="Directory-owned database shared by this test group.",
+)
 
 @pytest.fixture(scope="session")
 def database_config(backend_scenario):

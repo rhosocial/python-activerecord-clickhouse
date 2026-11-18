@@ -191,7 +191,11 @@ class TestCreateTableLike:
         assert "`id`" in sql
         assert "`name`" in sql
         assert "PRIMARY KEY" in sql
-        assert "NOT NULL" in sql
+        # On ClickHouse non-nullability is part of the type, not a text
+        # modifier: a NOT NULL column renders as a plain ``String`` rather
+        # than ``Nullable(String)``.
+        assert "`name` Nullable" not in sql
+        assert "`name` String" in sql
 
     def test_explicit_schema_keeps_the_target_database(self):
         """Reading table_name instead of table used to lose the database."""

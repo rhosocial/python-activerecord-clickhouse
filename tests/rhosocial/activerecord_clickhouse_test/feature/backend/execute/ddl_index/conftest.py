@@ -5,8 +5,8 @@ The database is derived from this directory's path by ``feature/backend/conftest
 The directory owns one database per scenario, so its tests are declared a
 parallel subset below (one worker per scenario).
 """
-
 from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
 
 DECLARATION = Declaration(
     parallel=True,

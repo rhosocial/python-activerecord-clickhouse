@@ -13,6 +13,7 @@ ClickHouse is synchronous-only (clickhouse-connect has no async path), so there
 are no async pool fixtures here: the async tests in this directory are skipped
 by the root conftest before any fixture is set up.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 from pathlib import Path
 from typing import Generator
@@ -39,6 +40,14 @@ def _backend_factory(scenario, config):
 
     return factory
 
+
+
+# This directory owns a database shared by all its tests within a scenario;
+# pin them to one worker so setup/teardown never races on the same database.
+DECLARATION = Declaration(
+    parallel=True,
+    purpose="Directory-owned database shared by this test group.",
+)
 
 @pytest.fixture(scope="function")
 def clickhouse_pool(database_config) -> Generator[BackendPool, None, None]:
