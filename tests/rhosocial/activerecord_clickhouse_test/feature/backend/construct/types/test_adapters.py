@@ -244,8 +244,7 @@ class TestTableMixin:
         with pytest.raises(UnsupportedFeatureError):
             dialect.format_table_constraint(tc)
 
-    def test_format_column_definition_auto_increment_raises(self, dialect):
-        from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+    def test_format_column_definition_has_no_auto_increment(self, dialect):
         from rhosocial.activerecord.backend.expression.statements import ColumnConstraint, ColumnPrimaryKeyConstraint
         from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
         from rhosocial.activerecord.backend.expression.types import IntegerType
@@ -254,10 +253,9 @@ class TestTableMixin:
             dialect,
             "id",
             IntegerType(dialect),
-            constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect, True))],
+            constraints=[ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect))],
         )
-        with pytest.raises(UnsupportedFeatureError):
-            dialect.format_column_definition(col_def)
+        assert "AUTO_INCREMENT" not in dialect.format_column_definition(col_def)[0]
 
 
 # ===========================================================================

@@ -223,9 +223,13 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
                 + tuple(self._declared_key_columns(expr.table_options))
             )
         )
-        widen_integers = any(
-            self._has_auto_increment_key(col_def) for col_def in expr.columns
-        )
+        # ClickHouse has no AUTO_INCREMENT: an integer primary key is generated
+        # client-side as a snowflake Int64 (see ``backend.insert``). A narrow
+        # column would truncate it silently, so the portable path widens narrow
+        # integer columns to 64-bit. This is unconditional now that auto-increment
+        # is a backend suggestion instead of a constraint flag -- any portable
+        # integer key may be the generated one.
+        widen_integers = True
         column_parts = []
         for col_def in expr.columns:
             col_sql, col_params = self.format_column_definition(
@@ -524,7 +528,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
 
         type_sql, type_params = col_def.data_type.to_sql()
         if omit_unenforceable:
-            if widen_integers or self._has_auto_increment_key(col_def):
+            if widen_integers:
                 type_sql = self._NARROW_KEY_TYPES.get(type_sql, type_sql)
             if (
                 col_def.name not in key_columns
@@ -535,21 +539,6 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         params: List[Any] = list(type_params)
 
         for constraint in col_def.constraints:
-            # S3: the branch names the kind and carries that kind's own fields.
-            # ``is_auto_increment`` belongs to the PRIMARY KEY branch, so reading
-            # it off the production would be a field the production does not
-            # declare. Core renders the PRIMARY KEY modifier without the flag,
-            # so the marker is already absent from the SQL; the portable path
-            # only has to stop refusing it.
-            if (
-                not omit_unenforceable
-                and isinstance(constraint.branch, ColumnPrimaryKeyConstraint)
-                and constraint.branch.is_auto_increment
-            ):
-                raise UnsupportedFeatureError(
-                    self.name, "AUTO_INCREMENT column",
-                    suggestion="ClickHouse does not support AUTO_INCREMENT; use UUID or an explicit value."
-                )
             if omit_unenforceable and isinstance(
                 constraint.branch, ColumnUniqueConstraint
             ):
@@ -652,17 +641,6 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             return type_sql
         return f"Nullable({type_sql})"
 
-    @staticmethod
-    def _has_auto_increment_key(col_def: "ColumnDefinition") -> bool:
-        """Whether the column carries an auto-generated ``PRIMARY KEY`` marker."""
-        for constraint in col_def.constraints:
-            branch = constraint.branch
-            if (
-                isinstance(branch, ColumnPrimaryKeyConstraint)
-                and branch.is_auto_increment
-            ):
-                return True
-        return False
 
     def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
         """Format a table-level constraint, narrowing on the branch class.

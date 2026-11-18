@@ -20,6 +20,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBac
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=False,
     purpose="Default scope for backend-owned tests: rendering checks that need no database.",
     passes_means="expressions and literals render as expected without any I/O",

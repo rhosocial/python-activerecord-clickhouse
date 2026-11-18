@@ -9,6 +9,7 @@ from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
 
 DECLARATION = Declaration(
+    uses_database=True,
     parallel=True,
     purpose="Backend-owned ClickHouse tests for this execute area (directory-owned database).",
     passes_means="the backend behaves as specified for this area across the configured scenarios",
