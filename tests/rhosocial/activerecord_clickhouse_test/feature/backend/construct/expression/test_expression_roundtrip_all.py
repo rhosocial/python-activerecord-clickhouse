@@ -144,7 +144,11 @@ from typing import Dict
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.exceptions import (ProtocolNotImplementedError, UnsupportedFeatureError)
+from rhosocial.activerecord.backend.dialect.exceptions import (
+    ProtocolNotImplementedError,
+    UnsupportedDataTypeError,
+    UnsupportedFeatureError,
+)
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
     WindowClause,
@@ -1276,7 +1280,7 @@ LEGITIMATE_NON_RENDERS = {
         _no_dialect_formatter("format_table_source"),
     ),
     "rhosocial.activerecord.backend.expression.types._base.DataType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type None (no format_data_type_None)",
     ),
 
@@ -1452,19 +1456,19 @@ LEGITIMATE_NON_RENDERS = {
     # ``JSON``), and no ``INT`` -- ClickHouse's integers are sized and signed
     # explicitly. A real gap in the type map, not a defect in the class.
     "rhosocial.activerecord.backend.expression.types.binary.BinaryType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'binary'",
     ),
     "rhosocial.activerecord.backend.expression.types.binary.VarBinaryType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'varbinary'",
     ),
     "rhosocial.activerecord.backend.expression.types.custom.CustomType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'custom'",
     ),
     "rhosocial.activerecord.backend.expression.types.datetime_.IntervalType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'interval'",
     ),
     # ENUM. ClickHouse's own enum types are sized and signed
@@ -1474,23 +1478,23 @@ LEGITIMATE_NON_RENDERS = {
     # reach now -- and the constructed instance is what makes this pin
     # assertable.
     "rhosocial.activerecord.backend.expression.types.enum_.EnumType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'enum'",
     ),
     "rhosocial.activerecord.backend.expression.types.datetime_.TimeTzType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'timetz'",
     ),
     "rhosocial.activerecord.backend.expression.types.datetime_.TimestampTzType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'timestamptz'",
     ),
     "rhosocial.activerecord.backend.expression.types.json_.JsonBType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'jsonb'",
     ),
     "rhosocial.activerecord.backend.expression.types.xml_.XmlType": (
-        TypeError,
+        UnsupportedDataTypeError,
         "does not support the generic type 'xml'",
     ),
 }
