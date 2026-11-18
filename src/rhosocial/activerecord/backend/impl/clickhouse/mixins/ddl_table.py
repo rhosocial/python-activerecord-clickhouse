@@ -223,13 +223,13 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
                 + tuple(self._declared_key_columns(expr.table_options))
             )
         )
-        # ClickHouse has no AUTO_INCREMENT: an integer primary key is generated
-        # client-side as a snowflake Int64 (see ``backend.insert``). A narrow
-        # column would truncate it silently, so the portable path widens narrow
-        # integer columns to 64-bit. This is unconditional now that auto-increment
-        # is a backend suggestion instead of a constraint flag -- any portable
-        # integer key may be the generated one.
-        widen_integers = True
+        # ClickHouse has no AUTO_INCREMENT: a single-column integer primary key
+        # is generated client-side as a snowflake Int64 (see ``backend.insert``),
+        # and a narrow column would truncate it silently. Widen narrow integer
+        # columns only when such a key exists -- a table with no key (or a
+        # composite key) never takes the generated-id path, so it keeps the
+        # declared widths and the width-sensitive type contracts stay intact.
+        widen_integers = len(primary_key_columns) == 1
         column_parts = []
         for col_def in expr.columns:
             col_sql, col_params = self.format_column_definition(
