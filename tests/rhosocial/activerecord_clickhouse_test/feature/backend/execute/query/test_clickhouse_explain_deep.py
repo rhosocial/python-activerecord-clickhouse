@@ -307,9 +307,12 @@ class TestClickHouseExplainDeep:
         condition = ComparisonPredicate(dialect, ">", Column(dialect, "age"), Literal(dialect, 30))
         result = indexed_backend.explain(_query(dialect, condition=condition))
         text = _plan_text(result.raw_rows)
-        # ClickHouse may push the predicate into PREWHERE instead of a plain
-        # Filter node; either form is evidence the WHERE clause reached the plan.
-        assert "filter" in text.lower(), f"a WHERE predicate must surface a filter: {text!r}"
+        # Older releases label the predicate node "WHERE"; newer ones surface a
+        # Filter / Prewhere filter node. Either form proves it reached the plan.
+        lowered = text.lower()
+        assert (
+            "filter" in lowered or "where" in lowered
+        ), f"a WHERE predicate must surface filter/WHERE evidence: {text!r}"
         assert _has_explain_column(result.raw_rows)
 
     def test_primary_key_predicate_still_yields_a_plan(self, indexed_backend) -> None:
