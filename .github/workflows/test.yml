@@ -110,7 +110,7 @@ jobs:
         if: matrix.coverage
         run: |
           export PYTHONPATH=src:tests
-          coverage run --source=src -m pytest tests/ --tb=short --ignore=tests/benchmark
+          coverage run --source=rhosocial.activerecord.backend.impl.clickhouse -m pytest tests/ --tb=short --ignore=tests/benchmark
           coverage xml
           coverage report
 
