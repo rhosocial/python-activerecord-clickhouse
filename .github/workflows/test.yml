@@ -110,7 +110,7 @@ jobs:
         if: matrix.coverage
         run: |
           export PYTHONPATH=src:tests
-          coverage run --source=src -m pytest tests/rhosocial/activerecord_clickhouse_test/feature/backend tests/rhosocial/activerecord_clickhouse_test/feature/basic --tb=short
+          coverage run --source=src -m pytest tests/rhosocial/activerecord_clickhouse_test/feature/backend tests/rhosocial/activerecord_clickhouse_test/feature/basic --tb=short tests/rhosocial/activerecord_clickhouse_test/feature/query tests/rhosocial/activerecord_clickhouse_test/feature/cte tests/rhosocial/activerecord_clickhouse_test/feature/setop tests/rhosocial/activerecord_clickhouse_test/feature/query_integration
           coverage xml
           coverage report
 
@@ -128,4 +128,4 @@ jobs:
         if: '!matrix.coverage'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/rhosocial/activerecord_clickhouse_test/feature/backend tests/rhosocial/activerecord_clickhouse_test/feature/basic --tb=short
+          python -m pytest tests/rhosocial/activerecord_clickhouse_test/feature/backend tests/rhosocial/activerecord_clickhouse_test/feature/basic --tb=short tests/rhosocial/activerecord_clickhouse_test/feature/query tests/rhosocial/activerecord_clickhouse_test/feature/cte tests/rhosocial/activerecord_clickhouse_test/feature/setop tests/rhosocial/activerecord_clickhouse_test/feature/query_integration
