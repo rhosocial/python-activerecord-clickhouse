@@ -27,7 +27,7 @@ from rhosocial.activerecord.relation.cache_backends import InMemoryCache
 # Not introduced in this release; keep snippets for follow-up external cache design.
 # from rhosocial.activerecord.relation.cache_backends import CacheSerializer, RedisCache
 
-from rhosocial.activerecord.testsuite.feature.relation.conftest import (  # noqa: F401
+from rhosocial.activerecord.testsuite.feature.query.relation.conftest import (  # noqa: F401
     user_post_comment_classes,
 )
 
@@ -110,7 +110,7 @@ DECLARATION = Declaration(
     purpose="Directory-owned database shared by this test group.",
 )
 
-@pytest.fixture(scope="session")
+# @pytest.fixture(scope="session")
 # def _redis_client():
 #     redis = pytest.importorskip("redis")
 #     try:
