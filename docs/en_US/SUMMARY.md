@@ -53,3 +53,11 @@
 ## Testing
 
 * [Test configuration](testing/README.md)
+
+## Runnable Examples
+
+* [Examples index](../examples/README.md)
+* [Chapter 3 — Connection](../examples/chapter_03_connection/README.md)
+* [Chapter 4 — Modeling](../examples/chapter_04_modeling/README.md)
+* [Chapter 6 — DDL](../examples/chapter_06_ddl/README.md)
+* [Chapter 8 — Introspection](../examples/chapter_08_introspection/README.md)

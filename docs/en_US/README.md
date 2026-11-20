@@ -2,9 +2,9 @@
 
 > 🤖 **AI Learning Assistant**: Key concepts in this documentation are marked with 💡 AI prompt markers. When you encounter a concept you don't understand, you can ask the AI assistant directly.
 >
-> **Example:** "Why does the ClickHouse backend degrade transactions to a no-op? How does it differ from the SQLite/MySQL backends?"
+> **Example:** "Why does the ClickHouse backend degrade transactions to a no-op? What capability gates decide that?"
 >
-> 📖 **See also**: [AI-Assisted Development Guide](https://github.com/rhosocial/python-activerecord/tree/docs/docs/en_US/introduction/ai_assistance.md)
+> 📖 **See also**: [AI-Assisted Development Guide](https://github.com/rhosocial/python-activerecord/blob/main/docs/en_US/introduction/ai_assistance.md)
 
 The ClickHouse backend is the ClickHouse database backend implementation for
 [rhosocial-activerecord](https://github.com/rhosocial/python-activerecord). It uses
@@ -56,6 +56,12 @@ fail fast with `UnsupportedFeatureError` rather than being silently emulated.
 
 10. **[Testing](testing/README.md)**
     * **[Test configuration](testing/README.md)**: Scenario config & CI matrix
+
+11. **[Runnable examples](../examples/README.md)**
+    * **[Connection](../examples/chapter_03_connection/README.md)**: config, connect, first query
+    * **[Modeling](../examples/chapter_04_modeling/README.md)**: declarative models, `UseSqlType`, mixins, `FieldProxy`
+    * **[DDL](../examples/chapter_06_ddl/README.md)**: create a `MergeTree` table with expression nodes
+    * **[Introspection](../examples/chapter_08_introspection/README.md)**: catalogue queries and backend-specific reads
 
 ---
 
