@@ -164,7 +164,7 @@ library, which documents the ActiveRecord API itself.
 
 > **⚠️ Development Stage:** This project is under active development. APIs may change, and some features are not yet production-ready.
 
-## Contributing, License, Links
+## Documentation
 
 ### Contributing
 
