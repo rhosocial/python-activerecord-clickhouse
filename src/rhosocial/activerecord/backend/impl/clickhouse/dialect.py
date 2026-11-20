@@ -159,6 +159,7 @@ from .mixins import (
     ClickHouseJsonDualityViewMixin,
     ClickHouseOptimizerHintMixin,
     ClickHousePartitionMixin,
+    ClickHousePartitionSuggestionMixin,
     ClickHouseDataTypeSuggestionsMixin,
     ClickHouseTypeSupportMixin,
     ClickHouseRenameTableMixin,
@@ -211,6 +212,10 @@ if TYPE_CHECKING:
 
 
 class ClickHouseDialect(
+    # Backend suggestions first: no core mixin may shadow their answers. The
+    # partition-suggestion mixin is the sole owner of ClickHouse's eight
+    # ``suggest_partition_*`` "how" answers (see the firebird/sqlite pattern).
+    ClickHousePartitionSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin
     # placed after the class it overrides never wins -- so a new mixin goes
