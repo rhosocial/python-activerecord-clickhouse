@@ -1,6 +1,6 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/backend_mixin.py
 import logging
-from typing import Dict, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple, Type
 
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
 
@@ -11,29 +11,44 @@ class ClickHouseBackendMixin:
     def _register_clickhouse_adapters(self):
         """Register ClickHouse-specific type adapters."""
         from ..adapters import (
+            ClickHouseArrayAdapter,
+            ClickHouseBitStringAdapter,
             ClickHouseBlobAdapter,
             ClickHouseBooleanAdapter,
             ClickHouseDateAdapter,
             ClickHouseDatetimeAdapter,
             ClickHouseDecimalAdapter,
             ClickHouseEnumAdapter,
+            ClickHouseGeometryAdapter,
             ClickHouseJSONAdapter,
+            ClickHouseMacAddressAdapter,
+            ClickHouseRangeAdapter,
             ClickHouseSetAdapter,
             ClickHouseTimeAdapter,
             ClickHouseUUIDAdapter,
+            ClickHouseVectorAdapter,
         )
 
         clickhouse_adapters = [
+            ClickHouseBitStringAdapter(),
             ClickHouseBlobAdapter(),
             ClickHouseBooleanAdapter(),
             ClickHouseDateAdapter(),
             ClickHouseDatetimeAdapter(self._version),
             ClickHouseDecimalAdapter(),
             ClickHouseEnumAdapter(use_int_storage=False),
+            ClickHouseGeometryAdapter(),
             ClickHouseJSONAdapter(),
+            ClickHouseMacAddressAdapter(),
+            ClickHouseRangeAdapter(),
             ClickHouseSetAdapter(),
             ClickHouseTimeAdapter(),
             ClickHouseUUIDAdapter(),
+            ClickHouseVectorAdapter(),
+            # Registered last on purpose: it and the JSON adapter both claim
+            # ``list``/``tuple`` -> ``str``, and ClickHouse binds a list as an
+            # array literal, so the array adapter must win the override.
+            ClickHouseArrayAdapter(),
         ]
 
         for adapter in clickhouse_adapters:
@@ -87,16 +102,29 @@ class ClickHouseBackendMixin:
     def get_default_adapter_suggestions(self) -> Dict[Type, Tuple[SQLTypeAdapter, Type]]:
         """Provides default type adapter suggestions for ClickHouse.
 
-        clickhouse-connect natively supports list/dict (Array/Map/Tuple),
-        bool, datetime, date, time, UUID, and Decimal parameters, so only
-        types needing Python-level conversion are suggested here.
+        The framework defaults (:meth:`TypeAdaptionMixin.get_default_adapter_suggestions`)
+        are the base; ClickHouse merges its own pairs on top, including the
+        neutral families it carries as ``String`` text (or as a ``list`` for
+        native array columns). clickhouse-connect natively supports list/dict
+        (Array/Map/Tuple), bool, datetime, date, time, UUID and Decimal
+        parameters, so only the types that need Python-level conversion are
+        named here.
         """
         from datetime import date, datetime, time
         from decimal import Decimal
-        from uuid import UUID
         from enum import Enum
+        from uuid import UUID
 
-        suggestions: Dict[Type, Tuple[SQLTypeAdapter, Type]] = {}
+        from rhosocial.activerecord.backend.adapters.bitstring import BitString
+        from rhosocial.activerecord.backend.adapters.geometry import Geometry
+        from rhosocial.activerecord.backend.adapters.network import MacAddress
+        from rhosocial.activerecord.backend.adapters.range import Multirange, Range
+        from rhosocial.activerecord.backend.adapters.vector import Vector
+        from rhosocial.activerecord.backend.base.type_adaption import (
+            merge_adapter_suggestions,
+        )
+
+        base = super().get_default_adapter_suggestions()
 
         type_mappings = [
             (bool, bool),
@@ -110,19 +138,51 @@ class ClickHouseBackendMixin:
             (dict, str),
             (list, str),
             (tuple, str),
+            # Neutral families: ClickHouse has no OGC geometry, range or MAC
+            # column, so those are carried as text; a vector is carried as
+            # JSON text on a String column and as a list on Array(Float32).
+            (Geometry, str),
+            (Vector, str),
+            (BitString, str),
+            (Range, str),
+            (Multirange, str),
+            (MacAddress, str),
         ]
 
+        suggestions = merge_adapter_suggestions(base, type_mappings, self.adapter_registry)
         for py_type, db_type in type_mappings:
-            if py_type in (list, tuple):
-                from ..adapters import ClickHouseArrayAdapter
-
-                suggestions[py_type] = (ClickHouseArrayAdapter(), str)
-                continue
-            adapter = self.adapter_registry.get_adapter(py_type, db_type)
-            if adapter:
-                suggestions[py_type] = (adapter, db_type)
-
+            if py_type not in suggestions:
+                self.log(
+                    logging.DEBUG,
+                    f"No adapter found for ({py_type.__name__}, {db_type.__name__}). "
+                    "Suggestion will not be provided for this type.",
+                )
         return suggestions
+
+    def get_type_adapters(self) -> List["SQLTypeAdapter"]:
+        """Return the adapter instances this backend provides.
+
+        This is a plain inventory: it says which adapters exist for this backend.
+        It carries no suggestion/default/priority semantics; the caller decides.
+
+        Two sources the backend already owns are combined: the adapter registry
+        (every adapter registered for this backend, including ones that carry
+        no default suggestion) and the adapters named by
+        :meth:`get_default_adapter_suggestions` (a suggestion may name an
+        adapter instance that is not in the registry). Instances are
+        deduplicated by class -- ``(module, qualname)`` -- and sorted by that
+        pair, so the order is deterministic and a new list is returned on every
+        call.
+        """
+        adapters = list(self.adapter_registry.get_all_adapters().values())
+        adapters.extend(
+            suggestion[0] for suggestion in self.get_default_adapter_suggestions().values()
+        )
+        unique: Dict[Tuple[str, str], SQLTypeAdapter] = {}
+        for adapter in adapters:
+            adapter_cls = type(adapter)
+            unique.setdefault((adapter_cls.__module__, adapter_cls.__qualname__), adapter)
+        return [unique[key] for key in sorted(unique)]
 
     # clickhouse-connect 1.7.x exposes the ClickHouse server error code as
     # ``Error.code`` and its symbolic name as ``Error.name``. Codes come from

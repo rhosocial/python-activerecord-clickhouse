@@ -1,0 +1,228 @@
+# tests/rhosocial/activerecord_clickhouse_test/feature/backend/construct/dialect/test_dialect_capabilities.py
+"""
+ClickHouse dialect capability and SQL-generation tests.
+
+These are pure dialect tests (no database connection) verifying that the
+ClickHouse dialect correctly:
+1. Reports capability flags (supports_*) matching ClickHouse's actual features
+2. Generates ClickHouse-specific SQL for expressions and statements
+"""
+
+import pytest
+
+from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+
+@pytest.fixture
+def dialect():
+    return ClickHouseDialect(version=(26, 7, 3))
+
+
+class TestDialectCapabilities:
+    """supports_* flags must reflect ClickHouse 26.x reality."""
+
+    def test_arrays_supported(self, dialect):
+        assert dialect.supports_array_type() is True
+        assert dialect.supports_array_constructor() is True
+        assert dialect.supports_array_access() is True
+
+    def test_json_supported(self, dialect):
+        assert dialect.supports_json_type() is True
+        # ClickHouse has no MySQL-style -> / ->> operators; JSON access uses
+        # JSONExtractString / JSON_VALUE instead.
+        assert dialect.supports_json_arrow_operators() is False
+
+    def test_cte_supported(self, dialect):
+        assert dialect.supports_basic_cte() is True
+        assert dialect.supports_recursive_cte() is True
+        assert dialect.supports_materialized_cte() is True
+
+    def test_window_functions_supported(self, dialect):
+        assert dialect.supports_window_functions() is True
+        assert dialect.supports_window_frame_clause() is True
+
+    def test_grouping_supported(self, dialect):
+        assert dialect.supports_rollup() is True
+        assert dialect.supports_cube() is True
+        assert dialect.supports_grouping_sets() is True
+
+    def test_set_operations_supported(self, dialect):
+        assert dialect.supports_union() is True
+        assert dialect.supports_union_all() is True
+        assert dialect.supports_intersect() is True
+        assert dialect.supports_except() is True
+
+    def test_joins_supported(self, dialect):
+        assert dialect.supports_inner_join() is True
+        assert dialect.supports_left_join() is True
+        assert dialect.supports_right_join() is True
+        assert dialect.supports_full_join() is True
+        assert dialect.supports_cross_join() is True
+
+    def test_views_supported(self, dialect):
+        assert dialect.supports_or_replace_view() is True
+
+    def test_materialized_view_supported(self, dialect):
+        """ClickHouse materialized views are supported via a dedicated expression.
+
+        The SQL-standard form cannot express them (ENGINE/TO mandatory, no
+        WITH [NO] DATA, DROP VIEW), so the generic expression is rejected and
+        ClickHouseCreateMaterializedViewStatement is the entry point.
+        """
+        assert dialect.supports_materialized_view() is True
+        assert dialect.supports_refresh_materialized_view() is True
+
+    def test_qualify_and_ilike_supported(self, dialect):
+        assert dialect.supports_qualify_clause() is True
+        assert dialect.supports_ilike() is True
+
+    def test_returning_insert_only(self, dialect):
+        # Verified against ClickHouse 26.7: INSERT ... VALUES ... RETURNING is
+        # not accepted (RETURNING only applies to INSERT SELECT), so insert
+        # returning is disabled and ids are generated client-side.
+        assert dialect.supports_returning_insert() is False
+        assert dialect.supports_returning_update() is False
+        assert dialect.supports_returning_delete() is False
+
+    def test_transactions_unsupported(self, dialect):
+        assert dialect.supports_transaction_mode() is False
+        assert dialect.supports_savepoint() is False
+        assert dialect.supports_read_only_transaction() is False
+
+    def test_constraints_unsupported(self, dialect):
+        assert dialect.supports_foreign_key_constraint() is False
+        assert dialect.supports_unique_constraint() is False
+        assert dialect.supports_check_constraint() is False
+        assert dialect.supports_unique_index() is False
+
+    def test_upsert_unsupported(self, dialect):
+        assert dialect.supports_upsert() is False
+        assert dialect.supports_on_conflict_clause() is False
+        assert dialect.supports_insert_ignore() is False
+        assert dialect.supports_replace_into() is False
+
+    def test_locking_unsupported(self, dialect):
+        assert dialect.supports_for_update() is False
+
+    def test_other_unsupported(self, dialect):
+        assert dialect.supports_trigger() is False
+        assert dialect.supports_create_sequence() is False
+        assert dialect.supports_merge_statement() is False
+        assert dialect.supports_generated_column() is False
+        assert dialect.supports_natural_join() is False
+        assert dialect.supports_lateral_join() is False
+        assert dialect.supports_fulltext_index() is False
+        assert dialect.supports_collate_expression() is False
+        assert dialect.supports_column_collation() is False
+
+
+class TestSQLGeneration:
+    """Dialect-specific SQL formatting."""
+
+    def test_identifier_quoting(self, dialect):
+        assert dialect.format_identifier("my_table") == "`my_table`"
+        assert dialect.format_identifier("weird`name") == "`weird``name`"
+
+    def test_parameter_placeholder(self, dialect):
+        assert dialect.get_parameter_placeholder() == "%s"
+
+    def test_limit_offset(self, dialect):
+        sql, params = dialect.format_limit_offset(limit=10, offset=5)
+        assert sql == "LIMIT %s OFFSET %s"
+        assert params == [10, 5]
+
+    def test_limit_only(self, dialect):
+        sql, params = dialect.format_limit_offset(limit=10)
+        assert sql == "LIMIT %s"
+        assert params == [10]
+
+    def test_storage_options_slot_is_refused_by_name(self, dialect):
+        """The generic ``WITH (...)`` slot has no ClickHouse spelling.
+
+        ClickHouse's storage clauses are declared on
+        ``ClickHouseCreateTableOptions``; a caller that reaches for the generic
+        slot is told so instead of getting a silently different statement.
+        """
+        from rhosocial.activerecord.backend.expression.objects import Table
+        from rhosocial.activerecord.backend.expression.statements import (
+            ColumnDefinition,
+            CreateTableStatement,
+            StorageOptionsExpression,
+        )
+        from rhosocial.activerecord.backend.expression.types import IntegerType
+
+        expr = CreateTableStatement(
+            dialect,
+            Table(dialect, "t"),
+            [ColumnDefinition(dialect, "id", IntegerType(dialect))],
+            storage_options=StorageOptionsExpression(dialect, {"ENGINE": "MergeTree"}),
+        )
+        with pytest.raises(UnsupportedFeatureError):
+            expr.to_sql()
+
+    def test_table_engine_clauses(self, dialect):
+        """ClickHouse table-engine-specific clause formatting."""
+        from rhosocial.activerecord.backend.expression.core import Column
+        from rhosocial.activerecord.backend.expression.operators import RawSQL
+        from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+            ClickHouseEngineSpec,
+            ClickHouseSetting,
+            ClickHouseStorageOptionKind,
+            ClickHouseTableStorageOption,
+        )
+
+        kind = ClickHouseStorageOptionKind
+        clauses = [
+            ClickHouseTableStorageOption(
+                dialect, kind.ENGINE, value=ClickHouseEngineSpec(dialect, "MergeTree")
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                kind.ORDER_BY,
+                value=[Column(dialect, "id"), Column(dialect, "created_at")],
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                kind.TTL,
+                value=RawSQL(dialect, "created_at + INTERVAL 30 DAY"),
+            ),
+            ClickHouseTableStorageOption(
+                dialect,
+                kind.SETTINGS,
+                value=[ClickHouseSetting(dialect, "index_granularity", 8192)],
+            ),
+        ]
+        rendered = []
+        for clause in sorted(clauses, key=lambda item: item.option.rank):
+            clause_sql, _ = clause.to_sql()
+            rendered.append(clause_sql)
+        result = " ".join(rendered)
+
+        assert "ENGINE = MergeTree" in result
+        assert "ORDER BY (`id`, `created_at`)" in result
+        assert "TTL created_at + INTERVAL 30 DAY" in result
+        assert "SETTINGS index_granularity = 8192" in result
+        # ENGINE/ORDER BY values must NOT be quoted as strings.
+        assert "'MergeTree'" not in result
+
+    def test_unsupported_insert_options_raise(self, dialect):
+        """INSERT IGNORE / REPLACE capability flags are False for ClickHouse."""
+        assert dialect.supports_insert_ignore() is False
+        assert dialect.supports_replace_into() is False
+        assert dialect.supports_upsert() is False
+
+    def test_transaction_formatting_raises(self, dialect):
+        """Transaction SQL generation must fail fast for ClickHouse."""
+        from rhosocial.activerecord.backend.expression import BeginTransactionStatement
+
+        with pytest.raises(UnsupportedFeatureError):
+            dialect.format_begin_transaction_statement(BeginTransactionStatement(dialect))
+
+
+class TestExplain:
+    """EXPLAIN statement formatting placeholder.
+
+    Full EXPLAIN expression tests require complex expression construction
+    patterns; they are covered by the existing dialect expression tests.
+    """

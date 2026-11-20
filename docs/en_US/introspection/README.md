@@ -378,6 +378,11 @@ answers `False` remains the complete answer: it says the question cannot be
 asked here, which is a different statement from a database that has nothing
 to report.
 
+Runnable example:
+[Chapter 8 — Introspection](../../examples/chapter_08_introspection/README.md)
+walks the capability probes, the table/column catalogues and this backend's own
+partition and table-engine reads against a live server.
+
 Continue with [CLI usage](../cli/README.md) for the other subcommands, and
 [Unsupported features](../capabilities/unsupported.md) for the boundaries this
 backend refuses instead of emulating.

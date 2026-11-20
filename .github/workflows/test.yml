@@ -20,7 +20,7 @@ permissions:
 jobs:
   test:
     name: Python ${{ matrix.python-version }} / ClickHouse ${{ matrix.clickhouse-version }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     permissions:
       contents: read
     strategy:
@@ -30,11 +30,11 @@ jobs:
           # One job per supported CPython major/minor (clickhouse-connect
           # requires >=3.10,<3.15), spread across the ClickHouse release
           # lines currently under maintenance (25.8 LTS, 26.3 LTS, 26.7).
-          - { python-version: '3.10', clickhouse-version: '25.8', port: 3100 }
-          - { python-version: '3.11', clickhouse-version: '25.8', port: 3101 }
-          - { python-version: '3.12', clickhouse-version: '26.3', port: 3102 }
-          - { python-version: '3.13', clickhouse-version: '26.3', port: 3103 }
-          - { python-version: '3.14', clickhouse-version: '26.7', port: 3104, coverage: true }
+          - { python-version: '3.10', clickhouse-version: '25.8', port: 3100, os: ubuntu-24.04 }
+          - { python-version: '3.11', clickhouse-version: '25.8', port: 3101, os: ubuntu-24.04 }
+          - { python-version: '3.12', clickhouse-version: '26.3', port: 3102, os: ubuntu-24.04 }
+          - { python-version: '3.13', clickhouse-version: '26.3', port: 3103, os: ubuntu-24.04 }
+          - { python-version: '3.14', clickhouse-version: '26.7', port: 3104, coverage: true, os: ubuntu-26.04 }
 
     services:
       clickhouse:
@@ -110,7 +110,7 @@ jobs:
         if: matrix.coverage
         run: |
           export PYTHONPATH=src:tests
-          coverage run --source=src -m pytest tests/rhosocial --tb=short
+          coverage run --source=rhosocial.activerecord.backend.impl.clickhouse -m pytest tests/ --tb=short --ignore=tests/benchmark
           coverage xml
           coverage report
 
@@ -128,4 +128,4 @@ jobs:
         if: '!matrix.coverage'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/rhosocial --tb=short
+          python -m pytest tests/ --tb=short --ignore=tests/benchmark

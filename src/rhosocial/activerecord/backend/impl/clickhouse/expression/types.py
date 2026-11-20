@@ -63,6 +63,8 @@ from rhosocial.activerecord.backend.expression.types import (
     FloatType,
     IntegerType,
     JsonType,
+    LENGTH_PARAMETERS,
+    PRECISION_PARAMETERS,
     SmallIntType,
     TextType,
     TimestampType,
@@ -117,7 +119,7 @@ class ClickHouseInt64Type(BigIntType):
 
     The 8-byte signed integer concept. ClickHouse also uses ``Int64`` as the
     storage for an interval expressed as a count of seconds, which is why
-    ``suggested_data_types()`` names this class as the stand-in for core's
+    ``substitute_data_types()`` names this class as the stand-in for core's
     ``IntervalType``.
     """
 
@@ -141,6 +143,10 @@ class ClickHouseUInt8Type(TinyIntType):
     def __init__(self, dialect=None):
         super().__init__(dialect, unsigned=True)
 
+    #: Unsigned and never anything else: no ClickHouse spelling of these widths
+    #: is signed, so the field is fixed rather than exposed.
+    PARAMETERS = ()
+
 
 class ClickHouseUInt16Type(SmallIntType):
     """ClickHouse ``UInt16`` — unsigned 16-bit integer, range [0, 65535].
@@ -152,6 +158,10 @@ class ClickHouseUInt16Type(SmallIntType):
 
     def __init__(self, dialect=None):
         super().__init__(dialect, unsigned=True)
+
+    #: Unsigned and never anything else: no ClickHouse spelling of these widths
+    #: is signed, so the field is fixed rather than exposed.
+    PARAMETERS = ()
 
 
 class ClickHouseUInt32Type(IntegerType):
@@ -165,6 +175,10 @@ class ClickHouseUInt32Type(IntegerType):
     def __init__(self, dialect=None):
         super().__init__(dialect, unsigned=True)
 
+    #: Unsigned and never anything else: no ClickHouse spelling of these widths
+    #: is signed, so the field is fixed rather than exposed.
+    PARAMETERS = ()
+
 
 class ClickHouseUInt64Type(BigIntType):
     """ClickHouse ``UInt64`` — unsigned 64-bit integer.
@@ -176,6 +190,10 @@ class ClickHouseUInt64Type(BigIntType):
 
     def __init__(self, dialect=None):
         super().__init__(dialect, unsigned=True)
+
+    #: Unsigned and never anything else: no ClickHouse spelling of these widths
+    #: is signed, so the field is fixed rather than exposed.
+    PARAMETERS = ()
 
 
 # ---------------------------------------------------------------------------
@@ -385,7 +403,9 @@ class ClickHouseFixedStringType(BinaryType):
     # ``FixedString(N)`` is exactly N zero-padded bytes, so N is not a hint but
     #     the storage: a FixedString(4) and a FixedString(8) are different columns.
 
-    PARAMETERS = ("length",)
+    #: The shared object, not a copy: ``identity()`` compares the tuple, so a
+    #: literal of the same shape would silently split the declaration family.
+    PARAMETERS = LENGTH_PARAMETERS
 
     name = "clickhouse_fixed_string"
 
@@ -492,7 +512,8 @@ class ClickHouseDateTime64Type(TimestampType):
             raise ValueError("DateTime64 precision must be between 0 and 9")
         self.precision = precision
 
-    PARAMETERS = ("precision",)
+    #: The shared object, not a copy: see the note on the length family above.
+    PARAMETERS = PRECISION_PARAMETERS
 
 # ---------------------------------------------------------------------------
 # Boolean type

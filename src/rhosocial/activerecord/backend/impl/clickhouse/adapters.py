@@ -4,9 +4,29 @@ import json
 import uuid
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Dict, List, Tuple, Type, Union, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from datetime import timedelta
 
+from rhosocial.activerecord.backend.adapters import (
+    BitString,
+    BitStringAdapterBase,
+    Geometry,
+    GeometryAdapterBase,
+    GeometryCollection,
+    LineString,
+    MacAddress,
+    MacAddressAdapterBase,
+    MultiLineString,
+    MultiPoint,
+    MultiPolygon,
+    Multirange,
+    Point,
+    Polygon,
+    Range,
+    RangeAdapterBase,
+    Vector,
+    VectorAdapterBase,
+)
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
 
 
@@ -128,7 +148,31 @@ class ClickHouseJSONAdapter(SQLTypeAdapter):
     JSON as String. This adapter serializes to JSON string for write operations
     (compatible with both JSON and String columns) and deserializes from JSON
     string when reading.
+
+    ``default`` / ``object_hook`` are forwarded to ``json.dumps`` / ``json.loads``
+    so callers can plug in a neutral-type codec (see
+    ``rhosocial.activerecord.backend.adapters.json_codec``) without changing the
+    default behaviour: with both hooks left at ``None`` the output is byte-for-byte
+    identical to the unparameterized adapter.
     """
+
+    def __init__(
+        self,
+        default: Optional[Callable[[Any], Any]] = None,
+        object_hook: Optional[Callable[[Dict[str, Any]], Any]] = None,
+    ):
+        """
+        Args:
+            default: Called by ``json.dumps`` for objects that are not natively
+                JSON serializable. ``None`` keeps the stdlib behaviour (raise
+                ``TypeError``).
+            object_hook: Called by ``json.loads`` with every decoded JSON object
+                (``dict``). ``None`` keeps plain dict decoding. Only consulted when
+                the stored value arrives as text; a driver that already returns
+                ``dict``/``list`` bypasses it.
+        """
+        self._json_default = default
+        self._json_object_hook = object_hook
 
     @property
     def supported_types(self) -> Dict[Type, List[Any]]:
@@ -138,7 +182,7 @@ class ClickHouseJSONAdapter(SQLTypeAdapter):
         if value is None:
             return None
         # ClickHouse JSON/String columns store JSON as a string, so we serialize
-        return json.dumps(value, ensure_ascii=False)
+        return json.dumps(value, ensure_ascii=False, default=self._json_default)
 
     def from_database(
         self, value: Any, target_type: Type, options: Optional[Dict[str, Any]] = None, **kwargs
@@ -148,7 +192,7 @@ class ClickHouseJSONAdapter(SQLTypeAdapter):
         # ClickHouse connector might return str for JSON, or already dict/list for some drivers
         if isinstance(value, (dict, list)):
             return value
-        return json.loads(value)
+        return json.loads(value, object_hook=self._json_object_hook)
 
 
 class ClickHouseUUIDAdapter(SQLTypeAdapter):
@@ -265,13 +309,18 @@ class ClickHouseTimeAdapter(SQLTypeAdapter):
     """
     Adapts Python time to ClickHouse TIME string (HH:MM:SS) and vice-versa.
 
-    ClickHouse connector-python returns timedelta for TIME columns, but accepts
-    string format for insertion. This adapter handles both cases.
+    ClickHouse has no time-of-day type: ``TIME`` is rendered as ``DateTime``,
+    so a stored value comes back as a ``datetime`` and only the time part is
+    meaningful. This adapter accepts the string form for insertion, the
+    ``timedelta`` the connector sometimes returns for time columns, and the
+    ``datetime`` a ``DateTime`` column returns. Both ``time`` and
+    ``timedelta``/``str`` targets are declared so the backend's suggestion
+    table selects this adapter instead of the generic one.
     """
 
     @property
     def supported_types(self) -> Dict[Type, List[Any]]:
-        return {datetime.time: [datetime.timedelta, str]}
+        return {datetime.time: [datetime.time, datetime.timedelta, str]}
 
     def to_database(self, value: datetime.time, target_type: Type, options: Optional[Dict[str, Any]] = None) -> Any:
         if value is None:
@@ -285,6 +334,10 @@ class ClickHouseTimeAdapter(SQLTypeAdapter):
             return None
         if isinstance(value, datetime.time):
             return value
+        if isinstance(value, datetime.datetime):
+            # A TIME column is stored as DateTime, so only the time part is the
+            # value the caller asked for.
+            return value.time()
         if isinstance(value, timedelta):  # Handle timedelta returned by clickhouse-connector-python
             total_seconds = int(value.total_seconds())
             hours, remainder = divmod(total_seconds, 3600)
@@ -525,4 +578,175 @@ class ClickHouseSetAdapter(SQLTypeAdapter):
             "ClickHouse does not have a SET type; ClickHouseSetAdapter is retained only for compatibility "
             "and always fails. Use Array/Tuple columns instead."
         )
+
+
+# --- Neutral-type adapters -------------------------------------------------
+#
+# ``rhosocial.activerecord.backend.adapters`` defines driver-independent types;
+# ClickHouse has no native column for most of them, so each concrete adapter
+# pins one wire form. The table is the authoritative statement of what the
+# written/read value is:
+#
+#   neutral type   column          wire value
+#   Geometry       String          WKT text (``POINT (1.0 2.0)``)
+#   Vector         String / Array(Float32)
+#                                   JSON array text for ``String`` carriers,
+#                                   Python ``list`` for native array columns
+#   BitString      String          ``"0"``/``"1"`` text; bit length preserved
+#   Range          String          JSON text from ``Range.to_json_value``
+#   Multirange     String          JSON text: array of Range objects
+#   MacAddress     String          canonical lowercase colon-separated text
+#
+# ClickHouse's own ``Point`` / ``Ring`` / ``Polygon`` / ``MultiPolygon``
+# columns are Tuple/Array aliases, not OGC geometry types; storing WKT text
+# keeps one portable representation for every neutral shape.
+_GEOMETRY_TYPES = (
+    Geometry,
+    Point,
+    LineString,
+    Polygon,
+    MultiPoint,
+    MultiLineString,
+    MultiPolygon,
+    GeometryCollection,
+)
+
+
+class ClickHouseGeometryAdapter(GeometryAdapterBase):
+    """Encodes neutral geometries as WKT text in a ClickHouse ``String``.
+
+    ClickHouse has no OGC geometry column type, so WKT is stored verbatim.
+    Decoding accepts text (and UTF-8 bytes from a ``FixedString``).
+    """
+
+    def __init__(self):
+        super().__init__()
+        for geometry_type in _GEOMETRY_TYPES:
+            self.register_type(geometry_type, str)
+
+    def _encode(self, geometry: Geometry, target_type: Type, options: Dict[str, Any]) -> str:
+        return geometry.to_wkt()
+
+    def _decode(self, value: Any, options: Dict[str, Any]) -> Geometry:
+        if isinstance(value, (bytes, bytearray)):
+            value = bytes(value).decode("utf-8")
+        return Geometry.from_wkt(self._require_text(value))
+
+
+class ClickHouseVectorAdapter(VectorAdapterBase):
+    """Encodes neutral vectors for the two wire forms ClickHouse can take.
+
+    * ``str`` -- the canonical JSON array text (``[1.0, 2.0, 3.0]``) for
+      ``String`` carriers. This is the shared neutral contract's carrier: the
+      generic text column holds the vector as JSON, exactly like SQLite.
+    * ``list`` -- a Python ``list`` of widened floats for a native
+      ``Array(Float32)`` column.  clickhouse-connect binds a list natively as
+      an array literal, so the value crosses the wire as an array, not as text
+      that would need quoting.
+
+    Reading accepts both: the driver returns a real ``list`` for ``Array(T)``
+    columns and text for ``String`` columns. Component values are widened to
+    ``float`` because a native vector column is ``Float32``.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.register_type(Vector, str)
+        self.register_type(Vector, list)
+
+    def _encode(self, vector: Vector, target_type: Type, options: Dict[str, Any]) -> Any:
+        values = [float(item) for item in vector.values]
+        if target_type is str:
+            return json.dumps(vector.to_json_value(), allow_nan=False)
+        return values
+
+    def _decode(self, value: Any, options: Dict[str, Any]) -> Vector:
+        if isinstance(value, (list, tuple)):
+            return Vector.from_json_value(list(value))
+        text = self._require_text(value)
+        return Vector.from_json_value(json.loads(text))
+
+
+class ClickHouseBitStringAdapter(BitStringAdapterBase):
+    """Encodes neutral bit strings as ``"0"``/``"1"`` text in a ``String``.
+
+    The text carries the exact bit length, so leading zeros and non-byte-
+    aligned lengths survive. Decoding also accepts raw bytes from a
+    ``FixedString`` column; a byte string only carries whole bytes, so its
+    ``bit_length`` is ``8 * len(data)``.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.register_type(BitString, str)
+
+    def _encode(self, bits: BitString, target_type: Type, options: Dict[str, Any]) -> str:
+        return bits.to_bits()
+
+    def _decode(self, value: Any, options: Dict[str, Any]) -> BitString:
+        if isinstance(value, (bytes, bytearray)):
+            return BitString.from_bytes(bytes(value))
+        return BitString.from_bits(self._require_text(value))
+
+
+class ClickHouseRangeAdapter(RangeAdapterBase):
+    """Encodes neutral ranges as JSON text in a ClickHouse ``String``.
+
+    ClickHouse has no range column type, so ``Range`` and ``Multirange`` are
+    stored as the lossless JSON produced by ``to_json_value`` (including the
+    ``element_type`` label and bound inclusivity). The declared column type is
+    therefore ``String``; range semantics are re-established on read.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.register_type(Range, str)
+        self.register_type(Multirange, str)
+
+    def _encode(
+        self, value: Union[Range, Multirange], target_type: Type, options: Dict[str, Any]
+    ) -> str:
+        if isinstance(value, Multirange) and target_type is Range:
+            raise ValueError("a Multirange cannot be written to a single-range target")
+        if isinstance(value, Range) and target_type is Multirange:
+            raise ValueError("a Range cannot be written to a multirange target")
+        return json.dumps(value.to_json_value(), ensure_ascii=False)
+
+    def _decode(
+        self, value: Any, target_type: Type, options: Dict[str, Any]
+    ) -> Union[Range, Multirange]:
+        payload = json.loads(self._require_text(value))
+        if isinstance(payload, list):
+            if target_type is Range:
+                raise ValueError("expected one JSON range object, got a JSON array")
+            return Multirange.from_json_value(payload)
+        if not isinstance(payload, dict):
+            raise ValueError(
+                "range JSON text must decode to an object or an array, "
+                f"got {type(payload).__name__}"
+            )
+        if target_type is Multirange:
+            raise ValueError("expected a JSON array of ranges, got one JSON object")
+        return Range.from_json_value(payload)
+
+
+class ClickHouseMacAddressAdapter(MacAddressAdapterBase):
+    """Encodes neutral MAC addresses as canonical text in a ``String``.
+
+    The wire value is the lowercase colon-separated form (``08:00:2b:01:02:03``),
+    which is exactly what ``str(MacAddress)`` produces. Decoding also accepts
+    raw octets from a ``FixedString(6)`` / ``FixedString(8)`` column.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.register_type(MacAddress, str)
+
+    def _encode(self, mac: MacAddress, target_type: Type, options: Dict[str, Any]) -> str:
+        return str(mac)
+
+    def _decode(self, value: Any, options: Dict[str, Any]) -> MacAddress:
+        if isinstance(value, (bytes, bytearray)):
+            return MacAddress.parse(bytes(value))
+        return MacAddress.parse(self._require_text(value))
 

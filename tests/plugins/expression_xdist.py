@@ -15,7 +15,8 @@ The plugin is deliberately narrow in what it touches:
   installation is not this plugin's business, and the run proceeds serially
   the way it always has.
 * **Scope**: only when every non-option argument names a path inside the
-  expression area (``feature/backend/expression``) is ``-n auto`` appended.
+  expression area (``feature/backend/construct/expression``) is ``-n auto``
+  appended.
   A whole-repository run, a mixed run, or a run of any other directory keeps
   the serial default; the live scenario tests have their own parallel
   runner (``--scenario-parallel``) and are not dragged into a worker pool
@@ -42,6 +43,7 @@ _EXPRESSION_AREA = os.path.join(
     "activerecord_clickhouse_test",
     "feature",
     "backend",
+    "construct",
     "expression",
 )
 

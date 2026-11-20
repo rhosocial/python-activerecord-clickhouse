@@ -2,7 +2,7 @@
 """Which column class ClickHouse suggests for each common Python type.
 
 This is the ClickHouse half of the column-type protocol: an answer for every
-one of the eighteen common Python types the framework defines, and nothing
+one of the twenty-four Python types the framework defines, and nothing
 else. Everything here is a **column** decision -- what operations a value
 carries -- and none of it is a storage decision: whether ``Array(T)`` or
 ``JSON`` spells the column is the DDL layer's separate answer (see
@@ -76,19 +76,34 @@ import enum
 import uuid
 from typing import Any, Dict, Optional, Type
 
+from rhosocial.activerecord.backend.adapters import (
+    BitString,
+    Geometry,
+    MacAddress,
+    Multirange,
+    Range,
+    Vector,
+)
 from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
 from rhosocial.activerecord.backend.expression.column_types import (
     ArrayColumn,
     BinaryColumn,
+    BitStringColumn,
     BooleanColumn,
     ColumnBase,
+    GeometryColumn,
     IntegerColumn,
+    IntervalColumn,
     JSONColumn,
+    MacAddressColumn,
+    MultirangeColumn,
     NumericColumn,
+    RangeColumn,
     StringColumn,
     TimestampColumn,
     UUIDColumn,
 )
+from ..column_types import ClickHouseVectorColumn
 
 #: ClickHouse's full table: ``{common Python type: ColumnBase subclass}``.
 #:
@@ -154,15 +169,15 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     datetime.date: TimestampColumn,
     datetime.time: TimestampColumn,
     datetime.datetime: TimestampColumn,
-    # A timedelta is a number of seconds here, answered by the numeric
-    # surface. ClickHouse does have a native `Interval` family and the
-    # driver binds a timedelta natively, but core has no IntervalColumn, and
-    # the native type's arithmetic surface is **not** measured: the
-    # aggregate fact table found `sum` / `avg` over `Interval*` rejected with
-    # ILLEGAL_TYPE_OF_ARGUMENT on 26.7.3.19 even though the docs promise a
-    # same-type result. So the honest answer is the numeric one, and the
-    # Interval question rides with core's missing class.
-    datetime.timedelta: NumericColumn,
+    # A duration is a span, not a number, so it answers `IntervalColumn`.
+    # ClickHouse does have a native `Interval` family and the driver binds a
+    # timedelta natively, but the native type's arithmetic surface is **not**
+    # measured: the aggregate fact table found `sum` / `avg` over `Interval*`
+    # rejected with ILLEGAL_TYPE_OF_ARGUMENT on 26.7.3.19 even though the
+    # docs promise a same-type result. `IntervalColumn` promises no arithmetic
+    # at all, so the answer is honest either way; a ClickHouse-named subclass
+    # can offer the operations once they are measured.
+    datetime.timedelta: IntervalColumn,
     # Native `UUID` type, compared as a value like any other: portable SQL
     # has no UUID operator for a UUID column to be missing.
     uuid.UUID: UUIDColumn,
@@ -203,6 +218,19 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     # enum is **declaration order**, not lexicographic, and an illegal member
     # is refused by the server (code 691) rather than by a CHECK constraint.
     enum.Enum: StringColumn,
+    # -- Complex families ------------------------------------------------
+    # Their core classes promise only the surface every column has -- alias,
+    # null tests, casting and collation -- because no distance, containment,
+    # overlap, bitwise or similarity operation is spelled the same way on
+    # every backend. Richer family operations belong to a ClickHouse-named
+    # subclass in this backend's extra table. Storage is answered in the
+    # data-type suggestion module.
+    Geometry: GeometryColumn,
+    Vector: ClickHouseVectorColumn,
+    BitString: BitStringColumn,
+    Range: RangeColumn,
+    Multirange: MultirangeColumn,
+    MacAddress: MacAddressColumn,
 }
 
 
@@ -218,7 +246,7 @@ class ClickHouseColumnTypeMixin(ColumnTypeMixin):
     """
 
     def suggested_column_types(self) -> Dict[Any, Optional[Type[ColumnBase]]]:
-        """A fresh copy of :data:`CLICKHOUSE_COLUMN_TYPES`, all eighteen entries.
+        """A fresh copy of :data:`CLICKHOUSE_COLUMN_TYPES`, all twenty-four entries.
 
         Returning a copy is part of the protocol: a caller mutating the answer
         must not corrupt the table the next lookup reads.

@@ -36,6 +36,11 @@
 * [分区维护](ddl/partition_maintenance.md)
 * [跳数索引](ddl/skip_indexes.md)
 
+## 迁移
+
+* [ClickHouse 后端的迁移](migration/README.md)
+* [可运行的迁移示例](../examples/migration/README.md)
+
 ## 能力特性
 
 * [客户端雪花 ID](capabilities/snowflake_ids.md)

@@ -759,10 +759,10 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         return True
 
     # ------------------------------------------------------------------
-    # DataTypeSupport — suggested_data_types()
+    # DataTypeSupport — substitute_data_types()
     # ------------------------------------------------------------------
 
-    def suggested_data_types(self) -> Dict[str, type]:
+    def substitute_data_types(self) -> Dict[str, type]:
         """Core concepts ClickHouse genuinely cannot spell, and what it stores.
 
         ClickHouse's data types are enumerated exhaustively in its manual, so a
@@ -974,12 +974,27 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
     def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
         """``TIMESTAMP`` — an instant, which is what ClickHouse's ``DateTime`` is.
 
-        Sub-second precision is dropped: ClickHouse spells that
-        ``DateTime64(p)``, and choosing the word for the caller would silently
-        widen the value. ``ClickHouseDateTime64Type`` is the type that carries the
-        precision.
+        A declared sub-second precision is honoured as ``DateTime64(p)``
+        (``p`` = 0..9); without one the plain ``DateTime`` (whole seconds) is
+        rendered. Dropping a requested precision would make the column narrower
+        than the type the caller asked for, and a value written through it would
+        come back truncated — so the precision is rendered, not discarded.
+        ``ClickHouseDateTime64Type`` is the type that carries that parameter.
         """
-        return "DateTime", ()
+        precision = getattr(data_type, "precision", None)
+        if precision is None:
+            return "DateTime", ()
+        if (
+            isinstance(precision, bool)
+            or not isinstance(precision, int)
+            or not 0 <= precision <= 9
+        ):
+            raise ValueError(
+                f"TIMESTAMP precision must be an integer in 0..9, got {precision!r}"
+            )
+        return self.format_data_type_clickhouse_timestamp64(
+            ClickHouseDateTime64Type(precision=precision)
+        )
 
     def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
         """``TIME`` — time of day, with no date attached.
@@ -987,7 +1002,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ClickHouse has no time-only type; the closest storage is ``DateTime``,
         which is what is rendered. A column declared ``TIME`` on this backend
         therefore holds an instant, not a time of day. ``timetz`` is not rendered
-        at all — see :meth:`suggested_data_types`.
+        at all — see :meth:`substitute_data_types`.
         """
         return "DateTime", ()
 
@@ -1321,7 +1336,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         falls through to :class:`~...types.custom.CustomType`, which this
         dialect cannot render — a reported failure rather than a silently
         written type the caller may not have meant.  What a caller holding such
-        a name should use is answered by :meth:`suggested_data_types`, which is
+        a name should use is answered by :meth:`substitute_data_types`, which is
         also what the ``TypeError`` from an unrenderable ``CustomType`` points
         at.
 
@@ -1593,7 +1608,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         # writing ``data_type.raw`` back out would either fail at the server or
         # silently store a type the caller may not have meant. There is no
         # ``format_data_type_custom`` here, and
-        # ``suggested_data_types()["custom"]`` names ``ClickHouseStringType`` so
+        # ``substitute_data_types()["custom"]`` names ``ClickHouseStringType`` so
         # the ``TypeError`` says what to use instead.
         from rhosocial.activerecord.backend.expression.types import CustomType
         return CustomType(dialect=self, raw=stripped)

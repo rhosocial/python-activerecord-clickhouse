@@ -1,179 +1,66 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/connection/conftest.py
-"""
-Pytest configuration for connection pool tests.
+"""Pytest configuration for the connection pool tests.
 
-This module provides fixtures for testing connection pools with ClickHouse backends.
-"""
+The directory owns its logical database the same way every migrated directory
+does: ``database_config`` declares the scenario and the directory's database
+(name after its path) and every pool fixture builds its backends from that
+configuration, so a directory's tests stay on one worker per scenario.
 
-import os
-from typing import Dict, Any, Generator
+The concurrency tables are created and dropped by ``clickhouse_pool_with_tables``
+from ``pool_definitions``, so there is no ``prepare`` / ``teardown`` group here.
+
+ClickHouse is synchronous-only (clickhouse-connect has no async path), so there
+are no async pool fixtures here: the async tests in this directory are skipped
+by the root conftest before any fixture is set up.
+"""
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
+
+from pathlib import Path
+from typing import Generator
 
 import pytest
-import pytest_asyncio
-import yaml
 
-from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
-from rhosocial.activerecord.connection.pool import (
-    PoolConfig,
-    BackendPool,
-    AsyncBackendPool,
+from rhosocial.activerecord.connection.pool import BackendPool, PoolConfig
+
+from pool_definitions import ConcurrentTestPostsDefinition, ConcurrentTestUsersDefinition
+
+
+def _database_name() -> str:
+    """Database name from this directory's namespace (below ``feature``)."""
+    parts = Path(__file__).parent.parts
+    start = parts.index("feature") + 1
+    return "test_" + "_".join(parts[start:])
+
+
+def _backend_factory(scenario, config):
+    """Return a factory producing sync backends on this scenario."""
+
+    def factory():
+        return scenario.backend_class(connection_config=config)
+
+    return factory
+
+
+
+# This directory owns a database shared by all its tests within a scenario;
+# pin them to one worker so setup/teardown never races on the same database.
+DECLARATION = Declaration(
+    uses_database=True,
+    parallel=True,
+    purpose="Directory-owned database shared by this test group.",
 )
 
-from providers.pooling import resolve_database_name
-
-
-# No event loop workaround is needed on Windows -- this backend has no async
-# path at all (clickhouse-connect is synchronous-only and
-# AsyncClickHouseBackend refuses instantiation), so there is nothing for an
-# event loop to serve. A `WindowsSelectorEventLoopPolicy` switch used to sit
-# here, copied from the postgres suite: deprecated for removal in Python
-# 3.16, and switching it would take asyncio subprocess and pipe I/O down with
-# it. Do not reintroduce it: if a future async driver needs a selector loop,
-# follow the postgres suite's pytest_asyncio_loop_factories hook instead,
-# which scopes the choice to the tests rather than the process.
-
-# --- Scenario Loading Logic ---
-
-SCENARIO_MAP: Dict[str, Dict[str, Any]] = {}
-
-
-def register_scenario(name: str, config: Dict[str, Any]):
-    SCENARIO_MAP[name] = config
-
-
-def _load_scenarios_from_config():
-    """Load scenarios from a configuration file."""
-    config_path = None
-    env_config_path = os.getenv("CLICKHOUSE_SCENARIOS_CONFIG_PATH")
-
-    if env_config_path and os.path.exists(env_config_path):
-        config_path = env_config_path
-    else:
-        default_path = os.path.join(os.path.dirname(__file__), "../../../../config", "clickhouse_scenarios.yaml")
-        if os.path.exists(default_path):
-            config_path = default_path
-        elif env_config_path:
-            print(f"Warning: Scenario file specified in CLICKHOUSE_SCENARIOS_CONFIG_PATH not found: {env_config_path}")
-            return
-
-    if not config_path:
-        raise FileNotFoundError(
-            "No ClickHouse scenarios configuration file found. "
-            "Set CLICKHOUSE_SCENARIOS_CONFIG_PATH or place clickhouse_scenarios.yaml in tests/config."
-        )
-
-    try:
-        with open(config_path, "r", encoding="utf-8") as f:
-            config_data = yaml.safe_load(f)
-
-        if "scenarios" not in config_data:
-            raise ValueError(f"Configuration file {config_path} does not contain 'scenarios' key")
-
-        for scenario_name, config in config_data["scenarios"].items():
-            if config:
-                register_scenario(scenario_name, config)
-
-        _apply_scenario_filter()
-
-    except ImportError:
-        raise ImportError("PyYAML is required to load scenario configuration files")  # noqa: B904
-
-
-def _apply_scenario_filter():
-    """Filter SCENARIO_MAP based on the active scenarios env var.
-
-    Keeps the connection-pool scenarios consistent with the scenarios active
-    for the rest of the test run (set via ``--scenarios``).
-    """
-    filter_str = os.getenv("CLICKHOUSE_ACTIVE_SCENARIOS") or os.getenv("TESTSUITE_ACTIVE_SCENARIOS")
-    if not filter_str:
-        return
-    allowed = set(s.strip() for s in filter_str.split(",") if s.strip())
-    if not allowed:
-        return
-    for name in [n for n in SCENARIO_MAP if n not in allowed]:
-        del SCENARIO_MAP[name]
-
-
-_load_scenarios_from_config()
-
-
-def get_scenario_config(name: str) -> Dict[str, Any]:
-    if name not in SCENARIO_MAP:
-        if SCENARIO_MAP:
-            name = next(iter(SCENARIO_MAP))
-        else:
-            raise ValueError("No scenarios registered or enabled")
-    return SCENARIO_MAP[name]
-
-
-def get_scenario_names():
-    return list(SCENARIO_MAP.keys())
-
-
-def scenario_config_for_test(scenario_name: str) -> Dict[str, Any]:
-    """Return the scenario config with the pooled database name applied.
-
-    Each concurrent test acquires its own pooled database (``test_db_{index}``)
-    so tests running in parallel on different workers never share a schema.
-    """
-    config_dict = get_scenario_config(scenario_name).copy()
-    pooled = resolve_database_name(scenario_name)
-    if pooled:
-        config_dict["database"] = pooled
-    return config_dict
-
-
-# --- Pool Fixtures ---
-
-
-def create_clickhouse_backend_factory(config_dict: Dict[str, Any]):
-    """Create a factory function that produces ClickHouseBackend instances."""
-
-    def factory():
-        config_copy = config_dict.copy()
-        ssl_disabled = config_copy.pop("ssl_disabled", None)
-        config = ClickHouseConnectionConfig(**config_copy)
-        if ssl_disabled is not None:
-            config.ssl_disabled = ssl_disabled
-        backend = ClickHouseBackend(connection_config=config)
-        backend.connect()
-        return backend
-
-    return factory
-
-
-def create_async_clickhouse_backend_factory(config_dict: Dict[str, Any]):
-    """Create a factory function that produces AsyncClickHouseBackend instances."""
-
-    def factory():
-        config_copy = config_dict.copy()
-        ssl_disabled = config_copy.pop("ssl_disabled", None)
-        config = ClickHouseConnectionConfig(**config_copy)
-        if ssl_disabled is not None:
-            config.ssl_disabled = ssl_disabled
-        backend = AsyncClickHouseBackend(connection_config=config)
-        # Note: connect() will be called by the pool when needed
-        return backend
-
-    return factory
-
-
-@pytest.fixture(scope="function", params=get_scenario_names())
-def clickhouse_pool(request) -> Generator[BackendPool, None, None]:
+@pytest.fixture(scope="function")
+def clickhouse_pool(database_config) -> Generator[BackendPool, None, None]:
     """Create a BackendPool with ClickHouse backends for testing."""
-    scenario_name = request.param
-    config_dict = scenario_config_for_test(scenario_name)
-
+    scenario, config, _name = database_config
     pool_config = PoolConfig(
         min_size=1,
         max_size=5,
         timeout=30.0,
         validate_on_borrow=True,
         validation_query="SELECT 1",
-        backend_factory=create_clickhouse_backend_factory(config_dict),
+        backend_factory=_backend_factory(scenario, config),
     )
 
     pool = BackendPool.create(pool_config)
@@ -181,38 +68,16 @@ def clickhouse_pool(request) -> Generator[BackendPool, None, None]:
     pool.close(timeout=5.0, force=True)
 
 
-@pytest_asyncio.fixture(scope="function", params=get_scenario_names())
-async def async_clickhouse_pool(request) -> AsyncBackendPool:
-    """Create an AsyncBackendPool with ClickHouse backends for testing."""
-    scenario_name = request.param
-    config_dict = scenario_config_for_test(scenario_name)
-
-    pool_config = PoolConfig(
-        min_size=1,
-        max_size=5,
-        timeout=30.0,
-        validate_on_borrow=True,
-        validation_query="SELECT 1",
-        backend_factory=create_async_clickhouse_backend_factory(config_dict),
-    )
-
-    pool = await AsyncBackendPool.create(pool_config)
-    yield pool
-    await pool.close(timeout=5.0, force=True)
-
-
-@pytest.fixture(scope="function", params=get_scenario_names())
-def clickhouse_pool_large(request) -> Generator[BackendPool, None, None]:
+@pytest.fixture(scope="function")
+def clickhouse_pool_large(database_config) -> Generator[BackendPool, None, None]:
     """Create a larger BackendPool for stress testing."""
-    scenario_name = request.param
-    config_dict = scenario_config_for_test(scenario_name)
-
+    scenario, config, _name = database_config
     pool_config = PoolConfig(
         min_size=1,
         max_size=5,
         timeout=60.0,
         validate_on_borrow=False,  # Faster for stress tests
-        backend_factory=create_clickhouse_backend_factory(config_dict),
+        backend_factory=_backend_factory(scenario, config),
     )
 
     pool = BackendPool.create(pool_config)
@@ -220,85 +85,36 @@ def clickhouse_pool_large(request) -> Generator[BackendPool, None, None]:
     pool.close(timeout=5.0, force=True)
 
 
-@pytest_asyncio.fixture(scope="function", params=get_scenario_names())
-async def async_clickhouse_pool_large(request) -> AsyncBackendPool:
-    """Create a larger AsyncBackendPool for stress testing."""
-    scenario_name = request.param
-    config_dict = scenario_config_for_test(scenario_name)
-
-    pool_config = PoolConfig(
-        min_size=1,
-        max_size=5,
-        timeout=60.0,
-        validate_on_borrow=False,
-        backend_factory=create_async_clickhouse_backend_factory(config_dict),
-    )
-
-    pool = await AsyncBackendPool.create(pool_config)
-    yield pool
-    await pool.close(timeout=5.0, force=True)
-
-
-# --- Table Setup Fixtures ---
-
-
 @pytest.fixture(scope="function")
 def clickhouse_pool_with_tables(clickhouse_pool: BackendPool) -> Generator[BackendPool, None, None]:
     """Create a pool with test tables initialized."""
+    definitions = (
+        ConcurrentTestUsersDefinition,
+        ConcurrentTestPostsDefinition,
+    )
     with clickhouse_pool.connection() as backend:
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        backend.execute("""
-            CREATE TABLE concurrent_test_users (
-                id Int64,
-                thread_id Nullable(Int32),
-                name String,
-                created_at DateTime DEFAULT now()
-            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
-        """)
-        backend.execute("""
-            CREATE TABLE concurrent_test_posts (
-                id Int64,
-                thread_id Nullable(Int32),
-                user_id Int64,
-                title String,
-                content String
-            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
-        """)
+        fixtures = [definition(backend.dialect) for definition in definitions]
+        for fixture in fixtures:
+            backend.execute(*fixture.drop_table.to_sql())
+            backend.execute(*fixture.create_table.to_sql())
 
     yield clickhouse_pool
 
     with clickhouse_pool.connection() as backend:
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
+        for fixture in reversed(fixtures):
+            backend.execute(*fixture.drop_table.to_sql())
 
 
-@pytest_asyncio.fixture(scope="function")
-async def async_clickhouse_pool_with_tables(async_clickhouse_pool: AsyncBackendPool) -> AsyncBackendPool:
-    """Create an async pool with test tables initialized."""
-    async with async_clickhouse_pool.connection() as backend:
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        await backend.execute("""
-            CREATE TABLE concurrent_test_users (
-                id Int64,
-                task_id Nullable(Int32),
-                name String,
-                created_at DateTime DEFAULT now()
-            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
-        """)
-        await backend.execute("""
-            CREATE TABLE concurrent_test_posts (
-                id Int64,
-                task_id Nullable(Int32),
-                user_id Int64,
-                title String,
-                content String
-            ) ENGINE = MergeTree ORDER BY id SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1
-        """)
+# --- directory contract: this directory's identity for xdist grouping ---
+@pytest.fixture(scope="session")
+def database_config(backend_scenario):
+    """The scenario, its connection configuration, and the directory name.
 
-    yield async_clickhouse_pool
-
-    async with async_clickhouse_pool.connection() as backend:
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_posts")
-        await backend.execute("DROP TABLE IF EXISTS concurrent_test_users")
+    The pool fixtures own this database: the conftest creates it here, once per
+    scenario, and the table fixture drops and recreates its tables for every
+    test.  The fixture declares which directory and scenario the tests belong
+    to, which is what keeps a directory's tests on one worker per scenario.
+    """
+    name = _database_name()
+    backend_scenario.reset_database(name)
+    return backend_scenario, backend_scenario.make_config(name), name

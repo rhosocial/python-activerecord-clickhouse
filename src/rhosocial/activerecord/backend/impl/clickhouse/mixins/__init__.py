@@ -17,6 +17,7 @@ from .column import ClickHouseModifyColumnMixin
 from .concurrency import ClickHouseConcurrencyMixin, AsyncClickHouseConcurrencyMixin
 from .json_duality_view import ClickHouseJsonDualityViewMixin
 from .optimizer_hint import ClickHouseOptimizerHintMixin
+from .data_type_suggestions import ClickHouseDataTypeSuggestionsMixin
 from .types import ClickHouseTypeSupportMixin
 from .ddl_rename_table import ClickHouseRenameTableMixin
 from .truncate import ClickHouseTruncateMixin
@@ -78,6 +79,7 @@ __all__ = [
     "AsyncClickHouseConcurrencyMixin",
     "ClickHouseJsonDualityViewMixin",
     "ClickHouseOptimizerHintMixin",
+    "ClickHouseDataTypeSuggestionsMixin",
     "ClickHouseTypeSupportMixin",
     "ClickHouseRenameTableMixin",
     "ClickHouseTruncateMixin",

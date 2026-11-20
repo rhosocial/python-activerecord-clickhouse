@@ -92,3 +92,4 @@ SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1;
 
 - [First CRUD application](first_crud.md): full CRUD flow and DDL expression comparison
 - [Field type mapping](../modeling/field_types.md)
+- [Runnable connection script](../../examples/chapter_03_connection/README.md): the setup above as a standalone program

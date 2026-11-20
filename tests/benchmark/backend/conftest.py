@@ -13,7 +13,7 @@ from rhosocial.activerecord.testsuite.benchmark.crud.fixtures.data import (
     payload_count_for_size,
 )
 
-from providers.scenarios import get_enabled_scenarios, get_scenario
+from support.clickhouse import get_enabled_scenarios, get_scenario
 
 
 @dataclass
@@ -136,10 +136,13 @@ async def _initialize_schema_async(backend):
 def _seed_sync(backend, payloads):
     # Seed through the backend insert contract: ClickHouse has no AUTO_INCREMENT
     # and the driver reports no rowcount/lastrowid for raw SQL, so ids are
-    # generated client-side (snowflake) by backend.insert().
+    # generated client-side (snowflake) by backend.insert().  The contract only
+    # generates one when it is told which column the key lives in.
     record_ids = []
     for payload in payloads:
-        result = backend.insert(InsertOptions(table="benchmark_users", data=dict(payload)))
+        result = backend.insert(
+            InsertOptions(table="benchmark_users", data=dict(payload), primary_key="id")
+        )
         if result.affected_rows != 1 or result.last_insert_id is None:
             raise AssertionError("failed to seed sync ClickHouse backend benchmark row")
         record_ids.append(result.last_insert_id)
@@ -149,7 +152,9 @@ def _seed_sync(backend, payloads):
 async def _seed_async(backend, payloads):
     record_ids = []
     for payload in payloads:
-        result = await backend.insert(InsertOptions(table="benchmark_users", data=dict(payload)))
+        result = await backend.insert(
+            InsertOptions(table="benchmark_users", data=dict(payload), primary_key="id")
+        )
         if result.affected_rows != 1 or result.last_insert_id is None:
             raise AssertionError("failed to seed async ClickHouse backend benchmark row")
         record_ids.append(result.last_insert_id)

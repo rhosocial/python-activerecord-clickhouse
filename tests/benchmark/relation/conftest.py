@@ -3,13 +3,18 @@
 Bridges ``user_post_comment_classes`` from the testsuite's relation conftest
 so that benchmarks can reuse the same model definitions and backend setup.
 
+This directory is a minimal test set of its own: it declares the users / posts /
+comments contract, so the testsuite prepares those tables in this directory's
+database before every test and drops them afterwards.
+
 Redis benchmark support is not introduced in this release.  The related
 source snippets are kept as comments for follow-up external cache design.
 """
+from rhosocial.activerecord.testsuite.pytest_plugin import Declaration
 
-from rhosocial.activerecord.testsuite.feature.relation.conftest import (  # noqa: F401
-    user_post_comment_classes,
-)
+from rhosocial.activerecord.backend.options import ExecutionOptions
+from rhosocial.activerecord.backend.schema import StatementType
+
 
 from dataclasses import dataclass
 from typing import Any
@@ -21,6 +26,55 @@ from rhosocial.activerecord.relation.cache_backends import InMemoryCache
 
 # Not introduced in this release; keep snippets for follow-up external cache design.
 # from rhosocial.activerecord.relation.cache_backends import CacheSerializer, RedisCache
+
+from rhosocial.activerecord.testsuite.feature.query.relation.conftest import (  # noqa: F401
+    user_post_comment_classes,
+)
+
+
+# This benchmark set keeps its own explicit ClickHouse DDL: the engine clause
+# and the block-number settings are part of the table definition, and the ids
+# are the backend's client-generated Int64 keys.
+_ENGINE = (
+    "ENGINE = MergeTree ORDER BY id "
+    "SETTINGS enable_block_number_column = 1, enable_block_offset_column = 1"
+)
+
+TABLES = {
+    "users": f"""
+        CREATE TABLE users (
+            id Int64,
+            name String,
+            email Nullable(String),
+            settings Nullable(String)
+        ) {_ENGINE}
+    """,
+    "posts": f"""
+        CREATE TABLE posts (
+            id Int64,
+            title String,
+            body String,
+            user_id Int64,
+            view_count Int32,
+            metadata Nullable(String)
+        ) {_ENGINE}
+    """,
+    "comments": f"""
+        CREATE TABLE comments (
+            id Int64,
+            body String,
+            post_id Int64,
+            meta Nullable(String)
+        ) {_ENGINE}
+    """,
+}
+
+
+
+
+
+
+
 
 pytestmark = [
     pytest.mark.benchmark,
@@ -45,11 +99,22 @@ class RelationBenchmarkContext:
 # Redis benchmark is not introduced in this release.  Keep the fixture shape as
 # comments for follow-up external cache design instead of deleting the source.
 # ---------------------------------------------------------------------------
+# 
+
+# This directory owns a database shared by all its tests within a scenario;
+# pin them to one worker so setup/teardown never races on the same database.
+DECLARATION = Declaration(
+    # This scope opens a database; the plugin enforces this declaration.
+    uses_database=True,
+    parallel=True,
+    purpose="Directory-owned database shared by this test group.",
+)
+
 # @pytest.fixture(scope="session")
 # def _redis_client():
 #     redis = pytest.importorskip("redis")
 #     try:
-#         from providers.redis_scenarios import get_redis_scenario
+#         from support.clickhouse import get_redis_scenario
 #
 #         config = get_redis_scenario("benchmark")
 #     except (FileNotFoundError, KeyError):
@@ -156,3 +221,51 @@ def relation_benchmark_env(cache_scenario, _raw_models):
         )
     finally:
         InstanceCache.set_backend(original_backend)
+
+class RelationBenchmarkDefinition:
+    """The benchmark's tables, as deliberate raw DDL (engine clauses matter)."""
+
+    table_names = ("users", "posts", "comments")
+
+    def __init__(self, dialect):
+        self.dialect = dialect
+        self.create_statements = [TABLES[name] for name in self.table_names]
+        self.drop_statements = [
+            f"DROP TABLE IF EXISTS `{name}`" for name in reversed(self.table_names)
+        ]
+
+
+DDL = ExecutionOptions(stmt_type=StatementType.DDL)
+DEFINITIONS = (RelationBenchmarkDefinition,)
+
+
+@pytest.fixture(scope="session")
+def database_config(backend_scenario):
+    """The scenario, its connection configuration, and the database name."""
+    name = "test_benchmark_relation"
+    return backend_scenario, backend_scenario.make_config(name), name
+
+
+@pytest.fixture(scope="session")
+def database(database_config):
+    """The benchmark directory's database, prepared once."""
+    scenario, config, name = database_config
+    scenario.reset_database(name)
+    backend = scenario.backend_class(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    yield backend
+    backend.disconnect()
+
+
+@pytest.fixture(scope="module", autouse=True)
+def schema(database):
+    """Create the benchmark tables once per module."""
+    fixtures = [definition(database.dialect) for definition in DEFINITIONS]
+    for fixture in fixtures:
+        for statement in fixture.create_statements:
+            database.execute(statement, options=DDL)
+    yield
+    for fixture in reversed(fixtures):
+        for statement in fixture.drop_statements:
+            database.execute(statement, options=DDL)
