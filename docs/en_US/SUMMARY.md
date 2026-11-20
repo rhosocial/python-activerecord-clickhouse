@@ -36,6 +36,11 @@
 * [Partition maintenance](ddl/partition_maintenance.md)
 * [Skip indexes](ddl/skip_indexes.md)
 
+## Migrations
+
+* [Migrations on the ClickHouse backend](migration/README.md)
+* [Runnable migration examples](../examples/migration/README.md)
+
 ## Capabilities
 
 * [Client-side snowflake IDs](capabilities/snowflake_ids.md)

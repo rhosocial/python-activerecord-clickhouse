@@ -43,21 +43,25 @@ fail fast with `UnsupportedFeatureError` rather than being silently emulated.
     * **[Table engines & sorting key](ddl/table_engine.md)**: `ENGINE`, `ORDER BY`, `PARTITION BY`, `TTL`
     * **[Skip indexes](ddl/skip_indexes.md)**: `INDEX ... USING` skip indexes
 
-7. **[Capabilities](capabilities/README.md)**
+7. **[Migrations](migration/README.md)**
+    * **[Migrations on the ClickHouse backend](migration/README.md)**: non-transactional / async DDL caveats, version gating, sync-only API styles
+    * **[Runnable migration examples](../examples/migration/README.md)**: function-style and named-migration demos
+
+8. **[Capabilities](capabilities/README.md)**
     * **[Client-side snowflake IDs](capabilities/snowflake_ids.md)**: ClickHouse has no AUTO_INCREMENT; IDs are generated client-side
     * **[Mutations (UPDATE/DELETE)](capabilities/mutations.md)**: `enable_block_number_column`/`enable_block_offset_column` settings & `affected_rows` semantics
     * **[Unsupported features](capabilities/unsupported.md)**: Complete fail-fast list with alternatives
 
-8. **[Introspection](introspection/README.md)**
+9. **[Introspection](introspection/README.md)**
     * **[Database introspection](introspection/README.md)**: What the sixteen CLI types ask, the three data families' aggregates and `runtime_types`, and why function names are never upper-cased
 
-9. **[Command Line (CLI)](cli/README.md)**
+10. **[Command Line (CLI)](cli/README.md)**
     * **[CLI usage](cli/README.md)**: `python -m rhosocial.activerecord.backend.impl.clickhouse`
 
-10. **[Testing](testing/README.md)**
+11. **[Testing](testing/README.md)**
     * **[Test configuration](testing/README.md)**: Scenario config & CI matrix
 
-11. **[Runnable examples](../examples/README.md)**
+12. **[Runnable examples](../examples/README.md)**
     * **[Connection](../examples/chapter_03_connection/README.md)**: config, connect, first query
     * **[Modeling](../examples/chapter_04_modeling/README.md)**: declarative models, `UseSqlType`, mixins, `FieldProxy`
     * **[DDL](../examples/chapter_06_ddl/README.md)**: create a `MergeTree` table with expression nodes

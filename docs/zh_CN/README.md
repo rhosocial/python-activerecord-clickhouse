@@ -36,18 +36,22 @@ ClickHouse 后端是 [rhosocial-activerecord](https://github.com/rhosocial/pytho
     * **[表引擎与排序键](ddl/table_engine.md)**：`ENGINE`、`ORDER BY`、`PARTITION BY`、`TTL`
     * **[跳数索引](ddl/skip_indexes.md)**：`INDEX ... USING` skip indexes
 
-7. **[能力特性 (Capabilities)](capabilities/README.md)**
+7. **[迁移 (Migrations)](migration/README.md)**
+    * **[ClickHouse 后端的迁移](migration/README.md)**：DDL 非事务性/异步注意事项、按版本控制的功能、仅同步的两种 API 风格
+    * **[可运行的迁移示例](../examples/migration/README.md)**：函数风格与 named-migration 演示
+
+8. **[能力特性 (Capabilities)](capabilities/README.md)**
     * **[客户端雪花 ID](capabilities/snowflake_ids.md)**：ClickHouse 无 AUTO_INCREMENT，id 客户端生成
     * **[变更（UPDATE/DELETE）](capabilities/mutations.md)**：`mutations_sync=1` 与 `affected_rows` 语义
     * **[不支持的功能](capabilities/unsupported.md)**：完整 fail-fast 清单与替代方案
 
-8. **[自省 (Introspection)](introspection/README.md)**
+9. **[自省 (Introspection)](introspection/README.md)**
     * **[数据库自省](introspection/README.md)**：十六个 CLI 类型各自问什么、三个数据家族的聚合与 `runtime_types`，以及为什么函数名绝不转大写
 
-9. **[命令行 (CLI)](cli/README.md)**
+10. **[命令行 (CLI)](cli/README.md)**
     * **[CLI 用法](cli/README.md)**：`python -m rhosocial.activerecord.backend.impl.clickhouse`
 
-10. **[测试 (Testing)](testing/README.md)**
+11. **[测试 (Testing)](testing/README.md)**
     * **[测试配置](testing/README.md)**：场景配置与 CI 矩阵
 
 ---

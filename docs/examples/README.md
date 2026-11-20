@@ -25,3 +25,4 @@ and exit non-zero rather than fabricate results when they cannot connect.
 | 04 | [Modeling](chapter_04_modeling/README.md) | Declarative models, `UseSqlType`, mixins, `FieldProxy`, `table_name()` |
 | 06 | [DDL](chapter_06_ddl/README.md) | `CreateTableStatement` with a `MergeTree` engine via expression nodes |
 | 08 | [Introspection](chapter_08_introspection/README.md) | Catalogue queries and the backend's own table-engine read |
+| — | [Migrations](migration/README.md) | Non-transactional DDL, compensating DOWN, function-style and named-migration demos |
