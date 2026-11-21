@@ -28,7 +28,7 @@ class ClickHouseExplainMixin:
             return True
         return False
 
-    def format_explain_statement(self, explain_expr: "ExplainStatement") -> tuple:
+    def format_explain_statement(self, expr: "ExplainStatement") -> tuple:
         """Build the ClickHouse EXPLAIN SQL string and return (sql, params).
 
         ClickHouse syntax variants:
@@ -39,8 +39,8 @@ class ClickHouseExplainMixin:
         """
         from rhosocial.activerecord.backend.expression.statements import ExplainType
 
-        statement_sql, statement_params = explain_expr.statement.to_sql()
-        options = explain_expr.options
+        statement_sql, statement_params = expr.statement.to_sql()
+        options = expr.options
         parts = ["EXPLAIN"]
 
         if options is not None:

@@ -53,14 +53,14 @@ class ClickHouseJsonDualityViewSupport(Protocol):
         """Format DROP VIEW statement for a JSON Duality View."""
         ...
 
-    def format_duality_object_select(self, spec: Any) -> str:
+    def format_duality_object_select(self, expr: Any) -> str:
         """Format SELECT JSON_DUALITY_OBJECT(...) FROM table clause."""
         ...
 
-    def format_duality_object_body(self, spec: Any) -> str:
+    def format_duality_object_body(self, expr: Any) -> str:
         """Format JSON_DUALITY_OBJECT(...) body."""
         ...
 
-    def format_nested_duality(self, nested: Any) -> str:
+    def format_nested_duality(self, expr: Any) -> str:
         """Format nested JSON_ARRAYAGG(JSON_DUALITY_OBJECT(...)) subquery."""
         ...

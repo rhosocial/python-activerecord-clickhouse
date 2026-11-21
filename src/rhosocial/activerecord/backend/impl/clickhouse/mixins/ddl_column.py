@@ -58,10 +58,10 @@ class ClickHouseDDLColumnMixin:
         """Whether generated columns are supported (alias for protocol)."""
         return False
 
-    def format_add_column_action(self, action) -> Tuple[str, tuple]:
-        column_sql, column_params = self.format_column_definition(action.column)
+    def format_add_column_action(self, expr) -> Tuple[str, tuple]:
+        column_sql, column_params = self.format_column_definition(expr.column)
         parts = []
-        if action.if_not_exists is True:
+        if expr.if_not_exists is True:
             parts.append("ADD COLUMN IF NOT EXISTS")
         else:
             parts.append("ADD COLUMN")
@@ -71,7 +71,7 @@ class ClickHouseDDLColumnMixin:
         # ``ClickHouseAddColumnAction.after``, which has its own entry below.
         return " ".join(parts), column_params
 
-    def format_clickhouse_add_column_action(self, action) -> Tuple[str, tuple]:
+    def format_clickhouse_add_column_action(self, expr) -> Tuple[str, tuple]:
         """``ADD COLUMN ... AFTER <column>`` — the ClickHouse position clause.
 
         ClickHouse places a new column with ``AFTER <name>`` (also ``FIRST``);
@@ -85,12 +85,12 @@ class ClickHouseDDLColumnMixin:
         server would refuse. Documented on
         ``https://clickhouse.com/docs/sql-reference/statements/alter/column``.
         """
-        sql, params = self.format_add_column_action(action)
-        if action.after is not None:
-            sql = f"{sql} AFTER {self.format_identifier(action.after)}"
+        sql, params = self.format_add_column_action(expr)
+        if expr.after is not None:
+            sql = f"{sql} AFTER {self.format_identifier(expr.after)}"
         return sql, params
 
-    def format_alter_column_action(self, action) -> Tuple[str, tuple]:
+    def format_alter_column_action(self, expr) -> Tuple[str, tuple]:
         """Format ALTER TABLE ... ALTER/MODIFY COLUMN for a default change.
 
         ClickHouse has no ``SET DEFAULT`` / ``DROP DEFAULT`` action. What it has,
@@ -128,15 +128,15 @@ class ClickHouseDDLColumnMixin:
         # probed for a ``value`` attribute (the core formatter reads it the
         # same way).
         operation = (
-            action.operation.value if isinstance(action.operation, Enum) else str(action.operation)
+            expr.operation.value if isinstance(expr.operation, Enum) else str(expr.operation)
         )
-        col_name = self.format_identifier(action.column_name)
+        col_name = self.format_identifier(expr.column_name)
 
         if operation == "DROP DEFAULT":
             return f"MODIFY COLUMN {col_name} REMOVE DEFAULT", ()
 
         if operation == "SET DEFAULT":
-            new_value = action.new_value
+            new_value = expr.new_value
             if isinstance(new_value, str):
                 escaped = self.escape_sql_string(new_value)
                 return f"ALTER COLUMN {col_name} DEFAULT '{escaped}'", ()
@@ -151,5 +151,5 @@ class ClickHouseDDLColumnMixin:
                 return f"ALTER COLUMN {col_name} DEFAULT {value_sql}", tuple(value_params)
             return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
 
-        return super().format_alter_column_action(action)
+        return super().format_alter_column_action(expr)
 

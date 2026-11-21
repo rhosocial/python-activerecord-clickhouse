@@ -67,7 +67,7 @@ class ClickHouseLiteralValueMixin:
     mixin placed after the class it overrides never wins.
     """
 
-    def format_literal(self, value: Any) -> str:
+    def format_literal(self, expr: Any) -> str:
         """Render *value* as inline SQL text, ClickHouse's spelling where it
         has one.
 
@@ -82,10 +82,10 @@ class ClickHouseLiteralValueMixin:
                 no literal form for (``timedelta`` among them, on purpose --
                 see the module docstring), and this is the same refusal.
         """
-        if isinstance(value, (bytes, bytearray)):
+        if isinstance(expr, (bytes, bytearray)):
             # Lowercase hex, the form ``bytes.hex()`` spells; ``unhex``
             # accepts either case.
-            return f"unhex('{bytes(value).hex()}')"
-        if isinstance(value, uuid.UUID):
-            return self.format_literal(str(value))
-        return super().format_literal(value)
+            return f"unhex('{bytes(expr).hex()}')"
+        if isinstance(expr, uuid.UUID):
+            return self.format_literal(str(expr))
+        return super().format_literal(expr)

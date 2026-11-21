@@ -30,19 +30,19 @@ class ClickHouseJsonDualityViewMixin:
             suggestion="ClickHouse has no JSON Duality Views.",
         )
 
-    def format_duality_object_select(self, spec: Any) -> str:
+    def format_duality_object_select(self, expr: Any) -> str:
         raise UnsupportedFeatureError(
             self.name, "JSON Duality Views",
             suggestion="ClickHouse has no JSON Duality Views.",
         )
 
-    def format_duality_object_body(self, spec: Any) -> str:
+    def format_duality_object_body(self, expr: Any) -> str:
         raise UnsupportedFeatureError(
             self.name, "JSON Duality Views",
             suggestion="ClickHouse has no JSON Duality Views.",
         )
 
-    def format_nested_duality(self, nested: Any) -> str:
+    def format_nested_duality(self, expr: Any) -> str:
         raise UnsupportedFeatureError(
             self.name, "JSON Duality Views",
             suggestion="ClickHouse has no JSON Duality Views.",

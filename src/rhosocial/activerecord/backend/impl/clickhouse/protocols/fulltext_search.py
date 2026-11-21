@@ -5,7 +5,7 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import Protocol, runtime_checkable, Tuple
 
 from rhosocial.activerecord.backend.dialect.protocols import IndexObjectSupport
 
@@ -59,10 +59,4 @@ class ClickHouseFullTextSearchSupport(IndexObjectSupport, Protocol):
 
     def format_match_against_expression(self, expr) -> Tuple[str, tuple]:
         """Format MATCH ... AGAINST expression."""
-        ...
-
-    def format_fulltext_index_options(
-        self, index: str, columns: list, index_type: str = None, parser_name: str = None
-    ) -> Tuple[str, tuple]:
-        """Format FULLTEXT index options."""
         ...

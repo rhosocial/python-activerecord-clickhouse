@@ -232,7 +232,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         widen_integers = len(primary_key_columns) == 1
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self.format_column_definition(
+            col_sql, col_params = self._render_column_definition(
                 col_def,
                 omit_unenforceable=True,
                 key_columns=key_columns,
@@ -470,7 +470,17 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         parts.append(f"CLONE AS {source}")
         return " ".join(parts), ()
 
-    def format_column_definition(
+    def format_column_definition(self, expr: "ColumnDefinition") -> Tuple[str, tuple]:
+        """Format one ``ColumnDefinition`` node (one-to-one node renderer).
+
+        The portable ``CREATE TABLE`` path additionally needs to drop / widen /
+        nullable-adjust column parts; it calls :meth:`_render_column_definition`
+        with those flags directly. Node dispatch and direct callers reach this
+        method with a single ``expr``.
+        """
+        return self._render_column_definition(expr)
+
+    def _render_column_definition(
         self,
         col_def: "ColumnDefinition",
         *,
@@ -642,7 +652,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         return f"Nullable({type_sql})"
 
 
-    def format_table_constraint(self, t_const: "TableConstraint") -> Tuple[str, tuple]:
+    def format_table_constraint(self, expr: "TableConstraint") -> Tuple[str, tuple]:
         """Format a table-level constraint, narrowing on the branch class.
 
         Core's S3 split moved the kind out of a ``constraint_type`` tag and into
@@ -699,7 +709,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             TableUniqueConstraint,
         )
 
-        branch = t_const.branch
+        branch = expr.branch
         if isinstance(branch, TableForeignKeyConstraint):
             foreign_key_table = branch.references[0]
             if foreign_key_table is not None and not isinstance(foreign_key_table, Table):
@@ -711,8 +721,8 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         parts: List[str] = []
         params: List[Any] = []
 
-        if t_const.name:
-            parts.append(f"CONSTRAINT {self.format_identifier(t_const.name)}")
+        if expr.name:
+            parts.append(f"CONSTRAINT {self.format_identifier(expr.name)}")
 
         if isinstance(branch, TablePrimaryKeyConstraint):
             if branch.columns:
@@ -752,21 +762,21 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         # both refuse here rather than being dropped silently; rendering them
         # explicitly is what keeps the override faithful to core's shape.
         if (
-            t_const.deferrable
-            or t_const.not_deferrable
-            or t_const.initially_deferred
-            or t_const.initially_immediate
+            expr.deferrable
+            or expr.not_deferrable
+            or expr.initially_deferred
+            or expr.initially_immediate
         ):
             raise UnsupportedFeatureError(
                 self.name, "DEFERRABLE / INITIALLY table constraint"
             )
-        enforcement = self.format_constraint_enforcement(t_const)
+        enforcement = self.format_constraint_enforcement(expr)
         if enforcement:
             parts.append(enforcement)
 
         return " ".join(parts), tuple(params)
 
-    def format_index_definition(self, idx_def: "IndexDefinition") -> Tuple[str, tuple]:
+    def format_index_definition(self, expr: "IndexDefinition") -> Tuple[str, tuple]:
         """Format an inline data-skipping INDEX definition (ClickHouse-specific).
 
         Renders ``INDEX <name> (<columns>) TYPE <type> GRANULARITY <n>``; the
@@ -775,17 +785,17 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         """
         from ..expression.index import ClickHouseIndexDefinition
 
-        if idx_def.unique:
+        if expr.unique:
             raise UnsupportedFeatureError(
                 self.name, "UNIQUE index",
                 suggestion="ClickHouse cannot enforce unique indexes."
             )
-        parts = ["INDEX", self.format_identifier(idx_def.name)]
-        cols_str = ", ".join(self.format_identifier(c) for c in idx_def.columns)
+        parts = ["INDEX", self.format_identifier(expr.name)]
+        cols_str = ", ".join(self.format_identifier(c) for c in expr.columns)
         parts.append(f"({cols_str})")
-        idx_type = idx_def.type if idx_def.type else "minmax"
+        idx_type = expr.type if expr.type else "minmax"
         parts.append(f"TYPE {idx_type}")
-        granularity = idx_def.granularity if isinstance(idx_def, ClickHouseIndexDefinition) else 1
+        granularity = expr.granularity if isinstance(expr, ClickHouseIndexDefinition) else 1
         parts.append(f"GRANULARITY {granularity}")
         return " ".join(parts), ()
 

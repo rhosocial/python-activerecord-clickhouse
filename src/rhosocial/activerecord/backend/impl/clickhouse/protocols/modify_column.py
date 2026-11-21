@@ -40,7 +40,7 @@ class ClickHouseModifyColumnSupport(Protocol):
         """Whether CHANGE COLUMN is supported."""
         ...
 
-    def format_modify_column_action(self, action: "ModifyColumn") -> Tuple[str, tuple]:
+    def format_modify_column_action(self, expr: "ModifyColumn") -> Tuple[str, tuple]:
         """Format MODIFY COLUMN action for ALTER TABLE.
 
         Args:
@@ -51,7 +51,7 @@ class ClickHouseModifyColumnSupport(Protocol):
         """
         ...
 
-    def format_change_column_action(self, action: "ChangeColumn") -> Tuple[str, tuple]:
+    def format_change_column_action(self, expr: "ChangeColumn") -> Tuple[str, tuple]:
         """Format CHANGE COLUMN action for ALTER TABLE.
 
         Args:

@@ -337,7 +337,7 @@ class ClickHouseMaterializedViewMixin:
     # ------------------------------------------------------------------
 
     def format_clickhouse_refresh_schedule(
-        self, schedule: "ClickHouseRefreshSchedule"
+        self, expr: "ClickHouseRefreshSchedule"
     ) -> Tuple[str, tuple]:
         """Render the ``REFRESH`` clause of a refreshable materialized view.
 
@@ -346,7 +346,7 @@ class ClickHouseMaterializedViewMixin:
         ``ALTER TABLE ... MODIFY REFRESH`` reach the one spelling through the
         node's own ``to_sql()``.
         """
-        return self._format_refresh_clause(schedule), ()
+        return self._format_refresh_clause(expr), ()
 
     def _format_refresh_clause(self, schedule: "ClickHouseRefreshSchedule") -> str:
         """Render a ``REFRESH ...`` clause body (without the leading keyword)."""

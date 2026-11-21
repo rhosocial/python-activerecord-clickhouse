@@ -165,7 +165,7 @@ class ClickHouseQueryClauseMixin(ClickHouseTableEngineSupport):
         """Return the FINAL modifier."""
         return "FINAL", ()
 
-    def format_array_join_clause(self, array_exprs: List[str], is_left: bool = False) -> Tuple[str, tuple]:
+    def build_array_join_clause(self, array_exprs: List[str], is_left: bool = False) -> Tuple[str, tuple]:
         """Format an ARRAY JOIN clause.
 
         Args:

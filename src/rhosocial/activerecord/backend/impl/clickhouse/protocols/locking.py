@@ -5,7 +5,7 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Any, Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import Any, Protocol, runtime_checkable, Tuple
 
 from rhosocial.activerecord.backend.dialect.protocols import LockingSupport
 
@@ -47,7 +47,7 @@ class ClickHouseLockingSupport(LockingSupport, Protocol):
         """Whether FOR UPDATE SKIP LOCKED is supported (ClickHouse 8.0+)."""
         ...
 
-    def format_for_update_clause(self, clause: Any) -> Tuple[str, tuple]:
+    def format_for_update_clause(self, expr: Any) -> Tuple[str, tuple]:
         """Format ClickHouse-specific FOR UPDATE clause.
 
         Args:

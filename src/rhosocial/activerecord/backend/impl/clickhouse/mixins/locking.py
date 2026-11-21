@@ -21,7 +21,7 @@ class ClickHouseLockingMixin:
     def supports_for_update_skip_locked(self) -> bool:
         return False
 
-    def format_for_update_clause(self, clause) -> Tuple[str, tuple]:
+    def format_for_update_clause(self, expr) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "FOR UPDATE / FOR SHARE / NOWAIT / SKIP LOCKED",
             suggestion="ClickHouse does not support row-level locking clauses."

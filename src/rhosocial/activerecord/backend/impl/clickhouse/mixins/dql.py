@@ -25,7 +25,10 @@ class ClickHouseDQLMixin:
         cross-database query support.
         """
         if expr.table:
-            col_sql = f"{self.format_identifier(expr.table, expr.table_need_quote)}.{self.format_identifier(expr.name, expr.name_need_quote)}"
+            col_sql = (
+                f"{self.format_identifier(expr.table, expr.table_need_quote)}."
+                f"{self.format_identifier(expr.name, expr.name_need_quote)}"
+            )
         else:
             col_sql = self.format_identifier(expr.name, expr.name_need_quote)
 
@@ -34,7 +37,7 @@ class ClickHouseDQLMixin:
 
         return col_sql, ()
 
-    def format_limit_offset(
+    def build_limit_offset(
         self, limit: Optional[int] = None, offset: Optional[int] = None
     ) -> Tuple[Optional[str], List[Any]]:
         """
