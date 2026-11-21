@@ -128,12 +128,12 @@ class TestSQLGeneration:
         assert dialect.get_parameter_placeholder() == "%s"
 
     def test_limit_offset(self, dialect):
-        sql, params = dialect.format_limit_offset(limit=10, offset=5)
+        sql, params = dialect.build_limit_offset(limit=10, offset=5)
         assert sql == "LIMIT %s OFFSET %s"
         assert params == [10, 5]
 
     def test_limit_only(self, dialect):
-        sql, params = dialect.format_limit_offset(limit=10)
+        sql, params = dialect.build_limit_offset(limit=10)
         assert sql == "LIMIT %s"
         assert params == [10]
 

@@ -156,7 +156,7 @@ class ClickHousePartitionMixin:
         """
         self._refuse_mysql_partition("declarative PARTITION BY <strategy>")
 
-    def format_partition_definition(self, definition) -> Tuple[str, tuple]:
+    def format_partition_definition(self, expr) -> Tuple[str, tuple]:
         """Refuse an inline ``PARTITION ... VALUES ...`` definition.
 
         ClickHouse has no inline partition definitions: a partition is not

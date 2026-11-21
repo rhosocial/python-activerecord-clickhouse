@@ -5,7 +5,7 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class ClickHouseSetTypeSupport(Protocol):
@@ -29,16 +29,4 @@ class ClickHouseSetTypeSupport(Protocol):
 
     def supports_set_type(self) -> bool:
         """Whether SET type is supported."""
-        ...
-
-    def format_set_literal(self, expr) -> Tuple[str, tuple]:
-        """Format SET type literal."""
-        ...
-
-    def format_find_in_set(self, expr) -> Tuple[str, tuple]:
-        """Format FIND_IN_SET function call."""
-        ...
-
-    def format_set_contains(self, expr) -> Tuple[str, tuple]:
-        """Format SET contains check expression."""
         ...

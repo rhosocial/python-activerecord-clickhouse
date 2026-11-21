@@ -15,24 +15,6 @@ class ClickHouseSetTypeMixin:
     def supports_set_type(self) -> bool:
         return False
 
-    def format_set_literal(self, expr) -> Tuple[str, tuple]:
-        raise UnsupportedFeatureError(
-            self.name, "SET type",
-            suggestion="ClickHouse has no SET type; use Enum16 or Array(String).",
-        )
-
-    def format_find_in_set(self, expr) -> Tuple[str, tuple]:
-        raise UnsupportedFeatureError(
-            self.name, "FIND_IN_SET",
-            suggestion="ClickHouse has no FIND_IN_SET function; use has() or indexOf().",
-        )
-
-    def format_set_contains(self, expr) -> Tuple[str, tuple]:
-        raise UnsupportedFeatureError(
-            self.name, "SET type",
-            suggestion="ClickHouse has no SET type; use Array has() instead.",
-        )
-
     def format_set_any(self, expr: Any) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
             self.name, "SET type",

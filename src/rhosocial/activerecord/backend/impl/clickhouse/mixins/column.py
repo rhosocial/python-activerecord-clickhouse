@@ -17,22 +17,22 @@ class ClickHouseModifyColumnMixin:
     def supports_change_column(self) -> bool:
         return True
 
-    def format_modify_column_action(self, action: "ModifyColumn") -> Tuple[str, tuple]:
+    def format_modify_column_action(self, expr: "ModifyColumn") -> Tuple[str, tuple]:
         """Format MODIFY COLUMN action for ALTER TABLE."""
-        col_sql, col_params = self.format_column_definition(action.column)
+        col_sql, col_params = self.format_column_definition(expr.column)
         sql = f"MODIFY COLUMN {col_sql}"
-        if action.after_column:
-            sql += f" AFTER {self.format_identifier(action.after_column)}"
-        elif action.first:
+        if expr.after_column:
+            sql += f" AFTER {self.format_identifier(expr.after_column)}"
+        elif expr.first:
             sql += " FIRST"
         return sql, col_params
 
-    def format_change_column_action(self, action: "ChangeColumn") -> Tuple[str, tuple]:
+    def format_change_column_action(self, expr: "ChangeColumn") -> Tuple[str, tuple]:
         """Format CHANGE COLUMN action for ALTER TABLE."""
-        col_sql, col_params = self.format_column_definition(action.column)
-        sql = f"CHANGE COLUMN {self.format_identifier(action.old_name)} {col_sql}"
-        if action.after_column:
-            sql += f" AFTER {self.format_identifier(action.after_column)}"
-        elif action.first:
+        col_sql, col_params = self.format_column_definition(expr.column)
+        sql = f"CHANGE COLUMN {self.format_identifier(expr.old_name)} {col_sql}"
+        if expr.after_column:
+            sql += f" AFTER {self.format_identifier(expr.after_column)}"
+        elif expr.first:
             sql += " FIRST"
         return sql, col_params

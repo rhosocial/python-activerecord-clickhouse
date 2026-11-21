@@ -101,7 +101,7 @@ class ClickHouseTableSupport(
         """
         ...
 
-    def format_column_definition(self, col_def: Any) -> Tuple[str, tuple]:
+    def format_column_definition(self, expr: Any) -> Tuple[str, tuple]:
         """Format a column definition with ClickHouse-specific syntax (AUTO_INCREMENT, etc.)."""
         ...
 
@@ -109,11 +109,11 @@ class ClickHouseTableSupport(
         """Whether an inline column COMMENT is supported (ClickHouse: yes)."""
         ...
 
-    def format_table_constraint(self, t_const: Any) -> Tuple[str, tuple]:
+    def format_table_constraint(self, expr: Any) -> Tuple[str, tuple]:
         """Format a table-level constraint."""
         ...
 
-    def format_index_definition(self, idx_def: Any) -> Tuple[str, tuple]:
+    def format_index_definition(self, expr: Any) -> Tuple[str, tuple]:
         """Format an inline data-skipping INDEX definition within CREATE TABLE."""
         ...
 

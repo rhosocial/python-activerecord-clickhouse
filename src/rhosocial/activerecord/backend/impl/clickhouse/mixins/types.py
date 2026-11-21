@@ -306,44 +306,44 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             ),
         )
 
-    def format_data_type_clickhouse_int8(self, data_type: ClickHouseInt8Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int8(self, expr: ClickHouseInt8Type) -> Tuple[str, tuple]:
         """ClickHouse ``Int8`` — the signed 8-bit integer.
 
         ``unsigned=True`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`, which is also where the reason is
         written down.
         """
-        self._refuse_unsigned_integer(data_type, "Int8", "ClickHouseUInt8Type")
+        self._refuse_unsigned_integer(expr, "Int8", "ClickHouseUInt8Type")
         return "Int8", ()
 
-    def format_data_type_clickhouse_int16(self, data_type: ClickHouseInt16Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int16(self, expr: ClickHouseInt16Type) -> Tuple[str, tuple]:
         """ClickHouse ``Int16`` — the signed 16-bit integer.
 
         ``unsigned=True`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`.
         """
-        self._refuse_unsigned_integer(data_type, "Int16", "ClickHouseUInt16Type")
+        self._refuse_unsigned_integer(expr, "Int16", "ClickHouseUInt16Type")
         return "Int16", ()
 
-    def format_data_type_clickhouse_int32(self, data_type: ClickHouseInt32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int32(self, expr: ClickHouseInt32Type) -> Tuple[str, tuple]:
         """ClickHouse ``Int32`` — the signed 32-bit integer.
 
         ``unsigned=True`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`.
         """
-        self._refuse_unsigned_integer(data_type, "Int32", "ClickHouseUInt32Type")
+        self._refuse_unsigned_integer(expr, "Int32", "ClickHouseUInt32Type")
         return "Int32", ()
 
-    def format_data_type_clickhouse_int64(self, data_type: ClickHouseInt64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_int64(self, expr: ClickHouseInt64Type) -> Tuple[str, tuple]:
         """ClickHouse ``Int64`` — the signed 64-bit integer.
 
         ``unsigned=True`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`.
         """
-        self._refuse_unsigned_integer(data_type, "Int64", "ClickHouseUInt64Type")
+        self._refuse_unsigned_integer(expr, "Int64", "ClickHouseUInt64Type")
         return "Int64", ()
 
-    def format_data_type_clickhouse_uint8(self, data_type: ClickHouseUInt8Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint8(self, expr: ClickHouseUInt8Type) -> Tuple[str, tuple]:
         """ClickHouse ``UInt8`` — the unsigned 8-bit integer, [0 : 255].
 
         The unsigned form is a *class* on this backend, so there is nothing to
@@ -353,7 +353,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "UInt8", ()
 
-    def format_data_type_clickhouse_uint16(self, data_type: ClickHouseUInt16Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint16(self, expr: ClickHouseUInt16Type) -> Tuple[str, tuple]:
         """ClickHouse ``UInt16`` — the unsigned 16-bit integer.
 
         See :meth:`format_data_type_clickhouse_uint8` for why ``unsigned`` cannot
@@ -361,7 +361,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "UInt16", ()
 
-    def format_data_type_clickhouse_uint32(self, data_type: ClickHouseUInt32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint32(self, expr: ClickHouseUInt32Type) -> Tuple[str, tuple]:
         """ClickHouse ``UInt32`` — the unsigned 32-bit integer.
 
         See :meth:`format_data_type_clickhouse_uint8` for why ``unsigned`` cannot
@@ -369,7 +369,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "UInt32", ()
 
-    def format_data_type_clickhouse_uint64(self, data_type: ClickHouseUInt64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uint64(self, expr: ClickHouseUInt64Type) -> Tuple[str, tuple]:
         """ClickHouse ``UInt64`` — the unsigned 64-bit integer.
 
         See :meth:`format_data_type_clickhouse_uint8` for why ``unsigned`` cannot
@@ -377,154 +377,154 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "UInt64", ()
 
-    def format_data_type_clickhouse_float32(self, data_type: ClickHouseFloat32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_float32(self, expr: ClickHouseFloat32Type) -> Tuple[str, tuple]:
         return "Float32", ()
 
-    def format_data_type_clickhouse_float64(self, data_type: ClickHouseFloat64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_float64(self, expr: ClickHouseFloat64Type) -> Tuple[str, tuple]:
         return "Float64", ()
 
-    def format_data_type_clickhouse_decimal(self, data_type: ClickHouseDecimalType) -> Tuple[str, tuple]:
-        return f"Decimal({data_type.precision}, {data_type.scale})", ()
+    def format_data_type_clickhouse_decimal(self, expr: ClickHouseDecimalType) -> Tuple[str, tuple]:
+        return f"Decimal({expr.precision}, {expr.scale})", ()
 
-    def format_data_type_clickhouse_decimal32(self, data_type: ClickHouseDecimal32Type) -> Tuple[str, tuple]:
-        return f"Decimal32({data_type.scale})", ()
+    def format_data_type_clickhouse_decimal32(self, expr: ClickHouseDecimal32Type) -> Tuple[str, tuple]:
+        return f"Decimal32({expr.scale})", ()
 
-    def format_data_type_clickhouse_decimal64(self, data_type: ClickHouseDecimal64Type) -> Tuple[str, tuple]:
-        return f"Decimal64({data_type.scale})", ()
+    def format_data_type_clickhouse_decimal64(self, expr: ClickHouseDecimal64Type) -> Tuple[str, tuple]:
+        return f"Decimal64({expr.scale})", ()
 
-    def format_data_type_clickhouse_decimal128(self, data_type: ClickHouseDecimal128Type) -> Tuple[str, tuple]:
-        return f"Decimal128({data_type.scale})", ()
+    def format_data_type_clickhouse_decimal128(self, expr: ClickHouseDecimal128Type) -> Tuple[str, tuple]:
+        return f"Decimal128({expr.scale})", ()
 
-    def format_data_type_clickhouse_string(self, data_type: ClickHouseStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_string(self, expr: ClickHouseStringType) -> Tuple[str, tuple]:
         return "String", ()
 
-    def format_data_type_clickhouse_fixed_string(self, data_type: ClickHouseFixedStringType) -> Tuple[str, tuple]:
-        return f"FixedString({data_type.length})", ()
+    def format_data_type_clickhouse_fixed_string(self, expr: ClickHouseFixedStringType) -> Tuple[str, tuple]:
+        return f"FixedString({expr.length})", ()
 
-    def format_data_type_clickhouse_date(self, data_type: ClickHouseDateType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_date(self, expr: ClickHouseDateType) -> Tuple[str, tuple]:
         return "Date", ()
 
-    def format_data_type_clickhouse_date32(self, data_type: ClickHouseDate32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_date32(self, expr: ClickHouseDate32Type) -> Tuple[str, tuple]:
         return "Date32", ()
 
-    def format_data_type_clickhouse_timestamp(self, data_type: ClickHouseDateTimeType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_timestamp(self, expr: ClickHouseDateTimeType) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    def format_data_type_clickhouse_timestamp64(self, data_type: ClickHouseDateTime64Type) -> Tuple[str, tuple]:
-        return f"DateTime64({data_type.precision})", ()
+    def format_data_type_clickhouse_timestamp64(self, expr: ClickHouseDateTime64Type) -> Tuple[str, tuple]:
+        return f"DateTime64({expr.precision})", ()
 
-    def format_data_type_clickhouse_bool(self, data_type: ClickHouseBoolType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_bool(self, expr: ClickHouseBoolType) -> Tuple[str, tuple]:
         return "Bool", ()
 
-    def format_data_type_clickhouse_uuid(self, data_type: ClickHouseUUIDType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_uuid(self, expr: ClickHouseUUIDType) -> Tuple[str, tuple]:
         return "UUID", ()
 
-    def format_data_type_clickhouse_ipv4(self, data_type: ClickHouseIPv4Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_ipv4(self, expr: ClickHouseIPv4Type) -> Tuple[str, tuple]:
         return "IPv4", ()
 
-    def format_data_type_clickhouse_ipv6(self, data_type: ClickHouseIPv6Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_ipv6(self, expr: ClickHouseIPv6Type) -> Tuple[str, tuple]:
         return "IPv6", ()
 
-    def format_data_type_clickhouse_enum8(self, data_type: ClickHouseEnum8Type) -> Tuple[str, tuple]:
-        values_str = ", ".join(f"'{name}' = {num}" for name, num in data_type.values)
+    def format_data_type_clickhouse_enum8(self, expr: ClickHouseEnum8Type) -> Tuple[str, tuple]:
+        values_str = ", ".join(f"'{name}' = {num}" for name, num in expr.values)
         return f"Enum8({values_str})", ()
 
-    def format_data_type_clickhouse_enum16(self, data_type: ClickHouseEnum16Type) -> Tuple[str, tuple]:
-        values_str = ", ".join(f"'{name}' = {num}" for name, num in data_type.values)
+    def format_data_type_clickhouse_enum16(self, expr: ClickHouseEnum16Type) -> Tuple[str, tuple]:
+        values_str = ", ".join(f"'{name}' = {num}" for name, num in expr.values)
         return f"Enum16({values_str})", ()
 
-    def format_data_type_clickhouse_array(self, data_type: ClickHouseArrayType) -> Tuple[str, tuple]:
-        inner_sql, inner_params = self.format_data_type(data_type.element_type)
+    def format_data_type_clickhouse_array(self, expr: ClickHouseArrayType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(expr.element_type)
         return f"Array({inner_sql})", inner_params
 
-    def format_data_type_clickhouse_map(self, data_type: ClickHouseMapType) -> Tuple[str, tuple]:
-        key_sql, key_params = self.format_data_type(data_type.key_type)
-        val_sql, val_params = self.format_data_type(data_type.value_type)
+    def format_data_type_clickhouse_map(self, expr: ClickHouseMapType) -> Tuple[str, tuple]:
+        key_sql, key_params = self.format_data_type(expr.key_type)
+        val_sql, val_params = self.format_data_type(expr.value_type)
         return f"Map({key_sql}, {val_sql})", key_params + val_params
 
-    def format_data_type_clickhouse_tuple(self, data_type: ClickHouseTupleType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_tuple(self, expr: ClickHouseTupleType) -> Tuple[str, tuple]:
         parts = []
         params = []
-        for i, elem_type in enumerate(data_type.element_types):
+        for i, elem_type in enumerate(expr.element_types):
             elem_sql, elem_params = self.format_data_type(elem_type)
-            if data_type.element_names:
-                parts.append(f"{data_type.element_names[i]} {elem_sql}")
+            if expr.element_names:
+                parts.append(f"{expr.element_names[i]} {elem_sql}")
             else:
                 parts.append(elem_sql)
             params.extend(elem_params)
         return f"Tuple({', '.join(parts)})", tuple(params)
 
-    def format_data_type_clickhouse_nullable(self, data_type: ClickHouseNullableType) -> Tuple[str, tuple]:
-        inner_sql, inner_params = self.format_data_type(data_type.inner_type)
+    def format_data_type_clickhouse_nullable(self, expr: ClickHouseNullableType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(expr.inner_type)
         return f"Nullable({inner_sql})", inner_params
 
-    def format_data_type_clickhouse_low_cardinality(self, data_type: ClickHouseLowCardinalityType) -> Tuple[str, tuple]:
-        inner_sql, inner_params = self.format_data_type(data_type.inner_type)
+    def format_data_type_clickhouse_low_cardinality(self, expr: ClickHouseLowCardinalityType) -> Tuple[str, tuple]:
+        inner_sql, inner_params = self.format_data_type(expr.inner_type)
         return f"LowCardinality({inner_sql})", inner_params
 
-    def format_data_type_clickhouse_json(self, data_type: ClickHouseJSONType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_json(self, expr: ClickHouseJSONType) -> Tuple[str, tuple]:
         return "JSON", ()
 
     def format_data_type_clickhouse_aggregate_function(
         self,
-        data_type: ClickHouseAggregateFunctionType,
+        expr: ClickHouseAggregateFunctionType,
     ) -> Tuple[str, tuple]:
-        args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
-        return f"AggregateFunction({data_type.function_name}, {args})", ()
+        args = ", ".join(self.format_data_type(t)[0] for t in expr.arg_types)
+        return f"AggregateFunction({expr.function_name}, {args})", ()
 
     def format_data_type_clickhouse_simple_aggregate_function(
-        self, data_type: ClickHouseSimpleAggregateFunctionType
+        self, expr: ClickHouseSimpleAggregateFunctionType
     ) -> Tuple[str, tuple]:
-        args = ", ".join(self.format_data_type(t)[0] for t in data_type.arg_types)
-        return f"SimpleAggregateFunction({data_type.function_name}, {args})", ()
+        args = ", ".join(self.format_data_type(t)[0] for t in expr.arg_types)
+        return f"SimpleAggregateFunction({expr.function_name}, {args})", ()
 
-    def format_data_type_clickhouse_geometry(self, data_type: ClickHouseGeometryType) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"GEOMETRY SRID {data_type.srid}", ()
+    def format_data_type_clickhouse_geometry(self, expr: ClickHouseGeometryType) -> Tuple[str, tuple]:
+        if expr.srid is not None:
+            return f"GEOMETRY SRID {expr.srid}", ()
         return "GEOMETRY", ()
 
-    def format_data_type_clickhouse_point(self, data_type: ClickHousePointType) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"POINT SRID {data_type.srid}", ()
+    def format_data_type_clickhouse_point(self, expr: ClickHousePointType) -> Tuple[str, tuple]:
+        if expr.srid is not None:
+            return f"POINT SRID {expr.srid}", ()
         return "POINT", ()
 
-    def format_data_type_clickhouse_linestring(self, data_type: ClickHouseLineStringType) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"LINESTRING SRID {data_type.srid}", ()
+    def format_data_type_clickhouse_linestring(self, expr: ClickHouseLineStringType) -> Tuple[str, tuple]:
+        if expr.srid is not None:
+            return f"LINESTRING SRID {expr.srid}", ()
         return "LINESTRING", ()
 
-    def format_data_type_clickhouse_polygon(self, data_type: ClickHousePolygonType) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"POLYGON SRID {data_type.srid}", ()
+    def format_data_type_clickhouse_polygon(self, expr: ClickHousePolygonType) -> Tuple[str, tuple]:
+        if expr.srid is not None:
+            return f"POLYGON SRID {expr.srid}", ()
         return "POLYGON", ()
 
-    def format_data_type_clickhouse_multipoint(self, data_type: ClickHouseMultiPointType) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"MULTIPOINT SRID {data_type.srid}", ()
+    def format_data_type_clickhouse_multipoint(self, expr: ClickHouseMultiPointType) -> Tuple[str, tuple]:
+        if expr.srid is not None:
+            return f"MULTIPOINT SRID {expr.srid}", ()
         return "MULTIPOINT", ()
 
     def format_data_type_clickhouse_multilinestring(
         self,
-        data_type: ClickHouseMultiLineStringType,
+        expr: ClickHouseMultiLineStringType,
     ) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"MULTILINESTRING SRID {data_type.srid}", ()
+        if expr.srid is not None:
+            return f"MULTILINESTRING SRID {expr.srid}", ()
         return "MULTILINESTRING", ()
 
-    def format_data_type_clickhouse_multipolygon(self, data_type: ClickHouseMultiPolygonType) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"MULTIPOLYGON SRID {data_type.srid}", ()
+    def format_data_type_clickhouse_multipolygon(self, expr: ClickHouseMultiPolygonType) -> Tuple[str, tuple]:
+        if expr.srid is not None:
+            return f"MULTIPOLYGON SRID {expr.srid}", ()
         return "MULTIPOLYGON", ()
 
     def format_data_type_clickhouse_geometrycollection(
         self,
-        data_type: ClickHouseGeometryCollectionType,
+        expr: ClickHouseGeometryCollectionType,
     ) -> Tuple[str, tuple]:
-        if data_type.srid is not None:
-            return f"GEOMETRYCOLLECTION SRID {data_type.srid}", ()
+        if expr.srid is not None:
+            return f"GEOMETRYCOLLECTION SRID {expr.srid}", ()
         return "GEOMETRYCOLLECTION", ()
 
-    def format_data_type_clickhouse_vector(self, data_type: ClickHouseVectorType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_vector(self, expr: ClickHouseVectorType) -> Tuple[str, tuple]:
         """Render ClickHouse's fixed-dimension vector as ``QBit(Float32, dim)``.
 
         ``QBit`` is ClickHouse's vector type, not ``VECTOR(n)``: ``VECTOR(n)`` is
@@ -553,7 +553,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
                     "search it with L2Distance."
                 ),
             )
-        return f"QBit(Float32, {data_type.dim})", ()
+        return f"QBit(Float32, {expr.dim})", ()
 
     # ------------------------------------------------------------------
     # DataTypeSupport — supports_data_type_* (1:1 with format_data_type_*)
@@ -846,7 +846,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
 
     # --- Core types (pure names) rendered to real ClickHouse SQL ---
 
-    def format_data_type_integer(self, data_type: IntegerType) -> Tuple[str, tuple]:
+    def format_data_type_integer(self, expr: IntegerType) -> Tuple[str, tuple]:
         """``INTEGER`` and ``INT`` are SQL's two spellings of one 4-byte signed
         integer; ClickHouse has exactly one such type and calls it ``Int32``.
 
@@ -862,32 +862,32 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         and ``ClickHouseUInt32Type()`` are the same ``UInt32`` column, and this
         backend keeps one class per column.
         """
-        self.check_spelling(data_type, IntegerType)
-        self._refuse_unsigned_integer(data_type, "Int32", "ClickHouseUInt32Type")
+        self.check_spelling(expr, IntegerType)
+        self._refuse_unsigned_integer(expr, "Int32", "ClickHouseUInt32Type")
         return "Int32", ()
 
-    def format_data_type_bigint(self, data_type: BigIntType) -> Tuple[str, tuple]:
+    def format_data_type_bigint(self, expr: BigIntType) -> Tuple[str, tuple]:
         """``BIGINT`` and ``INT8`` are the standard's and PostgreSQL's spellings of
         the 8-byte signed integer. ClickHouse writes ``Int64`` and has no other
         word for it; both spellings are accepted and render as written above.
 
         ``unsigned`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`."""
-        self.check_spelling(data_type, BigIntType)
-        self._refuse_unsigned_integer(data_type, "Int64", "ClickHouseUInt64Type")
+        self.check_spelling(expr, BigIntType)
+        self._refuse_unsigned_integer(expr, "Int64", "ClickHouseUInt64Type")
         return "Int64", ()
 
-    def format_data_type_smallint(self, data_type: SmallIntType) -> Tuple[str, tuple]:
+    def format_data_type_smallint(self, expr: SmallIntType) -> Tuple[str, tuple]:
         """``SMALLINT`` / ``INT2`` — the 2-byte signed integer, which ClickHouse
         spells ``Int16``. Both spellings accepted.
 
         ``unsigned`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_integer`."""
-        self.check_spelling(data_type, SmallIntType)
-        self._refuse_unsigned_integer(data_type, "Int16", "ClickHouseUInt16Type")
+        self.check_spelling(expr, SmallIntType)
+        self._refuse_unsigned_integer(expr, "Int16", "ClickHouseUInt16Type")
         return "Int16", ()
 
-    def format_data_type_tinyint(self, data_type: TinyIntType) -> Tuple[str, tuple]:
+    def format_data_type_tinyint(self, expr: TinyIntType) -> Tuple[str, tuple]:
         """``TINYINT`` / ``INT1`` — the 1-byte signed integer, which ClickHouse
         spells ``Int8``.
 
@@ -902,20 +902,20 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``unsigned`` is refused here and points at that class instead. See
         :meth:`_refuse_unsigned_integer`.
         """
-        self.check_spelling(data_type, TinyIntType)
-        self._refuse_unsigned_integer(data_type, "Int8", "ClickHouseUInt8Type")
+        self.check_spelling(expr, TinyIntType)
+        self._refuse_unsigned_integer(expr, "Int8", "ClickHouseUInt8Type")
         return "Int8", ()
 
-    def format_data_type_varchar(self, data_type: VarCharType) -> Tuple[str, tuple]:
+    def format_data_type_varchar(self, expr: VarCharType) -> Tuple[str, tuple]:
         """ClickHouse has no length-bounded character type: ``String`` is
         variable-length and unpadded, so the declared length is dropped. Both
         ``VARCHAR`` and ``CHARACTER VARYING`` are accepted for the same reason as
         the integer spellings — the concept was asked for and this is its only
         storage."""
-        self.check_spelling(data_type, VarCharType)
+        self.check_spelling(expr, VarCharType)
         return "String", ()
 
-    def format_data_type_char(self, data_type: CharType) -> Tuple[str, tuple]:
+    def format_data_type_char(self, expr: CharType) -> Tuple[str, tuple]:
         """``CHAR`` / ``CHARACTER`` — a fixed-length character string.
 
         Rendered ``String``, which is a **widening**, and the caller should know
@@ -926,20 +926,20 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         becomes. Both spellings are accepted for the reason given on
         :meth:`format_data_type_varchar`.
         """
-        self.check_spelling(data_type, CharType)
+        self.check_spelling(expr, CharType)
         return "String", ()
 
-    def format_data_type_text(self, data_type: TextType) -> Tuple[str, tuple]:
+    def format_data_type_text(self, expr: TextType) -> Tuple[str, tuple]:
         """``TEXT`` / ``CLOB`` — unbounded text, which is ``String``.
 
         ``CLOB`` is not a ClickHouse word, but it is the concept's own second
         spelling and ``String`` is the concept's only storage here, so it is
         accepted rather than refused.
         """
-        self.check_spelling(data_type, TextType)
+        self.check_spelling(expr, TextType)
         return "String", ()
 
-    def format_data_type_boolean(self, data_type: BooleanType) -> Tuple[str, tuple]:
+    def format_data_type_boolean(self, expr: BooleanType) -> Tuple[str, tuple]:
         """``BOOLEAN`` / ``BOOL`` — and both are ClickHouse's own words.
 
         Verified against the 26.7 scenario server: ``CREATE TABLE t (b BOOLEAN)``
@@ -947,10 +947,10 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         this is the one concept whose core spelling list happens to be exactly
         ClickHouse's vocabulary.
         """
-        self.check_spelling(data_type, BooleanType)
+        self.check_spelling(expr, BooleanType)
         return "Bool", ()
 
-    def format_data_type_date(self, data_type: DateType) -> Tuple[str, tuple]:
+    def format_data_type_date(self, expr: DateType) -> Tuple[str, tuple]:
         """``DATE`` — ClickHouse's own ``Date``, 1970..2149 in two bytes.
 
         Deliberately *not* ``Date32``: the wider range is a different storage and
@@ -959,7 +959,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "Date", ()
 
-    def format_data_type_datetime(self, data_type: DateTimeType) -> Tuple[str, tuple]:
+    def format_data_type_datetime(self, expr: DateTimeType) -> Tuple[str, tuple]:
         """``DATETIME`` — MySQL's wall-clock date and time.
 
         ClickHouse has no such type; its ``DateTime`` is a count of seconds since
@@ -971,7 +971,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "DateTime", ()
 
-    def format_data_type_timestamp(self, data_type: TimestampType) -> Tuple[str, tuple]:
+    def format_data_type_timestamp(self, expr: TimestampType) -> Tuple[str, tuple]:
         """``TIMESTAMP`` — an instant, which is what ClickHouse's ``DateTime`` is.
 
         A declared sub-second precision is honoured as ``DateTime64(p)``
@@ -981,7 +981,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         come back truncated — so the precision is rendered, not discarded.
         ``ClickHouseDateTime64Type`` is the type that carries that parameter.
         """
-        precision = getattr(data_type, "precision", None)
+        precision = getattr(expr, "precision", None)
         if precision is None:
             return "DateTime", ()
         if (
@@ -996,7 +996,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
             ClickHouseDateTime64Type(precision=precision)
         )
 
-    def format_data_type_time(self, data_type: TimeType) -> Tuple[str, tuple]:
+    def format_data_type_time(self, expr: TimeType) -> Tuple[str, tuple]:
         """``TIME`` — time of day, with no date attached.
 
         ClickHouse has no time-only type; the closest storage is ``DateTime``,
@@ -1006,7 +1006,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "DateTime", ()
 
-    def format_data_type_float(self, data_type: FloatType) -> Tuple[str, tuple]:
+    def format_data_type_float(self, expr: FloatType) -> Tuple[str, tuple]:
         """``FLOAT[(p)]`` — approximate numeric.
 
         Rendered ``Float32``, the default approximate type. A declared
@@ -1021,10 +1021,10 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``system.data_type_families`` inventory and the parser measurements are
         written down.
         """
-        self._refuse_unsigned_numeric(data_type, "Float32")
+        self._refuse_unsigned_numeric(expr, "Float32")
         return "Float32", ()
 
-    def format_data_type_double(self, data_type: DoubleType) -> Tuple[str, tuple]:
+    def format_data_type_double(self, expr: DoubleType) -> Tuple[str, tuple]:
         """``DOUBLE`` / ``DOUBLE PRECISION`` — the 8-byte float, ``Float64``.
 
         Both spellings accepted; the concept's default spelling is ``double``, so
@@ -1033,11 +1033,11 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``unsigned`` is refused rather than ignored, before the spelling check;
         see :meth:`_refuse_unsigned_numeric`.
         """
-        self._refuse_unsigned_numeric(data_type, "Float64")
-        self.check_spelling(data_type, DoubleType)
+        self._refuse_unsigned_numeric(expr, "Float64")
+        self.check_spelling(expr, DoubleType)
         return "Float64", ()
 
-    def format_data_type_real(self, data_type: RealType) -> Tuple[str, tuple]:
+    def format_data_type_real(self, expr: RealType) -> Tuple[str, tuple]:
         """``REAL`` — single precision. ClickHouse's word for it is ``Float32``,
         which is also what ``FLOAT`` renders, because ClickHouse has no separate
         ``REAL`` family.
@@ -1045,10 +1045,10 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``unsigned`` is refused rather than ignored; see
         :meth:`_refuse_unsigned_numeric`.
         """
-        self._refuse_unsigned_numeric(data_type, "Float32")
+        self._refuse_unsigned_numeric(expr, "Float32")
         return "Float32", ()
 
-    def format_data_type_decimal(self, data_type: DecimalType) -> Tuple[str, tuple]:
+    def format_data_type_decimal(self, expr: DecimalType) -> Tuple[str, tuple]:
         """``DECIMAL`` / ``NUMERIC`` / ``DEC`` — exact fixed-point.
 
         ClickHouse's spelling vocabulary for this concept is *exactly* the core
@@ -1066,17 +1066,17 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         UNSIGNED`` is a syntax error at the word — so the flag has nowhere to go
         and the caller is told so by name rather than handed a signed column.
         """
-        self._refuse_unsigned_numeric(data_type, "Decimal(P, S)")
-        self.check_spelling(data_type, DecimalType)
-        p = data_type.precision
-        s = data_type.scale
+        self._refuse_unsigned_numeric(expr, "Decimal(P, S)")
+        self.check_spelling(expr, DecimalType)
+        p = expr.precision
+        s = expr.scale
         if p is not None and s is not None:
             return f"Decimal({p}, {s})", ()
         if p is not None:
             return f"Decimal({p})", ()
         return "Decimal(10, 0)", ()
 
-    def format_data_type_json(self, data_type: JsonType) -> Tuple[str, tuple]:
+    def format_data_type_json(self, expr: JsonType) -> Tuple[str, tuple]:
         """``JSON`` — rendered ``String``, not ClickHouse's native ``JSON``.
 
         The native type exists (``ClickHouseJSONType`` renders it) but it arrived
@@ -1088,7 +1088,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "String", ()
 
-    def format_data_type_blob(self, data_type: BlobType) -> Tuple[str, tuple]:
+    def format_data_type_blob(self, expr: BlobType) -> Tuple[str, tuple]:
         """``BLOB`` / ``BYTEA`` — a byte string, which is ClickHouse's ``String``.
 
         Both spellings accepted: ``BYTEA`` is PostgreSQL's word and ``BLOB`` is
@@ -1098,10 +1098,10 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         Not ``FixedString``: there is no length to honour, and ``FixedString``
         zero-pads, so using it here would change the value.
         """
-        self.check_spelling(data_type, BlobType)
+        self.check_spelling(expr, BlobType)
         return "String", ()
 
-    def format_data_type_uuid(self, data_type: UUIDType) -> Tuple[str, tuple]:
+    def format_data_type_uuid(self, expr: UUIDType) -> Tuple[str, tuple]:
         """``UUID`` — ClickHouse has a type with that exact name and meaning.
 
         128 bits, stored as two 64-bit halves. ``ClickHouseUUIDType`` renders the
@@ -1110,7 +1110,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         """
         return "UUID", ()
 
-    def format_data_type_array(self, data_type: ArrayType) -> Tuple[str, tuple]:
+    def format_data_type_array(self, expr: ArrayType) -> Tuple[str, tuple]:
         """``T[]`` — ClickHouse's ``Array(T)``, always one dimension.
 
         ClickHouse has no multi-dimensional array syntax, so ``dimensions > 1``
@@ -1118,7 +1118,7 @@ class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
         ``Array(Array(T))`` is the same value, and this is the documented
         ClickHouse spelling for it.
         """
-        inner_sql, inner_params = self.format_data_type(data_type.element_type)
+        inner_sql, inner_params = self.format_data_type(expr.element_type)
         return f"Array({inner_sql})", inner_params
 
     # ------------------------------------------------------------------
