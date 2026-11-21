@@ -38,11 +38,10 @@ from rhosocial.activerecord.backend.expression.objects import (
     Trigger,
 )
 from rhosocial.activerecord.backend.expression.core import Column
-from rhosocial.activerecord.backend.expression.statements import OnConflictClause
-from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
-    PartitionClause,
-    PartitionDefinition,
-    PartitionStrategy,
+from rhosocial.activerecord.backend.expression.statements import (
+    OnConflictClause,
+    PartitionByRangeClause,
+    PartitionDefinitionExpression,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     CreateTriggerStatement,
@@ -290,8 +289,8 @@ class TestDeclarativePartitionStub:
 
     ClickHouse partitions a ``MergeTree`` table with ``PARTITION BY <expr>`` in
     ``CREATE TABLE`` — an arbitrary expression, not a chosen RANGE/LIST/HASH/KEY
-    strategy with ``VALUES`` boundaries — so a generic ``PartitionClause`` and
-    an inline ``PartitionDefinition`` both have nothing to render. What
+    strategy with ``VALUES`` boundaries — so a generic ``PartitionByRangeClause``
+    and an inline ``PartitionDefinitionExpression`` both have nothing to render. What
     ClickHouse *does* have is maintenance by partition id, which is covered by
     ``ClickHousePartitionMixin`` and
     ``tests/.../backend/expression/test_expression_signatures.py``.
@@ -299,13 +298,11 @@ class TestDeclarativePartitionStub:
 
     def test_partition_clause_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            PartitionClause(
-                dialect, PartitionStrategy.RANGE, [Column(dialect, "created_at")]
-            ).to_sql()
+            PartitionByRangeClause(dialect, [Column(dialect, "created_at")]).to_sql()
         # The refusal points at where PARTITION BY is actually written.
         assert "PARTITION BY <expr>" in excinfo.value.suggestion
 
     def test_inline_partition_definition_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            dialect.format_partition_definition(PartitionDefinition(name="p1"))
+            dialect.format_partition_definition(PartitionDefinitionExpression(dialect, name="p1"))
         assert "PARTITION BY <expr>" in excinfo.value.suggestion

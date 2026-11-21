@@ -21,10 +21,9 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.core import Column
-from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
-    PartitionClause,
-    PartitionDefinition,
-    PartitionStrategy,
+from rhosocial.activerecord.backend.expression.statements import (
+    PartitionByRangeClause,
+    PartitionDefinitionExpression,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseAttachPartitionStatement,
@@ -280,12 +279,10 @@ class TestGenericPartitionExpressionsRefuseWithTheClickHouseAlternative:
 
     def test_generic_partition_clause_refuses(self, dialect):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            PartitionClause(
-                dialect, PartitionStrategy.RANGE, [Column(dialect, "created_at")]
-            ).to_sql()
+            PartitionByRangeClause(dialect, [Column(dialect, "created_at")]).to_sql()
         assert "PARTITION BY <expr>" in excinfo.value.suggestion
 
     def test_inline_partition_definition_refuses(self, dialect):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            dialect.format_partition_definition(PartitionDefinition(name="p1"))
+            dialect.format_partition_definition(PartitionDefinitionExpression(dialect, name="p1"))
         assert "PARTITION BY <expr>" in excinfo.value.suggestion

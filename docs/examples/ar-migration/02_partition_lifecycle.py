@@ -13,7 +13,8 @@ Everything is rendered offline via ``expr.to_sql()`` -- no connection, no
 ``ctx.apply()``.
 """
 
-from rhosocial.activerecord.backend.expression.statements import PartitionStrategy
+from rhosocial.activerecord.backend.expression import Column
+from rhosocial.activerecord.backend.expression.statements import PartitionByRangeClause
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 
@@ -31,7 +32,7 @@ def show(label, suggestion):
 
 def main():
     dialect = ClickHouseDialect()
-    strategy = PartitionStrategy.RANGE
+    strategy = PartitionByRangeClause(dialect, [Column(dialect, "created_at")])
 
     print("== table drop: ClickHouse has no REMOVE PARTITIONING ==")
     show("table_drop", dialect.suggest_partition_table_drop(strategy, {"table": "visits"}))

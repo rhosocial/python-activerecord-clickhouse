@@ -11,7 +11,7 @@ from ....suggestion import PartitionSplitSuggestion
 from ._common import ClickHousePartitionSuggestionBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 __all__ = ["ClickHousePartitionSplitSuggestionMixin"]
 
@@ -20,7 +20,7 @@ class ClickHousePartitionSplitSuggestionMixin(ClickHousePartitionSuggestionBase)
     """Answer that ClickHouse cannot split a partition."""
 
     def suggest_partition_split(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionSplitSuggestion:
         """ClickHouse has no REORGANIZE PARTITION, so a partition cannot be split."""
         return PartitionSplitSuggestion(False)

@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
 )
 from rhosocial.activerecord.backend.expression import Column, DropTableStatement
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
-from rhosocial.activerecord.backend.expression.statements import PartitionStrategy
+from rhosocial.activerecord.backend.expression.statements import PartitionByRangeClause
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseDropPartitionStatement,
@@ -40,6 +40,12 @@ from rhosocial.activerecord.backend.impl.clickhouse.suggestion import (
     ClickHousePartitionTableAlterSuggestionMixin,
     ClickHousePartitionTableDropSuggestionMixin,
 )
+
+
+def _strategy(dialect):
+    """A RANGE strategy expressed as an expression node (ClickHouse ignores it)."""
+    return PartitionByRangeClause(dialect, [Column(dialect, "created_at")])
+
 
 CASES = [
     ("build", PartitionBuildSuggestionSupport, "suggest_partition_build"),
@@ -98,13 +104,13 @@ TRISTATE_CASES = [(name, method) for name, _protocol, method in CASES]
 
 @pytest.mark.parametrize("name,method", TRISTATE_CASES, ids=[c[0] for c in CASES])
 def test_no_plan_tristate(dialect, name, method):
-    suggestion = getattr(dialect, method)(PartitionStrategy.RANGE, None)
+    suggestion = getattr(dialect, method)(_strategy(dialect), None)
     assert suggestion.operations is NO_PLAN_EXPECTED[name]
 
 
 def test_build_returns_real_partition_by_storage_option(dialect):
     key = Column(dialect, "created_at")
-    suggestion = dialect.suggest_partition_build(PartitionStrategy.RANGE, {"expressions": [key]})
+    suggestion = dialect.suggest_partition_build(_strategy(dialect), {"expressions": [key]})
     operations = suggestion.operations
     assert isinstance(operations, tuple) and len(operations) == 1
     clause = operations[0]
@@ -115,13 +121,13 @@ def test_build_returns_real_partition_by_storage_option(dialect):
 
 
 def test_build_declines_a_plan_without_expression_nodes(dialect):
-    assert dialect.suggest_partition_build(PartitionStrategy.RANGE, {}).operations is False
+    assert dialect.suggest_partition_build(_strategy(dialect), {}).operations is False
     bad = {"expressions": ["toYYYYMM(created_at)"]}  # SQL text is not an expression node
-    assert dialect.suggest_partition_build(PartitionStrategy.RANGE, bad).operations is False
+    assert dialect.suggest_partition_build(_strategy(dialect), bad).operations is False
 
 
 def test_table_drop_returns_real_drop_table_statement(dialect):
-    suggestion = dialect.suggest_partition_table_drop(PartitionStrategy.RANGE, {"table": "visits"})
+    suggestion = dialect.suggest_partition_table_drop(_strategy(dialect), {"table": "visits"})
     operations = suggestion.operations
     assert isinstance(operations, tuple) and len(operations) == 1
     drop = operations[0]
@@ -132,7 +138,7 @@ def test_table_drop_returns_real_drop_table_statement(dialect):
 
 def test_drop_returns_real_partition_id_statement(dialect):
     suggestion = dialect.suggest_partition_drop(
-        PartitionStrategy.RANGE, {"table": "visits", "partition_id": "202601"}
+        _strategy(dialect), {"table": "visits", "partition_id": "202601"}
     )
     operations = suggestion.operations
     assert isinstance(operations, tuple) and len(operations) == 1
@@ -144,13 +150,13 @@ def test_drop_returns_real_partition_id_statement(dialect):
 
 
 def test_drop_declines_a_plan_without_a_partition_id(dialect):
-    suggestion = dialect.suggest_partition_drop(PartitionStrategy.RANGE, {"table": "visits"})
+    suggestion = dialect.suggest_partition_drop(_strategy(dialect), {"table": "visits"})
     assert suggestion.operations is False
 
 
 def test_retention_returns_ordered_drop_chain_for_explicit_ids(dialect):
     plan = {"table": "visits", "partition_ids": ["202601", "202602"]}
-    suggestion = dialect.suggest_partition_retention(PartitionStrategy.RANGE, plan)
+    suggestion = dialect.suggest_partition_retention(_strategy(dialect), plan)
     operations = suggestion.operations
     assert isinstance(operations, tuple) and len(operations) == 2
     assert all(isinstance(op, ClickHouseDropPartitionStatement) for op in operations)
@@ -159,12 +165,12 @@ def test_retention_returns_ordered_drop_chain_for_explicit_ids(dialect):
 
 def test_retention_is_conservative_without_explicit_ids(dialect):
     assert (
-        dialect.suggest_partition_retention(PartitionStrategy.RANGE, {"table": "visits"}).operations
+        dialect.suggest_partition_retention(_strategy(dialect), {"table": "visits"}).operations
         is None
     )
     assert (
         dialect.suggest_partition_retention(
-            PartitionStrategy.RANGE, {"partition_ids": ["202601"]}
+            _strategy(dialect), {"partition_ids": ["202601"]}
         ).operations
         is False
     )

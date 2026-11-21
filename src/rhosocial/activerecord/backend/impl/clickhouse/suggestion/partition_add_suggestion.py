@@ -12,7 +12,7 @@ from ....suggestion import PartitionAddSuggestion
 from ._common import ClickHousePartitionSuggestionBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 __all__ = ["ClickHousePartitionAddSuggestionMixin"]
 
@@ -21,7 +21,7 @@ class ClickHousePartitionAddSuggestionMixin(ClickHousePartitionSuggestionBase):
     """Answer that a partition appears with its first row (no ADD verb)."""
 
     def suggest_partition_add(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionAddSuggestion:
         """A partition appears with its first row; there is no ADD PARTITION."""
         return PartitionAddSuggestion(None)

@@ -13,7 +13,7 @@ Run with (from the repository root)::
 """
 
 from rhosocial.activerecord.backend.expression import Column
-from rhosocial.activerecord.backend.expression.statements import PartitionStrategy
+from rhosocial.activerecord.backend.expression.statements import PartitionByRangeClause
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 
@@ -32,7 +32,7 @@ def show(label, suggestion):
 def main():
     dialect = ClickHouseDialect()
     # The strategy is ignored by ClickHouse -- the expression is what matters.
-    strategy = PartitionStrategy.RANGE
+    strategy = PartitionByRangeClause(dialect, [Column(dialect, "created_at")])
 
     print("== build: PARTITION BY <expr> ==")
     key = Column(dialect, "created_at")

@@ -12,7 +12,7 @@ from ....suggestion import PartitionTableAlterSuggestion
 from ._common import ClickHousePartitionSuggestionBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 __all__ = ["ClickHousePartitionTableAlterSuggestionMixin"]
 
@@ -21,7 +21,7 @@ class ClickHousePartitionTableAlterSuggestionMixin(ClickHousePartitionSuggestion
     """Answer that no ALTER verb can add/remove/reorganise partitioning."""
 
     def suggest_partition_table_alter(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionTableAlterSuggestion:
         """There is no single ALTER verb to add/remove/reorganise partitioning."""
         return PartitionTableAlterSuggestion(False)

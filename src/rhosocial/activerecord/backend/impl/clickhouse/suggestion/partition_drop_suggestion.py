@@ -14,7 +14,7 @@ from ..expression import ClickHouseDropPartitionStatement
 from ._common import ClickHousePartitionSuggestionBase, _get
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 __all__ = ["ClickHousePartitionDropSuggestionMixin"]
 
@@ -23,7 +23,7 @@ class ClickHousePartitionDropSuggestionMixin(ClickHousePartitionSuggestionBase):
     """Suggest ``ALTER TABLE ... DROP PARTITION ID '<id>'``."""
 
     def suggest_partition_drop(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionDropSuggestion:
         """Suggest ``ALTER TABLE ... DROP PARTITION ID '<id>'``."""
         table = self._suggestion_table_name(plan)

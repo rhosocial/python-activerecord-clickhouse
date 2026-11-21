@@ -332,6 +332,7 @@ def special_constructors():
         "advanced_functions.JSONTextValue": _json_text_expr,
         "query_parts.JoinClause": _join_expr,
         "statements.ddl_partition.PartitionClause": _partition_clause,
+        "statements.ddl_partition.PartitionByRangeClause": _partition_clause,
         "statements.dml.OnConflictClause": _on_conflict,
         "statements.dml.UpdateStatement": _update_expr,
         "statements.dml.InsertStatement": _insert_expr,
@@ -831,12 +832,9 @@ def _join_expr(dialect):
 
 def _partition_clause(dialect):
     from rhosocial.activerecord.backend.expression.core import Column
-    from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
-        PartitionClause,
-        PartitionStrategy,
-    )
+    from rhosocial.activerecord.backend.expression.statements import PartitionByRangeClause
 
-    return PartitionClause(dialect, method=PartitionStrategy.RANGE, keys=[Column(dialect, "created_at")])
+    return PartitionByRangeClause(dialect, keys=[Column(dialect, "created_at")])
 
 
 def _on_conflict(dialect):

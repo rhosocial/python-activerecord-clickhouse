@@ -16,7 +16,7 @@ from ..expression import ClickHouseDropPartitionStatement
 from ._common import ClickHousePartitionSuggestionBase, _get
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 __all__ = ["ClickHousePartitionRetentionSuggestionMixin"]
 
@@ -25,7 +25,7 @@ class ClickHousePartitionRetentionSuggestionMixin(ClickHousePartitionSuggestionB
     """Retire an explicit set of partition ids, one ``DROP PARTITION ID`` each."""
 
     def suggest_partition_retention(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionRetentionSuggestion:
         """Retire an explicit set of partition ids, one ``DROP PARTITION ID`` each.
 

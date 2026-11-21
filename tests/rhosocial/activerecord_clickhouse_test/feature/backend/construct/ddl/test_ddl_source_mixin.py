@@ -20,6 +20,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     CreateTableStatement,
     CreateTableOptions,
     IndexDefinition,
+    PartitionByRangeClause,
     StorageOptionsExpression,
     TableCheckConstraint,
     TableConstraint,
@@ -27,10 +28,6 @@ from rhosocial.activerecord.backend.expression.statements import (
     TableUniqueConstraint,
 )
 from rhosocial.activerecord.backend.expression.objects import Table
-from rhosocial.activerecord.backend.expression.statements.ddl_partition import (
-    PartitionClause,
-    PartitionStrategy,
-)
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseColumnDefinition,
@@ -140,11 +137,7 @@ TABLE_OPTIONS = (
     CreateTableOptions(None),
 )
 STORAGE_OPTIONS = StorageOptionsExpression(None, {"engine": "MergeTree"})
-TABLE_PARTITION = PartitionClause(
-    None,
-    PartitionStrategy.RANGE,
-    [Column(None, "physical_value")],
-)
+TABLE_PARTITION = PartitionByRangeClause(None, [Column(None, "physical_value")])
 TABLE_INHERITS = ["parent_a", "parent_b"]
 TABLE_TABLESPACE = "ts_data"
 COMPOSITE_CONSTRAINT = TableConstraint(

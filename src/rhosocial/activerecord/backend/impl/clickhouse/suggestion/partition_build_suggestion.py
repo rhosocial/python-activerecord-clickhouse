@@ -14,7 +14,7 @@ from ..expression import ClickHouseStorageOptionKind, ClickHouseTableStorageOpti
 from ._common import ClickHousePartitionSuggestionBase
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ....expression.statements import PartitionStrategy
+    from ....expression.statements import PartitionByClause
 
 __all__ = ["ClickHousePartitionBuildSuggestionMixin"]
 
@@ -23,7 +23,7 @@ class ClickHousePartitionBuildSuggestionMixin(ClickHousePartitionSuggestionBase)
     """Suggest the inline ``PARTITION BY <expr>`` storage clause for CREATE TABLE."""
 
     def suggest_partition_build(
-        self, strategy: "PartitionStrategy", plan: object
+        self, strategy: "PartitionByClause", plan: object
     ) -> PartitionBuildSuggestion:
         """Suggest the inline ``PARTITION BY <expr>`` storage clause for CREATE TABLE."""
         expressions = self._suggestion_expressions(plan)
