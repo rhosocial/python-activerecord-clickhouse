@@ -31,7 +31,14 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseTableStorageOption,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.suggestion import (
-    ClickHousePartitionSuggestionMixin,
+    ClickHousePartitionAddSuggestionMixin,
+    ClickHousePartitionBuildSuggestionMixin,
+    ClickHousePartitionDropSuggestionMixin,
+    ClickHousePartitionMergeSuggestionMixin,
+    ClickHousePartitionRetentionSuggestionMixin,
+    ClickHousePartitionSplitSuggestionMixin,
+    ClickHousePartitionTableAlterSuggestionMixin,
+    ClickHousePartitionTableDropSuggestionMixin,
 )
 
 CASES = [
@@ -64,8 +71,21 @@ def dialect():
     return ClickHouseDialect()
 
 
-def test_dialect_carries_the_mixin():
-    assert issubclass(ClickHouseDialect, ClickHousePartitionSuggestionMixin)
+PARTITION_SUGGESTION_MIXINS = [
+    ClickHousePartitionBuildSuggestionMixin,
+    ClickHousePartitionTableDropSuggestionMixin,
+    ClickHousePartitionTableAlterSuggestionMixin,
+    ClickHousePartitionAddSuggestionMixin,
+    ClickHousePartitionDropSuggestionMixin,
+    ClickHousePartitionSplitSuggestionMixin,
+    ClickHousePartitionMergeSuggestionMixin,
+    ClickHousePartitionRetentionSuggestionMixin,
+]
+
+
+def test_dialect_carries_the_mixins():
+    for mixin in PARTITION_SUGGESTION_MIXINS:
+        assert issubclass(ClickHouseDialect, mixin), mixin.__name__
 
 
 def test_dialect_satisfies_all_eight_protocols(dialect):

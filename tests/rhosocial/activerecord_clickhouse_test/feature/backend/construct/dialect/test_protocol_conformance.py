@@ -79,9 +79,9 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.MergeSupport,
     dialect_protocols.OrderedSetAggregationSupport,
     dialect_protocols.PartitionSupport,
-    # Partition-lifecycle backend suggestions: ClickHouse now supplies all
-    # eight ``suggest_partition_*`` answers via ClickHousePartitionSuggestionMixin,
-    # so these belong in the positive list (and in no negative list).
+    # Partition-lifecycle backend suggestions: ClickHouse supplies all eight
+    # ``suggest_partition_*`` answers via its eight per-lifecycle suggestion
+    # mixins, so these belong in the positive list (and in no negative list).
     dialect_protocols.PartitionBuildSuggestionSupport,
     dialect_protocols.PartitionTableDropSuggestionSupport,
     dialect_protocols.PartitionTableAlterSuggestionSupport,

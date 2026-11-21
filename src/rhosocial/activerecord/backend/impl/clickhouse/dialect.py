@@ -201,7 +201,16 @@ from .mixins import (
     ClickHouseTrimMixin,
     ClickHouseLiteralValueMixin,
 )
-from .suggestion import ClickHousePartitionSuggestionMixin
+from .suggestion import (
+    ClickHousePartitionAddSuggestionMixin,
+    ClickHousePartitionBuildSuggestionMixin,
+    ClickHousePartitionDropSuggestionMixin,
+    ClickHousePartitionMergeSuggestionMixin,
+    ClickHousePartitionRetentionSuggestionMixin,
+    ClickHousePartitionSplitSuggestionMixin,
+    ClickHousePartitionTableAlterSuggestionMixin,
+    ClickHousePartitionTableDropSuggestionMixin,
+)
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
 
@@ -213,9 +222,17 @@ if TYPE_CHECKING:
 
 class ClickHouseDialect(
     # Backend suggestions first: no core mixin may shadow their answers. The
-    # partition-suggestion mixin is the sole owner of ClickHouse's eight
-    # ``suggest_partition_*`` "how" answers (see the firebird/sqlite pattern).
-    ClickHousePartitionSuggestionMixin,
+    # eight partition-suggestion mixins are the sole owners of ClickHouse's
+    # ``suggest_partition_*`` "how" answers (one per lifecycle point, mirroring
+    # the firebird/sqlite suggestion package layout).
+    ClickHousePartitionBuildSuggestionMixin,
+    ClickHousePartitionTableDropSuggestionMixin,
+    ClickHousePartitionTableAlterSuggestionMixin,
+    ClickHousePartitionAddSuggestionMixin,
+    ClickHousePartitionDropSuggestionMixin,
+    ClickHousePartitionSplitSuggestionMixin,
+    ClickHousePartitionMergeSuggestionMixin,
+    ClickHousePartitionRetentionSuggestionMixin,
     # The bases below come in bundles: a backend mixin, then the core bundle
     # it stands in for. The backend's answer has to come first -- a mixin
     # placed after the class it overrides never wins -- so a new mixin goes
