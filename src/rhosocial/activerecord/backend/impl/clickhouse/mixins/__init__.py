@@ -5,7 +5,6 @@ from .transaction import ClickHouseTransactionMixin
 from .backend_mixin import ClickHouseBackendMixin
 from .trigger import ClickHouseTriggerMixin
 from .partition import ClickHousePartitionMixin
-from .partition_suggestion import ClickHousePartitionSuggestionMixin
 from .partition_maintenance import ClickHousePartitionMaintenanceMixin
 from .ddl_table import ClickHouseTableMixin
 from .set_type import ClickHouseSetTypeMixin
@@ -67,7 +66,6 @@ __all__ = [
     "ClickHouseBackendMixin",
     "ClickHouseTriggerMixin",
     "ClickHousePartitionMixin",
-    "ClickHousePartitionSuggestionMixin",
     "ClickHousePartitionMaintenanceMixin",
     "ClickHouseTableMixin",
     "ClickHouseSetTypeMixin",

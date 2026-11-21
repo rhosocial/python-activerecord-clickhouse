@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/mixins/partition_suggestion.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/suggestion/partition.py
 """ClickHouse's backend suggestions for the eight partition-lifecycle points.
 
 ClickHouse has no declarative partition *strategy* and no subpartitioning. A
@@ -31,8 +31,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Optional, Tuple
 
-from ....expression import (
-    DropTableStatement,
+from rhosocial.activerecord.backend.suggestion import (
     PartitionAddSuggestion,
     PartitionBuildSuggestion,
     PartitionDropSuggestion,
@@ -42,6 +41,7 @@ from ....expression import (
     PartitionTableAlterSuggestion,
     PartitionTableDropSuggestion,
 )
+from ....expression import DropTableStatement
 from ....expression.bases import BaseExpression
 from ....expression.objects import Table
 from ..expression import (

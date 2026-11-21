@@ -159,7 +159,6 @@ from .mixins import (
     ClickHouseJsonDualityViewMixin,
     ClickHouseOptimizerHintMixin,
     ClickHousePartitionMixin,
-    ClickHousePartitionSuggestionMixin,
     ClickHouseDataTypeSuggestionsMixin,
     ClickHouseTypeSupportMixin,
     ClickHouseRenameTableMixin,
@@ -202,6 +201,7 @@ from .mixins import (
     ClickHouseTrimMixin,
     ClickHouseLiteralValueMixin,
 )
+from .suggestion import ClickHousePartitionSuggestionMixin
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
 

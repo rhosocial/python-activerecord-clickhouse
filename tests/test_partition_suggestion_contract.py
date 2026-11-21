@@ -30,7 +30,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseStorageOptionKind,
     ClickHouseTableStorageOption,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.mixins import (
+from rhosocial.activerecord.backend.impl.clickhouse.suggestion import (
     ClickHousePartitionSuggestionMixin,
 )
 
