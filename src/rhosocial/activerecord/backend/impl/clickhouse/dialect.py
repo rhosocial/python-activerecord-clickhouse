@@ -54,6 +54,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     TransactionControlSupport,
     SQLFunctionSupport,
     DataTypeSupport,
+    ColumnAttributeSupport,
 )
 from rhosocial.activerecord.backend.dialect.mixins import (
     # The object tree: each *NameMixin renders one object kind and inherits
@@ -105,6 +106,11 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DQLMixin,
     DMLMixin,
     DDLColumnMixin,
+    # ColumnAttributeSupport gained two members that no longer come from
+    # DDLColumnMixin. Compose core's standalone mixin so ClickHouseDialect
+    # still satisfies the protocol it declares; it precedes DDLColumnMixin's
+    # format_column_attributes() caller in the MRO.
+    ColumnAttributeMixin,
     UserDefinedTypeMixin,
     DomainMixin,
     TransactionControlMixin,
@@ -400,6 +406,7 @@ class ClickHouseDialect(
     DQLMixin,
     ClickHouseDDLColumnMixin,
     DDLColumnMixin,
+    ColumnAttributeMixin,
     DMLMixin,
     TransactionControlMixin,
     ClickHouseSetOperationMixin,
@@ -464,6 +471,9 @@ class ClickHouseDialect(
     ClickHouseLoadXMLSupport,
     ClickHouseAdminCommandSupport,
     SQLFunctionSupport,
+    # Core split ColumnAttributeSupport out of DDLColumnSupport: the standalone
+    # ColumnAttributeMixin above supplies its two members.
+    ColumnAttributeSupport,
     # Before the generic DataTypeSupport it extends, for the same reason
     # ClickHouseTypeSupportMixin precedes the mixin it completes: the backend
     # protocol refines the generic one and must be seen first in the MRO.
@@ -606,6 +616,18 @@ class ClickHouseDialect(
     # - ``ALTER TABLE ADD/DROP CONSTRAINT`` is unsupported, so any named
     #   table-constraint change also rebuilds instead of emitting actions
     #   that would raise on render.
+
+    def supports_drop_column(self) -> bool:
+        """ClickHouse supports ``ALTER TABLE ... DROP COLUMN``.
+
+        Core's ``ConstraintMixin`` answers False by default, which made the
+        shared testsuite's unconditional plain-form DROP COLUMN rendering test
+        fail. The engine has supported the clause on every version this backend
+        targets, so the honest answer is True; the dialect's core formatter
+        then renders it. Declared here, ahead of ``ConstraintMixin`` in the
+        MRO, because placing it on a backend mixin below it would be dead code.
+        """
+        return True
 
     def supports_alter_column_type(self) -> bool:
         """ClickHouse supports in-place type changes via MODIFY COLUMN."""

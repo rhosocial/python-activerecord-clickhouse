@@ -68,6 +68,16 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
       claimed, because none can be evidenced.
     """
 
+    def format_partition_definition(self, expr) -> Tuple[str, tuple]:
+        """Refuse an inline ``PARTITION ... VALUES ...`` definition.
+
+        Core's generic ``PartitionSupport`` names
+        ``format_partition_definition_expression`` for this node; ClickHouse's
+        mixin still carries the older ``format_partition_definition`` refusal,
+        so declare it here to keep the protocol and its mixin in step.
+        """
+        ...
+
     def supports_drop_partition(self) -> bool:
         """Whether ``ALTER TABLE ... DROP PARTITION ID`` is supported — it is."""
         ...

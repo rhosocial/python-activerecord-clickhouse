@@ -145,7 +145,6 @@ from typing import Dict
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import (
-    ProtocolNotImplementedError,
     UnsupportedDataTypeError,
     UnsupportedFeatureError,
 )
@@ -1060,6 +1059,14 @@ UNCONSTRUCTIBLE = (
     # needs one; the guess supplies a bare comparison whose literal would have
     # to render as a bind parameter, which DDL cannot carry.
     "rhosocial.activerecord.backend.expression.statements.ddl_domain.AddDomainCheckAction",
+    # Core replaced the old partition-strategy enum with dedicated PartitionBy*
+    # expression nodes. Hash and List require a non-empty key list the generic
+    # constructor cannot guess (it supplies keys=[]). ClickHouse declares
+    # partitioning as an arbitrary PARTITION BY expression, not a MySQL-style
+    # strategy clause, so a registered constructor here would invent a dialect
+    # feature; Range stays constructible through the harness' explicit factory.
+    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByHashClause",
+    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByListClause",
     # The three UUID nodes refuse in __init__, not in to_sql(): ClickHouse
     # spells no UUID SQL, so the answer is the same for every argument and no
     # registered constructor can change it. Measured with a valid ``which`` --
@@ -1126,11 +1133,15 @@ LEGITIMATE_NON_RENDERS = {
     #  ClickHouse has no secondary indexes at all -- its MergeTree stores are ordered, not indexed -- so an
     # unused-index listing is not merely unanswered but meaningless. TableStats likewise has no per-table access
     # counter. The probes answer False.
+    # Core now reports a missing introspection formatter as UnsupportedFeatureError
+    # naming the method, not as ProtocolNotImplementedError; the method name is
+    # still the pin, so a formatter that lands changes the entry rather than
+    # slipping through.
     "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "does not support format_unused_indexes_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "does not support format_table_usage_stats_query_statement",
     ),
     # Runtime and index usage: ClickHouse's MergeTree engines keep no
     # per-index or per-table access counters either -- `system.query_log` is
@@ -1141,16 +1152,16 @@ LEGITIMATE_NON_RENDERS = {
     # False, and these classes stay declared gaps with a reason rather than
     # being quietly absent.
     "rhosocial.activerecord.backend.expression.introspection.RuntimeMetricsQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "does not support format_runtime_metrics_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "does not support format_index_usage_stats_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.ObjectDependencyQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "does not support format_object_dependency_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.DDLStatementQueryStatement": (
-        ProtocolNotImplementedError, 'does not implement ',
+        UnsupportedFeatureError, "does not support format_ddl_statement_query_statement",
     ),
 
 # ---- bases that name an expression category, not a renderable thing ----

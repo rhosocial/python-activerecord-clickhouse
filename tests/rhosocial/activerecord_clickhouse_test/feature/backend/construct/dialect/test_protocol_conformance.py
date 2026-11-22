@@ -186,6 +186,25 @@ CLICKHOUSE_PROTOCOLS = [
     clickhouse_protocols.ClickHouseAdminCommandSupport,
     # Note: ClickHouseSetTypeSupport is intentionally absent — the dialect no
     # longer provides MySQL-style SET type helpers (FIND_IN_SET / SET_CONTAINS).
+    # Family protocols added by the core refactor. ClickHouse composes the
+    # corresponding core mixins, so every one is satisfied structurally; they
+    # must be classified here or the partition test fails.
+    dialect_protocols.AsyncIntrospectionSupport,
+    dialect_protocols.DDLColumnSupport,
+    dialect_protocols.DMLSupport,
+    dialect_protocols.DQLSupport,
+    dialect_protocols.DatabaseNameSupport,
+    dialect_protocols.DateTimeSupport,
+    dialect_protocols.ExpressionSupport,
+    dialect_protocols.FunctionCallSupport,
+    dialect_protocols.LpadSupport,
+    dialect_protocols.PredicateSupport,
+    dialect_protocols.PropertyGraphNameSupport,
+    dialect_protocols.RelationSourceSupport,
+    dialect_protocols.RepeatSupport,
+    dialect_protocols.RpadSupport,
+    dialect_protocols.SchemaNameSupport,
+    dialect_protocols.TrimSupport,
 ]
 
 
@@ -358,10 +377,13 @@ class TestProtocolNonOverlap:
 
         # The methods every object protocol inherits from NamespaceSupport.
         namespace_members = get_all_protocol_methods(dialect_protocols.NamespaceSupport)
+        # ``issubclass`` refuses protocols carrying non-method members (core's
+        # named-object protocols gained ``separator``), so derive the object
+        # family through the MRO instead.
         object_protocol_names = {
             name
             for name, proto in proto_by_name.items()
-            if issubclass(proto, dialect_protocols.NamespaceSupport)
+            if dialect_protocols.NamespaceSupport in getattr(proto, "__mro__", [])
         }
 
         # A ClickHouse protocol often restates a *different* core protocol than
@@ -380,6 +402,13 @@ class TestProtocolNonOverlap:
             ("CreateTriggerSupport", "ClickHouseTriggerSupport"),
             ("DropTriggerSupport", "ClickHouseTriggerSupport"),
             ("FulltextIndexSupport", "ClickHouseFullTextSearchSupport"),
+            # Family protocols added by the core refactor deliberately restate
+            # members of the specialised ClickHouse protocols above.
+            ("IntrospectionSupport", "AsyncIntrospectionSupport"),
+            ("ClickHouseDMLOperationSupport", "DMLSupport"),
+            ("ClickHouseTableSupport", "DDLColumnSupport"),
+            ("ClickHouseModifyColumnSupport", "DDLColumnSupport"),
+            ("ClickHouseTableStatementSupport", "RelationSourceSupport"),
         }
 
         violations = []
@@ -389,8 +418,12 @@ class TestProtocolNonOverlap:
                 continue
             if (name_a, name_b) in intentional_restatements:
                 continue
-            if issubclass(proto_by_name[name_b], proto_by_name[name_a]) or issubclass(
-                proto_by_name[name_a], proto_by_name[name_b]
+            # MRO membership, not issubclass: core's protocols now carry a
+            # non-method member (``separator``), which makes issubclass raise
+            # TypeError even for a genuine derivation.
+            if (
+                proto_by_name[name_a] in getattr(proto_by_name[name_b], "__mro__", [])
+                or proto_by_name[name_b] in getattr(proto_by_name[name_a], "__mro__", [])
             ):
                 continue
             if name_a in object_protocol_names and name_b in object_protocol_names:
@@ -426,7 +459,11 @@ class TestProtocolDerivation:
         """Backend-specific protocol should derive from its generic counterpart."""
         clickhouse_proto = getattr(clickhouse_protocols, clickhouse_name)
         generic_proto = getattr(dialect_protocols, generic_name)
-        assert issubclass(clickhouse_proto, generic_proto), f"{clickhouse_name} does not derive from {generic_name}"
+        # issubclass refuses protocols carrying non-method members (core's
+        # TableObjectSupport gained ``separator``), so check the MRO directly.
+        assert generic_proto in clickhouse_proto.__mro__, (
+            f"{clickhouse_name} does not derive from {generic_name}"
+        )
 
     def test_dialect_satisfies_generic_protocols_via_derivation(self):
         """ClickHouseDialect should satisfy generic protocols through derived protocols."""
