@@ -12,7 +12,7 @@ ClickHouse 是面向列式存储的 OLAP 数据库，在实时分析、海量数
 `rhosocial-activerecord-clickhouse` 选择第三条路——**诚实对待语义**：
 
 - ClickHouse 原生支持的能力（列式类型、`ENGINE`、`ORDER BY` 排序键、`PARTITION BY`、TTL、`JSONExtract*`、数组/Map/Tuple、`system.*` 自省）以一等公民暴露，生成 ClickHouse 原生 SQL。
-- ClickHouse 不支持的能力（ACID 事务、外键/唯一约束、触发器、UPSERT、FOR UPDATE、FULLTEXT、JSON_TABLE、空间/向量类型、存储过程、MySQL 管理命令等）通过 `supports_*` 能力开关声明为 `False`，调用对应的 `format_*` 方法会快速抛出 `UnsupportedFeatureError`，**绝不静默模拟**。
+- ClickHouse 不支持的能力（ACID 事务、外键/唯一约束、触发器、UPSERT、FOR UPDATE、FULLTEXT、JSON_TABLE、空间/向量类型、存储过程、MySQL 管理命令等）通过 `supports_*` 支持开关声明为 `False`，调用对应的 `format_*` 方法会快速抛出 `UnsupportedFeatureError`，**绝不静默模拟**。
 
 > 💡 *AI 提示词："为什么这个后端选择快速失败而不是模拟事务？这对调用方代码有什么影响？"*
 

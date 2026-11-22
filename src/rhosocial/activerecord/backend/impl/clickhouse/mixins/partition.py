@@ -8,7 +8,7 @@ strategy to pick, no ``VALUES`` boundary and no subpartitioning. Declaring the
 clause is done by the storage-clause formatter
 (:meth:`~.ddl_table_engine.ClickHouseTableEngineMixin.format_table_engine_clauses`,
 which renders ``PARTITION BY`` out of the ``storage_options`` mapping); what is
-left for this mixin is the capability switches and the three ``ALTER TABLE``
+left for this mixin is the support switches and the three ``ALTER TABLE``
 maintenance clauses ClickHouse actually has, each addressed by **partition id**.
 
 References (both fetched and HTTP-resolving):

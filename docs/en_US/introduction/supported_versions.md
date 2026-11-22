@@ -17,7 +17,7 @@ maintained LTS and stable lines are covered:
 > cleaned up. ClickHouse uses calendar versioning (`YY.M.patch`), e.g. `26.7`.
 
 The dialect and type adapters probe the actual server version on connect and
-adjust capability switches accordingly (some functions or settings are only
+adjust support switches accordingly (some functions or settings are only
 available in newer versions).
 
 ## Python versions

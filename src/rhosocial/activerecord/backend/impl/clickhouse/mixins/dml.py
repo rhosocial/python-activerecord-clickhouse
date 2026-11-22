@@ -13,7 +13,7 @@ class ClickHouseDMLOperationMixin:
 
     ClickHouse does not support INSERT IGNORE, REPLACE INTO, LOAD DATA,
     or ON DUPLICATE KEY UPDATE. All supports_* methods return False and
-    format methods raise UnsupportedFeatureError.
+    format functions raise UnsupportedFeatureError.
     """
 
     def supports_insert_ignore(self) -> bool:

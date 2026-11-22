@@ -35,7 +35,7 @@ database.
 
 ClickHouse has no ACID transactions, foreign keys, unique constraints, or
 UPSERT. Rather than silently emulating them, this backend declares them through
-capability switches and raises `UnsupportedFeatureError` when you cross the
+support switches and raises `UnsupportedFeatureError` when you cross the
 line. You always know what the engine actually guarantees.
 
 ### 3. The ActiveRecord pattern stays intact

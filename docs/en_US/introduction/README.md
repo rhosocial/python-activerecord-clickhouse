@@ -25,7 +25,7 @@ Traditional ORMs integrating ClickHouse usually take one of two approaches:
 - Capabilities ClickHouse does not support (ACID transactions, foreign key / unique
   constraints, triggers, UPSERT, FOR UPDATE, FULLTEXT, JSON_TABLE, spatial/vector
   types, stored routines, MySQL admin commands, etc.) are declared as `False`
-  via `supports_*` capability switches; calling the corresponding `format_*`
+  via `supports_*` support switches; calling the corresponding `format_*`
   methods raises `UnsupportedFeatureError` fast — **never silently emulated**.
 
 > 💡 *AI prompt: "Why does this backend choose to fail fast instead of emulating transactions? What does that mean for calling code?"*

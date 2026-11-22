@@ -8,7 +8,7 @@ class ClickHouseLockingMixin:
     """ClickHouse row-level locking mixin.
 
     ClickHouse does not support FOR SHARE, NOWAIT, or SKIP LOCKED.
-    All supports_* methods return False and format methods raise
+    All supports_* methods return False and format functions raise
     UnsupportedFeatureError.
     """
 

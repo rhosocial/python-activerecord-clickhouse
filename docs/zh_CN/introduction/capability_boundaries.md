@@ -70,7 +70,7 @@ except UnsupportedFeatureError as e:
 
 ## 如何在代码中做条件降级
 
-调用方应通过 `supports_*` 能力开关检查，而非 `try/except`：
+调用方应通过 `supports_*` 支持开关检查，而非 `try/except`：
 
 ```python
 if not dialect.supports_on_conflict_clause():

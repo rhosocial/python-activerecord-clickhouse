@@ -68,7 +68,7 @@ from .output import OUTPUT_CHOICES, create_provider
 #: declares nor enforces foreign keys and has no triggers at all, so the
 #: question is not part of this backend's vocabulary: argparse refuses the word
 #: and the answer is "this backend does not ask" rather than "this server
-#: cannot answer". A capability switch is for the second case -- a family the
+#: cannot answer". A support switch is for the second case -- a family the
 #: dialect knows and a particular server version may lack. Mixing the two is
 #: what made an earlier attempt to arbitrate types in core unworkable.
 _TYPE_CAPABILITIES = {

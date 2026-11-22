@@ -32,7 +32,7 @@ config = ClickHouseConnectionConfig(
 )
 backend = ClickHouseBackend(connection_config=config)
 backend.connect()
-backend.introspect_and_adapt()  # negotiate server version and capability switches
+backend.introspect_and_adapt()  # negotiate server version and support switches
 ```
 
 `ClickHouseConnectionConfig` 还带有 `settings`、`compress`、`connect_timeout`、

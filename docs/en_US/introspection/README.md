@@ -369,7 +369,7 @@ belong in a slot every engine must fill.
 ## Version and Availability Floors
 
 There is no version floor established for these families. The twenty-one types
-are gated on capability switches evaluated against the connected server's
+are gated on support switches evaluated against the connected server's
 adapted dialect, not on a version number written here, and the six catalogue
 families and three data families need only ordinary aggregates and `system.*`
 relations that every version this backend declares — 25.8, 26.3 and 26.7 —

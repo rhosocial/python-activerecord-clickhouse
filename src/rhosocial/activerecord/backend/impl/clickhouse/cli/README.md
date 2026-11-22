@@ -106,7 +106,7 @@ answer. The two exit codes say which kind of refusal happened:
     accepted and then refused. An empty list from a type that was offered would
     read as "none declared", which is a different and wrong answer; the same
     command against a MySQL database returns a real list. This is a statement
-    about the *engine*, and it is not the same as a capability switch: a
+    about the *engine*, and it is not the same as a support switch: a
     `supports_*` switch that answers False says "this server cannot answer",
     while a type that is absent from the vocabulary says "this backend never
     asks". Every type that *is* offered carries a switch, and a server that

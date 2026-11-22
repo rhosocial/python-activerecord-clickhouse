@@ -93,7 +93,7 @@ For the complete list, see [Unsupported features](../capabilities/unsupported.md
 
 ## How to degrade conditionally in code
 
-Callers should check via `supports_*` capability switches rather than `try/except`:
+Callers should check via `supports_*` support switches rather than `try/except`:
 
 ```python
 if not dialect.supports_on_conflict_clause():

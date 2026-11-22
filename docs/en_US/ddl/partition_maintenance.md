@@ -87,7 +87,7 @@ because a partition materialises with its first row; `TRUNCATE PARTITION` is
 spelled `ALTER TABLE ... DELETE IN PARTITION ID ... WHERE ...`; and there is no
 `REORGANIZE`, `EXCHANGE`, `COALESCE`, `REMOVE PARTITIONING` or `SUBPARTITION BY`.
 `execute()` raises `UnsupportedFeatureError` for any other verb, and the
-dialect's capability switches agree: `supports_subpartitioning()`,
+dialect's support switches agree: `supports_subpartitioning()`,
 `supports_range_table_partitioning()`, `supports_list_table_partitioning()` and
 `supports_hash_table_partitioning()` all answer `False`, while
 `supports_drop_partition()`, `supports_detach_partition()` and

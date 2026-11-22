@@ -81,7 +81,7 @@ service.execute("detach", "visits", "202601")
 `ALTER TABLE ... DELETE IN PARTITION ID ... WHERE ...`；也不存在
 `REORGANIZE`、`EXCHANGE`、`COALESCE`、`REMOVE PARTITIONING` 或
 `SUBPARTITION BY`。`execute()` 对其他任何动词抛出 `UnsupportedFeatureError`，
-dialect 的能力开关也给出同样的答案：
+dialect 的支持开关也给出同样的答案：
 `supports_subpartitioning()`、`supports_range_table_partitioning()`、
 `supports_list_table_partitioning()`、`supports_hash_table_partitioning()`
 均为 `False`，而 `supports_drop_partition()`、`supports_detach_partition()`、

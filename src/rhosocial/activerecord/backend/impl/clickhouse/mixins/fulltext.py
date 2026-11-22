@@ -9,7 +9,7 @@ class ClickHouseFullTextSearchMixin:
 
     ClickHouse does not support standard MySQL-style FULLTEXT indexes
     or MATCH ... AGAINST search. All supports_* methods return False and
-    format methods raise UnsupportedFeatureError. ClickHouse's own facility is
+    format functions raise UnsupportedFeatureError. ClickHouse's own facility is
     the ``text`` inverted index (GA from 26.2), declared as a skip index and
     queried with ``hasAllTokens`` / ``hasAnyTokens``.
     """
