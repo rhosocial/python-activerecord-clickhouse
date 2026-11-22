@@ -19,6 +19,7 @@ elif sys.version_info >= (3, 12):
 
 import pytest
 from rhosocial.activerecord.backend.dialect import protocols as dialect_protocols
+from rhosocial.activerecord.backend.suggestion import protocols as suggestion_protocols
 from rhosocial.activerecord.backend.impl.clickhouse import dialect as clickhouse_dialect
 from rhosocial.activerecord.backend.impl.clickhouse import mixins as clickhouse_mixins
 from rhosocial.activerecord.backend.impl.clickhouse import protocols as clickhouse_protocols
@@ -82,14 +83,14 @@ CLICKHOUSE_PROTOCOLS = [
     # Partition-lifecycle backend suggestions: ClickHouse supplies all eight
     # ``suggest_partition_*`` answers via its eight per-lifecycle suggestion
     # mixins, so these belong in the positive list (and in no negative list).
-    dialect_protocols.PartitionBuildSuggestionSupport,
-    dialect_protocols.PartitionTableDropSuggestionSupport,
-    dialect_protocols.PartitionTableAlterSuggestionSupport,
-    dialect_protocols.PartitionAddSuggestionSupport,
-    dialect_protocols.PartitionDropSuggestionSupport,
-    dialect_protocols.PartitionSplitSuggestionSupport,
-    dialect_protocols.PartitionMergeSuggestionSupport,
-    dialect_protocols.PartitionRetentionSuggestionSupport,
+    suggestion_protocols.PartitionBuildSuggestionSupport,
+    suggestion_protocols.PartitionTableDropSuggestionSupport,
+    suggestion_protocols.PartitionTableAlterSuggestionSupport,
+    suggestion_protocols.PartitionAddSuggestionSupport,
+    suggestion_protocols.PartitionDropSuggestionSupport,
+    suggestion_protocols.PartitionSplitSuggestionSupport,
+    suggestion_protocols.PartitionMergeSuggestionSupport,
+    suggestion_protocols.PartitionRetentionSuggestionSupport,
     dialect_protocols.QualifyClauseSupport,
     dialect_protocols.TemporalTableSupport,
     dialect_protocols.UpsertSupport,
@@ -159,12 +160,12 @@ CLICKHOUSE_PROTOCOLS = [
     # server rejects the clause with Code 62 (syntax error at GENERATED).
     dialect_protocols.IdentityColumnSupport,
     # The column-type table: `ClickHouseColumnTypeMixin` answers
-    # `suggested_column_types()` for all twenty-four Python types and
-    # `suggested_extra_column_types()` with nothing of its own, and the
+    # `suggest_column_types()` for all twenty-four Python types and
+    # `suggest_extra_column_types()` with nothing of its own, and the
     # dialect composes the mixin. The table is the model layer's source for
     # which column class a field's annotation resolves to, so ClickHouse
     # declares it rather than leaving it for another dialect to answer.
-    dialect_protocols.ColumnTypeSupport,
+    suggestion_protocols.ColumnTypeSuggestionSupport,
     # ClickHouse-specific protocols
     clickhouse_protocols.ClickHouseDMLOperationSupport,
     clickhouse_protocols.ClickHouseTriggerSupport,
@@ -223,7 +224,7 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     dialect_protocols.DatabaseAssignedColumnSupport,
     # No integer auto-increment suggestion either: a generated key is a
     # client-side snowflake Int64, never a server-assigned column value.
-    dialect_protocols.IntegerAutoIncrementColumnSuggestionSupport,
+    suggestion_protocols.IntegerAutoIncrementColumnSuggestionSupport,
     # Every ClickHouse DDL statement auto-commits, so DDL cannot participate in
     # a surrounding transaction and the dialect has no atomicity to report.
     dialect_protocols.TransactionalDDLSupport,

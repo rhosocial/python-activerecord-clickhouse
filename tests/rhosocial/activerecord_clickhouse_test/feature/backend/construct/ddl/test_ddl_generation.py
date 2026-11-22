@@ -22,6 +22,9 @@ from rhosocial.activerecord.backend.expression.types import (
     VarCharType,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.impl.clickhouse.introspection.type_parser import (
+    ClickHouseTypeParser,
+)
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseCreateTableOptions,
     ClickHouseEngineSpec,
@@ -226,7 +229,7 @@ class TestTypeFormatting:
             assert sql == expected, f"{type(data_type).__name__}: got {sql}, expected {expected}"
 
     def test_parse_type_roundtrip(self, dialect):
-        """parse_type parses ClickHouse type strings back to DataType."""
+        """The introspection parser reads ClickHouse type strings back to DataType."""
         type_strs = [
             "Int8", "Int16", "Int32", "Int64",
             "UInt8", "UInt16", "UInt32", "UInt64",
@@ -239,7 +242,7 @@ class TestTypeFormatting:
             "Nullable(Int32)", "LowCardinality(String)",
         ]
         for type_str in type_strs:
-            parsed = dialect.parse_type(type_str)
+            parsed = ClickHouseTypeParser(dialect).parse(type_str)
             sql, _ = parsed.to_sql()
             # Compare with whitespace normalized (Decimal(10, 2) == Decimal(10,2))
             assert type_str.lower().replace(" ", "") == sql.lower().replace(" ", ""), (
@@ -247,7 +250,7 @@ class TestTypeFormatting:
             )
 
     def test_parse_enum_type(self, dialect):
-        parsed = dialect.parse_type("Enum8('a' = 1, 'b' = 2)")
+        parsed = ClickHouseTypeParser(dialect).parse("Enum8('a' = 1, 'b' = 2)")
         sql, _ = parsed.to_sql()
         assert sql.startswith("Enum8(")
         assert "'a'" in sql and "'b'" in sql

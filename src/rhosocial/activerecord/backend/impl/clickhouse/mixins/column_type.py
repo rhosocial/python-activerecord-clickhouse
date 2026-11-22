@@ -84,7 +84,10 @@ from rhosocial.activerecord.backend.adapters import (
     Range,
     Vector,
 )
-from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    ColumnTypeSuggestion,
+    ExtraColumnTypeSuggestion,
+)
 from rhosocial.activerecord.backend.expression.column_types import (
     ArrayColumn,
     BinaryColumn,
@@ -234,24 +237,26 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
 }
 
 
-class ClickHouseColumnTypeMixin(ColumnTypeMixin):
+class ClickHouseColumnTypeMixin:
     """ClickHouse's answer to "which column class does this annotation mean".
 
-    Composed into ``ClickHouseDialect`` **ahead of** ``ColumnTypeMixin``, which
-    is where the backend's own answer wins: it overrides
-    :meth:`suggested_column_types` and calls ``super()`` for nothing, because
-    the one other member of the protocol -- ``suggested_extra_column_types`` --
-    has no backend-specific answer here. Core offers no inherited table to fall
-    back on, so the ordering only matters for the method this class defines.
+    Core deleted the old column-type mixin and offers no inherited table to fall back
+    on, so this mixin stands alone. It owns both members of
+    ``ColumnTypeSuggestionSupport``: the full twenty-four-entry table and an
+    empty backend-owned table.
     """
 
-    def suggested_column_types(self) -> Dict[Any, Optional[Type[ColumnBase]]]:
+    def suggest_column_types(self) -> ColumnTypeSuggestion:
         """A fresh copy of :data:`CLICKHOUSE_COLUMN_TYPES`, all twenty-four entries.
 
         Returning a copy is part of the protocol: a caller mutating the answer
         must not corrupt the table the next lookup reads.
         """
-        return dict(CLICKHOUSE_COLUMN_TYPES)
+        return ColumnTypeSuggestion(table=dict(CLICKHOUSE_COLUMN_TYPES))
+
+    def suggest_extra_column_types(self) -> ExtraColumnTypeSuggestion:
+        """No backend-owned extra column types."""
+        return ExtraColumnTypeSuggestion(table={})
 
 
 __all__ = ["CLICKHOUSE_COLUMN_TYPES", "ClickHouseColumnTypeMixin"]

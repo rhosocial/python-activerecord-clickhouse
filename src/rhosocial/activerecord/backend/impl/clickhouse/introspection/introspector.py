@@ -27,7 +27,6 @@ Design principle: Sync and Async are separate and cannot coexist.
 import copy
 from typing import Any, Dict, List, Optional
 
-from rhosocial.activerecord.backend.expression.types import DataType
 from rhosocial.activerecord.backend.introspection.base import (
     AbstractIntrospector,
     AsyncAbstractIntrospector,
@@ -54,6 +53,7 @@ from rhosocial.activerecord.backend.introspection.types import (
     TableType,
 )
 
+from .type_parser import ClickHouseTypeParser
 from ..expression.introspection import (
     ClickHouseClusterListQuery,
     ClickHouseDictionaryListQuery,
@@ -294,7 +294,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
                 else ColumnNullable.NOT_NULL
             )
             col_type = row.get("COLUMN_TYPE") or row.get("DATA_TYPE") or "VARCHAR"
-            parsed = DataType.parse_data_type_str(self._backend.dialect, col_type)
+            parsed = ClickHouseTypeParser(self._backend.dialect).parse(col_type)
             columns.append(
                 IntrospectionColumnInfo(
                     name=row["COLUMN_NAME"],

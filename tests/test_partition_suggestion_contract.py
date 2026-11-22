@@ -11,7 +11,7 @@ the plan does carry one. No live server is needed, so it runs under
 
 import pytest
 
-from rhosocial.activerecord.backend.dialect.protocols import (
+from rhosocial.activerecord.backend.suggestion.protocols import (
     PartitionAddSuggestionSupport,
     PartitionBuildSuggestionSupport,
     PartitionDropSuggestionSupport,

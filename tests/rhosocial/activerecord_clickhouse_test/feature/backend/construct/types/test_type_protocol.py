@@ -76,6 +76,9 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
     ClickHouseUUIDType,
     ClickHouseVectorType,
 )
+from rhosocial.activerecord.backend.impl.clickhouse.introspection.type_parser import (
+    ClickHouseTypeParser,
+)
 from rhosocial.activerecord.backend.impl.clickhouse.mixins.types import (
     ClickHouseTypeSupportMixin,
 )
@@ -320,20 +323,22 @@ class TestSupportsFormat1To1:
             assert method() is True, f"{method_name}() should return True"
 
 
-# ── W3: supports_data_types() mapping ─────────────────────────────────
+# ── W3: the formatter family is the support declaration ───────────────
 
-class TestSupportsDataTypes:
+class TestRenderedTypeDeclarations:
+    """Core removed the old mapping hook: a ``format_data_type_<name>`` is the declaration."""
+
     def test_includes_clickhouse_native_types(self):
         dialect = ClickHouseDialect()
-        supported = dialect.supports_data_types()
+        rendered = _rendered_names(dialect)
         for cls in ALL_CLICKHOUSE_TYPES:
-            assert cls.name in supported, (
-                f"{cls.__name__} (name={cls.name!r}) missing from supports_data_types()"
+            assert cls.name in rendered, (
+                f"{cls.__name__} (name={cls.name!r}) has no format_data_type_{cls.name}"
             )
 
     def test_includes_core_types(self):
         dialect = ClickHouseDialect()
-        supported = dialect.supports_data_types()
+        rendered = _rendered_names(dialect)
         core_names = [
             "integer", "bigint", "smallint", "tinyint",
             "varchar", "char", "text", "boolean",
@@ -342,38 +347,20 @@ class TestSupportsDataTypes:
             "json", "blob", "array", "uuid",
         ]
         for name in core_names:
-            assert name in supported, f"Core type {name!r} missing from supports_data_types()"
-
-    def test_core_names_map_to_the_core_classes(self):
-        """The value is the class whose ``name`` is the key, so
-        ``supports_data_types()['integer'] is IntegerType``."""
-        dialect = ClickHouseDialect()
-        supported = dialect.supports_data_types()
-        assert supported["integer"] is IntegerType
-        assert supported["bigint"] is BigIntType
-        assert supported["uuid"] is UUIDType
-        assert supported["clickhouse_int8"] is ClickHouseInt8Type
-        assert supported["clickhouse_timestamp"] is ClickHouseDateTimeType
-
-    def test_values_are_data_type_subclasses(self):
-        dialect = ClickHouseDialect()
-        supported = dialect.supports_data_types()
-        for name, cls in supported.items():
-            assert isinstance(cls, type), f"{name}: value is not a type"
-            assert issubclass(cls, DataType), f"{name}: {cls} is not a DataType subclass"
+            assert name in rendered, f"Core type {name!r} has no format_data_type_{name}"
 
 
-# ── W3: substitute_data_types() ────────────────────────────────────────
+# ── W3: suggest_substitute_types() ─────────────────────────────────────
 
 class TestSuggestedDataTypes:
     def test_returns_dict(self):
         dialect = ClickHouseDialect()
-        suggested = dialect.substitute_data_types()
+        suggested = dialect.suggest_substitute_types().mapping
         assert isinstance(suggested, dict)
 
     def test_suggests_string_for_byte_and_text_concepts(self):
         dialect = ClickHouseDialect()
-        suggested = dialect.substitute_data_types()
+        suggested = dialect.suggest_substitute_types().mapping
         for key in ("binary", "varbinary", "custom", "enum", "jsonb"):
             assert suggested[key] is ClickHouseStringType, key
 
@@ -382,7 +369,7 @@ class TestSuggestedDataTypes:
         ``DateTime64``; a time of day has no ClickHouse type at all; XML is not in
         the manual's list of types."""
         dialect = ClickHouseDialect()
-        suggested = dialect.substitute_data_types()
+        suggested = dialect.suggest_substitute_types().mapping
         assert suggested["interval"] is ClickHouseInt64Type
         assert suggested["timestamptz"] is ClickHouseDateTime64Type
         assert suggested["timetz"] is ClickHouseDateTimeType
@@ -391,17 +378,17 @@ class TestSuggestedDataTypes:
     def test_every_entry_has_a_reason(self):
         """A suggestion with no explanation is a guess the reader has to check."""
         dialect = ClickHouseDialect()
-        doc = (type(dialect).substitute_data_types.__doc__ or "")
-        for concept in dialect.substitute_data_types():
+        doc = (type(dialect).suggest_substitute_types.__doc__ or "")
+        for concept in dialect.suggest_substitute_types().mapping:
             assert concept in doc, (
-                f"substitute_data_types() offers {concept!r} but its docstring "
+                f"suggest_substitute_types() offers {concept!r} but its docstring "
                 f"never says why"
             )
 
     def test_no_overlap_with_supported(self):
         dialect = ClickHouseDialect()
-        supported = set(dialect.supports_data_types().keys())
-        suggested = set(dialect.substitute_data_types().keys())
+        supported = set(_rendered_names(dialect))
+        suggested = set(dialect.suggest_substitute_types().mapping.keys())
         overlap = supported & suggested
         assert not overlap, (
             f"suggested and supported keys overlap: {overlap}"
@@ -658,6 +645,15 @@ def _core_concept_by_name():
     return _core_concepts()
 
 
+def _rendered_names(dialect):
+    """The concepts this dialect declares by rendering (render *is* support)."""
+    return {
+        member[len("format_data_type_"):]
+        for member in dir(dialect)
+        if member.startswith("format_data_type_")
+    }
+
+
 class TestChainIsLinear:
     def test_no_multiple_inheritance_among_data_type_subclasses(self):
         """D1/D4: width is a class and signedness a field, so no (width x sign)
@@ -826,46 +822,46 @@ class TestCorrespondence:
 
     def test_every_core_concept_is_declared(self):
         dialect = ClickHouseDialect()
-        supported = dialect.supports_data_types()
-        suggested = dialect.substitute_data_types()
+        rendered = _rendered_names(dialect)
+        suggested = dialect.suggest_substitute_types().mapping
         undeclared = sorted(
             name for name in _core_concepts()
-            if name not in supported and name not in suggested
+            if name not in rendered and name not in suggested
         )
         assert not undeclared, undeclared
 
     def test_supported_and_suggested_are_disjoint(self):
         dialect = ClickHouseDialect()
-        overlap = set(dialect.supports_data_types()) & set(dialect.substitute_data_types())
+        overlap = set(_rendered_names(dialect)) & set(dialect.suggest_substitute_types().mapping)
         assert not overlap, overlap
 
     def test_every_suggested_substitute_is_renderable(self):
         """A substitute the dialect cannot render is advice nobody can take."""
         dialect = ClickHouseDialect()
-        supported = dialect.supports_data_types()
-        for concept, substitute in dialect.substitute_data_types().items():
+        rendered = _rendered_names(dialect)
+        for concept, substitute in dialect.suggest_substitute_types().mapping.items():
             assert isinstance(substitute, type) and issubclass(substitute, DataType), (
                 f"{concept} -> {substitute!r} is not a DataType subclass"
             )
-            assert substitute.name in supported, (
+            assert substitute.name in rendered, (
                 f"{concept} -> {substitute.__name__} (name={substitute.name!r}), "
                 f"which this dialect does not render"
             )
 
     def test_concepts_clickhouse_cannot_spell_are_all_substituted(self):
         dialect = ClickHouseDialect()
-        suggested = dialect.substitute_data_types()
+        suggested = dialect.suggest_substitute_types().mapping
         # ClickHouse's manual enumerates its types; these are the concepts that
         # are genuinely not among them.
         for concept in ("custom", "interval", "timestamptz", "timetz", "xml"):
             assert concept in suggested, f"{concept} is undeclared"
-            assert concept not in dialect.supports_data_types(), concept
+            assert concept not in _rendered_names(dialect), concept
 
     def test_uuid_is_rendered_not_substituted(self):
         """ClickHouse has a native ``UUID``, so the concept is rendered."""
         dialect = ClickHouseDialect()
-        assert "uuid" in dialect.supports_data_types()
-        assert "uuid" not in dialect.substitute_data_types()
+        assert "uuid" in _rendered_names(dialect)
+        assert "uuid" not in dialect.suggest_substitute_types().mapping
         assert dialect.format_data_type(UUIDType(dialect))[0] == "UUID"
 
     def test_error_for_an_unrendered_concept_names_the_substitute(self):
@@ -949,7 +945,7 @@ class TestSpellingGates:
         assert dialect.format_data_type(TextType(dialect, spelling="clob"))[0] == "String"
 
 
-# ── D8: parse_type is canonical ──────────────────────────────────────
+# ── D8: the introspection parser is canonical ────────────────────────
 
 class TestParseTypeCanonicality:
     @pytest.fixture
@@ -971,19 +967,19 @@ class TestParseTypeCanonicality:
         ``Decimal64(8)`` / ``Decimal128(18)`` raised ``ValueError`` because the
         width came back as a scale outside 0..38.
         """
-        assert dialect.format_data_type(dialect.parse_type(raw))[0] == expected
+        assert dialect.format_data_type(ClickHouseTypeParser(dialect).parse(raw))[0] == expected
 
     @pytest.mark.parametrize("raw", ["Bool", "BOOLEAN"])
     def test_boolean_spellings_are_one_class(self, dialect, raw):
         """ClickHouse accepts ``Bool`` and ``BOOLEAN`` for the same type."""
-        parsed = dialect.parse_type(raw)
+        parsed = ClickHouseTypeParser(dialect).parse(raw)
         assert isinstance(parsed, ClickHouseBoolType)
         assert dialect.format_data_type(parsed)[0] == "Bool"
 
     @pytest.mark.parametrize("raw", ["Decimal(10, 2)", "NUMERIC(10, 2)", "DEC(10, 2)"])
     def test_decimal_spellings_are_one_class(self, dialect, raw):
         """The core ``SPELLINGS`` list is exactly ClickHouse's own vocabulary."""
-        parsed = dialect.parse_type(raw)
+        parsed = ClickHouseTypeParser(dialect).parse(raw)
         assert isinstance(parsed, ClickHouseDecimalType)
         assert dialect.format_data_type(parsed)[0] == "Decimal(10, 2)"
 
@@ -995,8 +991,8 @@ class TestParseTypeCanonicality:
         would make an introspected column differ from the declaration that
         produced it.
         """
-        assert dialect.parse_type("Enum8('x' = 1, 'y' = -2)") == \
-            dialect.parse_type("Enum8('y' = -2, 'x' = 1)")
+        assert ClickHouseTypeParser(dialect).parse("Enum8('x' = 1, 'y' = -2)") == \
+            ClickHouseTypeParser(dialect).parse("Enum8('y' = -2, 'x' = 1)")
 
     @pytest.mark.parametrize("raw", [
         "Int8", "UInt64", "Float32", "Decimal32(4)", "String", "FixedString(8)",
@@ -1006,7 +1002,7 @@ class TestParseTypeCanonicality:
         "Enum8('a' = 1)",
     ])
     def test_parse_then_render_is_a_fixed_point(self, dialect, raw):
-        parsed = dialect.parse_type(raw)
+        parsed = ClickHouseTypeParser(dialect).parse(raw)
         assert dialect.format_data_type(parsed)[0] == raw
 
     def test_an_unknown_name_is_not_silently_written_out(self, dialect):
@@ -1014,7 +1010,7 @@ class TestParseTypeCanonicality:
         ``format_data_type_custom`` — the fallback must be a *render failure*
         with advice, not a pass-through."""
         from rhosocial.activerecord.backend.expression.types import CustomType
-        parsed = dialect.parse_type("SomeTypeWeDoNotKnow")
+        parsed = ClickHouseTypeParser(dialect).parse("SomeTypeWeDoNotKnow")
         assert isinstance(parsed, CustomType)
         with pytest.raises(TypeError) as excinfo:
             dialect.format_data_type(parsed)
@@ -1033,7 +1029,7 @@ class TestParseTypeCanonicality:
         from rhosocial.activerecord.backend.expression.types import CustomType
         for raw in ("VARCHAR(10)", "TINYINT", "BYTEA", "CLOB"):
             try:
-                parsed = dialect.parse_type(raw)
+                parsed = ClickHouseTypeParser(dialect).parse(raw)
             except Exception:
                 continue
             assert isinstance(parsed, CustomType), raw
@@ -1054,7 +1050,7 @@ class TestParseTypeCanonicality:
         was recognised: "not claimed", not "rejected by the server".
         """
         from rhosocial.activerecord.backend.expression.types import CustomType
-        assert isinstance(dialect.parse_type(raw), CustomType), raw
+        assert isinstance(ClickHouseTypeParser(dialect).parse(raw), CustomType), raw
 
     def test_case_is_tolerated_even_though_native_type_names_are_case_sensitive(
             self, dialect):
@@ -1065,7 +1061,7 @@ class TestParseTypeCanonicality:
         while ``(a INT8)``, ``(a int8)`` and ``(a string)`` come back code 50
         ``Unknown data type family`` (the alias words — ``TINYINT``,
         ``VARCHAR``, ``YEAR`` and friends — are ``case_insensitive = 1``).
-        ``parse_type`` upper-cases everything, so it tolerates any case —
+        The parser upper-cases everything, so it tolerates any case —
         harmless for its introspection caller, which is handed the server's own
         canonical output, and convenient for hand-written DDL.
         """
@@ -1074,7 +1070,7 @@ class TestParseTypeCanonicality:
             ("STRING", "String"),
             ("boolean", "Bool"),
         ):
-            parsed = dialect.parse_type(raw)
+            parsed = ClickHouseTypeParser(dialect).parse(raw)
             assert dialect.format_data_type(parsed)[0] == expected, raw
 
 
@@ -1470,9 +1466,9 @@ class TestUnsignedFloatAndDecimalAreRefused:
     def test_a_type_string_carrying_unsigned_is_refused_rather_than_read(self):
         """The same rule in the *reading* direction.
 
-        Every numeric branch of ``parse_type`` matches on the word in front of the
-        attribute, so without a check ``parse_type("Float32 UNSIGNED")`` was a signed
-        ``ClickHouseFloat32Type`` and ``parse_type("Decimal(10,2) UNSIGNED")`` was
+        Every numeric branch of the parser matches on the word in front of the
+        attribute, so without a check ``Float32 UNSIGNED`` was a signed
+        ``ClickHouseFloat32Type`` and ``Decimal(10,2) UNSIGNED`` was
         ``ClickHouseDecimalType(10, 2)`` — value objects ``==`` calls equal to the
         signed column, so the differ reported no change for the one change the
         string describes.
@@ -1492,15 +1488,15 @@ class TestUnsignedFloatAndDecimalAreRefused:
                     "Decimal(10,2) UNSIGNED", "Decimal(10, 2) UNSIGNED",
                     "Int8 UNSIGNED", "Int32 UNSIGNED"):
             with pytest.raises(UnsupportedFeatureError) as excinfo:
-                dialect.parse_type(raw)
+                ClickHouseTypeParser(dialect).parse(raw)
             assert "UNSIGNED" in str(excinfo.value), raw
         # ... and the unsigned-free strings of the same shapes are untouched.
-        assert dialect.parse_type("Float32") == clickhouse_types.ClickHouseFloat32Type(
+        assert ClickHouseTypeParser(dialect).parse("Float32") == clickhouse_types.ClickHouseFloat32Type(
             dialect)
-        assert dialect.parse_type("Decimal(10, 2)") == (
+        assert ClickHouseTypeParser(dialect).parse("Decimal(10, 2)") == (
             clickhouse_types.ClickHouseDecimalType(dialect, precision=10, scale=2))
         # ... and a real UInt column still reads back as unsigned.
-        assert dialect.parse_type("UInt8").unsigned is True
+        assert ClickHouseTypeParser(dialect).parse("UInt8").unsigned is True
 
     #: ``(alias, class, the native word it renders)``.  Every alias is
     #: ``case_insensitive = 1`` in ``system.data_type_families`` with the matching
@@ -1525,7 +1521,7 @@ class TestUnsignedFloatAndDecimalAreRefused:
             self, raw, klass, rendered):
         """One concept, one class: every alias yields the class that owns the column.
 
-        ``parse_type("TINYINT UNSIGNED")`` used to raise through the ``CustomType``
+        ``TINYINT UNSIGNED`` used to raise through the ``CustomType``
         validation, because a two-word name is not in the core grammar's multi-word
         list.  The server accepts it and resolves it to ``UInt8``, so the parser
         hands back ``ClickHouseUInt8Type`` — not a synonym, not the signed class —
@@ -1533,13 +1529,13 @@ class TestUnsignedFloatAndDecimalAreRefused:
         aliased DDL string equal to the column it creates.
         """
         dialect = self._dialect()
-        parsed = dialect.parse_type(raw)
+        parsed = ClickHouseTypeParser(dialect).parse(raw)
         assert parsed == klass(dialect), raw
         assert parsed.unsigned is True, raw
         assert dialect.format_data_type(parsed)[0] == rendered, raw
         # The server records these as case-insensitive; the parser upper-cases,
         # so the lower-case spelling must reach the same class.
-        assert dialect.parse_type(raw.lower()) == klass(dialect), raw
+        assert ClickHouseTypeParser(dialect).parse(raw.lower()) == klass(dialect), raw
 
     @pytest.mark.parametrize("case,expected", [
         # the pre-existing ValueErrors, still firing for a *signed* declaration
@@ -1671,7 +1667,7 @@ class TestVectorRendersQBit:
         with pytest.raises(DialectNotAdaptedException):
             dialect.format_data_type(ClickHouseVectorType(dialect, dim=8))
 
-    # ── parse_type, which is what introspection actually calls ──────────
+    # ── the introspection parser, which is what introspection actually calls ─
 
     @pytest.mark.parametrize("raw", [
         "QBit(Float32, 8)",
@@ -1690,19 +1686,19 @@ class TestVectorRendersQBit:
         """
         dialect = ClickHouseDialect(version=(26, 7, 0))
         expected = int(raw[raw.rindex(",") + 1: raw.rindex(")")])
-        assert dialect.parse_type(raw) == ClickHouseVectorType(dialect, dim=expected)
+        assert ClickHouseTypeParser(dialect).parse(raw) == ClickHouseVectorType(dialect, dim=expected)
 
     def test_parse_keeps_the_dimension_of_a_strided_qbit(self):
         """``stride`` was added in 26.7; it is a third argument, not the dimension."""
         dialect = ClickHouseDialect(version=(26, 7, 0))
-        assert dialect.parse_type("QBit(Float32, 16, 8)") == \
+        assert ClickHouseTypeParser(dialect).parse("QBit(Float32, 16, 8)") == \
             ClickHouseVectorType(dialect, dim=16)
 
     @pytest.mark.parametrize("dim", [8, 1536])
     def test_parse_then_render_is_a_fixed_point(self, dim):
         dialect = ClickHouseDialect(version=(26, 7, 0))
         raw = f"QBit(Float32, {dim})"
-        assert dialect.format_data_type(dialect.parse_type(raw))[0] == raw
+        assert dialect.format_data_type(ClickHouseTypeParser(dialect).parse(raw))[0] == raw
 
     @pytest.mark.parametrize("element_type", ["BFloat16", "Float64", "Int8"])
     def test_parse_loses_the_element_type(self, element_type):
@@ -1717,12 +1713,12 @@ class TestVectorRendersQBit:
         a wider change than fixing a wrong spelling; reported rather than fixed.
         """
         dialect = ClickHouseDialect(version=(26, 7, 0))
-        parsed = dialect.parse_type(f"QBit({element_type}, 1536)")
+        parsed = ClickHouseTypeParser(dialect).parse(f"QBit({element_type}, 1536)")
         assert parsed == ClickHouseVectorType(dialect, dim=1536)
         assert dialect.format_data_type(parsed)[0] == "QBit(Float32, 1536)"
 
     def test_mysql_vector_spelling_is_not_a_clickhouse_type(self):
-        """``VECTOR(4)`` is not ClickHouse's, so ``parse_type`` must not claim it.
+        """``VECTOR(4)`` is not ClickHouse's, so the parser must not claim it.
 
         It falls through to ``CustomType``, which cannot be rendered — the same
         treatment an unclaimed word gets.  ``VARCHAR(10)`` is the sharper
@@ -1731,7 +1727,7 @@ class TestVectorRendersQBit:
         """
         from rhosocial.activerecord.backend.expression.types import CustomType
         dialect = ClickHouseDialect(version=(26, 7, 0))
-        assert isinstance(dialect.parse_type("VECTOR(4)"), CustomType)
+        assert isinstance(ClickHouseTypeParser(dialect).parse("VECTOR(4)"), CustomType)
 
 
 # ── the rest of MySQL's vector API is not here at all ─────────────────
@@ -1838,7 +1834,7 @@ class TestMySQLVectorSurfaceIsGone:
 
 
 # ---------------------------------------------------------------------------
-# parse_type: the sweep, and the two words it found unreadable
+# The introspection parser: the sweep, and the two words it found unreadable
 # ---------------------------------------------------------------------------
 
 
@@ -1858,8 +1854,8 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
         )
 
         dialect = ClickHouseDialect()
-        collection = dialect.parse_type("GEOMETRYCOLLECTION")
-        generic = dialect.parse_type("GEOMETRY")
+        collection = ClickHouseTypeParser(dialect).parse("GEOMETRYCOLLECTION")
+        generic = ClickHouseTypeParser(dialect).parse("GEOMETRY")
         assert isinstance(collection, ClickHouseGeometryCollectionType)
         assert collection != generic
         assert type(collection) is not type(generic)
@@ -1875,7 +1871,7 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
     ])
     def test_each_word_reads_back_as_its_own_shape(self, word, expected):
         dialect = ClickHouseDialect()
-        assert type(dialect.parse_type(word)).__name__ == expected, word
+        assert type(ClickHouseTypeParser(dialect).parse(word)).__name__ == expected, word
 
     def test_srid_survives_the_dispatch(self):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
@@ -1883,7 +1879,7 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
         )
 
         dialect = ClickHouseDialect()
-        parsed = dialect.parse_type("GEOMETRYCOLLECTION SRID 4326")
+        parsed = ClickHouseTypeParser(dialect).parse("GEOMETRYCOLLECTION SRID 4326")
         assert isinstance(parsed, ClickHouseGeometryCollectionType)
         assert parsed.srid == 4326
 
@@ -1896,7 +1892,7 @@ class TestTupleElementsParseBack:
     ``toTypeName``), compared and hashed, used for ``tuple.name`` access,
     and matched during INSERT conversion -- see the class docstring in
     ``expression/types.py`` and the report's section A. The parse has to
-    read them: handing ``"name Type"`` to ``parse_type`` whole fell through
+    read them: handing ``"name Type"`` to the parser whole fell through
     to ``CustomType``, whose type-name validation refused the space, so the
     dialect raised on its own rendering. The leading identifier is split
     off when a second word follows, and carried into ``element_names``
@@ -1911,7 +1907,7 @@ class TestTupleElementsParseBack:
         )
 
         dialect = ClickHouseDialect()
-        parsed = dialect.parse_type("Tuple(a Int32)")
+        parsed = ClickHouseTypeParser(dialect).parse("Tuple(a Int32)")
         assert isinstance(parsed, ClickHouseTupleType)
         assert parsed.element_types == (ClickHouseInt32Type(dialect),)
         assert parsed.element_names == ("a",)
@@ -1922,7 +1918,7 @@ class TestTupleElementsParseBack:
         )
 
         dialect = ClickHouseDialect()
-        parsed = dialect.parse_type("Tuple(Int32, String)")
+        parsed = ClickHouseTypeParser(dialect).parse("Tuple(Int32, String)")
         assert isinstance(parsed, ClickHouseTupleType)
         assert len(parsed.element_types) == 2
         assert parsed.element_names is None
@@ -1941,7 +1937,7 @@ class TestTupleElementsParseBack:
         )
         sql, _ = declared.to_sql()
         assert sql == "Tuple(a Int32)"
-        assert dialect.parse_type(sql) == declared
+        assert ClickHouseTypeParser(dialect).parse(sql) == declared
 
     def test_tuples_differing_only_in_element_names_are_different(self):
         """The names are identity, not documentation.

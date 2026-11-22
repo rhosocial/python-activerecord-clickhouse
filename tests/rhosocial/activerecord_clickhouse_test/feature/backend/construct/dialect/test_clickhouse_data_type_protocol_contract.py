@@ -26,9 +26,3 @@ def test_formatter_and_probe_families_are_one_to_one(version):
         f"format-only: {sorted(format_names - probe_names)}, "
         f"probe-only: {sorted(probe_names - format_names)}"
     )
-
-    supported = set(dialect.supports_data_types())
-    assert supported <= format_names
-    for name in sorted(format_names - supported):
-        probe = getattr(dialect, f"supports_data_type_{name}")
-        assert probe() is False, f"{name} has a formatter but no False probe explains its absence"

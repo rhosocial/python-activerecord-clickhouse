@@ -218,8 +218,8 @@ class TestSignednessIsInTheTypeName:
             self, clickhouse_backend, alias, expected):
         """The parser and the server have to agree on the mapping.
 
-        ``parse_type`` is the reading direction of the type system, so a live
-        server agreeing with the formatter is only half the loop.  The parsed
+        The introspection parser is the reading direction of the type system, so a
+        live server agreeing with the formatter is only half the loop.  The parsed
         value must render as the family ``toTypeName`` returns and must be the
         ``ClickHouseUInt*Type`` that owns the column — the alias is
         canonicalised to the native spelling, never to a synonym or to the
@@ -227,7 +227,10 @@ class TestSignednessIsInTheTypeName:
         """
         backend = clickhouse_backend
         row = backend.fetch_one(f"SELECT toTypeName(CAST(1 AS {alias})) AS t")
-        parsed = backend.dialect.parse_type(alias)
+        from rhosocial.activerecord.backend.impl.clickhouse.introspection.type_parser import (
+            ClickHouseTypeParser,
+        )
+        parsed = ClickHouseTypeParser(backend.dialect).parse(alias)
         assert type(parsed).__name__ == f"ClickHouse{expected}Type", alias
         assert backend.dialect.format_data_type(parsed)[0] == row["t"] == expected
         assert parsed.unsigned is True

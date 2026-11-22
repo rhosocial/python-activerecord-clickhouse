@@ -37,4 +37,4 @@ def test_distance_functions(vector, dialect, method, name):
 def test_a_vector_field_resolves_to_the_clickhouse_class(dialect):
     from rhosocial.activerecord.backend.adapters import Vector
 
-    assert dialect.suggested_column_types()[Vector] is ClickHouseVectorColumn
+    assert dialect.suggest_column_types().table[Vector] is ClickHouseVectorColumn

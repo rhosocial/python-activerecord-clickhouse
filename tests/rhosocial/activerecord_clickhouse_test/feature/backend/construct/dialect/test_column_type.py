@@ -27,7 +27,6 @@ from rhosocial.activerecord.backend.adapters import (
     Range,
     Vector,
 )
-from rhosocial.activerecord.backend.dialect.mixins import ColumnTypeMixin
 from rhosocial.activerecord.backend.expression.column_types import (
     ArrayColumn,
     BinaryColumn,
@@ -113,33 +112,20 @@ class TestTableCompleteness:
 
     def test_the_dialect_carries_the_mixin(self, dialect):
         assert isinstance(dialect, ClickHouseColumnTypeMixin)
-        assert isinstance(dialect, ColumnTypeMixin)
-
-    def test_the_clickhouse_half_comes_first_in_the_mro(self, dialect):
-        """The load-bearing part of the dialect's base list.
-
-        ``ClickHouseColumnTypeMixin`` overrides ``suggested_column_types()``, so
-        C3 has to see it before ``ColumnTypeMixin`` or the answer would be the
-        NotImplementedError core raises. Nothing in a query would look wrong
-        either way -- the failure names the table, not the composition -- which
-        is exactly why it takes an assertion to notice.
-        """
-        mro = type(dialect).__mro__
-        assert mro.index(ClickHouseColumnTypeMixin) < mro.index(ColumnTypeMixin)
 
     def test_every_entry_of_the_contract_is_answered(self, dialect):
         """All twenty-four, by name -- an omission fails here rather than at lookup."""
-        table = dialect.suggested_column_types()
+        table = dialect.suggest_column_types().table
         assert [e for e in COMMON_TYPES if e not in table] == []
 
     def test_the_table_has_no_entry_beyond_the_contract(self, dialect):
         """No extra key of ClickHouse's own; an extension would be a deliberate act."""
-        table = dialect.suggested_column_types()
+        table = dialect.suggest_column_types().table
         assert set(table) == set(COMMON_TYPES)
 
     def test_every_answer_is_a_class_or_none(self, dialect):
         """The protocol's two answer states, and no third one."""
-        table = dialect.suggested_column_types()
+        table = dialect.suggest_column_types().table
         malformed = [
             (getattr(entry, "__name__", str(entry)), value)
             for entry, value in table.items()
@@ -155,21 +141,21 @@ class TestTableCompleteness:
         functions, no arrays at all) and MySQL 5.6's (no JSON functions) have
         something to refuse and ClickHouse does not.
         """
-        table = dialect.suggested_column_types()
+        table = dialect.suggest_column_types().table
         refused = [entry for entry in COMMON_TYPES if table[entry] is None]
         assert refused == []
         assert set(_REFUSALS) == {e for e in COMMON_TYPES if table[e] is None}
 
     @pytest.mark.parametrize("entry", COMMON_TYPES, ids=_ENTRY_IDS)
     def test_every_answer_is_a_column_class(self, dialect, entry):
-        answer = dialect.suggested_column_types()[entry]
+        answer = dialect.suggest_column_types().table[entry]
         assert isinstance(answer, type)
         assert issubclass(answer, ColumnBase)
 
     @pytest.mark.parametrize("entry", COMMON_TYPES, ids=_ENTRY_IDS)
     def test_every_entry_resolves_through_the_selection(self, dialect, entry):
         """Through the model layer's own lookup, not by reading the dict."""
-        assert resolve_column_class(dialect, entry) is (dialect.suggested_column_types()[entry])
+        assert resolve_column_class(dialect, entry) is (dialect.suggest_column_types().table[entry])
 
     @pytest.mark.parametrize("entry", COMMON_TYPES, ids=_ENTRY_IDS)
     def test_every_answer_builds_a_column(self, dialect, entry):
@@ -179,9 +165,9 @@ class TestTableCompleteness:
 
     def test_the_table_is_a_copy(self, dialect):
         """Mutating the answer must not corrupt the table the next lookup reads."""
-        first = dialect.suggested_column_types()
+        first = dialect.suggest_column_types().table
         first[str] = IntegerColumn
-        assert dialect.suggested_column_types()[str] is StringColumn
+        assert dialect.suggest_column_types().table[str] is StringColumn
 
 
 class TestMeasuredCells:
@@ -189,7 +175,7 @@ class TestMeasuredCells:
 
     @pytest.mark.parametrize("entry, expected", _CLICKHOUSE_ANSWERS, ids=_ENTRY_IDS)
     def test_measured_entry(self, dialect, entry, expected):
-        assert dialect.suggested_column_types()[entry] is expected
+        assert dialect.suggest_column_types().table[entry] is expected
 
     @pytest.mark.parametrize("entry, expected", _CLICKHOUSE_ANSWERS, ids=_ENTRY_IDS)
     def test_measured_entry_through_the_selection(self, dialect, entry, expected):

@@ -126,7 +126,7 @@ class TestTierTwoSpellings:
         import inspect
 
         branches = inspect.getsource(ClickHouseLiteralValueMixin.format_literal)
-        assert branches.count("isinstance(value,") == 2
+        assert branches.count("isinstance(expr,") == 2
 
     def test_backend_mixin_outranks_the_base(self):
         """``ClickHouseLiteralValueMixin`` must resolve ahead of

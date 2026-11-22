@@ -118,9 +118,11 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RepeatMixin,
     RpadMixin,
     TrimMixin,
-    # Column types: the generic half, which ClickHouseColumnTypeMixin below
-    # overrides.
-    ColumnTypeMixin,
+)
+from rhosocial.activerecord.backend.suggestion.protocols import (
+    ColumnTypeSuggestionSupport,
+    DataTypeSuggestionSupport,
+    StringConcatenationSuggestionSupport,
 )
 from .protocols import (
     ClickHouseTriggerSupport,
@@ -200,6 +202,7 @@ from .mixins import (
     ClickHouseLiteralValueMixin,
 )
 from .suggestion import (
+    ClickHouseStringConcatenationSuggestionMixin,
     ClickHousePartitionAddSuggestionMixin,
     ClickHousePartitionBuildSuggestionMixin,
     ClickHousePartitionDropSuggestionMixin,
@@ -223,6 +226,7 @@ class ClickHouseDialect(
     # eight partition-suggestion mixins are the sole owners of ClickHouse's
     # ``suggest_partition_*`` "how" answers (one per lifecycle point, mirroring
     # the firebird/sqlite suggestion package layout).
+    ClickHouseStringConcatenationSuggestionMixin,
     ClickHousePartitionBuildSuggestionMixin,
     ClickHousePartitionTableDropSuggestionMixin,
     ClickHousePartitionTableAlterSuggestionMixin,
@@ -400,14 +404,9 @@ class ClickHouseDialect(
     TransactionControlMixin,
     ClickHouseSetOperationMixin,
     SetOperationMixin,
-    # Column types. The ClickHouse half first: it overrides the eighteen-entry
-    # table, and C3 gives the earlier name priority. Nothing else in this list
-    # can answer it, so the pair may move as a unit without disturbing the order
-    # around it -- which is the reason for not standing it next to
-    # ClickHouseTypeSupportMixin higher up, where a mistake would reorder the
-    # DDL formatters too.
+    # Column types: core deleted the old column-type mixin, so this backend mixin now
+    # stands alone as the sole answer for the twenty-four-entry table.
     ClickHouseColumnTypeMixin,
-    ColumnTypeMixin,
     # TRIM is the one of the four string nodes ClickHouse spells differently:
     # the direction lives in the function name, so ClickHouseTrimMixin must
     # outrank core's TrimMixin in the MRO. LPAD, RPAD and REPEAT are the
@@ -470,6 +469,10 @@ class ClickHouseDialect(
     # protocol refines the generic one and must be seen first in the MRO.
     ClickHouseTypeSupport,
     DataTypeSupport,
+    # Suggestion protocols moved to backend.suggestion.protocols in core.
+    DataTypeSuggestionSupport,
+    ColumnTypeSuggestionSupport,
+    StringConcatenationSuggestionSupport,
     # Named objects. Each object protocol names the ``format_<kind>_object``
     # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they
     # precede it. They sit after the ClickHouse protocols that derive from them

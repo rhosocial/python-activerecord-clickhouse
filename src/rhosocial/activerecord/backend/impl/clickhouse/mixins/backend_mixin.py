@@ -1,7 +1,11 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/backend_mixin.py
 import logging
-from typing import Dict, List, Optional, Tuple, Type
+from typing import Dict, List, Optional, Tuple
 
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    DataAdapterSuggestion,
+    ExtraDataAdapterSuggestion,
+)
 from rhosocial.activerecord.backend.type_adapter import SQLTypeAdapter
 
 
@@ -99,16 +103,16 @@ class ClickHouseBackendMixin:
                 "ClickHouse does not support RETURNING clause for UPDATE/DELETE.",
             )
 
-    def get_default_adapter_suggestions(self) -> Dict[Type, Tuple[SQLTypeAdapter, Type]]:
-        """Provides default type adapter suggestions for ClickHouse.
+    def suggest_data_adapters(self) -> DataAdapterSuggestion:
+        """Provides type adapter suggestions for ClickHouse.
 
-        The framework defaults (:meth:`TypeAdaptionMixin.get_default_adapter_suggestions`)
-        are the base; ClickHouse merges its own pairs on top, including the
-        neutral families it carries as ``String`` text (or as a ``list`` for
-        native array columns). clickhouse-connect natively supports list/dict
-        (Array/Map/Tuple), bool, datetime, date, time, UUID and Decimal
-        parameters, so only the types that need Python-level conversion are
-        named here.
+        Core supplies no default table: it starts from ``PORTABLE_TYPE_MAPPINGS``
+        resolved against this backend's adapter registry, and ClickHouse merges
+        its own pairs on top, including the neutral families it carries as
+        ``String`` text (or as a ``list`` for native array columns).
+        clickhouse-connect natively supports list/dict (Array/Map/Tuple), bool,
+        datetime, date, time, UUID and Decimal parameters, so only the types that
+        need Python-level conversion are named here.
         """
         from datetime import date, datetime, time
         from decimal import Decimal
@@ -120,11 +124,12 @@ class ClickHouseBackendMixin:
         from rhosocial.activerecord.backend.adapters.network import MacAddress
         from rhosocial.activerecord.backend.adapters.range import Multirange, Range
         from rhosocial.activerecord.backend.adapters.vector import Vector
+        from rhosocial.activerecord.backend.adapters.portable import PORTABLE_TYPE_MAPPINGS
         from rhosocial.activerecord.backend.base.type_adaption import (
             merge_adapter_suggestions,
         )
 
-        base = super().get_default_adapter_suggestions()
+        base = merge_adapter_suggestions({}, PORTABLE_TYPE_MAPPINGS, self.adapter_registry)
 
         type_mappings = [
             (bool, bool),
@@ -157,7 +162,11 @@ class ClickHouseBackendMixin:
                     f"No adapter found for ({py_type.__name__}, {db_type.__name__}). "
                     "Suggestion will not be provided for this type.",
                 )
-        return suggestions
+        return DataAdapterSuggestion(table=suggestions)
+
+    def suggest_extra_data_adapters(self) -> ExtraDataAdapterSuggestion:
+        """No backend-owned adapter types beyond the framework's value classes."""
+        return ExtraDataAdapterSuggestion(table={})
 
     def get_type_adapters(self) -> List["SQLTypeAdapter"]:
         """Return the adapter instances this backend provides.
@@ -168,15 +177,14 @@ class ClickHouseBackendMixin:
         Two sources the backend already owns are combined: the adapter registry
         (every adapter registered for this backend, including ones that carry
         no default suggestion) and the adapters named by
-        :meth:`get_default_adapter_suggestions` (a suggestion may name an
-        adapter instance that is not in the registry). Instances are
-        deduplicated by class -- ``(module, qualname)`` -- and sorted by that
-        pair, so the order is deterministic and a new list is returned on every
-        call.
+        :meth:`suggest_data_adapters` (a suggestion may name an adapter instance
+        that is not in the registry). Instances are deduplicated by class --
+        ``(module, qualname)`` -- and sorted by that pair, so the order is
+        deterministic and a new list is returned on every call.
         """
         adapters = list(self.adapter_registry.get_all_adapters().values())
         adapters.extend(
-            suggestion[0] for suggestion in self.get_default_adapter_suggestions().values()
+            suggestion[0] for suggestion in self.suggest_data_adapters().table.values()
         )
         unique: Dict[Tuple[str, str], SQLTypeAdapter] = {}
         for adapter in adapters:

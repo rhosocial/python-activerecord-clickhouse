@@ -8,6 +8,7 @@ concern per module so the protocol surface stays legible.
 from typing import Protocol, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import DataTypeSupport
+from rhosocial.activerecord.backend.suggestion.definitions import SubstituteTypeSuggestion
 
 
 __all__ = ["ClickHouseTypeSupport"]
@@ -31,14 +32,14 @@ class ClickHouseTypeSupport(DataTypeSupport, Protocol):
     express: that this backend's own types are declared alongside the core ones
     in the same correspondence, and that a concept ClickHouse genuinely cannot
     spell is answered through
-    :meth:`~...dialect.mixins.data_type.DataTypeMixin.substitute_data_types`
+    :meth:`~...dialect.mixins.types.ClickHouseTypeSupportMixin.suggest_substitute_types`
     rather than left silent. ``ClickHouseSetTypeSupport`` is *not* part of this —
     it covers ``FIND_IN_SET`` and the SET literal syntax, which are functions
     rather than a column type, and mixing the two would make ``isinstance`` true
     for a dialect that had one and not the other.
     """
 
-    def substitute_data_types(self) -> dict:
+    def suggest_substitute_types(self) -> SubstituteTypeSuggestion:
         """Core concepts this dialect cannot spell, and the types it stores instead.
 
         Keys are core concept ``name``s; values are ``DataType`` subclasses this

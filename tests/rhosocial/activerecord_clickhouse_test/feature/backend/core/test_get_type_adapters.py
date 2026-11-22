@@ -80,6 +80,9 @@ def test_inventory_includes_the_array_adapter(backend):
     assert any(isinstance(adapter, ClickHouseArrayAdapter) for adapter in adapters)
 
 
-def test_default_adapter_suggestions_is_unchanged(backend):
-    assert callable(backend.get_default_adapter_suggestions)
-    assert backend.get_default_adapter_suggestions()
+def test_adapter_suggestions_are_available(backend):
+    assert callable(backend.suggest_data_adapters)
+    suggestions = backend.suggest_data_adapters()
+    assert suggestions.table
+    assert callable(backend.suggest_extra_data_adapters)
+    assert backend.suggest_extra_data_adapters().table == {}
