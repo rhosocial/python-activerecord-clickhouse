@@ -274,7 +274,7 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     # list rather than inherited and declined, and these three protocols each
     # name a formatter this dialect therefore does not have. Naming a sequence is
     # a different capability and is still met: SequenceObjectSupport above is
-    # satisfied by SequenceNameMixin, so a Sequence is accepted as an
+    # satisfied by SequenceObjectMixin, so a Sequence is accepted as an
     # identifier. ClickHouseSequenceMixin stays in the base list too, for the
     # two switches it answers itself.
     dialect_protocols.CreateSequenceSupport,
@@ -290,9 +290,6 @@ def get_all_generic_protocols() -> dict:
     discovered = {}
     for name, obj in inspect.getmembers(dialect_protocols, inspect.isclass):
         if Protocol not in getattr(obj, "__mro__", []) or not name.endswith("Support"):
-            continue
-        if name == "DDLTypeSupport":
-            assert obj is dialect_protocols.DataTypeSupport
             continue
         assert name == obj.__name__, f"unexpected protocol alias: {name}"
         discovered[name] = obj

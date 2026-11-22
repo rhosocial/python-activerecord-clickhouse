@@ -1,7 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/auto_increment.py
 
 
-class ClickHouseAutoIncrementMixin:
+class ClickHouseAutoIncrementColumnMixin:
     """ClickHouse identity / auto-increment support checks.
 
     ClickHouse has neither server-side mechanism. Its grammar has no bare

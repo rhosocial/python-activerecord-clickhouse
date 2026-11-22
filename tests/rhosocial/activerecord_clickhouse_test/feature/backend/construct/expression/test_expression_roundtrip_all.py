@@ -1335,7 +1335,7 @@ LEGITIMATE_NON_RENDERS = {
     # and what they rendered was the defect -- the inherited formatters never
     # consult supports_sequence(), so "CREATE SEQUENCE `s` NO CYCLE" came back out
     # of a dialect that had itself declared the feature absent. Naming a sequence
-    # is a separate capability and is untouched: SequenceNameMixin stays, so
+    # is a separate capability and is untouched: SequenceObjectMixin stays, so
     # Sequence(dialect, "s").to_sql() still renders.
     "rhosocial.activerecord.backend.expression.statements.ddl_sequence.CreateSequenceStatement": (
         UnsupportedFeatureError,
@@ -1715,7 +1715,7 @@ UNMODELLED_FORMATTERS = {
         "format_drop_schema_statement",
     ),
     "SEQUENCE (ClickHouse has no sequence object; naming a sequence is a "
-    "separate capability and is untouched -- SequenceNameMixin stays)": (
+    "separate capability and is untouched -- SequenceObjectMixin stays)": (
         "format_create_sequence_statement",
         "format_drop_sequence_statement",
         "format_alter_sequence_statement",

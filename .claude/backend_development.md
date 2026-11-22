@@ -309,7 +309,7 @@ sequences, triggers, routines, types, domains and schemas. The mixins those
 protocols name are `TableMixin`, `ViewMixin`, `IndexMixin`, `SequenceMixin`,
 `TriggerMixin`, `FunctionMixin`, `UserDefinedTypeMixin`, `DomainMixin`,
 `SchemaMixin`, `DatabaseMixin`, `TruncateMixin`, `DDLColumnMixin` and
-`CommentOnMixin`.
+`CommentMixin`.
 
 Naming a catalogue object is a separate capability from creating or dropping
 one, and it is the part most likely to be missed. `TableObjectSupport`,

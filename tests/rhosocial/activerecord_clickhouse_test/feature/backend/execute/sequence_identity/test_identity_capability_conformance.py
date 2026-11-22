@@ -79,7 +79,7 @@ class TestProbeValues:
         )
         assert (
             ClickHouseDialect.format_auto_increment_clause.__qualname__
-            == "AutoIncrementMixin.format_auto_increment_clause"
+            == "AutoIncrementColumnMixin.format_auto_increment_clause"
         )
 
 

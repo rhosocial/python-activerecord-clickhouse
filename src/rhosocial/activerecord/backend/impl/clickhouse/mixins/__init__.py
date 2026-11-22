@@ -35,7 +35,7 @@ from .ddl_table_engine import (
 from .datetime import ClickHouseDateTimeMixin
 from .collation import ClickHouseCollationMixin
 from .cte import ClickHouseCTEMixin
-from .auto_increment import ClickHouseAutoIncrementMixin
+from .auto_increment import ClickHouseAutoIncrementColumnMixin
 from .window import ClickHouseWindowMixin
 from .grouping import ClickHouseGroupingMixin
 from .array import ClickHouseArrayMixin
@@ -95,7 +95,7 @@ __all__ = [
     "ClickHouseDateTimeMixin",
     "ClickHouseCollationMixin",
     "ClickHouseCTEMixin",
-    "ClickHouseAutoIncrementMixin",
+    "ClickHouseAutoIncrementColumnMixin",
     "ClickHouseWindowMixin",
     "ClickHouseGroupingMixin",
     "ClickHouseArrayMixin",

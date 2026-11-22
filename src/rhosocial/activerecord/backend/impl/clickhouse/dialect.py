@@ -60,18 +60,16 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     # NamespaceMixin for the namespace levels, so they precede it.
     RelationSourceMixin,
     NamespaceMixin,
-    TableNameMixin,
-    ViewNameMixin,
-    MaterializedViewNameMixin,
-    ForeignTableNameMixin,
-    IndexNameMixin,
-    SequenceNameMixin,
-    TriggerNameMixin,
-    FunctionNameMixin,
-    ProcedureNameMixin,
-    TypeNameMixin,
-    DomainNameMixin,
-    SynonymNameMixin,
+    TableObjectMixin,
+    ViewObjectMixin,
+    MaterializedViewObjectMixin,
+    ForeignTableObjectMixin,
+    IndexObjectMixin,
+    SequenceObjectMixin,
+    TriggerObjectMixin,
+    RoutineObjectMixin,
+    TypeObjectMixin,
+    SynonymObjectMixin,
     SchemaNameMixin,
     DatabaseNameMixin,
     PropertyGraphNameMixin,
@@ -93,7 +91,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     JoinMixin,
     ViewMixin,
     IndexMixin,
-    AutoIncrementMixin,
+    AutoIncrementColumnMixin,
     IdentityColumnMixin,
     TableMixin,
     ConstraintMixin,
@@ -174,7 +172,7 @@ from .mixins import (
     ClickHouseDateTimeMixin,
     ClickHouseCollationMixin,
     ClickHouseCTEMixin,
-    ClickHouseAutoIncrementMixin,
+    ClickHouseAutoIncrementColumnMixin,
     ClickHouseWindowMixin,
     ClickHouseGroupingMixin,
     ClickHouseArrayMixin,
@@ -260,18 +258,16 @@ class ClickHouseDialect(
     # protocols name the format_*_object methods and inherit NamespaceSupport,
     # so they precede it too. Both sit ahead of the DDL mixins because naming an
     # object and changing one are independent capabilities.
-    TableNameMixin,
-    ViewNameMixin,
-    MaterializedViewNameMixin,
-    ForeignTableNameMixin,
-    IndexNameMixin,
-    SequenceNameMixin,
-    TriggerNameMixin,
-    FunctionNameMixin,
-    ProcedureNameMixin,
-    TypeNameMixin,
-    DomainNameMixin,
-    SynonymNameMixin,
+    TableObjectMixin,
+    ViewObjectMixin,
+    MaterializedViewObjectMixin,
+    ForeignTableObjectMixin,
+    IndexObjectMixin,
+    SequenceObjectMixin,
+    TriggerObjectMixin,
+    RoutineObjectMixin,
+    TypeObjectMixin,
+    SynonymObjectMixin,
     SchemaNameMixin,
     DatabaseNameMixin,
     PropertyGraphNameMixin,
@@ -334,12 +330,12 @@ class ClickHouseDialect(
     # formatter and raises UnsupportedFeatureError naming the dialect and the
     # statement. ClickHouseSequenceMixin just below stays, because the two
     # switches it answers are the ones ClickHouse states for itself; and
-    # SequenceNameMixin above stays too, because naming an object and creating
+    # SequenceObjectMixin above stays too, because naming an object and creating
     # one are different jobs -- a Sequence is still accepted as an identifier
     # and Sequence(dialect, "s").to_sql() keeps rendering.
     ClickHouseSequenceMixin,
-    ClickHouseAutoIncrementMixin,
-    AutoIncrementMixin,
+    ClickHouseAutoIncrementColumnMixin,
+    AutoIncrementColumnMixin,
     # IdentityColumnMixin carries the fail-closed identity formatter and the
     # seven probes; ClickHouse answers the mechanism probe False above, so the
     # clause is refused by name instead of rendered and rejected by the server.
