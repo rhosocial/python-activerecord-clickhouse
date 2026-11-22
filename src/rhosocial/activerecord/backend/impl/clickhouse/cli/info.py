@@ -10,6 +10,7 @@ import inspect
 import json
 from typing import Any, Dict, List, Tuple
 
+from rhosocial.activerecord.backend.dialect import capabilities as _cap
 from rhosocial.activerecord.logging.defaults import get_logger
 
 from rhosocial.activerecord.backend.dialect.protocols import (
@@ -186,6 +187,7 @@ def handle(args):
     is_connected = False
     dialect = None
     version_display = None
+    server_variables: Dict[str, Any] = {}
 
     named_conn = getattr(args, "named_connection", None)
     if named_conn or args.database:
@@ -203,6 +205,10 @@ def handle(args):
             if version_tuple:
                 version_display = f"{version_tuple[0]}.{version_tuple[1]}.{version_tuple[2]}"
             is_connected = True
+
+            # Read live server variables through the existing status introspector
+            # (system.settings / system.server_settings). This adds no new queries.
+            server_variables = _build_server_variables(backend)
 
             backend.disconnect()
         except Exception as e:
@@ -227,7 +233,15 @@ def handle(args):
         dialect = ClickHouseDialect(version=version)
         version_display = f"{version[0]}.{version[1]}.{version[2]}"
 
-    # Unified structure for JSON output
+    # Build capability and suggestion reports through the shared core helper.
+    capabilities = _cap.build_capability_report(
+        dialect,
+        family_groups=PROTOCOL_FAMILY_GROUPS,
+        dialect_specific_groups=DIALECT_SPECIFIC_GROUPS,
+        all_args=SUPPORT_METHOD_ALL_ARGS,
+        verbose=args.verbose,
+    )
+
     info = {
         "database": {
             "type": "clickhouse",
@@ -235,13 +249,22 @@ def handle(args):
             "version_tuple": list(dialect.version),
             "connected": is_connected,
         },
+        "server": {
+            "version": version_display or ".".join(map(str, dialect.version)),
+            "variables": server_variables,
+            "source": (
+                "system.settings / system.server_settings (live values via the status introspector)"
+                if is_connected
+                else "no connection: live values require a database connection (see the status command)"
+            ),
+            "connected": is_connected,
+        },
         "features": {},
-        "protocols": {},
+        "capabilities": capabilities,
+        "suggestions": _cap.build_suggestion_report(dialect, verbose=args.verbose),
+        # compatibility alias for one release cycle
+        "protocols": capabilities,
     }
-
-    # Build protocol support information
-    for group_name, protocols in PROTOCOL_FAMILY_GROUPS.items():
-        info["protocols"][group_name] = _build_protocol_info(dialect, group_name, protocols, args.verbose)
 
     if args.output == "json" or not RICH_AVAILABLE:
         print(json.dumps(info, indent=2))
@@ -250,8 +273,11 @@ def handle(args):
         info_legacy = {
             "clickhouse": info["database"],
             "protocols": info["protocols"],
+            "suggestions": info["suggestions"],
         }
         _display_info_rich(info_legacy, args.verbose, version_display, is_connected)
+
+    return info
 
 
 # ---------------------------------------------------------------------------
@@ -326,6 +352,28 @@ def parse_version(version_str: str) -> Tuple[int, int, int]:
     minor = int(parts[1]) if len(parts) > 1 else 0
     patch = int(parts[2]) if len(parts) > 2 else 0
     return (major, minor, patch)
+
+
+def _build_server_variables(backend) -> Dict[str, Any]:
+    """Read live server variables through the backend's existing status introspector.
+
+    The ClickHouse status introspector reads ``system.settings`` and
+    ``system.server_settings``; no new queries are added here. Any failure yields
+    an empty mapping so ``info`` still works when the introspector is unavailable.
+    """
+    variables: Dict[str, Any] = {}
+    try:
+        from rhosocial.activerecord.backend.introspection.status import StatusCategory
+
+        items = backend.introspector.status.list_configuration(StatusCategory.CONFIGURATION)
+        if isinstance(items, (list, tuple)):
+            for item in items:
+                name = getattr(item, "name", None)
+                if name is not None:
+                    variables[str(name)] = getattr(item, "value", None)
+    except Exception:
+        pass
+    return variables
 
 
 def _calculate_protocol_stats(support_methods: Dict[str, Any]) -> Tuple[int, int]:
@@ -430,8 +478,11 @@ def _display_protocol_item(console: Any, protocol_name: str, stats: Dict[str, An
 
     sup = stats["supported"]
     tot = stats["total"]
+    origin = stats.get("origin", "")
+    origin_tag = f" [dim][{origin}][/dim]" if origin else ""
     console.print(
-        f"    [{color}]{symbol}[/{color}] {protocol_name}: [{color}]{progress_bar}[/{color}] {pct:.0f}% ({sup}/{tot})"
+        f"    [{color}]{symbol}[/{color}] {protocol_name}{origin_tag}: "
+        f"[{color}]{progress_bar}[/{color}] {pct:.0f}% ({sup}/{tot})"
     )
 
     if verbose >= 2 and "methods" in stats:
@@ -471,5 +522,15 @@ def _display_info_rich(info: Dict, verbose: int, version_display: str, is_connec
 
     for group_name, protocols in info["protocols"].items():
         _display_protocol_group(console, group_name, protocols, verbose)
+
+    # Suggestion support (independent of capability support)
+    suggestions = info.get("suggestions", {})
+    if suggestions:
+        console.print("\n[bold green]Suggestion Support:[/bold green]")
+        for proto_name, entry in suggestions.items():
+            supported = entry.get("supported", False)
+            color = "green" if supported else "red"
+            symbol = "[OK]" if supported else "[X]"
+            console.print(f"    [{color}]{symbol}[/{color}] {proto_name}")
 
     console.print()
