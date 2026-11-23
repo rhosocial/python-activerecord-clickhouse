@@ -77,8 +77,10 @@ import uuid
 from typing import Any, Dict, Optional, Type
 
 from rhosocial.activerecord.backend.adapters import (
+    AwareDatetime,
     BitString,
     Geometry,
+    IPAddress,
     MacAddress,
     Multirange,
     Range,
@@ -97,6 +99,7 @@ from rhosocial.activerecord.backend.expression.column_types import (
     GeometryColumn,
     IntegerColumn,
     IntervalColumn,
+    IPAddressColumn,
     JSONColumn,
     MacAddressColumn,
     MultirangeColumn,
@@ -171,6 +174,7 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     # the answer may move.
     datetime.date: TimestampColumn,
     datetime.time: TimestampColumn,
+    AwareDatetime: TimestampColumn,
     datetime.datetime: TimestampColumn,
     # A duration is a span, not a number, so it answers `IntervalColumn`.
     # ClickHouse does have a native `Interval` family and the driver binds a
@@ -234,6 +238,7 @@ CLICKHOUSE_COLUMN_TYPES: Dict[Any, Optional[Type[ColumnBase]]] = {
     Range: RangeColumn,
     Multirange: MultirangeColumn,
     MacAddress: MacAddressColumn,
+    IPAddress: IPAddressColumn,
 }
 
 

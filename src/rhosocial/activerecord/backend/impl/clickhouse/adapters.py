@@ -13,6 +13,8 @@ from rhosocial.activerecord.backend.adapters import (
     Geometry,
     GeometryAdapterBase,
     GeometryCollection,
+    IPAddress,
+    IPAddressAdapterBase,
     LineString,
     MacAddress,
     MacAddressAdapterBase,
@@ -749,4 +751,22 @@ class ClickHouseMacAddressAdapter(MacAddressAdapterBase):
         if isinstance(value, (bytes, bytearray)):
             return MacAddress.parse(bytes(value))
         return MacAddress.parse(self._require_text(value))
+
+
+class ClickHouseIPAddressAdapter(IPAddressAdapterBase):
+    """Encode neutral IP addresses as canonical text in a ``String``.
+
+    ClickHouse has native ``IPv4``/``IPv6`` types but they are split by version;
+    a single field can hold either, so canonical text is the common carrier.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.register_type(IPAddress, str)
+
+    def _encode(self, ip_addr: IPAddress, target_type: Type, options: Dict[str, Any]) -> str:
+        return str(ip_addr)
+
+    def _decode(self, value: Any, options: Dict[str, Any]) -> IPAddress:
+        return IPAddress.parse(self._require_text(value))
 

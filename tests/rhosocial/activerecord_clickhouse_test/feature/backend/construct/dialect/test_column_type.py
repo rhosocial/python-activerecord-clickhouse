@@ -1,5 +1,5 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/construct/dialect/test_column_type.py
-"""ClickHouse's twenty-four-entry column-type table.
+"""ClickHouse's framework-committed column-type table.
 
 Pure dialect tests -- no server. What is asserted here is the *declaration*:
 that the dialect answers every entry of the protocol's common-type list, that
@@ -20,8 +20,10 @@ import uuid
 
 import pytest
 from rhosocial.activerecord.backend.adapters import (
+    AwareDatetime,
     BitString,
     Geometry,
+    IPAddress,
     MacAddress,
     Multirange,
     Range,
@@ -36,6 +38,7 @@ from rhosocial.activerecord.backend.expression.column_types import (
     GeometryColumn,
     IntegerColumn,
     IntervalColumn,
+    IPAddressColumn,
     JSONColumn,
     MacAddressColumn,
     MultirangeColumn,
@@ -73,6 +76,7 @@ _CLICKHOUSE_ANSWERS = [
     (bytearray, BinaryColumn),
     (datetime.date, TimestampColumn),
     (datetime.time, TimestampColumn),
+    (AwareDatetime, TimestampColumn),
     (datetime.datetime, TimestampColumn),
     (datetime.timedelta, IntervalColumn),
     (uuid.UUID, UUIDColumn),
@@ -88,13 +92,14 @@ _CLICKHOUSE_ANSWERS = [
     (Range, RangeColumn),
     (Multirange, MultirangeColumn),
     (MacAddress, MacAddressColumn),
+    (IPAddress, IPAddressColumn),
 ]
 
 _ENTRY_IDS = [getattr(entry, "__name__", str(entry)) for entry, _ in _CLICKHOUSE_ANSWERS]
 
 #: The entries this backend answers ``None`` for, each with the reason it was
 #: measured to be inexpressible. Empty: the 26.7.3.19 probe found a working
-#: pairing for all twenty-four -- ClickHouse has a native array, a native JSON
+#: pairing for all framework types -- ClickHouse has a native array, a native JSON
 #: type and ``ILIKE``, which are exactly the three things the backends that
 #: *do* refuse lack. Kept as a declaration so that adding a ``None`` later
 #: means adding its reason here, and so a ``None`` nobody justified is a test
@@ -114,7 +119,7 @@ class TestTableCompleteness:
         assert isinstance(dialect, ClickHouseColumnTypeMixin)
 
     def test_every_entry_of_the_contract_is_answered(self, dialect):
-        """All twenty-four, by name -- an omission fails here rather than at lookup."""
+        """All framework types, by name -- an omission fails here, not at lookup."""
         table = dialect.suggest_column_types().table
         assert [e for e in COMMON_TYPES if e not in table] == []
 
@@ -136,7 +141,7 @@ class TestTableCompleteness:
     def test_no_entry_is_refused_without_a_reason(self, dialect):
         """``None`` is a last resort and must be justified, or answered as a class.
 
-        The probe found a pairing for all twenty-four here, so the honest answer is
+        The probe found a pairing for all framework types here, so the honest answer is
         a class for all of them: Firebird's ``dict`` and ``list`` (no JSON
         functions, no arrays at all) and MySQL 5.6's (no JSON functions) have
         something to refuse and ClickHouse does not.

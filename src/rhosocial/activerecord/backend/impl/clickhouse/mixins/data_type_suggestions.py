@@ -60,8 +60,10 @@ import uuid
 from typing import Any, Dict, Optional
 
 from rhosocial.activerecord.backend.adapters import (
+    AwareDatetime,
     BitString,
     Geometry,
+    IPAddress,
     MacAddress,
     Multirange,
     Range,
@@ -115,6 +117,12 @@ CLICKHOUSE_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
     # ClickHouse has no time-of-day type; ``TimeType`` renders ``DateTime``
     # here, which is documented on ``format_data_type_time``.
     datetime.time: TimeType(),
+    # ClickHouse has no TIMESTAMP WITH TIME ZONE type: an aware instant is
+    # stored in the same DateTime64 column and the application keeps the value
+    # in UTC. Declaring a tz type this dialect cannot render would be a lie, so
+    # the storage declaration is the honest, renderable one (see C1's
+    # "semantics same, representation may differ" boundary).
+    AwareDatetime: ClickHouseDateTime64Type(precision=6),
     datetime.datetime: ClickHouseDateTime64Type(precision=6),
     # No INTERVAL type; the adapter's text form is the carrier.
     datetime.timedelta: TextType(),
@@ -141,6 +149,10 @@ CLICKHOUSE_DATA_TYPE_SUGGESTIONS: Dict[Any, Optional[Any]] = {
     # No MAC type; the canonical ``AA:BB:CC:DD:EE:FF`` form is 17 characters,
     # and ``VARCHAR`` renders ``String`` here (the width is dropped).
     MacAddress: VarCharType(length=17),
+    # Native IPv4/IPv6 types exist but are split by version; a single
+    # IPAddress field can hold either, so the canonical text in String is the
+    # honest common carrier (VARCHAR renders String on this dialect).
+    IPAddress: VarCharType(length=45),
 }
 
 
