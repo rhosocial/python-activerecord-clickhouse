@@ -123,7 +123,7 @@ class ClickHouseBackendMixin:
 
         from rhosocial.activerecord.backend.adapters.bitstring import BitString
         from rhosocial.activerecord.backend.adapters.geometry import Geometry
-        from rhosocial.activerecord.backend.adapters.network import MacAddress
+        from rhosocial.activerecord.backend.adapters.network import IPAddress, MacAddress
         from rhosocial.activerecord.backend.adapters.range import Multirange, Range
         from rhosocial.activerecord.backend.adapters.vector import Vector
         from rhosocial.activerecord.backend.adapters.portable import PORTABLE_TYPE_MAPPINGS
@@ -145,8 +145,8 @@ class ClickHouseBackendMixin:
             (dict, str),
             (list, str),
             (tuple, str),
-            # Neutral families: ClickHouse has no OGC geometry, range or MAC
-            # column, so those are carried as text; a vector is carried as
+            # Neutral families: ClickHouse has no OGC geometry, range, MAC or
+            # IP column, so those are carried as text; a vector is carried as
             # JSON text on a String column and as a list on Array(Float32).
             (Geometry, str),
             (Vector, str),
@@ -154,6 +154,7 @@ class ClickHouseBackendMixin:
             (Range, str),
             (Multirange, str),
             (MacAddress, str),
+            (IPAddress, str),
         ]
 
         suggestions = merge_adapter_suggestions(base, type_mappings, self.adapter_registry)

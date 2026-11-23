@@ -10,8 +10,10 @@ from typing import Tuple
 
 import pytest
 
+from rhosocial.activerecord.backend.adapters.network import IPAddress
 from rhosocial.activerecord.backend.impl.clickhouse.adapters import (
     ClickHouseArrayAdapter,
+    ClickHouseIPAddressAdapter,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.backend.backend import (
     ClickHouseBackend,
@@ -86,3 +88,13 @@ def test_adapter_suggestions_are_available(backend):
     assert suggestions.table
     assert callable(backend.suggest_extra_data_adapters)
     assert backend.suggest_extra_data_adapters().table == {}
+
+
+def test_suggestion_maps_ip_address_to_str(backend):
+    """IPAddress values are converted to str before reaching clickhouse-connect."""
+    suggestions = backend.suggest_data_adapters()
+
+    assert IPAddress in suggestions.table
+    adapter, target_type = suggestions.table[IPAddress]
+    assert isinstance(adapter, ClickHouseIPAddressAdapter)
+    assert target_type is str
