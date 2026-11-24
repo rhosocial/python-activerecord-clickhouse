@@ -95,18 +95,17 @@ class TestRenderingRefuses:
         with pytest.raises(UnsupportedFeatureError, match="AUTO_INCREMENT column"):
             AutoIncrementClause(dialect).to_sql()
 
-    def test_identity_attribute_is_refused_by_name(self, dialect):
-        """The AR-layer attribute path is gated too, not an AttributeError.
+    def test_identity_clause_is_refused_by_name(self, dialect):
+        """The identity clause is refused by name, not an AttributeError.
 
-        ``DDLColumnMixin.format_column_attribute`` wraps an ``IdentityAttribute``
-        into an ``IdentityClause`` and renders it; without the gate that call
-        would fail on a missing method instead of refusing by name.
+        AR-layer attributes are translated by the deriver before they reach the
+        dialect; the formatter only ever sees expression-layer clauses. Without
+        the gate this call would fail on a missing method instead of refusing
+        by name.
         """
-        from rhosocial.activerecord.base import IdentityAttribute
-
-        attr = IdentityAttribute(generation="ALWAYS", start=10, increment=2)
+        clause = IdentityClause(dialect, generation="ALWAYS", start=10, increment=2)
         with pytest.raises(UnsupportedFeatureError, match="IDENTITY column"):
-            dialect.format_column_attribute(attr)
+            dialect.format_column_attribute(clause)
 
 
 class TestLiveServerRefusesTheOldRendering:
