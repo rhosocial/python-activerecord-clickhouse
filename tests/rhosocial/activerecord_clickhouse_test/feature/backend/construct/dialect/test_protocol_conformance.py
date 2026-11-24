@@ -244,9 +244,9 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     # generates primary keys client-side (snowflake Int64), so no integer
     # column value is assigned by the database on INSERT.
     dialect_protocols.DatabaseAssignedColumnSupport,
-    # No integer auto-increment suggestion either: a generated key is a
+    # No generated-value suggestion either: a generated key is a
     # client-side snowflake Int64, never a server-assigned column value.
-    suggestion_protocols.IntegerAutoIncrementColumnSuggestionSupport,
+    suggestion_protocols.GeneratedValueSuggestionSupport,
     # Every ClickHouse DDL statement auto-commits, so DDL cannot participate in
     # a surrounding transaction and the dialect has no atomicity to report.
     dialect_protocols.TransactionalDDLSupport,
