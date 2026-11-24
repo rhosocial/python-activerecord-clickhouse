@@ -165,6 +165,15 @@ class ClickHousePartitionMixin:
         """
         self._refuse_mysql_partition("inline partition definitions")
 
+    def format_partition_definition_expression(self, expr) -> Tuple[str, tuple]:
+        """Node entry for an inline ``PARTITION ... VALUES ...`` definition.
+
+        Core's PartitionDefinitionExpression dispatches to this name; ClickHouse
+        has no inline partition definitions, so it refuses exactly as
+        ``format_partition_definition`` does.
+        """
+        return self.format_partition_definition(expr)
+
     def _refuse_mysql_partition(self, feature: str) -> NoReturn:
         """Raise ``UnsupportedFeatureError`` naming ClickHouse's partitioning."""
         raise UnsupportedFeatureError(self.name, feature, _PARTITION_ALTERNATIVES)
