@@ -5,6 +5,13 @@ Coverage tests for ClickHouse column mixin, partition mixin, and explain types.
 
 import pytest
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    ChangeColumnAction,
+    ModifyColumnAction,
+)
+from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 
@@ -14,70 +21,62 @@ def dialect():
 
 
 class TestModifyColumnMixin:
-    """ClickHouseModifyColumnMixin coverage."""
+    """MODIFY COLUMN renders ClickHouse SQL; unsupported actions fail fast."""
 
-    def test_modify_column_no_after_no_first(self, dialect):
-        from rhosocial.activerecord.backend.expression.types import IntegerType
-        from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
-        from types import SimpleNamespace
+    def test_capability_probes_match_clickhouse_grammar(self, dialect):
+        """MODIFY COLUMN exists in ClickHouse; CHANGE COLUMN does not."""
+        assert dialect.supports_modify_column() is True
+        assert dialect.supports_change_column() is False
 
-        action = SimpleNamespace(
-            column=ColumnDefinition(dialect, "id", IntegerType(dialect)),
-            after_column=None,
-            first=False,
+    def test_modify_column_type_change_renders_clickhouse_sql(self, dialect):
+        """A type change renders ``MODIFY COLUMN <name> <type>`` with no position clause."""
+        action = ModifyColumnAction(
+            dialect, ColumnDefinition(dialect, "id", IntegerType(dialect))
         )
-        sql, _ = dialect.format_modify_column_action(action)
-        assert "MODIFY COLUMN" in sql
-        assert "id" in sql
+
+        sql, params = dialect.format_modify_column_action(action)
+        assert sql == "MODIFY COLUMN `id` Int32"
+        assert params == ()
         assert "AFTER" not in sql
         assert "FIRST" not in sql
+        # The expression dispatches to this same single formatter.
+        assert action.to_sql() == (sql, params)
 
-    def test_modify_column_with_after(self, dialect):
-        from rhosocial.activerecord.backend.expression.types import VarCharType
-        from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
-        from types import SimpleNamespace
-
-        action = SimpleNamespace(
-            column=ColumnDefinition(dialect, "name", VarCharType(length=50, dialect=dialect)),
-            after_column="id",
-            first=False,
+    def test_modify_column_uses_clickhouse_type_spelling(self, dialect):
+        """ClickHouse renders the portable VARCHAR declaration as String."""
+        action = ModifyColumnAction(
+            dialect,
+            ColumnDefinition(dialect, "name", VarCharType(length=50, dialect=dialect)),
         )
         sql, _ = dialect.format_modify_column_action(action)
-        assert "MODIFY COLUMN" in sql
-        assert "AFTER" in sql
-        assert "id" in sql
+        assert sql == "MODIFY COLUMN `name` String"
 
-    def test_change_column(self, dialect):
-        from rhosocial.activerecord.backend.expression.types import IntegerType
-        from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
-        from types import SimpleNamespace
-
-        action = SimpleNamespace(
-            column=ColumnDefinition(dialect, "new_id", IntegerType(dialect)),
-            old_name="old_id",
-            after_column=None,
-            first=False,
+    @pytest.mark.parametrize("position", [{"first": True}, {"after_column": "id"}])
+    def test_modify_column_position_refused(self, dialect, position):
+        """MySQL's FIRST/AFTER modifiers are refused rather than mis-rendered."""
+        action = ModifyColumnAction(
+            dialect,
+            ColumnDefinition(dialect, "id", IntegerType(dialect)),
+            **position,
         )
-        sql, _ = dialect.format_change_column_action(action)
-        assert "CHANGE COLUMN" in sql
-        assert "old_id" in sql
-        assert "new_id" in sql
+        with pytest.raises(UnsupportedFeatureError) as exc_info:
+            dialect.format_modify_column_action(action)
+        assert "MODIFY COLUMN" in str(exc_info.value)
 
-    def test_change_column_with_after(self, dialect):
-        from rhosocial.activerecord.backend.expression.types import VarCharType
-        from rhosocial.activerecord.backend.expression.statements import ColumnDefinition
-        from types import SimpleNamespace
-
-        action = SimpleNamespace(
-            column=ColumnDefinition(dialect, "name", VarCharType(length=50, dialect=dialect)),
-            old_name="old_name",
-            after_column="id",
-            first=False,
+    @pytest.mark.parametrize(
+        "position", [{}, {"first": True}, {"after_column": "id"}]
+    )
+    def test_change_column_refused(self, dialect, position):
+        """ClickHouse has no CHANGE COLUMN, with or without positioning."""
+        action = ChangeColumnAction(
+            dialect,
+            "old_id",
+            ColumnDefinition(dialect, "new_id", IntegerType(dialect)),
+            **position,
         )
-        sql, _ = dialect.format_change_column_action(action)
-        assert "CHANGE COLUMN" in sql
-        assert "AFTER" in sql
-        assert "id" in sql
+        with pytest.raises(UnsupportedFeatureError) as exc_info:
+            dialect.format_change_column_action(action)
+        assert "CHANGE COLUMN" in str(exc_info.value)
 
 
 class TestPartitionMixinCoverage:
@@ -186,9 +185,8 @@ class TestExplainTypesCoverage:
     """ClickHouseExplainResult and ClickHouseExplainRow coverage."""
 
     def test_clickhouse_explain_row_attributes(self, dialect):
-        from rhosocial.activerecord.backend.impl.clickhouse.explain import (
-            ClickHouseExplainRow, ClickHouseExplainResult
-        )
+        from rhosocial.activerecord.backend.impl.clickhouse.explain import ClickHouseExplainRow
+
         row = ClickHouseExplainRow(
             id=1, select_type="SIMPLE", table="t", type="ALL",
             possible_keys=None, key=None, key_len=None, ref=None,

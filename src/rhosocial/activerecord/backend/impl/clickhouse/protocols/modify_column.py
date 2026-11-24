@@ -15,21 +15,23 @@ if TYPE_CHECKING:  # pragma: no cover
 
 @runtime_checkable
 class ClickHouseModifyColumnSupport(Protocol):
-    """ClickHouse MODIFY COLUMN and CHANGE COLUMN protocol.
+    """Column modification surface of the ClickHouse dialect.
 
     Feature Source: ClickHouse native (not SQL standard)
 
-    ClickHouse ALTER TABLE features beyond SQL standard:
-    - MODIFY COLUMN: Redefine a column with new specification (name unchanged)
-    - CHANGE COLUMN: Rename and redefine a column in one operation
-    - FIRST/AFTER: Column positioning within the table
+    ClickHouse's ``ALTER TABLE ... COLUMN`` actions are ``MODIFY COLUMN``
+    (type/default/codec/TTL change) and ``RENAME COLUMN name TO new_name``.
+    There is no MySQL-style ``CHANGE COLUMN`` that renames and redefines in
+    one clause, so the probe for it must answer False and the formatter must
+    fail fast. ``FIRST`` / ``AFTER`` is an ``ADD COLUMN`` position clause; it
+    is not part of the portable ``ModifyColumnAction`` rendering.
 
-    Official Documentation:
-    - ALTER TABLE: https://dev.clickhouse.com/doc/refman/8.0/en/alter-table.html
+    Official documentation:
+    https://clickhouse.com/docs/sql-reference/statements/alter/column
 
     Version Requirements:
-    - MODIFY COLUMN: All ClickHouse versions
-    - CHANGE COLUMN: All ClickHouse versions
+    - MODIFY COLUMN: available on all supported ClickHouse versions
+    - CHANGE COLUMN: does not exist in ClickHouse
     """
 
     def supports_modify_column(self) -> bool:
@@ -37,14 +39,14 @@ class ClickHouseModifyColumnSupport(Protocol):
         ...
 
     def supports_change_column(self) -> bool:
-        """Whether CHANGE COLUMN is supported."""
+        """Whether CHANGE COLUMN is supported (False in ClickHouse)."""
         ...
 
     def format_modify_column_action(self, expr: "ModifyColumn") -> Tuple[str, tuple]:
         """Format MODIFY COLUMN action for ALTER TABLE.
 
         Args:
-            action: ModifyColumn action instance
+            expr: ModifyColumn action instance
 
         Returns:
             Tuple of (SQL string, parameters tuple)
@@ -52,12 +54,12 @@ class ClickHouseModifyColumnSupport(Protocol):
         ...
 
     def format_change_column_action(self, expr: "ChangeColumn") -> Tuple[str, tuple]:
-        """Format CHANGE COLUMN action for ALTER TABLE.
+        """Fail fast: ClickHouse has no CHANGE COLUMN clause.
 
         Args:
-            action: ChangeColumn action instance
+            expr: ChangeColumn action instance
 
         Returns:
-            Tuple of (SQL string, parameters tuple)
+            Never returns; raises UnsupportedFeatureError.
         """
         ...
