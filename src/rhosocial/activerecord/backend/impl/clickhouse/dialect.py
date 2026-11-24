@@ -650,6 +650,10 @@ class ClickHouseDialect(
 
         return ModifyColumnAction(self, column=new_col)
 
+    def supports_rename_column(self) -> bool:
+        """``ALTER TABLE ... RENAME COLUMN`` exists from ClickHouse 21.1."""
+        return self.version_at_least((21, 1, 0))
+
     def supports_alter_column_default(self) -> bool:
         """ClickHouse spells defaults ``ALTER COLUMN c DEFAULT expr`` / ``MODIFY COLUMN c REMOVE DEFAULT``."""
         return True
