@@ -800,11 +800,19 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         return " ".join(parts), ()
 
     def supports_if_not_exists_table(self) -> bool:
-        """Whether CREATE TABLE IF NOT EXISTS is supported."""
+        """True: ``CREATE TABLE [IF NOT EXISTS] [db.]name ...``.
+
+        Official reference (CREATE TABLE):
+        https://clickhouse.com/docs/sql-reference/statements/create/table
+        """
         return True
 
     def supports_if_exists_table(self) -> bool:
-        """Whether DROP TABLE IF EXISTS is supported."""
+        """True: ``DROP TABLE [IF EXISTS] [db.]name ...``.
+
+        Official reference (DROP, DROP TABLE):
+        https://clickhouse.com/docs/sql-reference/statements/drop
+        """
         return True
 
     def supports_drop_table_cascade(self) -> bool:
@@ -829,9 +837,12 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         """Whether RENAME TABLE is supported."""
         return True
 
-    def supports_rename_column(self) -> bool:
-        """Whether RENAME COLUMN is supported."""
-        return True
+    # ``supports_rename_column`` is not declared here: ``ClickHouseDialect``
+    # owns it as a version gate (``version_at_least((21, 1, 0))``). A plain
+    # ``True`` on this mixin would be a second, contradicting home for the same
+    # probe, and the dialect's class-body method is the one the MRO resolves.
+    # Official reference, ``ALTER TABLE ... RENAME COLUMN [IF EXISTS] name TO
+    # new_name``: https://clickhouse.com/docs/sql-reference/statements/alter/column
 
     def supports_ilike(self) -> bool:
         """ClickHouse supports ILIKE operator."""

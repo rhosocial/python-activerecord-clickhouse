@@ -37,9 +37,19 @@ class ClickHouseDatabaseMixin:
         return True
 
     def supports_database_if_not_exists(self) -> bool:
+        """True: ``CREATE DATABASE [IF NOT EXISTS] db_name ...``.
+
+        Official reference:
+        https://clickhouse.com/docs/sql-reference/statements/create/database
+        """
         return True
 
     def supports_database_if_exists(self) -> bool:
+        """True: ``DROP DATABASE [IF EXISTS] db ...``.
+
+        Official reference (DROP, DROP DATABASE):
+        https://clickhouse.com/docs/sql-reference/statements/drop
+        """
         return True
 
     def supports_database_comment(self) -> bool:

@@ -21,11 +21,19 @@ class ClickHouseIndexMixin:
         return False  # ClickHouse cannot enforce uniqueness on indexes
 
     def supports_index_if_not_exists(self) -> bool:
-        """Whether CREATE INDEX IF NOT EXISTS is supported."""
+        """True: ``ALTER TABLE ... ADD INDEX [IF NOT EXISTS] name ...``.
+
+        Official reference (ALTER TABLE ... INDEX, ADD INDEX):
+        https://clickhouse.com/docs/sql-reference/statements/alter/skipping-index
+        """
         return True
 
     def supports_index_if_exists(self) -> bool:
-        """Whether DROP INDEX IF EXISTS is supported."""
+        """True: ``ALTER TABLE ... DROP INDEX [IF EXISTS] name``.
+
+        Official reference (ALTER TABLE ... INDEX, DROP INDEX):
+        https://clickhouse.com/docs/sql-reference/statements/alter/skipping-index
+        """
         return True
 
     def supports_invisible_index(self) -> bool:

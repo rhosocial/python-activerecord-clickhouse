@@ -32,7 +32,11 @@ class ClickHouseViewMixin:
         """
         return True
     def supports_if_exists_view(self) -> bool:
-        """Whether DROP VIEW IF EXISTS is supported."""
+        """True: ``DROP VIEW [IF EXISTS] [db.]name``.
+
+        Official reference (DROP, DROP VIEW):
+        https://clickhouse.com/docs/sql-reference/statements/drop
+        """
         return True
 
     def supports_create_or_replace_view(self) -> bool:
@@ -40,7 +44,16 @@ class ClickHouseViewMixin:
         return True
 
     def supports_if_not_exists_view(self) -> bool:
-        """ClickHouse supports CREATE VIEW IF NOT EXISTS."""
+        """True: ``CREATE [OR REPLACE] VIEW [IF NOT EXISTS] ...``.
+
+        Official reference (CREATE VIEW, Normal View):
+        https://clickhouse.com/docs/sql-reference/statements/create/view
+
+        Both keywords are in the grammar, but they are not combinable: the
+        same page states that ``OR REPLACE`` and ``IF NOT EXISTS`` are
+        mutually exclusive, and that combining them is a syntax error. The
+        renderer refuses that pair rather than emitting it.
+        """
         return True
 
     def supports_view_check_option(self) -> bool:
@@ -58,17 +71,33 @@ class ClickHouseViewMixin:
     def format_create_view_statement(self, expr: "CreateViewStatement") -> Tuple[str, tuple]:
         """Format CREATE VIEW statement for ClickHouse.
 
+        Args:
+            expr: The ``CreateViewStatement`` to render.
+
         Raises:
             TypeError: ``CreateViewStatement.view`` is not a View. A
                 materialized view passed here would render as a well-formed
                 ``CREATE VIEW`` over the MV's name; an Index or a Table would do
                 the same. The object carries its own ``format_method``, so the
                 dialect has no way to notice on its own.
+            UnsupportedFeatureError: ``replace`` and ``if_not_exists`` are both
+                set. ClickHouse's CREATE VIEW page says the two clauses are
+                mutually exclusive and that combining them is a syntax error,
+                so there is no SQL to render for that pair.
         """
         if not isinstance(expr.view, View):
             raise TypeError(
                 f"CreateViewStatement.view must be a View, "
                 f"got {type(expr.view).__name__}"
+            )
+        if expr.replace and expr.if_not_exists:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE OR REPLACE VIEW ... IF NOT EXISTS",
+                "ClickHouse's CREATE VIEW treats OR REPLACE and IF NOT EXISTS "
+                "as mutually exclusive; combining them is a syntax error. "
+                "Choose one: OR REPLACE replaces an existing view, IF NOT "
+                "EXISTS keeps one that is already there.",
             )
         parts = ["CREATE"]
 
@@ -78,10 +107,15 @@ class ClickHouseViewMixin:
         if expr.replace and self.supports_create_or_replace_view():
             parts.append("OR REPLACE")
 
+        parts.append("VIEW")
+
+        # ``IF NOT EXISTS`` follows the VIEW keyword: ClickHouse spells
+        # ``CREATE [OR REPLACE] VIEW [IF NOT EXISTS] ...``. Putting it before
+        # ``VIEW`` (``CREATE IF NOT EXISTS VIEW``) is not a clause the server
+        # parses, so the position is part of the contract, not cosmetics.
         if expr.if_not_exists and self.supports_if_not_exists_view():
             parts.append("IF NOT EXISTS")
 
-        parts.append("VIEW")
         parts.append(expr.view.to_sql()[0])
 
         if expr.column_aliases:

@@ -9,16 +9,29 @@ class ClickHouseDDLColumnMixin:
     """ClickHouse DDL column action formatting."""
 
     def supports_add_column_if_not_exists(self) -> bool:
-        """ClickHouse supports ADD COLUMN IF NOT EXISTS."""
+        """True: ``ADD COLUMN [IF NOT EXISTS] name ...``.
+
+        Official reference, ``ALTER TABLE ... COLUMN`` (ADD COLUMN):
+        https://clickhouse.com/docs/sql-reference/statements/alter/column
+        """
         return True
 
     def supports_drop_column_if_exists(self) -> bool:
-        """ClickHouse supports DROP COLUMN IF EXISTS."""
+        """True: ``DROP COLUMN [IF EXISTS] name``.
+
+        Official reference, ``ALTER TABLE ... COLUMN`` (DROP COLUMN):
+        https://clickhouse.com/docs/sql-reference/statements/alter/column
+        """
         return True
 
     def supports_drop_constraint_if_exists(self) -> bool:
         """True: ``DROP CONSTRAINT IF EXISTS`` is accepted and is a silent no-op
         when the constraint is absent.
+
+        The official reference spells the clause itself -- ``ALTER TABLE
+        [db].name [ON CLUSTER cluster] DROP CONSTRAINT [IF EXISTS]
+        constraint_name`` -- on the ALTER TABLE ... CONSTRAINT page:
+        https://clickhouse.com/docs/sql-reference/statements/alter/constraint
 
         ClickHouse 26.7.3.19 (official build), measured on the instance
         ``tests/config/clickhouse_scenarios.yaml`` names ``clickhouse_http``
