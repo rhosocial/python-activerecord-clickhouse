@@ -112,13 +112,15 @@ class TestRenameColumnVersionGate:
 class TestCreateViewClausePair:
     """``OR REPLACE`` and ``IF NOT EXISTS`` are in the grammar, but not together."""
 
-    def _statement(self, dialect, **flags) -> CreateViewStatement:
+    def _statement(self, dialect, view=None, **flags) -> CreateViewStatement:
         query = QueryStatement(
             dialect,
             select=[Column(dialect, "id")],
             from_=NamedRelationRef(dialect, Table(dialect, "source")),
         )
-        return CreateViewStatement(dialect, View(dialect, "v"), query, **flags)
+        return CreateViewStatement(
+            dialect, view if view is not None else View(dialect, "v"), query, **flags
+        )
 
     def test_if_not_exists_renders(self):
         sql, params = self._statement(_dialect(), if_not_exists=True).to_sql()
@@ -142,3 +144,70 @@ class TestCreateViewClausePair:
             == "CREATE OR REPLACE VIEW ... IF NOT EXISTS"
         )
         assert "mutually exclusive" in excinfo.value.suggestion
+
+
+class TestCreateTemporaryViewLimits:
+    """A temporary view is real, but two combinations are outside its grammar.
+
+    ``CREATE TEMPORARY VIEW [IF NOT EXISTS] view_name AS ...`` is accepted.
+    ``OR REPLACE`` is not: the reference says so explicitly, matching
+    temporary tables, and the remedy is DROP + CREATE. A temporary object also
+    lives outside databases, so a qualified name (``db.view``) is refused.
+    Both were previously rendered into statements the server rejects.
+    """
+
+    def _statement(self, dialect, view=None, **flags) -> CreateViewStatement:
+        query = QueryStatement(
+            dialect,
+            select=[Column(dialect, "id")],
+            from_=NamedRelationRef(dialect, Table(dialect, "source")),
+        )
+        return CreateViewStatement(
+            dialect, view if view is not None else View(dialect, "v"), query, **flags
+        )
+
+    def test_temporary_view_renders(self):
+        sql, params = self._statement(_dialect(), temporary=True).to_sql()
+
+        assert sql == "CREATE TEMPORARY VIEW `v` AS SELECT `id` FROM `source`"
+        assert params == ()
+
+    def test_temporary_view_if_not_exists_renders(self):
+        sql, _params = self._statement(
+            _dialect(), temporary=True, if_not_exists=True
+        ).to_sql()
+
+        assert (
+            sql
+            == "CREATE TEMPORARY VIEW IF NOT EXISTS `v` "
+            "AS SELECT `id` FROM `source`"
+        )
+
+    def test_or_replace_temporary_is_refused_by_name(self):
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            self._statement(_dialect(), temporary=True, replace=True).to_sql()
+
+        assert excinfo.value.feature_name == "CREATE OR REPLACE TEMPORARY VIEW"
+        assert "not supported for temporary views" in excinfo.value.suggestion
+
+    def test_a_database_qualified_temporary_view_is_refused_by_name(self):
+        d = _dialect()
+        view = View(d, "v", catalog_name="analytics")
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            self._statement(d, view=view, temporary=True).to_sql()
+
+        assert (
+            excinfo.value.feature_name
+            == "CREATE TEMPORARY VIEW with a database qualifier"
+        )
+        assert "live outside databases" in excinfo.value.suggestion
+
+    def test_a_database_qualified_normal_view_still_renders(self):
+        """Only temporary views are unqualifiable; a normal view keeps its database."""
+        d = _dialect()
+        view = View(d, "v", catalog_name="analytics")
+        sql, _params = self._statement(d, view=view).to_sql()
+
+        assert sql == (
+            "CREATE VIEW `analytics`.`v` AS SELECT `id` FROM `source`"
+        )

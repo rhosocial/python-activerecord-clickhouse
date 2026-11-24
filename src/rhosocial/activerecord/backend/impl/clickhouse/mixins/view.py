@@ -19,7 +19,16 @@ class ClickHouseViewMixin:
         return True
 
     def supports_temporary_view(self) -> bool:
-        """Whether CREATE TEMPORARY VIEW is supported."""
+        """Whether CREATE TEMPORARY VIEW is supported.
+
+        ClickHouse has a session-scoped temporary view:
+        ``CREATE TEMPORARY VIEW [IF NOT EXISTS] view_name AS <select_query>``.
+        The reference also states the limits the formatter enforces: ``OR
+        REPLACE`` is not supported for temporary views, and a temporary view
+        cannot be database-qualified. See ``format_create_view_statement``.
+
+        https://clickhouse.com/docs/sql-reference/statements/create/view
+        """
         return True
 
 
@@ -80,10 +89,13 @@ class ClickHouseViewMixin:
                 ``CREATE VIEW`` over the MV's name; an Index or a Table would do
                 the same. The object carries its own ``format_method``, so the
                 dialect has no way to notice on its own.
-            UnsupportedFeatureError: ``replace`` and ``if_not_exists`` are both
-                set. ClickHouse's CREATE VIEW page says the two clauses are
-                mutually exclusive and that combining them is a syntax error,
-                so there is no SQL to render for that pair.
+            UnsupportedFeatureError: a combination the reference forbids:
+                ``replace`` with ``if_not_exists`` (the page calls the pair a
+                syntax error), ``replace`` with ``temporary`` (``OR REPLACE``
+                is not supported for temporary views), or ``temporary`` with
+                a database qualifier (temporary objects live outside
+                databases). Each has no ClickHouse spelling, so each is
+                refused by name rather than rendered.
         """
         if not isinstance(expr.view, View):
             raise TypeError(
@@ -98,6 +110,24 @@ class ClickHouseViewMixin:
                 "as mutually exclusive; combining them is a syntax error. "
                 "Choose one: OR REPLACE replaces an existing view, IF NOT "
                 "EXISTS keeps one that is already there.",
+            )
+        if expr.replace and expr.temporary:
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE OR REPLACE TEMPORARY VIEW",
+                "ClickHouse's CREATE VIEW reference says OR REPLACE is not "
+                "supported for temporary views. Drop the temporary view and "
+                "create it again instead; there is no combined spelling.",
+            )
+        if expr.temporary and (
+            expr.view.catalog_name is not None or expr.view.schema_name is not None
+        ):
+            raise UnsupportedFeatureError(
+                self.name,
+                "CREATE TEMPORARY VIEW with a database qualifier",
+                "Temporary views are session-local and live outside databases: "
+                "the reference forbids CREATE TEMPORARY VIEW db.view AS .... "
+                "Name the view without a qualifier, or drop TEMPORARY.",
             )
         parts = ["CREATE"]
 
