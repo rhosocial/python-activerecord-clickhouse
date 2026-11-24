@@ -6,7 +6,7 @@ This dialect implements protocols for features that ClickHouse actually supports
 based on the ClickHouse version provided at initialization.
 """
 
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
 from rhosocial.activerecord.backend.dialect.protocols import (
@@ -223,11 +223,6 @@ from .suggestion import (
 )
 from .reserved_words import CLICKHOUSE_RESERVED_WORDS
 from .show.dialect import ClickHouseShowDialectMixin
-
-if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-        ModifyColumnAction as ModifyColumn,
-    )
 
 
 class ClickHouseDialect(
@@ -605,40 +600,6 @@ class ClickHouseDialect(
         escaped = identifier.replace("`", "``")
         return f"`{escaped}`"
 
-    # region Legacy CreateTableStatement.diff() policy (no live hook today)
-    #
-    # These overrides were written for the expression-level CREATE TABLE diff.
-    # On the core versions this backend depends on, ``CreateTableStatement``
-    # exposes no ``diff()`` and there is no ``CreateTableExpressionDiffMixin``
-    # or ``_diff_table_constraints`` / ``_build_rebuild_plan`` base; the methods
-    # below are retained policy, not a live path. See
-    # :meth:`_diff_table_constraints` for the one that stated a false reason.
-    #
-    # ClickHouse-specific policy for that expression-level CREATE TABLE diff:
-    #
-    # - Column type changes are supported in place via ``MODIFY COLUMN``
-    #   (``supports_alter_column_type()`` is True), so the diff emits a
-    #   ``ModifyColumn`` action instead of forcing a rebuild.
-    # - ``ALTER COLUMN SET/DROP DEFAULT`` and ``SET/DROP NOT NULL`` do not
-    #   exist in ClickHouse: DEFAULT is part of the column definition and
-    #   nullability is part of the type (``Nullable(T)``). Both require
-    #   ``MODIFY COLUMN``, which the generic diff cannot express per
-    #   property, so property changes rebuild.
-    # - ClickHouse has no traditional secondary indexes — only data skipping
-    #   indexes, which require ``TYPE ... GRANULARITY ...`` clauses the
-    #   generic ``ADD INDEX`` action cannot express. Index changes rebuild;
-    #   the recreated table renders skip indexes inline via
-    #   :meth:`format_index_definition`.
-    # - ``ALTER TABLE ... ADD / MODIFY / DROP CONSTRAINT`` **does exist** in
-    #   ClickHouse (CHECK and ASSUME only), and this backend renders the ADD
-    #   and DROP actions for a CHECK, so an additive constraint change could in
-    #   principle be planned in place. This hook still rebuilds: it discards
-    #   the drops/adds core plans and substitutes a rebuild, which is the
-    #   conservative policy carried over from before those formatters rendered.
-    #   Switching to an in-place plan needs kind gating (PRIMARY KEY / UNIQUE /
-    #   FOREIGN KEY / EXCLUDE have no ADD-position spelling here) plus its own
-    #   contract tests; that is a separate change, not silently done here.
-
     def supports_drop_column(self) -> bool:
         """ClickHouse supports ``ALTER TABLE ... DROP COLUMN``.
 
@@ -655,14 +616,6 @@ class ClickHouseDialect(
         """ClickHouse supports in-place type changes via MODIFY COLUMN."""
         return True
 
-    def alter_column_type_action(self, old_col, new_col) -> "ModifyColumn":
-        """Render a column type change as MODIFY COLUMN <new definition>."""
-        from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-            ModifyColumnAction,
-        )
-
-        return ModifyColumnAction(self, column=new_col)
-
     def supports_rename_column(self) -> bool:
         """``ALTER TABLE ... RENAME COLUMN`` exists from ClickHouse 21.1."""
         return self.version_at_least((21, 1, 0))
@@ -678,51 +631,3 @@ class ClickHouseDialect(
     def supports_alter_table_index_actions(self) -> bool:
         """No traditional indexes; skipping indexes cannot use ADD/DROP INDEX actions."""
         return False
-
-    def _diff_table_constraints(self, old, new):
-        """Constraint changes rebuild -- a policy choice, not a missing clause.
-
-        ClickHouse's ALTER TABLE grammar **does** have ADD / MODIFY / DROP
-        CONSTRAINT (for CHECK and ASSUME; see the official page below), and
-        this backend has the expression nodes and formatters for the ADD and
-        DROP actions: ``AddTableConstraintAction`` renders an
-        ``ADD CONSTRAINT ... CHECK`` clause and ``DropTableConstraintAction``
-        renders a ``DROP CONSTRAINT`` clause. So the rebuild here is neither
-        the consequence of a nonexistent server capability nor the
-        consequence of a missing node/formatter.
-
-        It is the conservative policy this hook carries: whenever core's
-        planned constraint drops/adds are non-empty, both lists are replaced
-        with a rebuild plan. An in-place plan would first need the
-        ADD-position narrowing applied to the planned kinds -- only CHECK can
-        be named there today; PRIMARY KEY / UNIQUE / FOREIGN KEY / EXCLUDE
-        would raise while rendering -- and its own contract tests. Until that
-        lands, every named table-constraint change rebuilds.
-
-        Reachability, stated because it is load-bearing: on the core versions
-        this backend depends on (``release/v1.0.0.dev30`` and this development
-        branch), ``CreateTableStatement`` exposes no ``diff()`` and there is
-        no base ``_diff_table_constraints`` / ``_build_rebuild_plan``; no code
-        in core or this backend calls this override, and a direct call would
-        raise ``AttributeError`` from the missing ``super()`` method. It is
-        retained as the declared policy for a diff hook that may return, not
-        as a live branch.
-
-        Official reference:
-        https://clickhouse.com/docs/sql-reference/statements/alter/constraint
-        """
-        drops, adds, rebuild = super()._diff_table_constraints(old, new)
-        if rebuild is not None:
-            return drops, adds, rebuild
-        if drops or adds:
-            return [], [], self._build_rebuild_plan(
-                old, new,
-                reason=(
-                    "table constraint change is planned as a rebuild by "
-                    "ClickHouse's constraint-diff policy; ADD/DROP CONSTRAINT "
-                    "for CHECK exists but is not wired into the plan"
-                ),
-            )
-        return drops, adds, None
-
-    # endregion
