@@ -892,8 +892,11 @@ def register_specials():
     # The MySQL-style declarative partitioning family was deleted outright:
     # ClickHouse declares partitioning as an arbitrary expression in CREATE
     # TABLE, not as PARTITION ... VALUES statements. What remains are the
-    # three system.parts-addressed statements, each taking the table name
-    # and the partition id, and each rendering through one shared base.
+    # three system.parts-addressed lifecycle statements, each taking the table
+    # name and the partition id and each rendering through one shared base --
+    # plus the remaining ClickHouse-only partition operations, each with a
+    # real constructor below so the artifact carries the parameters the
+    # formatter consumes.
     for _name in (
         "ClickHouseDropPartitionStatement",
         "ClickHouseDetachPartitionStatement",
@@ -903,6 +906,42 @@ def register_specials():
             f"partition.{_name}",
             lambda d, _n=_name: getattr(partition, _n)(d, "t", "p2024"),
         )
+    register_special_constructor(
+        "partition.ClickHouseReplacePartitionStatement",
+        lambda d: partition.ClickHouseReplacePartitionStatement(
+            d, "t", "p2024", "staging"
+        ),
+    )
+    register_special_constructor(
+        "partition.ClickHouseMovePartitionStatement",
+        lambda d: partition.ClickHouseMovePartitionStatement(
+            d, "t", "p2024", "VOLUME", "cold"
+        ),
+    )
+    register_special_constructor(
+        "partition.ClickHouseFreezePartitionStatement",
+        lambda d: partition.ClickHouseFreezePartitionStatement(
+            d, "t", "p2024", "backup_p2024"
+        ),
+    )
+    register_special_constructor(
+        "partition.ClickHouseUnfreezePartitionStatement",
+        lambda d: partition.ClickHouseUnfreezePartitionStatement(
+            d, "t", "p2024", "backup_p2024"
+        ),
+    )
+    register_special_constructor(
+        "partition.ClickHouseClearInPartitionStatement",
+        lambda d: partition.ClickHouseClearInPartitionStatement(
+            d, "t", "COLUMN", "browser", "p2024"
+        ),
+    )
+    register_special_constructor(
+        "partition.ClickHouseOptimizePartitionStatement",
+        lambda d: partition.ClickHouseOptimizePartitionStatement(
+            d, "t", "p2024", True
+        ),
+    )
 
     # -- ClickHouse maintenance, routines, materialized views ----------------
     for _name in (

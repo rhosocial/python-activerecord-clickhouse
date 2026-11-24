@@ -8,7 +8,9 @@ Only ClickHouse-native expressions are exported from this package:
                    function expressions (ClickHouse JSON is accessed via
                    functions, not MySQL arrow operators).
 - ``partition``  — ClickHouse's own partition maintenance, addressed by
-                   partition id (``DROP`` / ``DETACH`` / ``ATTACH PARTITION ID``).
+                   partition id (``DROP`` / ``DETACH`` / ``ATTACH`` /
+                   ``REPLACE ... FROM`` / ``MOVE ... TO`` / ``FREEZE`` /
+                   ``UNFREEZE`` / ``CLEAR ... IN PARTITION`` / ``OPTIMIZE``).
                    ClickHouse has no declarative partitioning: it partitions a
                    MergeTree table with ``PARTITION BY <expr>`` inside
                    ``CREATE TABLE``, rendered by the table-engine layer, and a
@@ -54,9 +56,15 @@ from .json import (
     ClickHouseJSONSearchExpression,
 )
 from .partition import (
-    ClickHouseDropPartitionStatement,
-    ClickHouseDetachPartitionStatement,
     ClickHouseAttachPartitionStatement,
+    ClickHouseClearInPartitionStatement,
+    ClickHouseDetachPartitionStatement,
+    ClickHouseDropPartitionStatement,
+    ClickHouseFreezePartitionStatement,
+    ClickHouseMovePartitionStatement,
+    ClickHouseOptimizePartitionStatement,
+    ClickHouseReplacePartitionStatement,
+    ClickHouseUnfreezePartitionStatement,
 )
 from .rename_table import ClickHouseRenameTableStatement
 from .wildcard import ClickHouseRowCountDistinctWildcard
@@ -157,6 +165,12 @@ __all__ = [
     "ClickHouseDropPartitionStatement",
     "ClickHouseDetachPartitionStatement",
     "ClickHouseAttachPartitionStatement",
+    "ClickHouseReplacePartitionStatement",
+    "ClickHouseMovePartitionStatement",
+    "ClickHouseFreezePartitionStatement",
+    "ClickHouseUnfreezePartitionStatement",
+    "ClickHouseClearInPartitionStatement",
+    "ClickHouseOptimizePartitionStatement",
     # Rename table
     "ClickHouseRenameTableStatement",
     # Row-count wildcard: the COUNT(DISTINCT *) spelling only ClickHouse has

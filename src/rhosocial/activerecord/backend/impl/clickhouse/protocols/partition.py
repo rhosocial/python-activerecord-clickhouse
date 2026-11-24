@@ -13,8 +13,14 @@ from rhosocial.activerecord.backend.dialect.protocols import PartitionSupport
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
         ClickHouseAttachPartitionStatement,
+        ClickHouseClearInPartitionStatement,
         ClickHouseDetachPartitionStatement,
         ClickHouseDropPartitionStatement,
+        ClickHouseFreezePartitionStatement,
+        ClickHouseMovePartitionStatement,
+        ClickHouseOptimizePartitionStatement,
+        ClickHouseReplacePartitionStatement,
+        ClickHouseUnfreezePartitionStatement,
     )
 
 
@@ -90,6 +96,30 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         """Whether ``ALTER TABLE ... ATTACH PARTITION ID`` is supported — it is."""
         ...
 
+    def supports_replace_partition(self) -> bool:
+        """Whether ``ALTER TABLE ... REPLACE PARTITION ... FROM`` is supported — it is."""
+        ...
+
+    def supports_move_partition(self) -> bool:
+        """Whether ``ALTER TABLE ... MOVE PARTITION ... TO`` is supported — it is."""
+        ...
+
+    def supports_freeze_partition(self) -> bool:
+        """Whether ``ALTER TABLE ... FREEZE ...`` is supported — it is."""
+        ...
+
+    def supports_unfreeze_partition(self) -> bool:
+        """Whether ``ALTER TABLE ... UNFREEZE ... WITH NAME`` is supported — it is."""
+        ...
+
+    def supports_clear_in_partition(self) -> bool:
+        """Whether ``ALTER TABLE ... CLEAR COLUMN|INDEX|PROJECTION`` is supported — it is."""
+        ...
+
+    def supports_optimize_partition_final(self) -> bool:
+        """Whether ``OPTIMIZE TABLE ... [PARTITION ...] [FINAL]`` is supported — it is."""
+        ...
+
     def format_drop_partition_statement(
         self, expr: "ClickHouseDropPartitionStatement"
     ) -> Tuple[str, tuple]:
@@ -130,4 +160,40 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         Returns:
             Tuple of (SQL string, empty params tuple).
         """
+        ...
+
+    def format_replace_partition_statement(
+        self, expr: "ClickHouseReplacePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... REPLACE PARTITION ID '<id>' FROM <table>``."""
+        ...
+
+    def format_move_partition_statement(
+        self, expr: "ClickHouseMovePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... MOVE PARTITION ID '<id>' TO <target>``."""
+        ...
+
+    def format_freeze_partition_statement(
+        self, expr: "ClickHouseFreezePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... FREEZE [PARTITION ID '<id>'] [WITH NAME '<name>']``."""
+        ...
+
+    def format_unfreeze_partition_statement(
+        self, expr: "ClickHouseUnfreezePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... UNFREEZE [PARTITION ID '<id>'] WITH NAME '<name>'``."""
+        ...
+
+    def format_clear_in_partition_statement(
+        self, expr: "ClickHouseClearInPartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``ALTER TABLE ... CLEAR COLUMN|INDEX|PROJECTION ... IN PARTITION``."""
+        ...
+
+    def format_optimize_partition_final_statement(
+        self, expr: "ClickHouseOptimizePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Format ``OPTIMIZE TABLE ... [PARTITION ID '<id>'] [FINAL]``."""
         ...

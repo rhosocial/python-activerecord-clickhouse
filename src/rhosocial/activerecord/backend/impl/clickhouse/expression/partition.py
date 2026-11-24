@@ -25,11 +25,19 @@ itself::
     ALTER TABLE visits DETACH PARTITION ID '202601';
     ALTER TABLE visits ATTACH PARTITION ID '202601';
 
-Only those three appear in this module; the rest of the ClickHouse inventory
-is on the page cited below (``DROP PART``, ``DROP DETACHED PARTITION``,
-``FORGET PARTITION``, ``ATTACH PARTITION FROM``, ``REPLACE PARTITION``,
-``MOVE PARTITION TO TABLE``, ``FREEZE``/``UNFREEZE``, ``FETCH PARTITION``,
-``MOVE PARTITION|PART ... TO DISK|VOLUME``, ``CLEAR COLUMN|INDEX IN PARTITION``,
+This module carries the operations from that page which have a stable SQL
+shape and that the backend models: the three verbs above, plus
+``REPLACE PARTITION ... FROM``, ``MOVE PARTITION ... TO``,
+``FREEZE`` / ``UNFREEZE``, ``CLEAR ... IN PARTITION`` and
+``OPTIMIZE TABLE ... [PARTITION] FINAL``. For the partition addressing forms
+the page documents (a ``system.parts.partition`` value, ``ALL``, a
+``tuple(...)`` of key values, or ``PARTITION ID '<id>'``), every node here
+renders the ``PARTITION ID`` form, because it is the form that works whatever
+the partition key's type is.
+
+The rest of the ClickHouse inventory is on the page cited below (``DROP PART``,
+``DROP DETACHED PARTITION``, ``FORGET PARTITION``, ``ATTACH PARTITION FROM``,
+``FETCH PARTITION``, ``MOVE PARTITION|PART ... TO DISK|VOLUME`` for parts,
 ``UPDATE``/``DELETE IN PARTITION``, ``REWRITE PARTS``). A statement that is not
 on that page has no ClickHouse spelling at any version. That inventory is also
 what proves the absence of the MySQL statements this backend used to stub
@@ -52,6 +60,7 @@ clauses of the table engine, rendered from the ``storage_options`` mapping by
 References (both fetched and HTTP-resolving):
 https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key
 https://clickhouse.com/docs/sql-reference/statements/alter/partition
+https://clickhouse.com/docs/sql-reference/statements/optimize
 """
 from typing import Optional, TYPE_CHECKING
 
@@ -65,6 +74,12 @@ __all__ = [
     "ClickHouseDropPartitionStatement",
     "ClickHouseDetachPartitionStatement",
     "ClickHouseAttachPartitionStatement",
+    "ClickHouseReplacePartitionStatement",
+    "ClickHouseMovePartitionStatement",
+    "ClickHouseFreezePartitionStatement",
+    "ClickHouseUnfreezePartitionStatement",
+    "ClickHouseClearInPartitionStatement",
+    "ClickHouseOptimizePartitionStatement",
 ]
 
 
@@ -199,3 +214,299 @@ class ClickHouseAttachPartitionStatement(_ClickHousePartitionIdExpression):
     @property
     def format_method(self) -> str:
         return "format_attach_partition_statement"
+
+
+class ClickHouseReplacePartitionStatement(BaseExpression):
+    """``ALTER TABLE ... REPLACE PARTITION ID '<id>' FROM <source_table>``.
+
+    Copies the source table's partition over the target table's partition of
+    the same id, atomically. The source's data is not deleted. ClickHouse
+    requires both tables to share the structure, partition key, order-by key,
+    primary key and storage policy, and the target to carry at least the
+    source's skipping indexes and projections. Those preconditions are the
+    server's to enforce; this node renders the statement, not a pre-flight
+    check.
+
+    Official reference ("REPLACE PARTITION"):
+    https://clickhouse.com/docs/sql-reference/statements/alter/partition
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        partition_id: str,
+        source_table: str,
+        *,
+        schema: Optional[str] = None,
+        source_schema: Optional[str] = None,
+    ):
+        """
+        Args:
+            dialect: ClickHouse dialect instance.
+            table: Target table name.
+            partition_id: Value of ``system.parts.partition_id`` for the
+                partition being replaced.
+            source_table: Table the partition is copied from.
+            schema: Database of *table*, when not the connected database.
+            source_schema: Database of *source_table*, when not the connected
+                database.
+
+        No validation here: the constructor carries the parameters, and the
+        dialect formatter decides whether the combination has a ClickHouse
+        spelling (see ``format_replace_partition_statement``). That split keeps
+        the round-trip artifact carrying exactly what the caller passed.
+        """
+        super().__init__(dialect)
+        self.table = table
+        self.partition_id = partition_id
+        self.source_table = source_table
+        self.schema = schema
+        self.source_schema = source_schema
+
+    @property
+    def format_method(self) -> str:
+        return "format_replace_partition_statement"
+
+
+class ClickHouseMovePartitionStatement(BaseExpression):
+    """``ALTER TABLE ... MOVE PARTITION ID '<id>' TO {DISK|VOLUME|TABLE} <target>``.
+
+    ``TO DISK`` / ``TO VOLUME`` move a partition between storage devices;
+    ``TO TABLE`` moves it into another table, deleting it from the source.
+    The target of a disk/volume clause is a configured disk or volume name
+    (rendered as a quoted literal, as the reference spells it); the target of
+    a table clause is a table name (rendered as an identifier).
+
+    Official reference ("MOVE PARTITION|PART" and "MOVE PARTITION TO TABLE"):
+    https://clickhouse.com/docs/sql-reference/statements/alter/partition
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        partition_id: str,
+        destination: str,
+        target: str,
+        *,
+        schema: Optional[str] = None,
+        target_schema: Optional[str] = None,
+    ):
+        """
+        Args:
+            dialect: ClickHouse dialect instance.
+            table: Source table name.
+            partition_id: Value of ``system.parts.partition_id``.
+            destination: ``DISK``, ``VOLUME`` or ``TABLE`` (case-insensitive
+                at render time).
+            target: The disk/volume name, or the destination table name.
+            schema: Database of *table*, when not the connected database.
+            target_schema: Database of *target* when *destination* is
+                ``TABLE``; ignored otherwise.
+
+        No validation here; see
+        ``format_move_partition_statement`` for the spelling rules.
+        """
+        super().__init__(dialect)
+        self.table = table
+        self.partition_id = partition_id
+        self.destination = destination
+        self.target = target
+        self.schema = schema
+        self.target_schema = target_schema
+
+    @property
+    def format_method(self) -> str:
+        return "format_move_partition_statement"
+
+
+class ClickHouseFreezePartitionStatement(BaseExpression):
+    """``ALTER TABLE ... FREEZE [PARTITION ID '<id>'] [WITH NAME '<name>']``.
+
+    Creates a local hard-link backup in ``shadow/``. The ``PARTITION`` clause
+    is optional (omitting it freezes every partition), and so is ``WITH NAME``
+    (omitting it selects the next incremental number). The statement is not
+    replicated: it backs up the local server only.
+
+    Official reference ("FREEZE PARTITION"):
+    https://clickhouse.com/docs/sql-reference/statements/alter/partition
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        partition_id: Optional[str] = None,
+        name: Optional[str] = None,
+        *,
+        schema: Optional[str] = None,
+    ):
+        """
+        Args:
+            dialect: ClickHouse dialect instance.
+            table: Table to freeze.
+            partition_id: The partition to freeze, or ``None`` for all.
+            name: Backup name, or ``None`` to let the server number it.
+            schema: Database of *table*, when not the connected database.
+
+        No validation here; see ``format_freeze_partition_statement``.
+        """
+        super().__init__(dialect)
+        self.table = table
+        self.partition_id = partition_id
+        self.name = name
+        self.schema = schema
+
+    @property
+    def format_method(self) -> str:
+        return "format_freeze_partition_statement"
+
+
+class ClickHouseUnfreezePartitionStatement(BaseExpression):
+    """``ALTER TABLE ... UNFREEZE [PARTITION ID '<id>'] WITH NAME '<name>'``.
+
+    Removes a frozen backup written by :class:`ClickHouseFreezePartitionStatement`.
+    Unlike ``FREEZE``, ``WITH NAME`` is not optional in the reference grammar:
+    ``UNFREEZE`` names which backup to remove, and there is no "next
+    incremental number" to guess. The formatter refuses a missing name by name
+    rather than rendering a statement the server cannot parse.
+
+    Official reference ("UNFREEZE PARTITION"):
+    https://clickhouse.com/docs/sql-reference/statements/alter/partition
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        partition_id: Optional[str] = None,
+        name: Optional[str] = None,
+        *,
+        schema: Optional[str] = None,
+    ):
+        """
+        Args:
+            dialect: ClickHouse dialect instance.
+            table: Table whose backup is removed.
+            partition_id: The partition, or ``None`` for the whole table.
+            name: Backup name. Required by the grammar; the formatter refuses
+                a missing or blank value.
+            schema: Database of *table*, when not the connected database.
+
+        No validation here; see ``format_unfreeze_partition_statement``.
+        """
+        super().__init__(dialect)
+        self.table = table
+        self.partition_id = partition_id
+        self.name = name
+        self.schema = schema
+
+    @property
+    def format_method(self) -> str:
+        return "format_unfreeze_partition_statement"
+
+
+class ClickHouseClearInPartitionStatement(BaseExpression):
+    """``ALTER TABLE ... CLEAR {COLUMN|INDEX|PROJECTION} <name> [IN PARTITION ID '<id>']``.
+
+    Resets the column's values, the skipping index's files, or the projection's
+    files inside a partition. The grammar differs by kind:
+
+    * ``CLEAR COLUMN <c> IN PARTITION <expr>`` -- ``IN PARTITION`` is required
+      (the column-level reference page spells it without brackets);
+    * ``CLEAR INDEX <i> IN PARTITION <expr>`` -- likewise required;
+    * ``CLEAR PROJECTION <p> [IN PARTITION <expr>]`` -- optional; omitting it
+      clears the projection files across the whole table.
+
+    The formatter enforces that distinction instead of inventing a table-wide
+    ``CLEAR COLUMN`` the server rejects.
+
+    References:
+    https://clickhouse.com/docs/sql-reference/statements/alter/partition
+    https://clickhouse.com/docs/sql-reference/statements/alter/column
+    https://clickhouse.com/docs/sql-reference/statements/alter/projection
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        kind: str,
+        name: str,
+        partition_id: Optional[str] = None,
+        *,
+        schema: Optional[str] = None,
+    ):
+        """
+        Args:
+            dialect: ClickHouse dialect instance.
+            table: Table to modify.
+            kind: ``COLUMN``, ``INDEX`` or ``PROJECTION`` (case-insensitive at
+                render time).
+            name: The column, index or projection name. An identifier, not a
+                value, so the formatter quotes it.
+            partition_id: The partition to clear in, or ``None`` for a
+                projection-wide clear.
+            schema: Database of *table*, when not the connected database.
+
+        No validation here; see ``format_clear_in_partition_statement``.
+        """
+        super().__init__(dialect)
+        self.table = table
+        self.kind = kind
+        self.name = name
+        self.partition_id = partition_id
+        self.schema = schema
+
+    @property
+    def format_method(self) -> str:
+        return "format_clear_in_partition_statement"
+
+
+class ClickHouseOptimizePartitionStatement(BaseExpression):
+    """``OPTIMIZE TABLE ... [PARTITION ID '<id>'] [FINAL]``.
+
+    A statement of its own, not an ``ALTER TABLE`` action. ``FINAL`` forces the
+    merge even when every row already sits in one part; omitting ``PARTITION``
+    optimizes the whole table.
+
+    This is deliberately not :class:`~.maintenance.ClickHouseOptimizeTableExpression`:
+    that node models MySQL's comma-separated ``OPTIMIZE TABLE t1, t2``
+    maintenance statement, and this dialect refuses it as a whole-table MySQL
+    maintenance family. The ClickHouse-only ``PARTITION`` and ``FINAL``
+    clauses are what this node exists to spell.
+
+    Official reference:
+    https://clickhouse.com/docs/sql-reference/statements/optimize
+    """
+
+    def __init__(
+        self,
+        dialect: "ClickHouseDialect",
+        table: str,
+        partition_id: Optional[str] = None,
+        final: bool = True,
+        *,
+        schema: Optional[str] = None,
+    ):
+        """
+        Args:
+            dialect: ClickHouse dialect instance.
+            table: Table to optimize.
+            partition_id: The partition to optimize, or ``None`` for the table.
+            final: Render the ``FINAL`` keyword. ``False`` renders a plain
+                ``OPTIMIZE TABLE``, which is also valid ClickHouse.
+            schema: Database of *table*, when not the connected database.
+
+        No validation here; see ``format_optimize_partition_final_statement``.
+        """
+        super().__init__(dialect)
+        self.table = table
+        self.partition_id = partition_id
+        self.final = final
+        self.schema = schema
+
+    @property
+    def format_method(self) -> str:
+        return "format_optimize_partition_final_statement"

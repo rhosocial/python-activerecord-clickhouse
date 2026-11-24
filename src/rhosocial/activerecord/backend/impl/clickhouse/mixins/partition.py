@@ -15,15 +15,21 @@ References (both fetched and HTTP-resolving):
 https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key
 https://clickhouse.com/docs/sql-reference/statements/alter/partition
 """
-from typing import NoReturn, Tuple, TYPE_CHECKING
+from typing import NoReturn, Optional, Tuple, TYPE_CHECKING
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
     from ..expression.partition import (
         ClickHouseAttachPartitionStatement,
+        ClickHouseClearInPartitionStatement,
         ClickHouseDetachPartitionStatement,
         ClickHouseDropPartitionStatement,
+        ClickHouseFreezePartitionStatement,
+        ClickHouseMovePartitionStatement,
+        ClickHouseOptimizePartitionStatement,
+        ClickHouseReplacePartitionStatement,
+        ClickHouseUnfreezePartitionStatement,
     )
 
 
@@ -142,6 +148,40 @@ class ClickHousePartitionMixin:
         """``ALTER TABLE ... ATTACH PARTITION ID`` — supported."""
         return True
 
+    def supports_replace_partition(self) -> bool:
+        """``ALTER TABLE ... REPLACE PARTITION ID '<id>' FROM <table>`` — supported.
+
+        The reference spells ``REPLACE PARTITION partition_expr FROM table1``;
+        the expression node renders the partition-id form of ``partition_expr``.
+        """
+        return True
+
+    def supports_move_partition(self) -> bool:
+        """``ALTER TABLE ... MOVE PARTITION ... TO DISK|VOLUME|TABLE`` — supported."""
+        return True
+
+    def supports_freeze_partition(self) -> bool:
+        """``ALTER TABLE ... FREEZE [PARTITION ...] [WITH NAME ...]`` — supported."""
+        return True
+
+    def supports_unfreeze_partition(self) -> bool:
+        """``ALTER TABLE ... UNFREEZE [PARTITION ...] WITH NAME ...`` — supported."""
+        return True
+
+    def supports_clear_in_partition(self) -> bool:
+        """``ALTER TABLE ... CLEAR COLUMN|INDEX|PROJECTION ... IN PARTITION`` — supported."""
+        return True
+
+    def supports_optimize_partition_final(self) -> bool:
+        """``OPTIMIZE TABLE ... [PARTITION ...] [FINAL]`` — supported.
+
+        Named with the ClickHouse-only clauses rather than
+        ``supports_optimize_partition``: that spelling is MySQL's maintenance
+        statement, which this backend deliberately refuses (see
+        ``ClickHouseMaintenanceMixin``).
+        """
+        return True
+
     # ------------------------------------------------------------------
     # Refusals
     # ------------------------------------------------------------------
@@ -179,7 +219,7 @@ class ClickHousePartitionMixin:
         raise UnsupportedFeatureError(self.name, feature, _PARTITION_ALTERNATIVES)
 
     # ------------------------------------------------------------------
-    # Formatters — the three maintenance clauses ClickHouse has
+    # Formatters — the partition maintenance clauses ClickHouse has
     # ------------------------------------------------------------------
 
     def format_drop_partition_statement(
@@ -227,17 +267,291 @@ class ClickHousePartitionMixin:
                 f"{verb} PARTITION",
                 _PARTITION_ALTERNATIVES,
             )
-        from rhosocial.activerecord.backend.expression.objects import Table
 
         # The expression stores the bare name (and the database, when given)
         # so its round trip carries exactly what the constructor accepted; the
         # catalog slot is where ClickHouse keeps its database, so that is where
         # the name is qualified here, at render time.
-        table_sql, table_params = self.format_table_object(
-            Table(self, expr.table, catalog_name=expr.schema)
-        )
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
         return (
-            f"ALTER TABLE {table_sql} {verb} PARTITION ID "
-            f"{self.format_literal(partition_id)}",
-            tuple(table_params),
+            f"ALTER TABLE {table_sql} {verb} "
+            f"{self._partition_expression(partition_id)}",
+            (),
         )
+
+    # ------------------------------------------------------------------
+    # Formatters — the remaining ClickHouse partition operations
+    # ------------------------------------------------------------------
+
+    def format_replace_partition_statement(
+        self, expr: "ClickHouseReplacePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Render ``ALTER TABLE ... REPLACE PARTITION ID '<id>' FROM <table>``.
+
+        Official reference ("REPLACE PARTITION"):
+        https://clickhouse.com/docs/sql-reference/statements/alter/partition
+
+        Raises:
+            UnsupportedFeatureError: if the table, partition id or source
+                table is missing or not a non-empty string. The grammar has no
+                ``REPLACE PARTITION`` without a source, so there is no SQL to
+                render for that shape.
+        """
+        detail = (
+            "REPLACE PARTITION needs a target table, the partition id from "
+            "system.parts.partition_id, and a source table: the reference spells "
+            "``ALTER TABLE table2 REPLACE PARTITION partition_expr FROM table1``."
+        )
+        self._require_partition_target(expr, "REPLACE PARTITION", detail)
+        self._require_name(expr.source_table, "REPLACE PARTITION", detail)
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        source_sql = self._partition_table_sql(expr.source_table, expr.source_schema)
+        return (
+            f"ALTER TABLE {table_sql} REPLACE PARTITION ID "
+            f"{self.format_literal(expr.partition_id)} FROM {source_sql}",
+            (),
+        )
+
+    def format_move_partition_statement(
+        self, expr: "ClickHouseMovePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Render ``ALTER TABLE ... MOVE PARTITION ID '<id>' TO <target>``.
+
+        ``DISK`` and ``VOLUME`` name a configured storage device and are
+        rendered as quoted literals, as the reference spells them; ``TABLE``
+        names another table and is rendered as an identifier. Official
+        reference ("MOVE PARTITION|PART" and "MOVE PARTITION TO TABLE"):
+        https://clickhouse.com/docs/sql-reference/statements/alter/partition
+
+        Raises:
+            UnsupportedFeatureError: if the table, partition id or target is
+                missing/blank, or if ``destination`` is not ``DISK``, ``VOLUME``
+                or ``TABLE``.
+        """
+        detail = (
+            "MOVE PARTITION is spelled ``ALTER TABLE table_name MOVE PARTITION "
+            "partition_expr TO DISK|VOLUME 'name'`` or ``... TO TABLE table_dest``."
+        )
+        self._require_partition_target(expr, "MOVE PARTITION", detail)
+        destination = self._partition_kind(expr.destination, "MOVE PARTITION", detail)
+        if destination not in ("DISK", "VOLUME", "TABLE"):
+            raise UnsupportedFeatureError(
+                self.name,
+                f"MOVE PARTITION TO {destination or expr.destination}",
+                detail,
+            )
+        self._require_name(expr.target, "MOVE PARTITION", detail)
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        if destination == "TABLE":
+            target_sql = self._partition_table_sql(expr.target, expr.target_schema)
+        else:
+            target_sql = self.format_literal(expr.target)
+        return (
+            f"ALTER TABLE {table_sql} MOVE PARTITION ID "
+            f"{self.format_literal(expr.partition_id)} TO {destination} {target_sql}",
+            (),
+        )
+
+    def format_freeze_partition_statement(
+        self, expr: "ClickHouseFreezePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Render ``ALTER TABLE ... FREEZE [PARTITION ID '<id>'] [WITH NAME '<name>']``.
+
+        Both clauses are optional in the reference grammar: omitting
+        ``PARTITION`` freezes every partition, omitting ``WITH NAME`` lets the
+        server pick the next incremental number. A present-but-blank value is
+        refused, because it renders as an empty partition id or an empty backup
+        name rather than as "absent".
+
+        Official reference ("FREEZE PARTITION"):
+        https://clickhouse.com/docs/sql-reference/statements/alter/partition
+
+        Raises:
+            UnsupportedFeatureError: if the table is missing, or a supplied
+                partition id / backup name is not a non-empty string.
+        """
+        detail = (
+            "FREEZE is spelled ``ALTER TABLE table_name FREEZE [PARTITION "
+            "partition_expr] [WITH NAME 'backup_name']``."
+        )
+        self._require_name(expr.table, "FREEZE PARTITION", detail)
+        self._require_optional_name(expr.partition_id, "FREEZE PARTITION", detail)
+        self._require_optional_name(expr.name, "FREEZE PARTITION", detail)
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        parts = [f"ALTER TABLE {table_sql} FREEZE"]
+        if expr.partition_id is not None:
+            parts.append(f"PARTITION ID {self.format_literal(expr.partition_id)}")
+        if expr.name is not None:
+            parts.append(f"WITH NAME {self.format_literal(expr.name)}")
+        return " ".join(parts), ()
+
+    def format_unfreeze_partition_statement(
+        self, expr: "ClickHouseUnfreezePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Render ``ALTER TABLE ... UNFREEZE [PARTITION ID '<id>'] WITH NAME '<name>'``.
+
+        ``WITH NAME`` is mandatory here, unlike on ``FREEZE``: the reference
+        grammar shows it without brackets, and ``UNFREEZE`` has no incremental
+        number to fall back to. The partition clause stays optional.
+
+        Official reference ("UNFREEZE PARTITION"):
+        https://clickhouse.com/docs/sql-reference/statements/alter/partition
+
+        Raises:
+            UnsupportedFeatureError: if the table is missing, the backup name
+                is missing/blank, or a supplied partition id is blank. The
+                missing name is refused by name rather than rendered as
+                ``UNFREEZE`` without ``WITH NAME``, which the server cannot
+                parse.
+        """
+        detail = (
+            "UNFREEZE is spelled ``ALTER TABLE table_name UNFREEZE [PARTITION "
+            "'part_expr'] WITH NAME 'backup_name'``; the reference gives WITH "
+            "NAME no brackets, so it is required."
+        )
+        self._require_name(expr.table, "UNFREEZE PARTITION", detail)
+        self._require_optional_name(expr.partition_id, "UNFREEZE PARTITION", detail)
+        if expr.name is None or not isinstance(expr.name, str) or not expr.name.strip():
+            raise UnsupportedFeatureError(
+                self.name, "UNFREEZE PARTITION WITH NAME", detail
+            )
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        parts = [f"ALTER TABLE {table_sql} UNFREEZE"]
+        if expr.partition_id is not None:
+            parts.append(f"PARTITION ID {self.format_literal(expr.partition_id)}")
+        parts.append(f"WITH NAME {self.format_literal(expr.name)}")
+        return " ".join(parts), ()
+
+    def format_clear_in_partition_statement(
+        self, expr: "ClickHouseClearInPartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Render ``ALTER TABLE ... CLEAR {COLUMN|INDEX|PROJECTION} <name> [IN PARTITION ID '<id>']``.
+
+        ``IN PARTITION`` is required for ``COLUMN`` and ``INDEX`` but optional
+        for ``PROJECTION``; that asymmetry is the reference's, so the formatter
+        refuses a missing partition for the first two and renders the
+        table-wide form for the third.
+
+        References:
+        https://clickhouse.com/docs/sql-reference/statements/alter/partition
+        https://clickhouse.com/docs/sql-reference/statements/alter/column
+        https://clickhouse.com/docs/sql-reference/statements/alter/projection
+
+        Raises:
+            UnsupportedFeatureError: if the table or the cleared object's name
+                is missing, if ``kind`` is not one of the three keywords, or if
+                a ``COLUMN`` / ``INDEX`` clear carries no partition id.
+        """
+        detail = (
+            "CLEAR is spelled ``ALTER TABLE table_name CLEAR COLUMN column_name "
+            "IN PARTITION partition_expr`` or the same with INDEX, or "
+            "``CLEAR PROJECTION projection_name [IN PARTITION partition_expr]``."
+        )
+        self._require_name(expr.table, "CLEAR IN PARTITION", detail)
+        kind = self._partition_kind(expr.kind, "CLEAR IN PARTITION", detail)
+        if kind not in ("COLUMN", "INDEX", "PROJECTION"):
+            raise UnsupportedFeatureError(
+                self.name,
+                f"CLEAR {kind or expr.kind} IN PARTITION",
+                detail,
+            )
+        self._require_name(expr.name, f"CLEAR {kind} IN PARTITION", detail)
+        if kind != "PROJECTION" and (
+            expr.partition_id is None
+            or not isinstance(expr.partition_id, str)
+            or not expr.partition_id.strip()
+        ):
+            raise UnsupportedFeatureError(
+                self.name, f"CLEAR {kind} IN PARTITION", detail
+            )
+        self._require_optional_name(
+            expr.partition_id, f"CLEAR {kind} IN PARTITION", detail
+        )
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        parts = [
+            f"ALTER TABLE {table_sql} CLEAR {kind}",
+            self.format_identifier(expr.name),
+        ]
+        if expr.partition_id is not None:
+            parts.append(f"IN {self._partition_expression(expr.partition_id)}")
+        return " ".join(parts), ()
+
+    def format_optimize_partition_final_statement(
+        self, expr: "ClickHouseOptimizePartitionStatement"
+    ) -> Tuple[str, tuple]:
+        """Render ``OPTIMIZE TABLE ... [PARTITION ID '<id>'] [FINAL]``.
+
+        A statement of its own, not an ``ALTER TABLE`` action. ``FINAL`` is
+        omitted only when the caller asked for the plain form; the partition
+        clause is optional in the grammar.
+
+        Official reference:
+        https://clickhouse.com/docs/sql-reference/statements/optimize
+
+        Raises:
+            UnsupportedFeatureError: if the table is missing, a supplied
+                partition id is blank, or ``final`` is not a bool. A non-bool
+                would be truthiness-rendered, which turns ``"no"`` into
+                ``FINAL``; refusing is the only truthful answer.
+        """
+        detail = (
+            "OPTIMIZE is spelled ``OPTIMIZE TABLE [db.]name [PARTITION "
+            "partition | PARTITION ID 'partition_id'] [FINAL]``."
+        )
+        self._require_name(expr.table, "OPTIMIZE TABLE", detail)
+        self._require_optional_name(expr.partition_id, "OPTIMIZE TABLE", detail)
+        if not isinstance(expr.final, bool):
+            raise UnsupportedFeatureError(
+                self.name, "OPTIMIZE TABLE ... FINAL", detail
+            )
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        parts = [f"OPTIMIZE TABLE {table_sql}"]
+        if expr.partition_id is not None:
+            parts.append(f"PARTITION ID {self.format_literal(expr.partition_id)}")
+        if expr.final:
+            parts.append("FINAL")
+        return " ".join(parts), ()
+
+    # ------------------------------------------------------------------
+    # Helpers shared by the statements above
+    # ------------------------------------------------------------------
+
+    def _partition_table_sql(self, table: str, schema: Optional[str]) -> str:
+        """Render a table name with the database in ClickHouse's catalog slot."""
+        from rhosocial.activerecord.backend.expression.objects import Table
+
+        table_sql, _params = self.format_table_object(
+            Table(self, table, catalog_name=schema)
+        )
+        return table_sql
+
+    def _partition_expression(self, partition_id: str) -> str:
+        """Render the partition-id form of ``partition_expr``."""
+        return f"PARTITION ID {self.format_literal(partition_id)}"
+
+    def _require_partition_target(self, expr, feature: str, detail: str) -> None:
+        """Require a non-empty table and partition id on *expr*."""
+        self._require_name(expr.table, feature, detail)
+        if (
+            expr.partition_id is None
+            or not isinstance(expr.partition_id, str)
+            or not expr.partition_id.strip()
+        ):
+            raise UnsupportedFeatureError(self.name, feature, detail)
+
+    def _require_name(self, value, feature: str, detail: str) -> None:
+        """Require a non-empty string; the statement cannot be aimed without it."""
+        if not isinstance(value, str) or not value.strip():
+            raise UnsupportedFeatureError(self.name, feature, detail)
+
+    def _require_optional_name(self, value, feature: str, detail: str) -> None:
+        """Allow ``None``, but refuse a present value that is not a non-empty string."""
+        if value is None:
+            return
+        self._require_name(value, feature, detail)
+
+    def _partition_kind(self, value, feature: str, detail: str) -> str:
+        """Normalise a keyword, or return ``""`` for a non-string value."""
+        if not isinstance(value, str):
+            return ""
+        return value.strip().upper()
