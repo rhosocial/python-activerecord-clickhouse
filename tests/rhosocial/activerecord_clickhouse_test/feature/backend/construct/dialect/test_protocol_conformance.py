@@ -94,6 +94,11 @@ CLICKHOUSE_PROTOCOLS = [
     # CREATE TABLE layout: ClickHouse inlines both indexes and comments, so the
     # dialect answers "single" via its layout suggestion mixin.
     suggestion_protocols.CreateTableLayoutSuggestionSupport,
+    # Generated values: ClickHouse has no server-side identity clause, but its
+    # integer keys carry client-generated snowflake ids in the plain Int64
+    # storage type. The mixin reports that as "embedded-in-type", so the
+    # dialect answers the suggestion protocol with a no-clause DDL decision.
+    suggestion_protocols.GeneratedValueSuggestionSupport,
     dialect_protocols.QualifyClauseSupport,
     dialect_protocols.TemporalTableSupport,
     dialect_protocols.UpsertSupport,
@@ -244,9 +249,6 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
     # generates primary keys client-side (snowflake Int64), so no integer
     # column value is assigned by the database on INSERT.
     dialect_protocols.DatabaseAssignedColumnSupport,
-    # No generated-value suggestion either: a generated key is a
-    # client-side snowflake Int64, never a server-assigned column value.
-    suggestion_protocols.GeneratedValueSuggestionSupport,
     # Every ClickHouse DDL statement auto-commits, so DDL cannot participate in
     # a surrounding transaction and the dialect has no atomicity to report.
     dialect_protocols.TransactionalDDLSupport,
