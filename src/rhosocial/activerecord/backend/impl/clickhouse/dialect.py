@@ -650,8 +650,12 @@ class ClickHouseDialect(
 
         return ModifyColumnAction(self, column=new_col)
 
-    def supports_alter_column_properties(self) -> bool:
-        """No ``ALTER COLUMN SET/DROP DEFAULT`` / ``SET/DROP NOT NULL`` in ClickHouse."""
+    def supports_alter_column_default(self) -> bool:
+        """ClickHouse spells defaults ``ALTER COLUMN c DEFAULT expr`` / ``MODIFY COLUMN c REMOVE DEFAULT``."""
+        return True
+
+    def supports_alter_column_nullability(self) -> bool:
+        """ClickHouse has no ``SET/DROP NOT NULL`` clause; nullability is a type (``Nullable(T)``)."""
         return False
 
     def supports_alter_table_index_actions(self) -> bool:
