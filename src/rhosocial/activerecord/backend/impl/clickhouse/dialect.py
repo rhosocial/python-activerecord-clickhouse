@@ -127,6 +127,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
 )
 from rhosocial.activerecord.backend.suggestion.protocols import (
     ColumnTypeSuggestionSupport,
+    CreateTableLayoutSuggestionSupport,
     DataTypeSuggestionSupport,
     StringConcatenationSuggestionSupport,
 )
@@ -208,6 +209,7 @@ from .mixins import (
     ClickHouseLiteralValueMixin,
 )
 from .suggestion import (
+    ClickHouseCreateTableLayoutSuggestionMixin,
     ClickHouseStringConcatenationSuggestionMixin,
     ClickHousePartitionAddSuggestionMixin,
     ClickHousePartitionBuildSuggestionMixin,
@@ -231,7 +233,9 @@ class ClickHouseDialect(
     # Backend suggestions first: no core mixin may shadow their answers. The
     # eight partition-suggestion mixins are the sole owners of ClickHouse's
     # ``suggest_partition_*`` "how" answers (one per lifecycle point, mirroring
-    # the firebird/sqlite suggestion package layout).
+    # the firebird/sqlite suggestion package layout). The layout mixin reads
+    # the same capability switches the table mixin answers further down.
+    ClickHouseCreateTableLayoutSuggestionMixin,
     ClickHouseStringConcatenationSuggestionMixin,
     ClickHousePartitionBuildSuggestionMixin,
     ClickHousePartitionTableDropSuggestionMixin,
@@ -482,6 +486,7 @@ class ClickHouseDialect(
     # Suggestion protocols moved to backend.suggestion.protocols in core.
     DataTypeSuggestionSupport,
     ColumnTypeSuggestionSupport,
+    CreateTableLayoutSuggestionSupport,
     StringConcatenationSuggestionSupport,
     # Named objects. Each object protocol names the ``format_<kind>_object``
     # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they

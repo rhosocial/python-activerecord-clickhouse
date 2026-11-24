@@ -12,7 +12,10 @@ suggestion package. Shared plan-reading helpers and their common base live in
 """
 
 from ._common import ClickHousePartitionSuggestionBase
-from .general_suggestions import ClickHouseStringConcatenationSuggestionMixin
+from .general_suggestions import (
+    ClickHouseCreateTableLayoutSuggestionMixin,
+    ClickHouseStringConcatenationSuggestionMixin,
+)
 from .partition_add_suggestion import ClickHousePartitionAddSuggestionMixin
 from .partition_build_suggestion import ClickHousePartitionBuildSuggestionMixin
 from .partition_drop_suggestion import ClickHousePartitionDropSuggestionMixin
@@ -24,6 +27,7 @@ from .partition_table_drop_suggestion import ClickHousePartitionTableDropSuggest
 
 __all__ = [
     "ClickHousePartitionSuggestionBase",
+    "ClickHouseCreateTableLayoutSuggestionMixin",
     "ClickHouseStringConcatenationSuggestionMixin",
     "ClickHousePartitionAddSuggestionMixin",
     "ClickHousePartitionBuildSuggestionMixin",

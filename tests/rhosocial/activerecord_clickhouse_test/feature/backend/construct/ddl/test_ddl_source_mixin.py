@@ -39,8 +39,8 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
 from rhosocial.activerecord.base import (
     CollationAttribute,
     DDLAnnotationHandler,
-    DDLSource,
     IdentityAttribute,
+    ModelDDLDeclaration,
     UseColumn,
     UseColumnAttributes,
     UseComment,
@@ -329,7 +329,7 @@ PLAIN_MODEL_CLASSES = (PlainModel, AsyncPlainModel)
 
 
 def _assert_declaration_model(model):
-    assert isinstance(model, DDLSource)
+    assert isinstance(model, ModelDDLDeclaration)
     assert model.table_name().startswith("ddl_source_declarations")
     assert model.schema_name() == "analytics"
     assert model.primary_key_columns() == ("record_id",)
@@ -482,7 +482,7 @@ def _assert_batch_interfaces(model):
 
 
 def _assert_plain_defaults(model):
-    assert isinstance(model, DDLSource)
+    assert isinstance(model, ModelDDLDeclaration)
     assert model.ddl_field_names() == ("id", "value")
     assert model.column_data_type("value") is None
     assert model.column_type("value") is None

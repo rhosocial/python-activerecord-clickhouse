@@ -91,6 +91,9 @@ CLICKHOUSE_PROTOCOLS = [
     suggestion_protocols.PartitionSplitSuggestionSupport,
     suggestion_protocols.PartitionMergeSuggestionSupport,
     suggestion_protocols.PartitionRetentionSuggestionSupport,
+    # CREATE TABLE layout: ClickHouse inlines both indexes and comments, so the
+    # dialect answers "single" via its layout suggestion mixin.
+    suggestion_protocols.CreateTableLayoutSuggestionSupport,
     dialect_protocols.QualifyClauseSupport,
     dialect_protocols.TemporalTableSupport,
     dialect_protocols.UpsertSupport,
