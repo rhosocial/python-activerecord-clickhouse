@@ -2,6 +2,7 @@
 from enum import Enum
 from typing import Tuple
 
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 
@@ -66,6 +67,53 @@ class ClickHouseDDLColumnMixin:
         :meth:`ClickHouseConstraintMixin.supports_drop_constraint`.
         """
         return True
+
+    def format_drop_table_constraint_action(self, expr) -> Tuple[str, tuple]:
+        """Refuse a kind-based drop; ClickHouse drops a constraint by name.
+
+        There is exactly one ``DROP`` spelling for a constraint here --
+        ``ALTER TABLE [db.]name [ON CLUSTER cluster] DROP CONSTRAINT
+        [IF EXISTS] constraint_name``, the official page the switch above
+        quotes. ClickHouse has no ``DROP PRIMARY KEY`` / ``DROP UNIQUE
+        (<cols>)`` / ``DROP FOREIGN KEY (<cols>)``: those thirds are the
+        ``Expected one of: CHECK, ASSUME`` Code 62 the constraint mixin
+        records, and the primary key is an engine parameter rather than a
+        constraint. A constraint is reached again only by the name
+        ``system.constraints`` keys it by, so a declaration is not an
+        address on this backend even when it names the one kind that exists.
+
+        So an action that *carries* a declaration is refused by name instead
+        of falling back to the name beside it: a caller who asked to drop by
+        kind asked for a statement ClickHouse does not parse, and answering
+        with a different statement would hide that. This is the reason
+        ``supports_drop_constraint_by_kind()`` stays ``False`` here rather
+        than being left to core's default.
+
+        The name form is not re-spelled: it delegates to core, which renders
+        ``DROP CONSTRAINT [IF EXISTS] <name>`` and gates ``IF EXISTS`` on
+        ``supports_drop_constraint_if_exists`` (asserted in
+        ``test_constraint_capabilities`` as the guard against splicing a
+        second ``IF EXISTS``).
+
+        Args:
+            expr: The action carrying a name, a declaration, or both.
+
+        Returns:
+            The core name-form ``(sql, params)`` tuple when no declaration is
+            present.
+
+        Raises:
+            UnsupportedFeatureError: When the action carries a ``constraint``
+                declaration, naming ``DROP CONSTRAINT by kind``.
+        """
+        if expr.constraint is not None:
+            raise UnsupportedFeatureError(
+                self.name,
+                "DROP CONSTRAINT by kind",
+                f"{self.name} drops a constraint by name only; address the "
+                f"constraint by name instead of by its declaration.",
+            )
+        return super().format_drop_table_constraint_action(expr)
 
     def supports_generated_columns(self) -> bool:
         """Whether generated columns are supported (alias for protocol)."""

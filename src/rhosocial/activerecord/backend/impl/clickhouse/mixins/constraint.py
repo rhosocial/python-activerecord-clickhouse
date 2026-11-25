@@ -807,6 +807,36 @@ class ClickHouseConstraintMixin:
         """
         return True
 
+    def supports_drop_constraint_by_kind(self) -> bool:
+        """False: there is no kind-based ``DROP``; a constraint drops by name.
+
+        ClickHouse 26.7.3.19 accepts exactly one spelling -- ``ALTER TABLE ...
+        DROP CONSTRAINT [IF EXISTS] <name>``, the one
+        :meth:`supports_drop_constraint` measured. The SQL kinds that other
+        dialects spell the drop by are not in this grammar::
+
+            ALTER TABLE probe_t DROP CONSTRAINT pk1 PRIMARY KEY
+            ALTER TABLE probe_t DROP CONSTRAINT uq1 UNIQUE (id)
+            ALTER TABLE probe_t DROP CONSTRAINT fk1 FOREIGN KEY (id)
+            -> Code: 62. DB::Exception: Syntax error: ... Expected one of:
+               CHECK, ASSUME. (SYNTAX_ERROR)
+
+        and ``DROP PRIMARY KEY`` has nothing to drop even if it parsed: the
+        primary key is an ``ENGINE = MergeTree PRIMARY KEY`` parameter, not a
+        constraint, so ``system.constraints`` holds none of it.
+
+        Declared here rather than inherited from core's ``False`` default so
+        the answer is this backend's own, like every other switch in this
+        mixin. The renderer refuses a declaration, with or without a name
+        beside it; see
+        :meth:`ClickHouseDDLColumnMixin.format_drop_table_constraint_action`.
+
+        The probe takes no argument (pattern 1): a probe answers whether the
+        capability family is present, and the kind is not part of that
+        question.
+        """
+        return False
+
     def supports_alter_constraint(self) -> bool:
         """False: SQL's ``ALTER CONSTRAINT`` verb is not in ClickHouse's grammar.
 

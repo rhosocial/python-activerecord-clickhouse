@@ -138,6 +138,13 @@ MEASURED_SWITCHES = (
     ("supports_add_constraint", True),
     ("supports_drop_constraint", True),
     ("supports_drop_constraint_if_exists", True),
+    # The kind-based spellings other dialects use (DROP PRIMARY KEY / DROP
+    # UNIQUE (<cols>) / DROP FOREIGN KEY (<cols>) / DROP CONSTRAINT ... BY
+    # KIND) are the same Code 62 the parser answers with ``Expected one of:
+    # CHECK, ASSUME``. A constraint is reached only by the name
+    # ``system.constraints`` keys it by, so the answer is False and the
+    # renderer refuses a declaration rather than inventing a spelling.
+    ("supports_drop_constraint_by_kind", False),
     ("supports_alter_constraint", False),
     ("supports_alter_constraint_enforced", False),
     ("supports_validate_constraint", False),
@@ -432,7 +439,13 @@ class TestConstraintsAreTableLevelOnly:
 
 
 class TestDropConstraintRenders:
-    """The one ALTER-side operation whose renderer this backend re-spells."""
+    """The one ALTER-side operation that carries both an address and a gate.
+
+    The name form is rendered by core and is delegated to here; what this
+    backend adds is a refusal for the declaration address (see
+    :meth:`test_drop_by_kind_is_refused_by_name`). ``IF EXISTS`` is core's as
+    well, gated on the switch this backend declares.
+    """
 
     def test_drop_constraint_renders(self):
         d = _dialect()
@@ -464,6 +477,40 @@ class TestDropConstraintRenders:
         assert (
             DropTableConstraintAction(d, "ck", if_exists=True).to_sql()[0]
             == "DROP CONSTRAINT IF EXISTS `ck`"
+        )
+
+    def test_drop_by_kind_is_refused_by_name(self):
+        """A declaration is not an address on this backend, name or no name.
+
+        Measured grammar: ``DROP CONSTRAINT [IF EXISTS] <name>`` is the only
+        spelling, and the kind-based drops other dialects use (``DROP PRIMARY
+        KEY`` / ``DROP UNIQUE (<cols>)`` / ``DROP FOREIGN KEY (<cols>)``) are
+        the Code 62 whose expected-token list is ``CHECK, ASSUME``. So an
+        action that carries a ``constraint`` declaration is refused by name
+        here -- including when a name is present beside it, because answering
+        with the name form would silently replace a statement the caller asked
+        for with one it did not.
+        """
+        d = _dialect()
+        assert d.supports_drop_constraint_by_kind() is False
+
+        declaration = _check(d)
+
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            DropTableConstraintAction(d, constraint=declaration).to_sql()
+        assert "DROP CONSTRAINT by kind" in str(excinfo.value)
+        assert excinfo.value.feature_name == "DROP CONSTRAINT by kind"
+
+        with pytest.raises(UnsupportedFeatureError) as excinfo:
+            DropTableConstraintAction(d, "ck", constraint=declaration).to_sql()
+        assert "DROP CONSTRAINT by kind" in str(excinfo.value)
+        assert excinfo.value.feature_name == "DROP CONSTRAINT by kind"
+
+        # The refusal is about the declaration being present, not about its
+        # kind: the name form above is untouched, so the gate did not widen.
+        assert (
+            DropTableConstraintAction(d, "ck").to_sql()[0]
+            == "DROP CONSTRAINT `ck`"
         )
 
 
