@@ -709,10 +709,11 @@ def register_specials():
     # ``constraint`` are optional, which leaves the introspective constructor
     # with neither -- and an action with no address refuses in ``to_sql()``
     # (ValueError), which the matrix counts as a defect rather than a
-    # non-render. A name is the only address ClickHouse drops by; the
-    # declaration form is refused by
-    # ClickHouseDDLColumnMixin.format_drop_table_constraint_action and is
-    # pinned in ``test_constraint_capabilities``.
+    # non-render. A name is the only address ClickHouse drops by; a
+    # declaration-only action is refused by
+    # ClickHouseDDLColumnMixin.format_drop_table_constraint_action (kind
+    # address), and a disagreeing declaration as ambiguous; both are pinned in
+    # ``test_constraint_capabilities``.
     register_special_constructor(
         "statements.ddl_alter.DropTableConstraintAction",
         lambda d: DropTableConstraintAction(d, "ck"),

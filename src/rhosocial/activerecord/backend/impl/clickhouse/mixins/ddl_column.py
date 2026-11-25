@@ -2,7 +2,6 @@
 from enum import Enum
 from typing import Tuple
 
-from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 
@@ -82,12 +81,31 @@ class ClickHouseDDLColumnMixin:
         ``system.constraints`` keys it by, so a declaration is not an
         address on this backend even when it names the one kind that exists.
 
-        So an action that *carries* a declaration is refused by name instead
-        of falling back to the name beside it: a caller who asked to drop by
-        kind asked for a statement ClickHouse does not parse, and answering
-        with a different statement would hide that. This is the reason
-        ``supports_drop_constraint_by_kind()`` stays ``False`` here rather
-        than being left to core's default.
+        Which of the two addresses an action names is decided by core's
+        :meth:`ConstraintMixin._resolve_drop_constraint_address`, not by a
+        preference local to this formatter, so one action cannot mean different
+        constraints in different dialects:
+
+        * a name alone -- or a declaration that repeats it -- is a **name**
+          address and renders ``DROP CONSTRAINT [IF EXISTS] <name>``. The
+          declaration adds no second address when its name equals
+          ``constraint_name``; it merely confirms it.
+        * a declaration alone is a **kind** address, and because
+          ``supports_drop_constraint_by_kind()`` stays ``False`` here (rather
+          than being left to core's default), core refuses it with
+          ``UnsupportedFeatureError`` naming ``DROP CONSTRAINT by kind``.
+        * a name beside a declaration that carries a different name, or none,
+          is an **ambiguous address**: the two disagree, and core refuses it
+          with ``UnsupportedFeatureError`` naming ``DROP CONSTRAINT address``
+          instead of picking one.
+        * neither is a ``ValueError`` from the resolver.
+
+        Nothing here is spelled for the kind branch: ClickHouse has exactly one
+        constraint-drop grammar, so a kind address is a gap this mixin must
+        state rather than a statement it can render. The ``"kind"`` check after
+        the resolver is therefore unreachable while the probe above stays
+        ``False``, and it exists so an override that flips the probe fails
+        loudly here instead of silently delegating a name form.
 
         The name form is not re-spelled: it delegates to core, which renders
         ``DROP CONSTRAINT [IF EXISTS] <name>`` and gates ``IF EXISTS`` on
@@ -99,19 +117,23 @@ class ClickHouseDDLColumnMixin:
             expr: The action carrying a name, a declaration, or both.
 
         Returns:
-            The core name-form ``(sql, params)`` tuple when no declaration is
-            present.
+            The core name-form ``(sql, params)`` tuple when the resolved address
+            is the name.
 
         Raises:
-            UnsupportedFeatureError: When the action carries a ``constraint``
-                declaration, naming ``DROP CONSTRAINT by kind``.
+            NotImplementedError: When the resolved address is the declaration's
+                kind -- a spelling this mixin does not have.
+            UnsupportedFeatureError: From the resolver, when the action is
+                declaration-only (``DROP CONSTRAINT by kind``) or carries an
+                ambiguous pair of addresses (``DROP CONSTRAINT address``).
+            ValueError: From the resolver, when neither address is given.
         """
-        if expr.constraint is not None:
-            raise UnsupportedFeatureError(
-                self.name,
-                "DROP CONSTRAINT by kind",
-                f"{self.name} drops a constraint by name only; address the "
-                f"constraint by name instead of by its declaration.",
+        address = self._resolve_drop_constraint_address(expr)
+        if address != "name":
+            raise NotImplementedError(
+                f"{self.name} drops a constraint by name only; "
+                f"_resolve_drop_constraint_address answered {address!r}, which "
+                f"this mixin has no spelling for."
             )
         return super().format_drop_table_constraint_action(expr)
 

@@ -827,8 +827,11 @@ class ClickHouseConstraintMixin:
 
         Declared here rather than inherited from core's ``False`` default so
         the answer is this backend's own, like every other switch in this
-        mixin. The renderer refuses a declaration, with or without a name
-        beside it; see
+        mixin. The renderer resolves the address first: a declaration alone is
+        refused by this switch (``DROP CONSTRAINT by kind``), a declaration
+        beside a name only confirms it when it repeats that name, and a
+        differing or unnamed declaration is refused as an ambiguous address
+        (``DROP CONSTRAINT address``); see
         :meth:`ClickHouseDDLColumnMixin.format_drop_table_constraint_action`.
 
         The probe takes no argument (pattern 1): a probe answers whether the
