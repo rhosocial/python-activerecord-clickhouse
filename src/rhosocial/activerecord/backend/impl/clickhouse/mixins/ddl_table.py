@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     )
 
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    ColumnDefinition,
     ColumnNotNullConstraint,
     ColumnNullableConstraint,
     ColumnPrimaryKeyConstraint,
@@ -58,9 +59,10 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
     #: or less cannot hold it. ClickHouse's SQL path does not reject the
     #: overflow -- it truncates the value to the column's width -- so the
     #: mismatch is silent at write time and the row simply cannot be found by
-    #: its id afterwards. Widening the column is therefore part of rendering,
-    #: not a separate migration: values up to ``2**63-1`` are exactly what the
-    #: generator produces, and the signed/unsigned family is preserved.
+    #: its id afterwards. Widening the column is therefore part of projecting a
+    #: portable declaration into ``CREATE TABLE``, not a separate migration:
+    #: values up to ``2**63-1`` are exactly what the generator produces, and
+    #: the signed/unsigned family is preserved.
     _NARROW_KEY_TYPES = {
         "Int8": "Int64",
         "Int16": "Int64",
@@ -232,12 +234,17 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         widen_integers = len(primary_key_columns) == 1
         column_parts = []
         for col_def in expr.columns:
-            col_sql, col_params = self._render_column_definition(
+            # CREATE TABLE renders a *projection* of the portable column: the
+            # ClickHouse-only omissions / widening / nullability are applied to
+            # a new node here, not carried as flags into a shared renderer. The
+            # projected node is then rendered by ``format_column_definition``,
+            # the one formatter for this node kind.
+            projected = self._project_column_definition(
                 col_def,
-                omit_unenforceable=True,
                 key_columns=key_columns,
                 widen_integers=widen_integers,
             )
+            col_sql, col_params = self.format_column_definition(projected)
             column_parts.append(col_sql)
             all_params.extend(col_params)
 
@@ -471,132 +478,173 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         return " ".join(parts), ()
 
     def format_column_definition(self, expr: "ColumnDefinition") -> Tuple[str, tuple]:
-        """Format one ``ColumnDefinition`` node (one-to-one node renderer).
+        """The one renderer for ``ColumnDefinition`` -- no context flags.
 
-        The portable ``CREATE TABLE`` path additionally needs to drop / widen /
-        nullable-adjust column parts; it calls :meth:`_render_column_definition`
-        with those flags directly. Node dispatch and direct callers reach this
-        method with a single ``expr``.
-        """
-        return self._render_column_definition(expr)
-
-    def _render_column_definition(
-        self,
-        col_def: "ColumnDefinition",
-        *,
-        omit_unenforceable: bool = False,
-        key_columns: Tuple[str, ...] = (),
-        widen_integers: bool = False,
-    ) -> Tuple[str, tuple]:
-        """Format a single column definition with ClickHouse-specific syntax.
+        Direct callers, node dispatch and the ``CREATE TABLE`` path all reach
+        this method with a single node. ``CREATE TABLE`` does not pass flags:
+        :meth:`_project_column_definition` applies the ClickHouse omissions /
+        widening / nullability to a new node first, so whatever reaches here
+        already says exactly what to render.
 
         Accepts both the generic ``ColumnDefinition`` and the ClickHouse
         ``ClickHouseColumnDefinition``; the latter's ClickHouse-only attributes
         (``codec`` / ``materialized`` / ``alias`` / ``ttl``) are rendered here.
 
-        ``omit_unenforceable`` is set by :meth:`format_create_table_statement`
-        when composing a statement from a portable declaration. It drops the
-        two markers this engine has nowhere to put -- ``AUTO_INCREMENT`` (the
-        value is generated client-side, and core never renders the flag) and
-        ``UNIQUE`` (no engine enforces uniqueness at write time) -- instead of
-        refusing the whole table, widens a narrower-than-64-bit auto-generated
-        key so it can hold the generated id (see :attr:`_NARROW_KEY_TYPES`), and
-        makes a column nullable when the declaration does not say ``NOT NULL``
-        and the column is not part of the key. The last step is what an
-        ordinary SQL column means: a declaration that omits ``NOT NULL``
-        accepts the null, while ClickHouse's plain types do not -- they coerce
-        ``NULL`` to the type's default and read back a value, so an optional
-        field would silently become ``''`` / ``0``. ``Nullable(T)`` is the only
-        spelling that round-trips it. Array / Map / Tuple columns are left
-        alone (the server refuses ``Nullable`` around them), and
-        ``LowCardinality`` is wrapped from the inside. Direct calls keep the
-        strict behaviour.
-
-        ``widen_integers`` widens the table's other integer columns to 64 bits
-        alongside its auto-generated key. The declaration says "integer", not
-        "reference to a 64-bit key", so a column such as ``comments.post_ref``
-        would otherwise be 32 bits and truncate the key it stores (the SQL
-        path does not reject the overflow). ClickHouse's own fixtures pair
-        ``id Int64`` with ``user_id Int64`` for exactly this reason. A table
-        whose key is not auto-generated keeps the declared widths, so the
-        width-sensitive type tests are unaffected.
-
         Raises:
-            TypeError: ``col_def.data_type`` is not a DataType. The generic
-                constructor already refuses one, but ``ClickHouseColumnDefinition``
-                binds its type differently and a ``str`` reaching here would
-                render as a column of that literal text.
+            TypeError: ``expr.data_type`` is not a DataType. The generic
+                constructor already refuses one, but a caller may assign a
+                ``str`` to the field afterwards and that would otherwise
+                render as a column of literal text.
         """
-        if not isinstance(col_def.data_type, DataType):
+        if not isinstance(expr.data_type, DataType):
             raise TypeError(
-                f"{type(col_def).__name__}.data_type must be a DataType, "
-                f"got {type(col_def.data_type).__name__}"
+                f"{type(expr).__name__}.data_type must be a DataType, "
+                f"got {type(expr.data_type).__name__}"
             )
         from rhosocial.activerecord.backend.impl.clickhouse.expression.column import (
             ClickHouseColumnDefinition,
         )
 
-        type_sql, type_params = col_def.data_type.to_sql()
-        if omit_unenforceable:
-            if widen_integers:
-                type_sql = self._NARROW_KEY_TYPES.get(type_sql, type_sql)
-            if (
-                col_def.name not in key_columns
-                and not self._declares_not_null(col_def)
-            ):
-                type_sql = self._nullable_type_sql(type_sql)
-        parts = [self.format_identifier(col_def.name), type_sql]
+        type_sql, type_params = expr.data_type.to_sql()
+        parts = [self.format_identifier(expr.name), type_sql]
         params: List[Any] = list(type_params)
 
-        for constraint in col_def.constraints:
-            if omit_unenforceable and isinstance(
-                constraint.branch, ColumnUniqueConstraint
-            ):
-                continue
-            if omit_unenforceable and isinstance(
-                constraint.branch, (ColumnNotNullConstraint, ColumnNullableConstraint)
-            ):
-                # Nullability is part of the type on ClickHouse, never a text
-                # modifier. Emitting ``NULL``/``NOT NULL`` beside a ``Nullable(T)``
-                # column is rejected (Code 377, "Can't use [NOT] NULL modifier
-                # with Nullable type"), and beside a PRIMARY KEY column the
-                # parser refuses ``NOT NULL`` after ``PRIMARY KEY`` (Code 62).
-                # The portable renderer above already wraps optional columns in
-                # ``Nullable(...)`` and leaves keys / declared-NOT-NULL columns
-                # plain, so the modifier is redundant: drop it here.
-                continue
+        for constraint in expr.constraints:
             suffix, cp = self.format_column_constraint(constraint)
             constraint_text = suffix.strip()
             if constraint_text:
                 parts.append(constraint_text)
             params.extend(list(cp))
 
-        attr_sql, attr_params = self.format_column_attributes(col_def)
+        attr_sql, attr_params = self.format_column_attributes(expr)
         if attr_sql:
             parts.append(attr_sql.strip())
         params.extend(attr_params)
 
-        if isinstance(col_def, ClickHouseColumnDefinition):
-            if col_def.materialized is not None:
-                mat_sql, mat_params = col_def.materialized.to_sql()
+        if isinstance(expr, ClickHouseColumnDefinition):
+            if expr.materialized is not None:
+                mat_sql, mat_params = expr.materialized.to_sql()
                 parts.append(f"MATERIALIZED {mat_sql}")
                 params.extend(mat_params)
-            if col_def.alias is not None:
-                alias_sql, alias_params = col_def.alias.to_sql()
+            if expr.alias is not None:
+                alias_sql, alias_params = expr.alias.to_sql()
                 parts.append(f"ALIAS {alias_sql}")
                 params.extend(alias_params)
-            if col_def.codec:
-                parts.append(f"CODEC({', '.join(col_def.codec)})")
-            if col_def.ttl is not None:
-                ttl_sql, ttl_params = col_def.ttl.to_sql()
+            if expr.codec:
+                parts.append(f"CODEC({', '.join(expr.codec)})")
+            if expr.ttl is not None:
+                ttl_sql, ttl_params = expr.ttl.to_sql()
                 parts.append(f"TTL {ttl_sql}")
                 params.extend(ttl_params)
 
-        if col_def.comment is not None:
-            comment_sql, _ = self.format_column_comment_clause(col_def.comment)
+        if expr.comment is not None:
+            comment_sql, _ = self.format_column_comment_clause(expr.comment)
             parts.append(comment_sql.strip())
 
         return " ".join(parts), tuple(params)
+
+    def _project_column_definition(
+        self,
+        col_def: "ColumnDefinition",
+        *,
+        key_columns: Tuple[str, ...],
+        widen_integers: bool,
+    ) -> "ColumnDefinition":
+        """Project a portable column onto the one ``CREATE TABLE`` can render.
+
+        This is the contextual step the renderer no longer carries. It returns
+        a **new node** (never SQL): a ``ColumnDefinition`` with the same name,
+        comment, attributes and ClickHouse extras, but with constraints the
+        engine cannot honour removed and an adjusted ``data_type``. No SQL is
+        stored on the node -- the widened / nullable type is built from the
+        existing ClickHouse type classes, using the same rendered-type
+        decisions the renderer used when these flags lived on it:
+
+        * ``UNIQUE`` is dropped (no engine enforces it at write time);
+        * ``NOT NULL`` / ``NULL`` are dropped because nullability is spelled in
+          the type on ClickHouse, and a plain type coerces ``NULL`` to a
+          default. An optional, non-key column therefore becomes
+          ``Nullable(T)``, left plain when the declaration said ``NOT NULL``
+          or the column is in the key;
+        * ``Array`` / ``Map`` / ``Tuple`` / ``Nullable`` cannot sit inside
+          ``Nullable`` and are left alone, while ``LowCardinality`` is wrapped
+          from the inside;
+        * with a single auto-generated integer key, narrow integer columns are
+          widened to 64 bits so they can hold the generated snowflake id.
+
+        Raises:
+            TypeError: ``col_def.data_type`` is not a DataType. Checked here as
+                well as in :meth:`format_column_definition` so the error names
+                the original node before it is rebuilt.
+        """
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.column import (
+            ClickHouseColumnDefinition,
+        )
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+            ClickHouseInt64Type,
+            ClickHouseLowCardinalityType,
+            ClickHouseNullableType,
+            ClickHouseUInt64Type,
+        )
+
+        if not isinstance(col_def.data_type, DataType):
+            raise TypeError(
+                f"{type(col_def).__name__}.data_type must be a DataType, "
+                f"got {type(col_def.data_type).__name__}"
+            )
+
+        type_sql = col_def.data_type.to_sql()[0]
+        dialect = getattr(col_def.data_type, "_dialect", None)
+
+        data_type = col_def.data_type
+        if widen_integers:
+            widened = self._NARROW_KEY_TYPES.get(type_sql)
+            if widened == "Int64":
+                data_type = ClickHouseInt64Type(dialect)
+            elif widened == "UInt64":
+                data_type = ClickHouseUInt64Type(dialect)
+
+        if col_def.name not in key_columns and not self._declares_not_null(col_def):
+            if type_sql.startswith("LowCardinality("):
+                data_type = ClickHouseLowCardinalityType(
+                    dialect,
+                    inner_type=ClickHouseNullableType(
+                        dialect, inner_type=data_type.inner_type
+                    ),
+                )
+            elif not type_sql.startswith(self._NON_NULLABLE_CONTAINER_PREFIXES):
+                data_type = ClickHouseNullableType(dialect, inner_type=data_type)
+
+        constraints = [
+            constraint
+            for constraint in col_def.constraints
+            if not isinstance(
+                constraint.branch,
+                (
+                    ColumnUniqueConstraint,
+                    ColumnNotNullConstraint,
+                    ColumnNullableConstraint,
+                ),
+            )
+        ]
+        common = {
+            "name": col_def.name,
+            "data_type": data_type,
+            "constraints": constraints,
+            "comment": col_def.comment,
+            "generated_expression": col_def.generated_expression,
+            "attributes": col_def.attributes,
+        }
+        if isinstance(col_def, ClickHouseColumnDefinition):
+            return ClickHouseColumnDefinition(
+                dialect,
+                **common,
+                codec=col_def.codec,
+                materialized=col_def.materialized,
+                alias=col_def.alias,
+                ttl=col_def.ttl,
+            )
+        return ColumnDefinition(dialect, **common)
 
     @staticmethod
     def _declared_key_columns(table_options: Any) -> List[str]:
@@ -635,22 +683,6 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             isinstance(constraint.branch, ColumnNotNullConstraint)
             for constraint in col_def.constraints
         )
-
-    @classmethod
-    def _nullable_type_sql(cls, type_sql: str) -> str:
-        """Wrap a rendered type in ``Nullable`` where the server allows it.
-
-        ``LowCardinality`` is the one family that must be wrapped from the
-        inside (``Nullable(LowCardinality(String))`` is ``Code: 43``,
-        ``LowCardinality(Nullable(String))`` is accepted); the container
-        families accept no wrapper at all.
-        """
-        if type_sql.startswith("LowCardinality("):
-            return f"LowCardinality(Nullable({type_sql[len('LowCardinality('):-1]}))"
-        if type_sql.startswith(cls._NON_NULLABLE_CONTAINER_PREFIXES):
-            return type_sql
-        return f"Nullable({type_sql})"
-
 
     def format_table_constraint(self, expr: "TableConstraint") -> Tuple[str, tuple]:
         """Format a table-level constraint, narrowing on the branch class.

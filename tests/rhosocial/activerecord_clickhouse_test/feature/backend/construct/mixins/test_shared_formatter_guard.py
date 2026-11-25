@@ -9,11 +9,13 @@ it and passed a ``verb``, so the node kind was never checked by the formatter
 that named it and the per-kind gate lived in the shared body. It has been
 inlined into the three formatters, each of which now validates its own node.
 
-A shared renderer is allowed only when it renders a *sub-node* that
-legitimately appears inside several statements (``ColumnDefinition`` inside
-``CREATE TABLE``), and only with a written reason in
-:data:`ALLOWED_SHARED_RENDERERS`. The list is asserted for equality against
-what the source contains, in both directions:
+There are no allowed exceptions now. ``ColumnDefinition`` used to be rendered
+by a helper shared between ``format_column_definition`` and
+``format_create_table_statement`` (which passed context flags). ``CREATE
+TABLE`` now builds a projected ``ColumnDefinition`` node with the ClickHouse
+omissions / widening / nullability already applied, and the single
+``format_column_definition`` renders it. The allow-list is therefore empty and
+is asserted equal to what the source contains, in both directions:
 
 * a new shared renderer fails, because it is not on the list;
 * a stale entry fails, because the method is no longer shared (or gone).
@@ -45,21 +47,11 @@ Renderer = Tuple[str, str, str]
 #: The private renderer prefixes this guard treats as statement renderers.
 _PRIVATE_RENDERER_PREFIXES = ("_render_", "_format_")
 
-#: The only shared renderers allowed, each with the reason it may be shared.
-ALLOWED_SHARED_RENDERERS: Dict[Renderer, str] = {
-    (
-        "ddl_table.py",
-        "ClickHouseTableMixin",
-        "_render_column_definition",
-    ): (
-        "Renders a sub-node, not a statement: ``ColumnDefinition`` is reused "
-        "inside ``CREATE TABLE``, while ``format_column_definition`` is its "
-        "one-to-one entry point. The argument's own kind is still validated "
-        "in the body, and no statement-kind gate moves into it -- the "
-        "``omit_unenforceable`` / ``widen_integers`` flags are CREATE TABLE "
-        "adaptation switches, not capability gates."
-    ),
-}
+#: Shared private renderers allowed. Empty: every public ``format_*`` owns its
+#: own renderer. In particular the old ``_render_column_definition`` is gone --
+#: ``CREATE TABLE`` now projects a plain ``ColumnDefinition`` node through
+#: ``_project_column_definition`` and calls the single formatter on it.
+ALLOWED_SHARED_RENDERERS: Dict[Renderer, str] = {}
 
 #: The public formatters the three partition-id statements dispatch to. Their
 #: private helper was the defect; this guard pins it stays inlined.
@@ -161,11 +153,18 @@ class TestSharedRendererAllowList:
         for verb, _cls in _PARTITION_ID_FORMATTERS:
             name = f"format_{verb.lower()}_partition_statement"
             assert name in seen, f"the scan did not see {name}"
-        assert (
-            "ddl_table.py",
-            "ClickHouseTableMixin",
-            "_render_column_definition",
-        ) in offenders, "the known allowed shared renderer was not detected"
+        for name in ("format_create_table_statement", "format_column_definition"):
+            assert name in seen, f"the scan did not see {name}"
+
+    def test_column_definition_is_projected_not_sharedly_rendered(self):
+        """The old shared renderer is gone and its replacement has one caller."""
+        source = (
+            Path(mixins_package.__file__).resolve().parent / "ddl_table.py"
+        ).read_text(encoding="utf-8")
+        assert "def _render_column_definition(" not in source
+        offenders, _seen = _scan_package()
+        assert not any(renderer[2] == "_render_column_definition" for renderer in offenders)
+        assert not any(renderer[2] == "_project_column_definition" for renderer in offenders)
 
     def test_no_partition_id_shared_renderer_remains(self):
         """``_format_partition_id_statement`` was the defect; it must stay gone."""
