@@ -36,9 +36,11 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
+    ClickHouseAddIndexStatement,
     ClickHouseAttachPartitionStatement,
     ClickHouseClearInPartitionStatement,
     ClickHouseDetachPartitionStatement,
+    ClickHouseDropIndexStatement,
     ClickHouseDropPartitionStatement,
     ClickHouseFreezePartitionStatement,
     ClickHouseIndexDefinition,
@@ -239,28 +241,214 @@ class TestTableConstraintChange:
 # -- Table index change -----------------------------------------------------
 
 
+def _index(dialect, name="idx", columns=None, type="minmax", granularity=4, **kwargs):
+    index = ClickHouseIndexDefinition(
+        dialect, name, columns if columns is not None else ["val"],
+        type=type, granularity=granularity,
+    )
+    # The inline ClickHouse definition does not declare core's statement flags
+    # in its own constructor; they arrive on the declaration from the model
+    # layer, so set them the same way here.
+    for flag, value in kwargs.items():
+        setattr(index, flag, value)
+    return index
+
+
+def _frozen(name="idx", type="minmax", granularity=4):
+    """A frozen index projection: the shape ``schema_change._freeze`` produces."""
+    return (
+        "params",
+        (
+            ("name", name),
+            ("columns", ("val",)),
+            ("type", type),
+            ("granularity", granularity),
+            ("unique", False),
+        ),
+    )
+
+
 class TestTableIndexChange:
-    def test_change_is_declined_and_no_change_has_no_answer(self, dialect):
-        changed = dialect.suggest_table_index_change(
-            TableIndexChangeSuggestion(
-                table_name="events", old_indexes=("old",), new_indexes=("new",)
-            )
-        )
-        assert changed.operations is False
-        assert changed.state == "unaddressable"
+    def test_no_change_has_no_answer(self, dialect):
         unchanged = dialect.suggest_table_index_change(
-            TableIndexChangeSuggestion(table_name="events", old_indexes=("i",), new_indexes=("i",))
+            TableIndexChangeSuggestion(
+                table_name="events", old_indexes=(_frozen(),), new_indexes=(_frozen(),)
+            )
         )
         assert unchanged.operations is None
         assert unchanged.state == "absent"
 
-    def test_evidence_skip_index_alter_exists_but_has_no_node(self, dialect):
-        """ALTER INDEX is real on ClickHouse; the missing piece is a node.
+    def test_add_renders_a_real_chain(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events",
+                old_indexes=(),
+                new_indexes=(_frozen(),),
+                new_index_declarations=(_index(dialect),),
+            )
+        )
+        operations = answer.operations
+        assert isinstance(operations, tuple) and len(operations) == 1
+        assert isinstance(operations[0], ClickHouseAddIndexStatement)
+        assert all(isinstance(node, BaseExpression) for node in operations)
+        assert _sql(operations) == [
+            "ALTER TABLE `events` ADD INDEX `idx` `val` TYPE minmax GRANULARITY 4"
+        ]
+        assert answer.state == "actions"
 
-        ``supports_index_if_not_exists`` / ``supports_index_if_exists`` are the
-        probes for the real skip-index commands, while the core ALTER INDEX
-        actions render MySQL's form and are gated off by this dialect. The only
-        index node here is the inline CREATE TABLE definition.
+    def test_drop_renders_if_exists(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events", old_indexes=(_frozen(),), new_indexes=()
+            )
+        )
+        operations = answer.operations
+        assert isinstance(operations, tuple) and len(operations) == 1
+        assert isinstance(operations[0], ClickHouseDropIndexStatement)
+        assert _sql(operations) == ["ALTER TABLE `events` DROP INDEX IF EXISTS `idx`"]
+
+    def test_changed_declaration_drops_then_adds(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events",
+                old_indexes=(_frozen(type="minmax", granularity=1),),
+                new_indexes=(_frozen(type="set", granularity=2),),
+                old_index_declarations=(_index(dialect, type="minmax", granularity=1),),
+                new_index_declarations=(_index(dialect, type="set", granularity=2),),
+            )
+        )
+        operations = answer.operations
+        assert isinstance(operations, tuple) and len(operations) == 2
+        assert _sql(operations) == [
+            "ALTER TABLE `events` DROP INDEX IF EXISTS `idx`",
+            "ALTER TABLE `events` ADD INDEX `idx` `val` TYPE set GRANULARITY 2",
+        ]
+
+    def test_declaration_if_not_exists_reaches_the_sql(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events",
+                old_indexes=(),
+                new_indexes=(_frozen(),),
+                new_index_declarations=(_index(dialect, if_not_exists=True),),
+            )
+        )
+        operations = answer.operations
+        assert isinstance(operations, tuple)
+        assert _sql(operations) == [
+            "ALTER TABLE `events` ADD INDEX IF NOT EXISTS `idx` `val` "
+            "TYPE minmax GRANULARITY 4"
+        ]
+
+    @pytest.mark.parametrize("declaration", ["frozen-only", "unique", "no-type"])
+    def test_unexpressible_add_is_declined_without_a_partial_chain(
+        self, dialect, declaration
+    ):
+        if declaration == "frozen-only":
+            decls = ()  # a frozen projection carries no body to rebuild
+        elif declaration == "unique":
+            from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+                IndexDefinition,
+            )
+
+            decls = (IndexDefinition(dialect, "idx", ["val"], unique=True, type="minmax"),)
+        else:
+            decls = (_index(dialect, type=None),)
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events",
+                old_indexes=(_frozen("old"),),
+                new_indexes=(_frozen("idx"),),
+                new_index_declarations=decls,
+            )
+        )
+        assert answer.operations is False
+        assert not isinstance(answer.operations, tuple)
+
+    def test_multi_column_declaration_is_declined(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events",
+                old_indexes=(),
+                new_indexes=(_frozen(),),
+                new_index_declarations=(_index(dialect, columns=["a", "b"]),),
+            )
+        )
+        assert answer.operations is False
+
+    def test_missing_table_is_declined(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                old_indexes=(),
+                new_indexes=(_frozen(),),
+                new_index_declarations=(_index(dialect),),
+            )
+        )
+        assert answer.operations is False
+
+    def test_unnamed_index_is_declined(self, dialect):
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events", old_indexes=("old",), new_indexes=("new",)
+            )
+        )
+        assert answer.operations is False
+
+    @pytest.mark.parametrize(
+        "probe",
+        [
+            "supports_create_index",
+            "supports_drop_index",
+            "supports_index_if_not_exists",
+        ],
+    )
+    def test_each_operation_is_gated_by_its_probe(self, dialect, monkeypatch, probe):
+        point = TableIndexChangeSuggestion(
+            table_name="events",
+            old_indexes=(_frozen("old"),),
+            new_indexes=(_frozen("idx"),),
+            old_index_declarations=(_index(dialect, name="old"),),
+            new_index_declarations=(_index(dialect, if_not_exists=True),),
+        )
+        assert isinstance(dialect.suggest_table_index_change(point).operations, tuple)
+        monkeypatch.setattr(dialect, probe, lambda: False)
+        assert dialect.suggest_table_index_change(point).operations is False
+
+    def test_drop_degrades_to_plain_form_when_if_exists_is_absent(self, dialect, monkeypatch):
+        monkeypatch.setattr(dialect, "supports_index_if_exists", lambda: False)
+        answer = dialect.suggest_table_index_change(
+            TableIndexChangeSuggestion(
+                table_name="events", old_indexes=(_frozen(),), new_indexes=()
+            )
+        )
+        assert _sql(answer.operations) == ["ALTER TABLE `events` DROP INDEX `idx`"]
+
+    def test_no_returned_chain_destroys_or_moves_data(self, dialect):
+        """The index chain touches metadata only: no table drop, no data move."""
+        point = TableIndexChangeSuggestion(
+            table_name="events",
+            old_indexes=(_frozen("old"),),
+            new_indexes=(_frozen("idx"),),
+            old_index_declarations=(_index(dialect, name="old"),),
+            new_index_declarations=(_index(dialect),),
+        )
+        operations = dialect.suggest_table_index_change(point).operations
+        assert isinstance(operations, tuple) and operations
+        for sql in _sql(operations):
+            upper = sql.upper()
+            assert not any(
+                verb in upper
+                for verb in (
+                    "DROP TABLE", "DROP SCHEMA", "DROP DATABASE",
+                    "REPLACE PARTITION", "MOVE PARTITION", "DELETE FROM", "INSERT INTO",
+                )
+            ), sql
+
+    def test_evidence_skip_index_alter_has_its_own_nodes(self, dialect):
+        """The probes are True, and the proprietary nodes render that spelling.
+
+        Core's ``AddIndexAction`` still renders MySQL's form and stays gated
+        off; the inline definition keeps its CREATE TABLE shape.
         """
         assert dialect.supports_index_if_not_exists() is True
         assert dialect.supports_index_if_exists() is True
@@ -269,6 +457,9 @@ class TestTableIndexChange:
         assert index.to_sql()[0] == "INDEX `idx` (`a`) TYPE minmax GRANULARITY 4"
         with pytest.raises(UnsupportedFeatureError, match="ALTER TABLE ADD INDEX"):
             AddIndexAction(dialect, index).to_sql()
+        assert _index(dialect).to_sql()[0] == (
+            "INDEX `idx` (`val`) TYPE minmax GRANULARITY 4"
+        )
 
 
 # -- Partition scheme change ------------------------------------------------
