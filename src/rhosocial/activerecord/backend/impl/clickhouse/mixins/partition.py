@@ -227,54 +227,99 @@ class ClickHousePartitionMixin:
     ) -> Tuple[str, tuple]:
         """Render ``ALTER TABLE ... DROP PARTITION ID '<id>'``.
 
+        The id is an inline literal rather than a bind parameter because an
+        ``ALTER`` clause is DDL-shaped: the partition id is chosen by the
+        caller, not derived from a column value, so there is no query-planning
+        benefit in parameterising it.
+
         Raises:
+            TypeError: if ``expr`` is not a ``ClickHouseDropPartitionStatement``.
             UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        return self._format_partition_id_statement(expr, "DROP")
+        from ..expression.partition import ClickHouseDropPartitionStatement
+
+        if not isinstance(expr, ClickHouseDropPartitionStatement):
+            raise TypeError(
+                "format_drop_partition_statement expects a "
+                "ClickHouseDropPartitionStatement, "
+                f"got {type(expr).__name__}"
+            )
+        partition_id = expr.partition_id
+        if not isinstance(partition_id, str) or not partition_id.strip():
+            raise UnsupportedFeatureError(
+                self.name, "DROP PARTITION", _PARTITION_ALTERNATIVES
+            )
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        return (
+            f"ALTER TABLE {table_sql} DROP "
+            f"{self._partition_expression(partition_id)}",
+            (),
+        )
 
     def format_detach_partition_statement(
         self, expr: "ClickHouseDetachPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Render ``ALTER TABLE ... DETACH PARTITION ID '<id>'``.
 
+        The id is an inline literal rather than a bind parameter because an
+        ``ALTER`` clause is DDL-shaped: the partition id is chosen by the
+        caller, not derived from a column value, so there is no query-planning
+        benefit in parameterising it.
+
         Raises:
+            TypeError: if ``expr`` is not a ``ClickHouseDetachPartitionStatement``.
             UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        return self._format_partition_id_statement(expr, "DETACH")
+        from ..expression.partition import ClickHouseDetachPartitionStatement
+
+        if not isinstance(expr, ClickHouseDetachPartitionStatement):
+            raise TypeError(
+                "format_detach_partition_statement expects a "
+                "ClickHouseDetachPartitionStatement, "
+                f"got {type(expr).__name__}"
+            )
+        partition_id = expr.partition_id
+        if not isinstance(partition_id, str) or not partition_id.strip():
+            raise UnsupportedFeatureError(
+                self.name, "DETACH PARTITION", _PARTITION_ALTERNATIVES
+            )
+        table_sql = self._partition_table_sql(expr.table, expr.schema)
+        return (
+            f"ALTER TABLE {table_sql} DETACH "
+            f"{self._partition_expression(partition_id)}",
+            (),
+        )
 
     def format_attach_partition_statement(
         self, expr: "ClickHouseAttachPartitionStatement"
     ) -> Tuple[str, tuple]:
         """Render ``ALTER TABLE ... ATTACH PARTITION ID '<id>'``.
 
-        Raises:
-            UnsupportedFeatureError: if ``expr`` does not carry a partition id.
-        """
-        return self._format_partition_id_statement(expr, "ATTACH")
-
-    def _format_partition_id_statement(self, expr, verb: str) -> Tuple[str, tuple]:
-        """Render one ``ALTER TABLE ... <verb> PARTITION ID '<id>'`` statement.
-
         The id is an inline literal rather than a bind parameter because an
         ``ALTER`` clause is DDL-shaped: the partition id is chosen by the
         caller, not derived from a column value, so there is no query-planning
         benefit in parameterising it.
+
+        Raises:
+            TypeError: if ``expr`` is not a ``ClickHouseAttachPartitionStatement``.
+            UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
+        from ..expression.partition import ClickHouseAttachPartitionStatement
+
+        if not isinstance(expr, ClickHouseAttachPartitionStatement):
+            raise TypeError(
+                "format_attach_partition_statement expects a "
+                "ClickHouseAttachPartitionStatement, "
+                f"got {type(expr).__name__}"
+            )
         partition_id = expr.partition_id
         if not isinstance(partition_id, str) or not partition_id.strip():
             raise UnsupportedFeatureError(
-                self.name,
-                f"{verb} PARTITION",
-                _PARTITION_ALTERNATIVES,
+                self.name, "ATTACH PARTITION", _PARTITION_ALTERNATIVES
             )
-
-        # The expression stores the bare name (and the database, when given)
-        # so its round trip carries exactly what the constructor accepted; the
-        # catalog slot is where ClickHouse keeps its database, so that is where
-        # the name is qualified here, at render time.
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         return (
-            f"ALTER TABLE {table_sql} {verb} "
+            f"ALTER TABLE {table_sql} ATTACH "
             f"{self._partition_expression(partition_id)}",
             (),
         )
