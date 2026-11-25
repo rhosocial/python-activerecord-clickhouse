@@ -11,15 +11,15 @@ keeps the ActiveRecord-layer contracts and must not grow an opinion about
 which expressions exist, so each backend now owns the harness its own matrix
 runs on. Fix drift here deliberately; do not re-import it from the suite.
 
-The split-registry adaptation follows the mysql repository's own vendoring
-(``python-activerecord-mysql@8961ea1``), so the nine backends keep one shape:
-``register_all`` registers into the framework's ``default_registry()`` through
-``register_node``. That is the whole registration surface since core
-``679d9817`` made an artifact plain JSON: the registry owns the kind ->
-class table and nothing else, the separate enum and dataclass vocabulary
-tables are gone (a str enum is a JSON scalar, and a constructor accepts the
-serialized form and normalises), and core's own contract test pins their
-absence so they cannot quietly return.
+The registry adaptation follows the mysql repository's own vendoring, so the
+nine backends keep one shape: ``register_all`` returns a mutable twin of the
+backend's own published registry (``backend_registry().twin()``) and adds the
+trusted opt-in kinds the matrix admits. Nothing registers into a process-global
+table. That is the whole registration surface since core ``679d9817`` made an
+artifact plain JSON: the registry owns the kind -> class table and nothing else,
+the separate enum and dataclass vocabulary tables are gone (a str enum is a
+JSON scalar, and a constructor accepts the serialized form and normalises),
+and core's own contract test pins their absence so they cannot quietly return.
 
 This module is the test-only home (NOT shipped as part of the core library's
 runtime API) for constructing expression instances and asserting they survive
@@ -1005,22 +1005,48 @@ def collect_expression_classes(package_path: str) -> Dict[str, Type[BaseExpressi
     return classes
 
 
-def register_all(classes: Dict[str, Type[BaseExpression]]) -> None:
-    """Hand the collected classes to the deserialization kind whitelist.
+def register_all(classes: Dict[str, Type[BaseExpression]]):
+    """Build the codec table the round-trip matrix reads through.
 
-    Core split the class index out of the serialization module into a
-    registry: deserialization resolves a node to its class through the
-    framework's default registry, not through the ``(dialect, kind)`` render
-    registry -- the two are separate mechanisms and only the former names
-    expression classes. Core and the built-in backends populate that registry
-    on first use; registering one of those classes again is a no-op, and the
-    backend classes collected by the matrix are what this call adds.
+    Core publishes its kinds from an own, frozen registry now
+    (``core_registry()``) and each backend composes its own on top of it
+    (``registry_for_packages(<its package>, base=core_registry())``). Nothing
+    may be registered into a published table: it is frozen, and mutating it
+    would change what every other reader resolves.
+
+    So this returns a *mutable twin* of ClickHouse's registry
+    (``backend_registry().twin()``) and adds the classes the matrix collected
+    that an assembled table deliberately leaves out -- ``RawSQL`` and
+    ``RawSQLPredicate`` opt out of default registration because their rendered
+    SQL is caller-vouched text, and a test that trusts its own artifacts
+    registers them here, in its own copy. It also keeps the matrix's breadth:
+    the matrix is about the codec, so every class it collects must be readable,
+    including the ones whose only defect is a missing formatter.
+
+    Args:
+        classes: The collected fully-qualified name to class mapping.
+
+    Returns:
+        The test-local registry the round-trip helpers read through.
     """
-    from rhosocial.activerecord.backend.expression.serialization import default_registry
+    from rhosocial.activerecord.backend.impl.clickhouse.registry import backend_registry
 
-    registry = default_registry()
+    registry = backend_registry().twin()
     for cls in classes.values():
         registry.register_node(cls)
+    # Core's CreateType / AlterType statements carry concrete definition and
+    # action nodes that live in the dummy backend, and the harness itself builds
+    # those while constructing the statements. They are part of the artifact
+    # under test, so this test-local table admits them explicitly -- a backend's
+    # published table never would.
+    from rhosocial.activerecord.backend.impl.dummy.expression import (
+        _DummyTypeAlterAction,
+        _DummyTypeDefinition,
+    )
+
+    for cls in (_DummyTypeAlterAction, _DummyTypeDefinition):
+        registry.register_node(cls)
+    return registry
 
 
 def assert_params_equal(a: Any, b: Any, path: str = "params") -> None:
@@ -1055,42 +1081,61 @@ def assert_params_equal(a: Any, b: Any, path: str = "params") -> None:
     assert a == b, f"{path}: {a!r} != {b!r}"
 
 
-def roundtrip_expression(fqn: str, instance: BaseExpression, dialect: Any) -> None:
-    """Assert an instance round-trips losslessly through dict / JSON / XML."""
+def roundtrip_expression(
+    fqn: str,
+    instance: BaseExpression,
+    dialect: Any,
+    registry: Any = None,
+) -> None:
+    """Assert an instance round-trips losslessly through dict / JSON / XML.
+
+    ``registry`` is the table the read resolves kinds through; when omitted
+    the dialect's own ``artifact_registry()`` is used, which is the composition
+    of core's kinds with this backend's.
+    """
     original = instance.get_params()
     for restored in (
-        _rt_dict(instance, dialect),
-        _rt_json(instance, dialect),
-        _rt_xml(instance, dialect),
+        _rt_dict(instance, dialect, registry),
+        _rt_json(instance, dialect, registry),
+        _rt_xml(instance, dialect, registry),
     ):
         assert_params_equal(restored.get_params(), original, fqn)
 
 
-def _rt_dict(instance, dialect):
+def _rt_dict(instance, dialect, registry=None):
     from rhosocial.activerecord.backend.expression.serialization import deserialize, serialize
 
-    return deserialize(serialize(instance), dialect)
+    return deserialize(serialize(instance), dialect, registry=registry)
 
 
-def _rt_json(instance, dialect):
+def _rt_json(instance, dialect, registry=None):
     from rhosocial.activerecord.backend.expression.serialization import deserialize_json, serialize_json
 
-    return deserialize_json(serialize_json(instance), dialect)
+    return deserialize_json(serialize_json(instance), dialect, registry=registry)
 
 
-def _rt_xml(instance, dialect):
+def _rt_xml(instance, dialect, registry=None):
     from rhosocial.activerecord.backend.expression.serialization import deserialize_xml, serialize_xml
 
-    return deserialize_xml(serialize_xml(instance), dialect)
+    return deserialize_xml(serialize_xml(instance), dialect, registry=registry)
 
 
-def sql_consistent(fqn: str, instance: BaseExpression, dialect: Any) -> None:
+def sql_consistent(
+    fqn: str,
+    instance: BaseExpression,
+    dialect: Any,
+    registry: Any = None,
+) -> None:
     """Assert to_sql is identical after round-trip, when the dialect supports it."""
     try:
         expected = instance.to_sql()
     except Exception:
         return
-    for restored in (_rt_dict(instance, dialect), _rt_json(instance, dialect), _rt_xml(instance, dialect)):
+    for restored in (
+        _rt_dict(instance, dialect, registry),
+        _rt_json(instance, dialect, registry),
+        _rt_xml(instance, dialect, registry),
+    ):
         assert restored.to_sql() == expected, fqn
 
 

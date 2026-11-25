@@ -299,8 +299,13 @@ def assert_params_equal(a, b, path="params"):
     assert a == b, f"{path}: {a!r} != {b!r}"
 
 
-def _channel_builders(instance, dialect):
+def _channel_builders(instance, dialect, registry=None):
     """One lazy builder per encoding channel.
+
+    ``registry`` is the table the read resolves kinds through; when omitted the
+    dialect's own ``artifact_registry()`` answers, which is this backend's
+    composition of core's kinds with its own. The matrix passes its
+    ``CODEC_REGISTRY`` twin because it also covers the trusted opt-in kinds.
 
     Lazy on purpose: an eager tuple evaluated all three round-trips up front,
     so a refusal on the first channel stopped the others from ever being
@@ -308,9 +313,15 @@ def _channel_builders(instance, dialect):
     demonstrably working, not merely unexamined.
     """
     return (
-        ("dict", lambda: deserialize(serialize(instance), dialect)),
-        ("json", lambda: deserialize_json(serialize_json(instance), dialect)),
-        ("xml", lambda: deserialize_xml(serialize_xml(instance), dialect)),
+        ("dict", lambda: deserialize(serialize(instance), dialect, registry=registry)),
+        (
+            "json",
+            lambda: deserialize_json(serialize_json(instance), dialect, registry=registry),
+        ),
+        (
+            "xml",
+            lambda: deserialize_xml(serialize_xml(instance), dialect, registry=registry),
+        ),
     )
 
 
@@ -465,16 +476,18 @@ def _collect_matrix_classes() -> Dict[str, type]:
 
 REGISTERED = _collect_matrix_classes()
 
-# Deserialization resolves a kind to its class through the framework's
-# default registry. Core's own packages auto-populate it; the ClickHouse
-# package's classes do not, so they are registered here or every round-trip
-# of a backend class refuses by kind before it can compare anything. That
-# is the whole registration surface: core 679d9817 made an artifact plain
-# JSON, the registry owns the kind -> class table and nothing else, and the
-# enum / dataclass vocabulary tables are gone -- a str enum is a JSON
-# scalar, and every other conversion lives in the constructor that
-# receives it. Core's artifact-contract test pins the absence.
-register_all(REGISTERED)
+# The matrix reads through its own copy of ClickHouse's registry, never a
+# global: a mutable twin carries core's and ClickHouse's kinds, plus the
+# trusted-artifact kinds the matrix itself admits (``RawSQL`` and
+# ``RawSQLPredicate``). Core publishes ``core_registry()`` frozen and this
+# backend composes its own on top of it, so nothing may be registered into the
+# published table -- the twin is the test-local workspace. That is the whole
+# registration surface: core 679d9817 made an artifact plain JSON, the registry
+# owns the kind -> class table and nothing else, and the enum / dataclass
+# vocabulary tables are gone -- a str enum is a JSON scalar, and every other
+# conversion lives in the constructor that receives it. Core's
+# artifact-contract test pins the absence.
+CODEC_REGISTRY = register_all(REGISTERED)
 
 
 # ---------------------------------------------------------------------------
@@ -1793,7 +1806,7 @@ def _unmodelled_methods():
 # ---------------------------------------------------------------------------
 
 
-def assert_sql_roundtrip_classified(fqn, instance, dialect):
+def assert_sql_roundtrip_classified(fqn, instance, dialect, registry=None):
     """Assert an expression's SQL survives the round-trip, or say precisely why not.
 
     Four outcomes, each asserted:
@@ -1865,7 +1878,7 @@ def assert_sql_roundtrip_classified(fqn, instance, dialect):
         )
         return "non-render"
 
-    for channel, build in _channel_builders(instance, dialect):
+    for channel, build in _channel_builders(instance, dialect, registry):
         pin = _roundtrip_pin(fqn, channel)
         if pin is not None:
             _assert_pinned_channel(fqn, channel, build, instance, pin)
@@ -1923,7 +1936,9 @@ class TestExpressionRoundtripAll:
     ):
         fqn, instance = expr_case
 
-        for channel, build in _channel_builders(instance, clickhouse_matrix_dialect):
+        for channel, build in _channel_builders(
+            instance, clickhouse_matrix_dialect, CODEC_REGISTRY
+        ):
             pin = _roundtrip_pin(fqn, channel)
             if pin is not None:
                 # The refusal is asserted per channel right here, so the pin
@@ -1939,7 +1954,9 @@ class TestExpressionRoundtripAll:
     def test_to_sql_roundtrip_classified(self, expr_case, clickhouse_matrix_dialect):
         """A render must survive the round-trip; a non-render must be classified."""
         fqn, instance = expr_case
-        assert_sql_roundtrip_classified(fqn, instance, clickhouse_matrix_dialect)
+        assert_sql_roundtrip_classified(
+            fqn, instance, clickhouse_matrix_dialect, CODEC_REGISTRY
+        )
 
 
 class TestShape:
@@ -2104,7 +2121,7 @@ class TestLiteralValueKinds:
             "kind": wire,
             "params": {"value": flat, "inline": False},
         }, wire
-        for channel, build in _channel_builders(instance, d):
+        for channel, build in _channel_builders(instance, d, CODEC_REGISTRY):
             restored = build()
             assert type(restored.value) is host_type, (
                 f"{wire}/{channel}: came back as {type(restored.value).__name__}"
@@ -2136,7 +2153,7 @@ class TestLiteralValueKinds:
             "kind": "infinity_value",
             "params": {"value": "-inf", "inline": False},
         }
-        for channel, build in _channel_builders(instance, d):
+        for channel, build in _channel_builders(instance, d, CODEC_REGISTRY):
             restored = build()
             assert restored.value == host, f"negative infinity/{channel}"
 
@@ -2392,7 +2409,9 @@ class TestMatrixIntegrity:
                 f"{fqn} is pinned as a round-trip refusal but could not be "
                 f"constructed ({source})"
             )
-            for channel, build in _channel_builders(instance, clickhouse_matrix_dialect):
+            for channel, build in _channel_builders(
+            instance, clickhouse_matrix_dialect, CODEC_REGISTRY
+        ):
                 pin = entry["channels"].get(channel)
                 if pin is not None:
                     _assert_pinned_channel(fqn, channel, build, instance, pin)
@@ -2504,18 +2523,17 @@ class TestMatrixIntegrity:
     def test_every_covered_class_is_registered_for_deserialization(self):
         """A class in the matrix can be found again when deserializing.
 
-        Deserialization resolves a kind to its class through the framework's
-        default registry, so a class the matrix renders but the registry
-        cannot resolve would round-trip into the wrong thing or nothing at
-        all. The kind is the only identity the artifact carries, so the check
-        resolves each class's own kind and compares what comes back.
+        Deserialization resolves a kind to its class through the registry the
+        caller reads with. The matrix reads through ``CODEC_REGISTRY``, the
+        test-local twin of this backend's published table, so a class the
+        matrix renders but that table cannot resolve would round-trip into the
+        wrong thing or nothing at all. The kind is the only identity the
+        artifact carries, so the check resolves each class's own kind and
+        compares what comes back.
         """
         from rhosocial.activerecord.backend.expression.registry import kind_of
-        from rhosocial.activerecord.backend.expression.serialization import (
-            default_registry,
-        )
 
-        registry = default_registry()
+        registry = CODEC_REGISTRY
         unresolved = []
         for fqn, cls in REGISTERED.items():
             try:
@@ -2540,7 +2558,7 @@ class TestMatrixIntegrity:
                 continue
             constructible += 1
             branch = assert_sql_roundtrip_classified(
-                fqn, instance, clickhouse_matrix_dialect
+                fqn, instance, clickhouse_matrix_dialect, CODEC_REGISTRY
             )
             branches[branch] = branches.get(branch, 0) + 1
         assert constructible
