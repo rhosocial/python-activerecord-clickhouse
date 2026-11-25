@@ -6,11 +6,22 @@ expression-construction concern and is not a dialect protocol member. This
 backend-local helper is used only when introspection reads a column's declared
 type; the dialect no longer exposes a parsing hook.
 """
-import re
 from typing import Dict
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.types import CustomType, DataType
+from .._scan import (
+    contains_word,
+    digit_runs,
+    group_body,
+    is_ascii_identifier,
+    leading_ascii_letters,
+    leading_word_upper,
+    number_after_marker,
+    parenthesised_digit_runs,
+    quoted_number_pairs,
+    split_top_level_commas,
+)
 from ..expression.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
@@ -64,51 +75,42 @@ class ClickHouseTypeParser:
     def __init__(self, dialect):
         self.dialect = dialect
 
-    _CLICKHOUSE_INTEGER_TYPES = re.compile(
-        r"^(?:Int8|Int16|Int32|Int64|UInt8|UInt16|UInt32|UInt64)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_FLOAT_TYPES = re.compile(
-        r"^(?:Float32|Float64)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_DECIMAL_TYPES = re.compile(
-        r"^(?:Decimal(?:32|64|128)?|Numeric|Dec)(?:\(.*\))?\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_STRING_TYPES = re.compile(
-        r"^(?:String|FixedString(?:\(.*\))?)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_DATE_TYPES = re.compile(
-        r"^(?:Date|Date32|DateTime|DateTime64(?:\(.*\))?)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_OTHER_TYPES = re.compile(
-        r"^(?:Bool|Boolean|UUID|IPv4|IPv6|JSON)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_ENUM_TYPES = re.compile(
-        r"^(?:Enum8|Enum16)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_CONTAINER_TYPES = re.compile(
-        r"^(?:Array|Map|Tuple|Nullable|LowCardinality)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_AGGREGATE_TYPES = re.compile(
-        r"^(?:AggregateFunction|SimpleAggregateFunction)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_SPATIAL_TYPES = re.compile(
-        r"^(?:GEOMETRY|POINT|LINESTRING|POLYGON|"
-        r"MULTIPOINT|MULTILINESTRING|MULTIPOLYGON|GEOMETRYCOLLECTION)\b",
-        re.IGNORECASE,
-    )
-    _CLICKHOUSE_VECTOR_TYPES = re.compile(
-        r"^(?:QBit)\b",
-        re.IGNORECASE,
-    )
+    #: Leading words each family matcher claims, upper-cased.  A matcher is
+    #: "the string's leading identifier word is one of these" -- the plain
+    #: scan that replaced ``^(?:Int8|Int16|...)\b``.  Comparing the whole word
+    #: rather than testing a prefix is what keeps ``INT8X`` unclaimed: the word
+    #: boundary after ``Int8`` was what the scan now gets from the word itself.
+    _CLICKHOUSE_INTEGER_TYPES = frozenset({
+        "INT8", "INT16", "INT32", "INT64",
+        "UINT8", "UINT16", "UINT32", "UINT64",
+    })
+    _CLICKHOUSE_FLOAT_TYPES = frozenset({"FLOAT32", "FLOAT64"})
+    #: ``Decimal(?:32|64|128)?`` carries the width *in the word*; ``Dec`` and
+    #: ``Numeric`` do not take that suffix, which is why only the first word
+    #: appears with the widths.
+    _CLICKHOUSE_DECIMAL_TYPES = frozenset({
+        "DEC", "DECIMAL", "DECIMAL32", "DECIMAL64", "DECIMAL128", "NUMERIC",
+    })
+    _CLICKHOUSE_STRING_TYPES = frozenset({"STRING", "FIXEDSTRING"})
+    _CLICKHOUSE_DATE_TYPES = frozenset({
+        "DATE", "DATE32", "DATETIME", "DATETIME64",
+    })
+    _CLICKHOUSE_OTHER_TYPES = frozenset({
+        "BOOL", "BOOLEAN", "UUID", "IPV4", "IPV6", "JSON",
+    })
+    _CLICKHOUSE_ENUM_TYPES = frozenset({"ENUM8", "ENUM16"})
+    _CLICKHOUSE_CONTAINER_TYPES = frozenset({
+        "ARRAY", "MAP", "TUPLE", "NULLABLE", "LOWCARDINALITY",
+    })
+    _CLICKHOUSE_AGGREGATE_TYPES = frozenset({
+        "AGGREGATEFUNCTION", "SIMPLEAGGREGATEFUNCTION",
+    })
+    _CLICKHOUSE_SPATIAL_TYPES = frozenset({
+        "GEOMETRY", "POINT", "LINESTRING", "POLYGON",
+        "MULTIPOINT", "MULTILINESTRING", "MULTIPOLYGON",
+        "GEOMETRYCOLLECTION",
+    })
+    _CLICKHOUSE_VECTOR_TYPES = frozenset({"QBIT"})
     #: MySQL-style integer aliases ClickHouse accepts and resolves to ``UInt``.
     #:
     #: One concept, one class: each alias maps to the ``ClickHouseUInt*Type``
@@ -161,8 +163,8 @@ class ClickHouseTypeParser:
     # this catches is the opposite mistake: ``Int8 UNSIGNED``, ``Float32
     # UNSIGNED``, ``Float64 UNSIGNED`` and ``Decimal(10,2) UNSIGNED``, which a
     # branch would otherwise match on the head and return a *signed* type for.
-    # See ``_refuse_unsigned_type_string``.
-    _UNSIGNED_ATTRIBUTE = re.compile(r"\bUNSIGNED\b", re.IGNORECASE)
+    # The check is ``contains_word(stripped, "UNSIGNED")``; see
+    # ``_refuse_unsigned_type_string``.
 
     def _refuse_unsigned_type_string(self, raw: str) -> None:
         """Refuse ``Int8`` / ``Float32`` / ``Float64`` / ``Decimal`` + ``UNSIGNED``.
@@ -314,6 +316,7 @@ class ClickHouseTypeParser:
         """
         stripped = raw.strip()
         upper = stripped.upper()
+        head = leading_word_upper(upper)
 
         # The MySQL-style unsigned aliases: a closed list of words the server
         # resolves to ``UInt*``.  Checked first because none of them is a word
@@ -324,14 +327,14 @@ class ClickHouseTypeParser:
         if alias_class is not None:
             return alias_class(dialect=self.dialect)
 
-        if (self._UNSIGNED_ATTRIBUTE.search(stripped)
-                and (self._CLICKHOUSE_INTEGER_TYPES.match(upper)
-                     or self._CLICKHOUSE_FLOAT_TYPES.match(upper)
-                     or self._CLICKHOUSE_DECIMAL_TYPES.match(upper))):
+        if (contains_word(stripped, "UNSIGNED")
+                and (head in self._CLICKHOUSE_INTEGER_TYPES
+                     or head in self._CLICKHOUSE_FLOAT_TYPES
+                     or head in self._CLICKHOUSE_DECIMAL_TYPES)):
             self._refuse_unsigned_type_string(stripped)
 
         # Integer family
-        if self._CLICKHOUSE_INTEGER_TYPES.match(upper):
+        if head in self._CLICKHOUSE_INTEGER_TYPES:
             if upper.startswith("INT8"):
                 return ClickHouseInt8Type(dialect=self.dialect)
             if upper.startswith("INT16"):
@@ -350,14 +353,14 @@ class ClickHouseTypeParser:
                 return ClickHouseUInt64Type(dialect=self.dialect)
 
         # Float family
-        if self._CLICKHOUSE_FLOAT_TYPES.match(upper):
+        if head in self._CLICKHOUSE_FLOAT_TYPES:
             if upper.startswith("FLOAT32"):
                 return ClickHouseFloat32Type(dialect=self.dialect)
             if upper.startswith("FLOAT64"):
                 return ClickHouseFloat64Type(dialect=self.dialect)
 
         # Decimal family
-        if self._CLICKHOUSE_DECIMAL_TYPES.match(upper):
+        if head in self._CLICKHOUSE_DECIMAL_TYPES:
             # The digits inside the parentheses are the arguments, never part of
             # the type name: for ``Decimal32(S)`` the ``32`` is the width, so
             # reading the first number out of the whole string would take the
@@ -366,7 +369,7 @@ class ClickHouseTypeParser:
             # constructor accepts, which is a hard failure rather than a wrong
             # value. Take the arguments only.
             inner = self._extract_inner_types(stripped)
-            nums = [int(n) for n in re.findall(r"\d+", " ".join(inner))]
+            nums = digit_runs(" ".join(inner))
             if upper.startswith("DECIMAL32"):
                 return ClickHouseDecimal32Type(dialect=self.dialect, scale=nums[0] if nums else 0)
             if upper.startswith("DECIMAL64"):
@@ -381,18 +384,18 @@ class ClickHouseTypeParser:
             return ClickHouseDecimalType(dialect=self.dialect, precision=precision, scale=scale)
 
         # String family
-        if self._CLICKHOUSE_STRING_TYPES.match(upper):
+        if head in self._CLICKHOUSE_STRING_TYPES:
             if upper.startswith("FIXEDSTRING"):
-                nums = re.findall(r"\d+", stripped)
-                length = int(nums[0]) if nums else 1
+                nums = digit_runs(stripped)
+                length = nums[0] if nums else 1
                 return ClickHouseFixedStringType(dialect=self.dialect, length=length)
             return ClickHouseStringType(dialect=self.dialect)
 
         # Date / Time family
-        if self._CLICKHOUSE_DATE_TYPES.match(upper):
+        if head in self._CLICKHOUSE_DATE_TYPES:
             if upper.startswith("DATETIME64"):
-                nums = re.findall(r"\((\d+)\)", stripped)
-                precision = int(nums[0]) if nums else 3
+                nums = parenthesised_digit_runs(stripped)
+                precision = nums[0] if nums else 3
                 return ClickHouseDateTime64Type(dialect=self.dialect, precision=precision)
             if upper.startswith("DATETIME"):
                 return ClickHouseDateTimeType(dialect=self.dialect)
@@ -402,7 +405,7 @@ class ClickHouseTypeParser:
                 return ClickHouseDateType(dialect=self.dialect)
 
         # Other simple types
-        if self._CLICKHOUSE_OTHER_TYPES.match(upper):
+        if head in self._CLICKHOUSE_OTHER_TYPES:
             if upper.startswith("BOOL"):
                 return ClickHouseBoolType(dialect=self.dialect)
             if upper.startswith("UUID"):
@@ -415,8 +418,8 @@ class ClickHouseTypeParser:
                 return ClickHouseJSONType(dialect=self.dialect)
 
         # Enum types
-        if self._CLICKHOUSE_ENUM_TYPES.match(upper):
-            pairs = re.findall(r"'([^']*)'\s*=\s*(-?\d+)", stripped)
+        if head in self._CLICKHOUSE_ENUM_TYPES:
+            pairs = quoted_number_pairs(stripped)
             # ClickHouse orders the labels of an enum by the integer assigned to
             # each, not by the order they were declared in, and rewrites the
             # declaration to match: a 26.7 server reports
@@ -424,16 +427,13 @@ class ClickHouseTypeParser:
             # Sorting here is what makes an introspected enum equal to the
             # declared one that produced it, instead of a schema diff reporting
             # a change that is not there.
-            values = sorted(
-                ((name, int(num)) for name, num in pairs),
-                key=lambda pair: pair[1],
-            )
+            values = sorted(pairs, key=lambda pair: pair[1])
             if upper.startswith("ENUM8"):
                 return ClickHouseEnum8Type(dialect=self.dialect, values=values)
             return ClickHouseEnum16Type(dialect=self.dialect, values=values)
 
         # Container types
-        if self._CLICKHOUSE_CONTAINER_TYPES.match(upper):
+        if head in self._CLICKHOUSE_CONTAINER_TYPES:
             # Extract inner type(s) from parentheses
             inner = self._extract_inner_types(stripped)
             if upper.startswith("ARRAY") and inner:
@@ -462,7 +462,7 @@ class ClickHouseTypeParser:
                 for part in inner:
                     words = part.split(None, 1)
                     if (len(words) == 2
-                            and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", words[0])):
+                            and is_ascii_identifier(words[0])):
                         names.append(words[0])
                         types.append(self.parse(words[1]))
                         named = True
@@ -482,7 +482,7 @@ class ClickHouseTypeParser:
                 return ClickHouseLowCardinalityType(dialect=self.dialect, inner_type=inner_type)
 
         # AggregateFunction
-        if self._CLICKHOUSE_AGGREGATE_TYPES.match(upper):
+        if head in self._CLICKHOUSE_AGGREGATE_TYPES:
             inner = self._extract_inner_types(stripped)
             if inner:
                 func_name = inner[0]
@@ -490,14 +490,12 @@ class ClickHouseTypeParser:
                 if upper.startswith("SIMPLEAGGREGATEFUNCTION"):
                     return ClickHouseSimpleAggregateFunctionType(
                         dialect=self.dialect, function_name=func_name, arg_types=arg_types)
-                return ClickHouseAggregateFunctionType(dialect=self.dialect, function_name=func_name, arg_types=arg_types)
+                return ClickHouseAggregateFunctionType(
+                    dialect=self.dialect, function_name=func_name, arg_types=arg_types)
 
         # Spatial
-        if self._CLICKHOUSE_SPATIAL_TYPES.match(upper):
-            srid = None
-            srid_match = re.search(r"SRID\s+(\d+)", upper)
-            if srid_match:
-                srid = int(srid_match.group(1))
+        if head in self._CLICKHOUSE_SPATIAL_TYPES:
+            srid = number_after_marker(upper, "SRID")
             spatial_map = {
                 "GEOMETRY": ClickHouseGeometryType,
                 "POINT": ClickHousePointType,
@@ -516,8 +514,7 @@ class ClickHouseTypeParser:
             # branches of this family each found and fixed, found here by
             # the render-parse-re-render sweep. Every one of the eight words
             # is a single identifier, so the leading word is the whole name.
-            head = re.match(r"[A-Z]+", upper)
-            word = head.group(0) if head else upper
+            word = leading_ascii_letters(upper) or upper
             return spatial_map.get(word, ClickHouseGeometryType)(
                 dialect=self.dialect, srid=srid)
             return ClickHouseGeometryType(dialect=self.dialect, srid=srid)
@@ -529,7 +526,7 @@ class ClickHouseTypeParser:
         # report a QBit(Float32, 8) column as 32-dimensional — and the element
         # type is not modelled by ClickHouseVectorType, so it is deliberately not
         # matched here either. A strided QBit(Float32, 16, 8) still yields 16.
-        if self._CLICKHOUSE_VECTOR_TYPES.match(upper):
+        if head in self._CLICKHOUSE_VECTOR_TYPES:
             inner = ""
             if "(" in stripped and ")" in stripped:
                 inner = stripped[stripped.index("(") + 1: stripped.rindex(")")]
@@ -549,7 +546,6 @@ class ClickHouseTypeParser:
         # ``format_data_type_custom`` here, and
         # ``suggest_substitute_types()["custom"]`` names ``ClickHouseStringType`` so
         # the ``TypeError`` says what to use instead.
-        from rhosocial.activerecord.backend.expression.types import CustomType
         return CustomType(dialect=self.dialect, raw=stripped)
 
     @staticmethod
@@ -558,26 +554,4 @@ class ClickHouseTypeParser:
 
         Handles nested parentheses like ``Array(Nullable(Int32))``.
         """
-        start = raw.find("(")
-        if start == -1:
-            return []
-        depth = 0
-        parts = []
-        current = []
-        for ch in raw[start + 1:]:
-            if ch == "(":
-                depth += 1
-                current.append(ch)
-            elif ch == ")":
-                if depth == 0:
-                    break
-                depth -= 1
-                current.append(ch)
-            elif ch == "," and depth == 0:
-                parts.append("".join(current).strip())
-                current = []
-            else:
-                current.append(ch)
-        if current:
-            parts.append("".join(current).strip())
-        return parts
+        return split_top_level_commas(group_body(raw))
