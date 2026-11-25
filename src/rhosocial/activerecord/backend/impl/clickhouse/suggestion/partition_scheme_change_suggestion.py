@@ -8,18 +8,22 @@ honest answer is ``False``.
 
 The point's projections may instead carry a backend-local maintenance plan --
 an ``operations`` list in the old or new projection -- for the data-preserving
-steps a caller has already chosen. Each recognised name is dispatched to an
-*existing* ClickHouse statement node, behind the dialect's own probe for that
-verb: ``drop``, ``detach``, ``attach``, ``replace``, ``move``, ``freeze``,
-``unfreeze``, ``clear`` and ``optimize``. Every node is an independent statement
-(the backend never combines actions into one statement), and no SQL is built
-here -- constructors take only values and the dialect formats them.
+steps a caller has already chosen. A scheme-change point never authorises
+destroying or relocating rows: ``drop`` (deletes a partition), ``replace``
+(overwrites the partition's rows from a source table), ``move`` (deletes them
+from the source table) and ``clear`` (resets column/index values) are refused.
+``detach`` is emitted only when the same chain later attaches that partition
+back; a standalone ``detach`` or an ``attach`` without its own prior ``detach``
+is refused. ``freeze``, ``unfreeze`` and ``optimize`` leave the table's rows in
+place and are dispatched to existing nodes behind the dialect's own probe.
 
-The five MySQL partition verbs the reference does not support -- REORGANIZE,
-EXCHANGE, COALESCE, REMOVE PARTITIONING and SUBPARTITION -- are refused by name
-before any node is built, so they can never appear in an emitted chain. An
-unknown or malformed request is refused the same way; a missing parameter is
-never filled with a guess.
+Every emitted node is an independent statement (the backend never combines
+actions into one statement), and no SQL is built here -- constructors take only
+values and the dialect formats them. The five MySQL partition verbs the
+reference does not support -- REORGANIZE, EXCHANGE, COALESCE, REMOVE
+PARTITIONING and SUBPARTITION -- are refused by name before any node is built.
+An unknown or malformed request is refused the same way; a missing parameter
+is never filled with a guess.
 """
 
 from collections.abc import Mapping
@@ -29,13 +33,9 @@ from ....expression.bases import BaseExpression
 from ....suggestion.definitions import PartitionSchemeChangeSuggestion
 from ..expression import (
     ClickHouseAttachPartitionStatement,
-    ClickHouseClearInPartitionStatement,
     ClickHouseDetachPartitionStatement,
-    ClickHouseDropPartitionStatement,
     ClickHouseFreezePartitionStatement,
-    ClickHouseMovePartitionStatement,
     ClickHouseOptimizePartitionStatement,
-    ClickHouseReplacePartitionStatement,
     ClickHouseUnfreezePartitionStatement,
 )
 
@@ -55,10 +55,26 @@ REFUSED_OPERATIONS = frozenset(
 
 _INVALID = object()
 
+#: Operations that rewrite, export or reset stored rows. ClickHouse's own
+#: reference confirms DROP deletes the partition, REPLACE FROM overwrites the
+#: destination partition, MOVE TO TABLE deletes the rows from the source and
+#: CLEAR COLUMN/INDEX IN PARTITION resets stored values. A declaration change
+#: authorises none of them.
+_DATA_CHANGING_OPERATIONS = frozenset({"drop", "replace", "move", "clear"})
 
-def _field(
-    params: Mapping, key: str, *, required: bool = False, default: Any = None
-) -> Any:
+
+def _refuse_data_changing_operation() -> PartitionSchemeChangeSuggestion:
+    """Decline destructive or data-moving operations for a scheme-change point.
+
+    These operations require an explicit maintenance request or a data-preserving
+    migration plan, not a scheme-change point. An old/new partition declaration
+    says nothing about which rows may be deleted, overwritten, moved or reset,
+    so even a dialect that supports the statement must not emit it here.
+    """
+    return PartitionSchemeChangeSuggestion(operations=False)
+
+
+def _field(params: Mapping, key: str, *, required: bool = False, default: Any = None) -> Any:
     """Read one non-blank string parameter, or return the invalid sentinel."""
     value = params.get(key)
     if value is None:
@@ -68,15 +84,12 @@ def _field(
     return value
 
 
-def _make_drop(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
-    partition_id = _field(params, "partition_id", required=True)
-    schema = _field(params, "schema")
-    if _INVALID in (partition_id, schema):
-        return None
-    return ClickHouseDropPartitionStatement(dialect, table, partition_id, schema=schema)
-
-
 def _make_detach(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
+    """Move a partition aside, only as part of a chain that attaches it back.
+
+    ClickHouse's DETACH forgets the partition until ATTACH reads it from the
+    ``detached`` directory; the pairing check in the mixin enforces that.
+    """
     partition_id = _field(params, "partition_id", required=True)
     schema = _field(params, "schema")
     if _INVALID in (partition_id, schema):
@@ -85,47 +98,16 @@ def _make_detach(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpr
 
 
 def _make_attach(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
+    """Return a detached partition to the table.
+
+    Emitted only for an id this same chain detached, so a scheme-change answer
+    never pulls in data left outside the table by somebody else.
+    """
     partition_id = _field(params, "partition_id", required=True)
     schema = _field(params, "schema")
     if _INVALID in (partition_id, schema):
         return None
     return ClickHouseAttachPartitionStatement(dialect, table, partition_id, schema=schema)
-
-
-def _make_replace(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
-    partition_id = _field(params, "partition_id", required=True)
-    source_table = _field(params, "source_table", required=True)
-    schema = _field(params, "schema")
-    source_schema = _field(params, "source_schema")
-    if _INVALID in (partition_id, source_table, schema, source_schema):
-        return None
-    return ClickHouseReplacePartitionStatement(
-        dialect,
-        table,
-        partition_id,
-        source_table,
-        schema=schema,
-        source_schema=source_schema,
-    )
-
-
-def _make_move(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
-    partition_id = _field(params, "partition_id", required=True)
-    destination = _field(params, "destination", required=True)
-    target = _field(params, "target", required=True)
-    schema = _field(params, "schema")
-    target_schema = _field(params, "target_schema")
-    if _INVALID in (partition_id, destination, target, schema, target_schema):
-        return None
-    return ClickHouseMovePartitionStatement(
-        dialect,
-        table,
-        partition_id,
-        destination,
-        target,
-        schema=schema,
-        target_schema=target_schema,
-    )
 
 
 def _make_freeze(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
@@ -134,9 +116,7 @@ def _make_freeze(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpr
     schema = _field(params, "schema")
     if _INVALID in (partition_id, name, schema):
         return None
-    return ClickHouseFreezePartitionStatement(
-        dialect, table, partition_id, name, schema=schema
-    )
+    return ClickHouseFreezePartitionStatement(dialect, table, partition_id, name, schema=schema)
 
 
 def _make_unfreeze(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
@@ -145,21 +125,7 @@ def _make_unfreeze(dialect: Any, table: str, params: Mapping) -> Optional[BaseEx
     schema = _field(params, "schema")
     if _INVALID in (name, partition_id, schema):
         return None
-    return ClickHouseUnfreezePartitionStatement(
-        dialect, table, partition_id, name, schema=schema
-    )
-
-
-def _make_clear(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
-    kind = _field(params, "kind", required=True)
-    name = _field(params, "name", required=True)
-    partition_id = _field(params, "partition_id")
-    schema = _field(params, "schema")
-    if _INVALID in (kind, name, partition_id, schema):
-        return None
-    return ClickHouseClearInPartitionStatement(
-        dialect, table, kind, name, partition_id, schema=schema
-    )
+    return ClickHouseUnfreezePartitionStatement(dialect, table, partition_id, name, schema=schema)
 
 
 def _make_optimize(dialect: Any, table: str, params: Mapping) -> Optional[BaseExpression]:
@@ -168,21 +134,16 @@ def _make_optimize(dialect: Any, table: str, params: Mapping) -> Optional[BaseEx
     final = params.get("final", True)
     if _INVALID in (partition_id, schema) or not isinstance(final, bool):
         return None
-    return ClickHouseOptimizePartitionStatement(
-        dialect, table, partition_id, final, schema=schema
-    )
+    return ClickHouseOptimizePartitionStatement(dialect, table, partition_id, final, schema=schema)
 
 
-#: operation name -> (capability probe, existing-node factory).
+#: operation name -> (capability probe, existing-node factory). The four
+#: data-changing names are deliberately absent: see _refuse_data_changing_operation.
 _OPERATIONS = {
-    "drop": ("supports_drop_partition", _make_drop),
     "detach": ("supports_detach_partition", _make_detach),
     "attach": ("supports_attach_partition", _make_attach),
-    "replace": ("supports_replace_partition", _make_replace),
-    "move": ("supports_move_partition", _make_move),
     "freeze": ("supports_freeze_partition", _make_freeze),
     "unfreeze": ("supports_unfreeze_partition", _make_unfreeze),
-    "clear": ("supports_clear_in_partition", _make_clear),
     "optimize": ("supports_optimize_partition_final", _make_optimize),
 }
 
@@ -224,7 +185,12 @@ class ClickHousePartitionSchemeChangeSuggestionMixin:
     def suggest_partition_scheme_change(
         self, point: PartitionSchemeChangeSuggestion
     ) -> PartitionSchemeChangeSuggestion:
-        """Return a real node chain, ``False`` for a bare change, ``None`` if equal."""
+        """Return a data-preserving node chain, or ``False``/``None``.
+
+        ``None`` means the declarations are equal. ``False`` covers a bare
+        change and any request that would delete, overwrite, export or reset
+        table rows, or leave a detached partition outside the table.
+        """
         table_name = point.table_name
         if not isinstance(table_name, str) or not table_name.strip():
             return PartitionSchemeChangeSuggestion(operations=False)
@@ -237,15 +203,35 @@ class ClickHousePartitionSchemeChangeSuggestionMixin:
             return PartitionSchemeChangeSuggestion(operations=False)
 
         chain = []
+        detached = []
         for request in requests:
             name = _operation_name(request)
-            if name is None or name in REFUSED_OPERATIONS or name not in _OPERATIONS:
+            if (
+                name is None
+                or name in REFUSED_OPERATIONS
+                or (name not in _OPERATIONS and name not in _DATA_CHANGING_OPERATIONS)
+            ):
+                return PartitionSchemeChangeSuggestion(operations=False)
+            if name in _DATA_CHANGING_OPERATIONS:
+                return _refuse_data_changing_operation()
+            params = request if isinstance(request, Mapping) else {}
+            partition_id = None
+            if name in ("detach", "attach"):
+                partition_id = _field(params, "partition_id", required=True)
+            if partition_id is _INVALID or (name == "attach" and partition_id not in detached):
                 return PartitionSchemeChangeSuggestion(operations=False)
             probe, factory = _OPERATIONS[name]
             if not bool(getattr(self, probe)()):  # type: ignore[attr-defined]
                 return PartitionSchemeChangeSuggestion(operations=False)
-            node = factory(self, table_name, request if isinstance(request, Mapping) else {})
+            node = factory(self, table_name, params)
             if not isinstance(node, BaseExpression):
                 return PartitionSchemeChangeSuggestion(operations=False)
+            if name == "detach":
+                detached.append(partition_id)
+            elif name == "attach":
+                detached.remove(partition_id)
             chain.append(node)
+        if detached:
+            # DETACH without a matching ATTACH leaves rows outside the table.
+            return PartitionSchemeChangeSuggestion(operations=False)
         return PartitionSchemeChangeSuggestion(operations=tuple(chain))
