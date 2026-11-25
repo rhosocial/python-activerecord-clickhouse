@@ -91,6 +91,13 @@ CLICKHOUSE_PROTOCOLS = [
     suggestion_protocols.PartitionSplitSuggestionSupport,
     suggestion_protocols.PartitionMergeSuggestionSupport,
     suggestion_protocols.PartitionRetentionSuggestionSupport,
+    # Migration change points: the dialect implements all four through
+    # backend-local suggestion mixins (a real chain where one is honest, an
+    # explicit False where the engine or this backend's node set cannot act).
+    suggestion_protocols.ColumnReorderSuggestionSupport,
+    suggestion_protocols.TableConstraintChangeSuggestionSupport,
+    suggestion_protocols.TableIndexChangeSuggestionSupport,
+    suggestion_protocols.PartitionSchemeChangeSuggestionSupport,
     # CREATE TABLE layout: ClickHouse inlines both indexes and comments, so the
     # dialect answers "single" via its layout suggestion mixin.
     suggestion_protocols.CreateTableLayoutSuggestionSupport,

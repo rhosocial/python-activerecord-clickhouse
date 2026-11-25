@@ -7,11 +7,17 @@ expression chains (never SQL text). Kept separate from ``impl.clickhouse.mixins`
 so the suggestion layer is importable without pulling in the SQL mixin bundle.
 
 There is one module per partition-lifecycle point, mirroring the SQLite
-suggestion package. Shared plan-reading helpers and their common base live in
-``_common.py``.
+suggestion package, plus one module for each of the four migration change
+points (column reorder, table constraint change, table index change and
+partition scheme change). Shared plan-reading helpers and their common base
+live in ``_common.py``.
 """
 
 from ._common import ClickHousePartitionSuggestionBase
+from .column_reorder_suggestion import ClickHouseColumnReorderSuggestionMixin
+from .partition_scheme_change_suggestion import ClickHousePartitionSchemeChangeSuggestionMixin
+from .table_constraint_change_suggestion import ClickHouseTableConstraintChangeSuggestionMixin
+from .table_index_change_suggestion import ClickHouseTableIndexChangeSuggestionMixin
 from .generated_value_suggestion import ClickHouseGeneratedValueSuggestionMixin
 from .general_suggestions import (
     ClickHouseCreateTableLayoutSuggestionMixin,
@@ -28,6 +34,10 @@ from .partition_table_drop_suggestion import ClickHousePartitionTableDropSuggest
 
 __all__ = [
     "ClickHousePartitionSuggestionBase",
+    "ClickHouseColumnReorderSuggestionMixin",
+    "ClickHousePartitionSchemeChangeSuggestionMixin",
+    "ClickHouseTableConstraintChangeSuggestionMixin",
+    "ClickHouseTableIndexChangeSuggestionMixin",
     "ClickHouseGeneratedValueSuggestionMixin",
     "ClickHouseCreateTableLayoutSuggestionMixin",
     "ClickHouseStringConcatenationSuggestionMixin",

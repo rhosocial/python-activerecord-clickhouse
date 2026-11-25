@@ -209,6 +209,10 @@ from .mixins import (
     ClickHouseLiteralValueMixin,
 )
 from .suggestion import (
+    ClickHouseColumnReorderSuggestionMixin,
+    ClickHousePartitionSchemeChangeSuggestionMixin,
+    ClickHouseTableConstraintChangeSuggestionMixin,
+    ClickHouseTableIndexChangeSuggestionMixin,
     ClickHouseGeneratedValueSuggestionMixin,
     ClickHouseCreateTableLayoutSuggestionMixin,
     ClickHouseStringConcatenationSuggestionMixin,
@@ -229,10 +233,16 @@ class ClickHouseDialect(
     # Backend suggestions first: no core mixin may shadow their answers. The
     # eight partition-suggestion mixins are the sole owners of ClickHouse's
     # ``suggest_partition_*`` "how" answers (one per lifecycle point, mirroring
-    # the firebird/sqlite suggestion package layout). The layout mixin reads
+    # the firebird/sqlite suggestion package layout). The four change-point
+    # mixins answer the migration planner's column-reorder, constraint-change,
+    # index-change and partition-scheme-change points. The layout mixin reads
     # the same capability switches the table mixin answers further down, and
     # the generated-value mixin reports that a snowflake id is carried by the
     # plain integer column type (no server-side identity clause exists).
+    ClickHouseColumnReorderSuggestionMixin,
+    ClickHouseTableConstraintChangeSuggestionMixin,
+    ClickHouseTableIndexChangeSuggestionMixin,
+    ClickHousePartitionSchemeChangeSuggestionMixin,
     ClickHouseGeneratedValueSuggestionMixin,
     ClickHouseCreateTableLayoutSuggestionMixin,
     ClickHouseStringConcatenationSuggestionMixin,
