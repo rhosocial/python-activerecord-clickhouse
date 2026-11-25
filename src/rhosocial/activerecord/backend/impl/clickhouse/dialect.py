@@ -169,6 +169,8 @@ from .mixins import (
     ClickHouseDataTypeSuggestionsMixin,
     ClickHouseTypeSupportMixin,
     ClickHouseRenameTableMixin,
+    ClickHouseCommentMixin,
+    ClickHouseModifyConstraintMixin,
     ClickHouseTruncateMixin,
     ClickHouseTableStatementMixin,
     ClickHouseMaintenanceMixin,
@@ -370,6 +372,8 @@ class ClickHouseDialect(
     ClickHouseTransactionMixin,
     ClickHouseTableMixin,
     ClickHouseRenameTableMixin,
+    ClickHouseCommentMixin,
+    ClickHouseModifyConstraintMixin,
     # Before TableMixin: this answers False where the core answers True, and it
     # sat in the backend block below, so DROP TABLE was rendered with CASCADE
     # and RESTRICT that ClickHouse does not accept.

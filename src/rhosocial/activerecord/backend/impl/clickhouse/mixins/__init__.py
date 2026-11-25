@@ -20,6 +20,8 @@ from .optimizer_hint import ClickHouseOptimizerHintMixin
 from .data_type_suggestions import ClickHouseDataTypeSuggestionsMixin
 from .types import ClickHouseTypeSupportMixin
 from .ddl_rename_table import ClickHouseRenameTableMixin
+from .ddl_comment import ClickHouseCommentMixin
+from .ddl_constraint_modify import ClickHouseModifyConstraintMixin
 from .truncate import ClickHouseTruncateMixin
 from .ddl_table_statement import ClickHouseTableStatementMixin
 from .maintenance import ClickHouseMaintenanceMixin
@@ -82,6 +84,8 @@ __all__ = [
     "ClickHouseDataTypeSuggestionsMixin",
     "ClickHouseTypeSupportMixin",
     "ClickHouseRenameTableMixin",
+    "ClickHouseCommentMixin",
+    "ClickHouseModifyConstraintMixin",
     "ClickHouseTruncateMixin",
     "ClickHouseTableStatementMixin",
     "ClickHouseMaintenanceMixin",

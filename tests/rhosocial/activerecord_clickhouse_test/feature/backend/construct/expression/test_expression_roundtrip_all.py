@@ -589,6 +589,45 @@ def register_specials():
         lambda d: ddl_comment.CommentOnStatement(d, "table", _table(d), comment="c"),
     )
 
+    # -- backend-proprietary comment / constraint redefinition ----------------
+    # ClickHouse has no COMMENT ON; a comment changes through MODIFY COMMENT
+    # (table) or the COMMENT modifier of MODIFY COLUMN, and an existing
+    # constraint is redefined with MODIFY CONSTRAINT (not ALTER CONSTRAINT).
+    def modify_table_comment(d):
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.comment import (
+            ClickHouseModifyTableCommentStatement,
+        )
+
+        return ClickHouseModifyTableCommentStatement(d, "t", "note", schema="db")
+
+    def modify_column_comment(d):
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.comment import (
+            ClickHouseModifyColumnCommentStatement,
+        )
+
+        return ClickHouseModifyColumnCommentStatement(
+            d, "t", "c", "note", schema="db", if_exists=True
+        )
+
+    def modify_constraint(d):
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.constraint_modify import (
+            ClickHouseModifyConstraintStatement,
+        )
+
+        return ClickHouseModifyConstraintStatement(
+            d, "t", "ck", "CHECK", _column_predicate(d)
+        )
+
+    register_special_constructor(
+        "comment.ClickHouseModifyTableCommentStatement", modify_table_comment
+    )
+    register_special_constructor(
+        "comment.ClickHouseModifyColumnCommentStatement", modify_column_comment
+    )
+    register_special_constructor(
+        "constraint_modify.ClickHouseModifyConstraintStatement", modify_constraint
+    )
+
     # -- databases -----------------------------------------------------------
     # ``RENAME TO`` is the action core's enum names; without it the guess picks
     # whatever sorts first.

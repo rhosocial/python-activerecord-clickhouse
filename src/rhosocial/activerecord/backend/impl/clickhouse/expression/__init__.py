@@ -29,6 +29,11 @@ the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 
 from .alter_column import ClickHouseAddColumnAction
 from .column import ClickHouseColumnDefinition, ClickHouseColumnOptions
+from .comment import (
+    ClickHouseModifyColumnCommentStatement,
+    ClickHouseModifyTableCommentStatement,
+)
+from .constraint_modify import ClickHouseModifyConstraintStatement
 from .create_table_options import ClickHouseCreateTableOptions
 from .database import (
     ClickHouseCreateDatabaseExpression,
@@ -131,6 +136,9 @@ from .types import (
 __all__ = [
     # Index expressions
     "ClickHouseIndexDefinition",
+    "ClickHouseModifyColumnCommentStatement",
+    "ClickHouseModifyTableCommentStatement",
+    "ClickHouseModifyConstraintStatement",
     "ClickHouseAddIndexStatement",
     "ClickHouseDropIndexStatement",
     "ClickHouseAddColumnAction",
