@@ -42,7 +42,11 @@ from .materialized_view import (
     ClickHouseRefreshMaterializedViewStatement,
     ClickHouseRefreshSchedule,
 )
-from .index import ClickHouseIndexDefinition
+from .index import (
+    ClickHouseAddIndexStatement,
+    ClickHouseDropIndexStatement,
+    ClickHouseIndexDefinition,
+)
 from .json import (
     ClickHouseJSONExtractExpression,
     ClickHouseJSONObjectExpression,
@@ -127,6 +131,8 @@ from .types import (
 __all__ = [
     # Index expressions
     "ClickHouseIndexDefinition",
+    "ClickHouseAddIndexStatement",
+    "ClickHouseDropIndexStatement",
     "ClickHouseAddColumnAction",
     "ClickHouseColumnDefinition",
     "ClickHouseColumnOptions",

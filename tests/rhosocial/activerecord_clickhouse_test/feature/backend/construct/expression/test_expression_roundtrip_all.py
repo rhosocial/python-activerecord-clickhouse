@@ -245,6 +245,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     alter_column,
     column as chexpr_column,
     dml as chexpr_dml,
+    index as chexpr_index,
     maintenance,
     materialized_view,
     partition,
@@ -953,6 +954,25 @@ def register_specials():
         "partition.ClickHouseOptimizePartitionStatement",
         lambda d: partition.ClickHouseOptimizePartitionStatement(
             d, "t", "p2024", True
+        ),
+    )
+
+    # -- ClickHouse ALTER TABLE ... INDEX ------------------------------------
+    # The nodes are parameter collectors: an introspective guess would hand
+    # the expression slot a Literal (a bind parameter in a DDL position, which
+    # the formatter refuses) and leave TYPE empty. Real constructors carry the
+    # body the formatter consumes, so both nodes are asserted as renders rather
+    # than disappearing into a skip.
+    register_special_constructor(
+        "index.ClickHouseAddIndexStatement",
+        lambda d: chexpr_index.ClickHouseAddIndexStatement(
+            d, "events", "idx", Column(d, "val"), type="minmax", granularity=4
+        ),
+    )
+    register_special_constructor(
+        "index.ClickHouseDropIndexStatement",
+        lambda d: chexpr_index.ClickHouseDropIndexStatement(
+            d, "events", "idx", if_exists=True
         ),
     )
 
