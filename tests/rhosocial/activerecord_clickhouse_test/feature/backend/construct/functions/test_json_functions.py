@@ -34,33 +34,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.json import (
 class TestJSONFunctionProtocol:
     """Test JSON function protocol implementation."""
 
-    def test_supports_json_function_basic(self):
-        """Test basic JSON function support (26.0.0+)."""
-        dialect_25 = ClickHouseDialect(version=(25, 9, 0))
-        assert not dialect_25.supports_json_function("JSONExtract")
-
-        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
-        assert dialect_26.supports_json_function("JSONExtract")
-
-        dialect_267 = ClickHouseDialect(version=(26, 7, 3))
-        assert dialect_267.supports_json_function("JSONExtract")
-
-    def test_supports_json_function_json_value(self):
-        """Test JSON_VALUE support (26.0.0+)."""
-        dialect_25 = ClickHouseDialect(version=(25, 9, 0))
-        assert not dialect_25.supports_json_function("JSON_VALUE")
-
-        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
-        assert dialect_26.supports_json_function("JSON_VALUE")
-
-    def test_supports_json_function_json_type(self):
-        """Test JSONType support (26.0.0+)."""
-        dialect_25 = ClickHouseDialect(version=(25, 9, 0))
-        assert not dialect_25.supports_json_function("JSONType")
-
-        dialect_26 = ClickHouseDialect(version=(26, 0, 0))
-        assert dialect_26.supports_json_function("JSONType")
-
     def test_supports_json_type_always_supported(self):
         """Test supports_json_type always returns True for ClickHouse."""
         dialect_old = ClickHouseDialect(version=(22, 1, 0))

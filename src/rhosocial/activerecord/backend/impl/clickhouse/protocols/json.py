@@ -5,7 +5,7 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import Protocol, runtime_checkable, Tuple
 
 from rhosocial.activerecord.backend.dialect.protocols import JSONSupport
 
@@ -39,17 +39,6 @@ class ClickHouseJSONFunctionSupport(JSONSupport, Protocol):
 
     def supports_json_table(self) -> bool:
         """Whether JSON_TABLE is supported (ClickHouse 8.0.4+)."""
-        ...
-
-    def supports_json_function(self, function_name: str) -> bool:
-        """Whether a specific JSON function is supported.
-
-        Args:
-            function_name: Name of the JSON function (e.g. 'json_extract')
-
-        Returns:
-            True if the function is supported
-        """
         ...
 
     def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:

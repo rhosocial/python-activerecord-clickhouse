@@ -21,15 +21,6 @@ if TYPE_CHECKING:
 class ClickHouseJSONFunctionMixin:
     """ClickHouse JSON function implementation using native ClickHouse functions."""
 
-    _JSON_FUNCTION_VERSIONS = {
-        "JSONType": (26, 0, 0),
-        "JSONValid": (26, 0, 0),
-        "JSONExtract": (26, 0, 0),
-        "JSONExtractString": (26, 0, 0),
-        "JSON_QUERY": (26, 0, 0),
-        "JSON_VALUE": (26, 0, 0),
-    }
-
     def supports_json_type(self) -> bool:
         return self.version_at_least((26, 0, 0))
 
@@ -92,11 +83,6 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
 
         return sql, params
-
-    def supports_json_function(self, function_name: str) -> bool:
-        if function_name in self._JSON_FUNCTION_VERSIONS:
-            return self.version_at_least(self._JSON_FUNCTION_VERSIONS[function_name])
-        return self.version_at_least((26, 0, 0))
 
     def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
         """Format JSONExtract function."""

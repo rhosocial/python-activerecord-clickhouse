@@ -7,12 +7,15 @@ generalized into the testsuite because dialects disagree on plan shape:
 
 * Capability gates. ``supports_explain_plan()`` is always True here;
   ``supports_explain_analyze()`` is version-gated (the ANALYZE keyword is only
-  accepted from ClickHouse 26.7); ``supports_explain_format()`` recognises the
-  TEXT/JSON/TREE/TABULAR/TSV/CSV family but rejects XML/YAML.
+  accepted from ClickHouse 26.7); the per-format switches recognise TEXT/JSON/
+  TREE and reject XML/YAML/TRADITIONAL, and the generic EXPLAIN options
+  (VERBOSE/COSTS/BUFFERS/TIMING/SETTINGS/WAL) are all unsupported.
 * Rendering. ``format_explain_statement`` emits ``EXPLAIN <stmt>``, prefixes
   ``ANALYZE`` and ``FORMAT=<name>`` when requested, and preserves the inner
-  statement's bind parameters. Every statement here is an expression object;
-  no hand-built SQL string is ever handed to the backend.
+  statement's bind parameters. An unsupported option or format raises
+  ``UnsupportedFeatureError`` instead of being rendered. Every statement here
+  is an expression object; no hand-built SQL string is ever handed to the
+  backend.
 * Result interpretation. A real server returns rows exposing an ``explain``
   String column whose lines name plan nodes (``Output``, ``Filter`` /
   ``Prewhere filter``, ``ReadFromMergeTree`` / ``ReadFromStorage``).
@@ -25,6 +28,7 @@ ClickHouse is synchronous-only, so there is intentionally no async half.
 from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import (
     AllColumnsWildcard,
     Column,
@@ -195,17 +199,35 @@ class TestClickHouseExplainCapabilities:
         assert ClickHouseDialect().supports_explain_analyze() is False
 
     @pytest.mark.parametrize("fmt", [ExplainFormat.TEXT, ExplainFormat.JSON, ExplainFormat.TREE])
-    def test_supports_explain_format_recognised(
+    def test_supported_explain_format_switches(
         self, dialect: ClickHouseDialect, fmt: ExplainFormat
     ) -> None:
-        assert dialect.supports_explain_format(fmt.value) is True
-        assert dialect.supports_explain_format(fmt.value.lower()) is True
+        assert getattr(dialect, f"supports_explain_format_{fmt.value.lower()}")() is True
 
-    @pytest.mark.parametrize("fmt", [ExplainFormat.XML, ExplainFormat.YAML])
-    def test_supports_explain_format_rejected(
+    @pytest.mark.parametrize(
+        "fmt",
+        [ExplainFormat.XML, ExplainFormat.YAML, ExplainFormat.TRADITIONAL],
+    )
+    def test_rejected_explain_format_switches(
         self, dialect: ClickHouseDialect, fmt: ExplainFormat
     ) -> None:
-        assert dialect.supports_explain_format(fmt.value) is False
+        assert getattr(dialect, f"supports_explain_format_{fmt.value.lower()}")() is False
+
+    @pytest.mark.parametrize(
+        "switch",
+        [
+            "supports_explain_verbose",
+            "supports_explain_costs",
+            "supports_explain_buffers",
+            "supports_explain_timing",
+            "supports_explain_settings",
+            "supports_explain_wal",
+        ],
+    )
+    def test_generic_explain_options_are_unsupported(
+        self, dialect: ClickHouseDialect, switch: str
+    ) -> None:
+        assert getattr(dialect, switch)() is False
 
     def test_format_explain_statement_basic(self, dialect: ClickHouseDialect) -> None:
         sql, params = _render(dialect)
@@ -216,14 +238,17 @@ class TestClickHouseExplainCapabilities:
         sql, _ = _render(dialect, ExplainOptions(analyze=True))
         assert sql == f"EXPLAIN ANALYZE {_BASE_SELECT}"
 
-    def test_analyze_gate_drives_callers_not_rendering(self, dialect: ClickHouseDialect) -> None:
-        # The version gate reports whether ANALYZE is usable; callers must
-        # consult it. Rendering itself honours the requested option verbatim.
+    def test_analyze_gate_drives_rendering(self, dialect: ClickHouseDialect) -> None:
+        # The version gate reports whether ANALYZE is usable, and rendering
+        # refuses the option when the dialect cannot name a version that
+        # accepts it.
         assert dialect.supports_explain_analyze() is True
         sql, _ = _render(dialect, ExplainOptions(analyze=True))
         assert "ANALYZE" in sql
         old = ClickHouseDialect(version=(25, 8, 1))
         assert old.supports_explain_analyze() is False
+        with pytest.raises(UnsupportedFeatureError):
+            _render(old, ExplainOptions(analyze=True))
 
     def test_format_explain_statement_format_json(self, dialect: ClickHouseDialect) -> None:
         sql, _ = _render(dialect, ExplainOptions(format=ExplainFormat.JSON))
@@ -233,9 +258,37 @@ class TestClickHouseExplainCapabilities:
     def test_supported_formats_render_format_clause(
         self, dialect: ClickHouseDialect, fmt: ExplainFormat
     ) -> None:
-        assert dialect.supports_explain_format(fmt.value) is True
+        assert getattr(dialect, f"supports_explain_format_{fmt.value.lower()}")() is True
         sql, _ = _render(dialect, ExplainOptions(format=fmt))
         assert f"FORMAT={fmt.value}" in sql
+
+    @pytest.mark.parametrize(
+        "fmt",
+        [ExplainFormat.XML, ExplainFormat.YAML, ExplainFormat.TRADITIONAL],
+    )
+    def test_unsupported_format_rendering_raises(
+        self, dialect: ClickHouseDialect, fmt: ExplainFormat
+    ) -> None:
+        with pytest.raises(UnsupportedFeatureError):
+            _render(dialect, ExplainOptions(format=fmt))
+
+    @pytest.mark.parametrize(
+        "options",
+        [
+            ExplainOptions(verbose=True),
+            ExplainOptions(costs=False),
+            ExplainOptions(buffers=True),
+            ExplainOptions(timing=True),
+            ExplainOptions(settings=True),
+            ExplainOptions(wal=True),
+        ],
+        ids=["verbose", "costs", "buffers", "timing", "settings", "wal"],
+    )
+    def test_unsupported_options_raise(
+        self, dialect: ClickHouseDialect, options: ExplainOptions
+    ) -> None:
+        with pytest.raises(UnsupportedFeatureError):
+            _render(dialect, options)
 
     def test_query_plan_type_has_no_extra_clause(self, dialect: ClickHouseDialect) -> None:
         # ClickHouse has no QUERY_PLAN keyword; the option is accepted but maps

@@ -5,7 +5,7 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import Protocol, runtime_checkable, Tuple
 
 @runtime_checkable
 class ClickHouseSpatialSupport(Protocol):
@@ -25,17 +25,6 @@ class ClickHouseSpatialSupport(Protocol):
     - Basic spatial types: ClickHouse 5.7+ (InnoDB), all versions (MyISAM)
     - Spatial index restrictions: ClickHouse 5.7.5+ for correct SRID handling
     """
-
-    def supports_spatial_type(self, type_name: str) -> bool:
-        """Whether a specific spatial data type is supported.
-
-        Args:
-            type_name: Spatial type name (e.g. 'POINT', 'LINESTRING')
-
-        Returns:
-            True if the spatial type is supported
-        """
-        ...
 
     def supports_spatial_index(self) -> bool:
         """Whether SPATIAL index is supported."""

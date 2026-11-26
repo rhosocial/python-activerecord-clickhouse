@@ -92,33 +92,10 @@ PROTOCOL_FAMILY_GROUPS: Dict[str, list] = {
     ],
 }
 
-# All possible test arguments for methods that require parameters
-SUPPORT_METHOD_ALL_ARGS: Dict[str, List[str]] = {
-    # ExplainSupport: all possible format types
-    "supports_explain_format": ["TEXT", "JSON", "TREE", "XML", "YAML", "DOT"],
-    # ClickHouseJSONFunctionSupport: JSON functions with version-specific support
-    "supports_json_function": [
-        "JSON_EXTRACT",
-        "JSON_ARRAY",
-        "JSON_OBJECT",
-        "JSON_MERGE",
-        "JSON_TABLE",
-        "JSON_VALUE",
-        "JSON_SCHEMA_VALID",
-        "JSON_MERGE_PATCH",
-    ],
-    # ClickHouseSpatialSupport: spatial types
-    "supports_spatial_type": [
-        "GEOMETRY",
-        "POINT",
-        "LINESTRING",
-        "POLYGON",
-        "MULTIPOINT",
-        "MULTILINESTRING",
-        "MULTIPOLYGON",
-        "GEOMETRYCOLLECTION",
-    ],
-}
+# All support switches are parameterless bools: the only input ``supports_*``
+# takes is the dialect instance, so the ``info`` walk calls every one with no
+# arguments. A method that still demands one is reported as unsupported rather
+# than probed with a guessed vocabulary.
 
 
 def create_parser(subparsers):
@@ -238,7 +215,6 @@ def handle(args):
         dialect,
         family_groups=PROTOCOL_FAMILY_GROUPS,
         dialect_specific_groups=DIALECT_SPECIFIC_GROUPS,
-        all_args=SUPPORT_METHOD_ALL_ARGS,
         verbose=args.verbose,
     )
 
@@ -302,11 +278,13 @@ def get_protocol_support_methods(protocol_class: type) -> List[str]:
 def check_protocol_support(dialect, protocol_class: type) -> Dict[str, Any]:
     """Check all support methods for a protocol against the dialect.
 
-    For methods requiring parameters, tests all possible arguments.
+    ``supports_*`` is a parameterless switch, so every one is called with no
+    arguments. A method that still requires an argument is not a support
+    switch; it is reported as unsupported instead of being called with a
+    guessed value.
 
     Returns:
-        Dict with method names as keys. For no-arg methods: bool value.
-        For methods with parameters: dict with 'supported', 'total', 'args' keys.
+        Dict with method names as keys and bool values.
     """
     results = {}
     methods = get_protocol_support_methods(protocol_class)
@@ -320,22 +298,7 @@ def check_protocol_support(dialect, protocol_class: type) -> Dict[str, Any]:
                 required_params = [p for p in params if p.name != "self"]
 
                 if len(required_params) == 0:
-                    result = method()
-                    results[method_name] = bool(result)
-                elif method_name in SUPPORT_METHOD_ALL_ARGS:
-                    all_args = SUPPORT_METHOD_ALL_ARGS[method_name]
-                    arg_results = {}
-                    for arg in all_args:
-                        try:
-                            arg_results[arg] = bool(method(arg))
-                        except Exception:
-                            arg_results[arg] = False
-                    supported_count = sum(1 for v in arg_results.values() if v)
-                    results[method_name] = {
-                        "supported": supported_count,
-                        "total": len(all_args),
-                        "args": arg_results,
-                    }
+                    results[method_name] = bool(method())
                 else:
                     results[method_name] = False
             except Exception:

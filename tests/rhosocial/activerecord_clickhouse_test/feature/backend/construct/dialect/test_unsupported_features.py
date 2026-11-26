@@ -126,7 +126,6 @@ class TestTriggerStub:
 
 class TestSpatialStub:
     def test_supports_flags(self, dialect):
-        assert dialect.supports_spatial_type("POINT") is False
         assert dialect.supports_spatial_index() is False
         assert dialect.supports_geojson() is False
         assert dialect.supports_geometry_type() is False

@@ -13,9 +13,6 @@ class ClickHouseSpatialMixin:
     ClickHouse functions. All methods fail fast.
     """
 
-    def supports_spatial_type(self, type_name: str) -> bool:
-        return False
-
     def supports_spatial_index(self) -> bool:
         return False
 

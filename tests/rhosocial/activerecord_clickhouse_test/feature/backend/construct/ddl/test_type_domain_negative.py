@@ -28,7 +28,6 @@ from rhosocial.activerecord.backend.expression.statements import (
     CreateDomainStatement,
     CreateTypeStatement,
     DomainCheckConstraint,
-    DomainNullability,
     DomainValueExpression,
     DropDomainDefaultAction,
     DropDomainStatement,
@@ -79,6 +78,8 @@ TYPE_DOMAIN_SUPPORT_METHODS = (
     "supports_alter_domain",
     "supports_drop_domain",
     "supports_domain_default",
+    "supports_domain_nullable",
+    "supports_domain_not_null",
     "supports_domain_checks",
     "supports_named_domain_checks",
     "supports_multiple_domain_checks",
@@ -165,13 +166,7 @@ def test_schema_level_type_and_domain_support_is_false(
     for method_name in TYPE_DOMAIN_SUPPORT_METHODS:
         assert getattr(dialect, method_name)() is False, method_name
 
-    for nullability in DomainNullability:
-        assert dialect.supports_domain_nullability(nullability) is False
-
     assert dialect.supported_type_definitions() == ()
-    assert dialect.supports_type_definition(_NegativeTypeDefinition) is False
-    assert dialect.supports_type_alter_action(_NegativeTypeAlterAction) is False
-    assert dialect.supports_alter_domain_action(DropDomainDefaultAction) is False
 
 
 def test_type_formatters_and_expressions_fail_fast(dialect: ClickHouseDialect) -> None:

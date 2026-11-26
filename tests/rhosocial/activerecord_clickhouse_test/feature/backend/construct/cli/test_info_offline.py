@@ -122,11 +122,6 @@ class _SupportProto:
     def supports_unlisted(self, arg):
         return True
 
-    def supports_explain_format(self, fmt):
-        if fmt in ("TEXT", "JSON"):
-            return True
-        raise ValueError("unsupported format")
-
 
 class _SupportDialect:
     def supports_yes(self):
@@ -140,11 +135,6 @@ class _SupportDialect:
 
     def supports_unlisted(self, arg):
         return True
-
-    def supports_explain_format(self, fmt):
-        if fmt in ("TEXT", "JSON"):
-            return True
-        raise ValueError("unsupported format")
 
 
 class TestProtocolIntrospection:
@@ -169,15 +159,6 @@ class TestProtocolIntrospection:
     def test_check_support_unlisted_param_method_is_false(self):
         results = mod.check_protocol_support(_SupportDialect(), _SupportProto)
         assert results["supports_unlisted"] is False
-
-    def test_check_support_known_param_method_tests_all_args(self):
-        results = mod.check_protocol_support(_SupportDialect(), _SupportProto)
-        detail = results["supports_explain_format"]
-        assert detail["supported"] == 2
-        assert detail["total"] == 6
-        assert detail["args"]["TEXT"] is True
-        assert detail["args"]["JSON"] is True
-        assert detail["args"]["TREE"] is False
 
     def test_check_support_missing_method_on_dialect_is_false(self):
         class EmptyDialect:
@@ -272,7 +253,7 @@ class TestDisplayHelpers:
         "method,expected",
         [
             ("supports_window_functions", "window functions"),
-            ("supports_json_function", "json function"),
+            ("supports_fulltext_search", "fulltext search"),
             ("is_x_available", "is x available"),
             ("supports_", ""),
         ],
@@ -291,7 +272,7 @@ class TestDisplayHelpers:
         console = MagicMock()
         mod._display_method_details(
             console,
-            "supports_explain_format",
+            "supports_thing",
             {"supported": 1, "total": 2, "args": {"TEXT": True, "TREE": False}},
         )
         out = " ".join(str(c.args[0]) for c in console.print.call_args_list)
