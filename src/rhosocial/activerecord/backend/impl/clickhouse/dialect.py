@@ -128,7 +128,6 @@ from rhosocial.activerecord.backend.suggestion.protocols import (
     ColumnTypeSuggestionSupport,
     CreateTableLayoutSuggestionSupport,
     DataTypeSuggestionSupport,
-    FunctionSuggestionSupport,
     StringConcatenationSuggestionSupport,
 )
 from .protocols import (
@@ -500,7 +499,6 @@ class ClickHouseDialect(
     ColumnTypeSuggestionSupport,
     CreateTableLayoutSuggestionSupport,
     StringConcatenationSuggestionSupport,
-    FunctionSuggestionSupport,
     # Named objects. Each object protocol names the ``format_<kind>_object``
     # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they
     # precede it. They sit after the ClickHouse protocols that derive from them
