@@ -76,7 +76,11 @@ _TYPE_CAPABILITIES = {
     "views": "supports_view_introspection",
     "columns": "supports_column_introspection",
     "indexes": "supports_index_introspection",
-    "partitions": "supports_partition_introspection",
+    # ClickHouse reports a table's parts in ``system.parts``, so the family is
+    # gated on the partition-surface switch core already declares. Core deleted
+    # its older partition probe and this backend never overrode it; the
+    # metadata probe is the one that answers here.
+    "partitions": "supports_partition_metadata_introspection",
     "table-engine": "supports_table_engine_introspection",
     "database": "supports_database_info",
     # ---- the server-wide catalogue families ----

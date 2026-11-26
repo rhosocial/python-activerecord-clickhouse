@@ -41,9 +41,23 @@ if TYPE_CHECKING:
 class ClickHouseIntrospectionMixin:
     """ClickHouse introspection capability declaration and query formatting.
 
-    This mixin implements the IntrospectionSupport protocol by:
-    1. Declaring which introspection features ClickHouse supports (supports_* methods)
-    2. Formatting SQL queries for introspection (format_*_query methods)
+    Introspection is four families in core, each with its own protocol and
+    async twin (:mod:`rhosocial.activerecord.backend.dialect.protocols.introspect`).
+    This mixin answers the two that read this engine's catalogue and its rows:
+
+    * :class:`~...protocols.introspect.structure.StructureIntrospectionSupport`
+      -- what the catalogue declares an object to be;
+    * :class:`~...protocols.introspect.data_profile.DataProfileIntrospectionSupport`
+      -- what the rows in a column look like.
+
+    It declares the supported features (supports_* methods) and formats SQL
+    (format_*_query methods) that the expressions in
+    :mod:`..expression.introspection` dispatch to. The remaining two families,
+    :class:`~...protocols.introspect.operational_stats.OperationalStatsIntrospectionSupport`
+    and :class:`~...protocols.introspect.ddl_extraction.DdlExtractionIntrospectionSupport`,
+    are answered by core's base mixins as a refusal -- this backend keeps
+    neither statistics counters nor a DDL reader -- so they are not claimed
+    here.
 
     The format_*_query methods are called by Expression.to_sql() to generate
     database-specific SQL using the ClickHouse system database
@@ -84,9 +98,13 @@ class ClickHouseIntrospectionMixin:
     def supports_partition_introspection(self) -> bool:
         """ClickHouse answers for a table's partitions from ``system.parts``.
 
-        The capability for the ``introspect partitions`` family. The
-        parts view is live, so a partition with no active parts has
-        nothing to report and the answer is aggregated."""
+        A backend-local switch, kept for callers that ask this dialect
+        directly. The CLI's ``partitions`` family and the core partition
+        surface are gated on ``supports_partition_metadata_introspection``
+        instead; both answer True for the same reason -- the parts view is
+        live, so a partition with no active parts has nothing to report and
+        the answer is aggregated.
+        """
         return True
 
     def supports_table_engine_introspection(self) -> bool:

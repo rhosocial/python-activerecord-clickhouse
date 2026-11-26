@@ -84,7 +84,7 @@ def main() -> None:
         for label, supported in (
             ("tables", dialect.supports_table_introspection()),
             ("columns", dialect.supports_column_introspection()),
-            ("partitions", dialect.supports_partition_introspection()),
+            ("partitions", dialect.supports_partition_metadata_introspection()),
             ("table-engine", dialect.supports_table_engine_introspection()),
             ("functions", dialect.supports_function_introspection()),
             ("table-stats", dialect.supports_table_stats()),

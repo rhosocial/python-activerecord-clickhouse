@@ -14,7 +14,7 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十一个类�
 | `views` | `supports_view_introspection()` | `True` | `system.tables`（视图引擎） | 视图，可选 |
 | `columns` | `supports_column_introspection()` | `True` | `system.columns` | 表，必填 |
 | `indexes` | `supports_index_introspection()` | `True` | `system.data_skipping_indices` | 表，必填 |
-| `partitions` | `supports_partition_introspection()` | `True` | `system.tables` 取键，`system.parts` 取边界 | 表，必填 |
+| `partitions` | `supports_partition_metadata_introspection()` | `True` | `system.tables` 取键，`system.parts` 取边界 | 表，必填 |
 | `table-engine` | `supports_table_engine_introspection()` | `True` | `system.tables` | 表，必填 |
 | `database` | `supports_database_info()` | `True` | `system.databases` | 拒绝 |
 | `functions` | `supports_function_introspection()` | `True` | `system.functions` | 名称，可选 |
@@ -32,7 +32,7 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十一个类�
 | `value-samples` | `supports_column_value_sample()` | `True` | 行本身 | 表，必填 |
 | `join-coverage` | `supports_join_coverage()` | `True` | 行本身，两张表 | 左表，必填 |
 
-`table-engine` 是本后端自己的家族：它挂在本后端 mixin 里声明的开关上，也有自己的结果类型。`partitions` 由同一个开关提供，但渲染的是 `introspector.get_partition_state` 返回的**中立** `PartitionState`：`scheme` 来自引擎的 `partition_key`，`bounds` 是按 `partition_id` 分组的 active part。核心的 `supports_partition_info()` 按继承保持 `False`，因为这里的分区问题由对象状态 API 回答，而不是旧的 catalogue 家族；CLI 读的是本后端自己的开关，不是核心的。
+`table-engine` 是本后端自己的家族：它挂在本后端 mixin 里声明的开关上，也有自己的结果类型。`partitions` 挂核心的分区元数据开关 `supports_partition_metadata_introspection()`——本后端回答 `True`，因为它读 `system.parts`——渲染的是 `introspector.get_partition_state` 返回的**中立** `PartitionState`：`scheme` 来自引擎的 `partition_key`，`bounds` 是按 `partition_id` 分组的 active part。分区问题由对象状态 API 回答，而不是旧的 catalogue 家族；后者已随单数的自省协议一起由核心移除。
 
 六个服务端级 catalogue 家族同样是后端本地的。每一个都有自己的开关和结果类型，因为它们都不是带列和引擎的表。`functions` 读 `system.functions`，把内置函数和用户定义函数放在同一份清单里，用 `origin` 区分；名称是收窄条件而不是单行键，因为一个名称也可能对应一行别名。`dictionaries` 读 `system.dictionaries`，把带点的 `key.names` / `attribute.names` 列保留为具名列表字段，并原样报告配置文件中字典的 `database=''`。`clusters` 读 `system.clusters`，每个分片/副本成员一条记录而不是每个集群一条，因此从 1 开始的成员编号得以保留。`quotas`、`users` 与 `roles` 读各自的 `system.*` 表；users 家族报告认证**类型**，并且有意不投影 `auth_params`，因此凭据参数不会进入自省答案。读取这些访问控制表仍然取决于当前账号的权限：被拒绝时是查询错误，不是空清单。
 

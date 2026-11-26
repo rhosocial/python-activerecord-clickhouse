@@ -36,7 +36,7 @@ zero.
 | `views` | `supports_view_introspection()` | `True` | `system.tables` (view engines) | view, optional |
 | `columns` | `supports_column_introspection()` | `True` | `system.columns` | table, required |
 | `indexes` | `supports_index_introspection()` | `True` | `system.data_skipping_indices` | table, required |
-| `partitions` | `supports_partition_introspection()` | `True` | `system.tables` for the key, `system.parts` for bounds | table, required |
+| `partitions` | `supports_partition_metadata_introspection()` | `True` | `system.tables` for the key, `system.parts` for bounds | table, required |
 | `table-engine` | `supports_table_engine_introspection()` | `True` | `system.tables` | table, required |
 | `database` | `supports_database_info()` | `True` | `system.databases` | refused |
 | `functions` | `supports_function_introspection()` | `True` | `system.functions` | name, optional |
@@ -56,12 +56,14 @@ zero.
 
 `table-engine` is this backend's own family: it is gated on the switch declared
 beside it in the mixin and has a result type of its own. `partitions` is offered
-by the same switch but renders the **neutral** `PartitionState` from
-`introspector.get_partition_state`: `scheme` comes from the engine's
+through core's partition-metadata switch,
+`supports_partition_metadata_introspection()`, which this backend answers `True`
+because it reads `system.parts`, and renders the **neutral** `PartitionState`
+from `introspector.get_partition_state`: `scheme` comes from the engine's
 `partition_key`, and `bounds` are the active parts grouped by `partition_id`.
-Core's `supports_partition_info()` stays `False` by inheritance, because the
-core partition method is answered here through the object-state API rather than
-the older catalogue family; the CLI reads the backend's switch, not core's.
+The partition question is answered through the object-state API rather than
+the older catalogue family, which core removed along with the single
+introspection protocol.
 
 The six server-wide catalogue families are backend-local too. Each is gated on
 its own switch and each has its own result type, because none of them is a

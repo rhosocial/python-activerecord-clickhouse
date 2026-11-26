@@ -19,6 +19,7 @@ elif sys.version_info >= (3, 12):
 
 import pytest
 from rhosocial.activerecord.backend.dialect import protocols as dialect_protocols
+from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.suggestion import protocols as suggestion_protocols
 from rhosocial.activerecord.backend.impl.clickhouse import dialect as clickhouse_dialect
 from rhosocial.activerecord.backend.impl.clickhouse import mixins as clickhouse_mixins
@@ -129,7 +130,15 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.TypeObjectSupport,
     dialect_protocols.SynonymObjectSupport,
     dialect_protocols.ConstraintSupport,
-    dialect_protocols.IntrospectionSupport,
+    # Introspection is four families now, each with an async twin, replacing
+    # the single ``IntrospectionSupport``. ClickHouse answers two of them --
+    # structure and data profile -- so those are claimed here; the two it is
+    # genuinely absent from (operational statistics and DDL extraction) are
+    # recorded in CLICKHOUSE_INTROSPECTION_REFUSED below rather than claimed.
+    dialect_protocols.StructureIntrospectionSupport,
+    dialect_protocols.AsyncStructureIntrospectionSupport,
+    dialect_protocols.DataProfileIntrospectionSupport,
+    dialect_protocols.AsyncDataProfileIntrospectionSupport,
     dialect_protocols.TransactionControlSupport,
     # Generic protocols ClickHouse also satisfies (previously omitted from this list).
     dialect_protocols.AlterTableModifierSupport,
@@ -206,7 +215,6 @@ CLICKHOUSE_PROTOCOLS = [
     # Family protocols added by the core refactor. ClickHouse composes the
     # corresponding core mixins, so every one is satisfied structurally; they
     # must be classified here or the partition test fails.
-    dialect_protocols.AsyncIntrospectionSupport,
     dialect_protocols.DDLColumnSupport,
     dialect_protocols.DMLSupport,
     dialect_protocols.DQLSupport,
@@ -317,6 +325,113 @@ CLICKHOUSE_NOT_IMPLEMENTED = [
 ]
 
 
+# The introspection families this backend is genuinely absent from.
+#
+# Core composes all four family mixins, so the protocols' members exist on the
+# dialect and ``isinstance`` is structurally true. That is not a capability
+# claim: every probe of these two families answers ``False`` and every formatter
+# refuses. Recording them apart from CLICKHOUSE_PROTOCOLS keeps "the member
+# exists and refuses" distinguishable from "the dialect declares the family".
+CLICKHOUSE_INTROSPECTION_REFUSED = [
+    dialect_protocols.OperationalStatsIntrospectionSupport,
+    dialect_protocols.AsyncOperationalStatsIntrospectionSupport,
+    dialect_protocols.DdlExtractionIntrospectionSupport,
+    dialect_protocols.AsyncDdlExtractionIntrospectionSupport,
+]
+
+
+#: Per-member classification of the four introspection families on this dialect.
+#:
+#: ``answered`` means the probe answers ``True`` (or the formatter is the one
+#: this backend renders); ``refused`` means the probe answers ``False`` and the
+#: formatter raises the named error. The sets together cover each protocol's
+#: members exactly, so a member added by core cannot land unclassified.
+INTROSPECTION_FAMILIES = {
+    "StructureIntrospectionSupport": {
+        "answered_probes": [
+            "supports_introspection",
+            "supports_database_info",
+            "supports_table_introspection",
+            "supports_column_introspection",
+            "supports_index_introspection",
+            "supports_view_introspection",
+            "supports_table_storage_introspection",
+        ],
+        # The family exists, but these three members do not: this engine has
+        # neither foreign keys nor triggers, and no add-on-component catalogue.
+        "refused_probes": [
+            "supports_foreign_key_introspection",
+            "supports_trigger_introspection",
+            "supports_extensions",
+        ],
+        "answered_formatters": [
+            "format_database_info_query_statement",
+            "format_table_list_query_statement",
+            "format_column_info_query_statement",
+            "format_index_info_query_statement",
+            "format_view_list_query_statement",
+            "format_view_info_query_statement",
+        ],
+        "refused_formatters": {
+            # Single-table info is still core's base refusal: table information
+            # is answered through the list query, so the dedicated statement
+            # was never rendered here. Recorded, not papered over.
+            "format_table_info_query_statement": NotImplementedError,
+            "format_foreign_key_query_statement": UnsupportedFeatureError,
+            "format_trigger_list_query_statement": UnsupportedFeatureError,
+            "format_trigger_info_query_statement": UnsupportedFeatureError,
+        },
+    },
+    "OperationalStatsIntrospectionSupport": {
+        # No statistics collector and no dependency graph: the whole family is
+        # refused, so the CLI turns every one of these off before it connects.
+        "answered_probes": [],
+        "refused_probes": [
+            "supports_runtime_stats",
+            "supports_index_stats",
+            "supports_table_stats",
+            "supports_unused_indexes_detection",
+            "supports_object_dependencies",
+        ],
+        "answered_formatters": [],
+        "refused_formatters": {
+            "format_unused_indexes_query_statement": UnsupportedFeatureError,
+            "format_table_usage_stats_query_statement": UnsupportedFeatureError,
+            "format_runtime_metrics_query_statement": UnsupportedFeatureError,
+            "format_index_usage_stats_query_statement": UnsupportedFeatureError,
+            "format_object_dependency_query_statement": UnsupportedFeatureError,
+        },
+    },
+    "DataProfileIntrospectionSupport": {
+        # The three row families are answered exactly, by aggregating the rows.
+        "answered_probes": [
+            "supports_column_data_profile",
+            "supports_column_value_sample",
+            "supports_join_coverage",
+        ],
+        "refused_probes": [],
+        "answered_formatters": [
+            "format_column_data_profile_query_statement",
+            "format_column_value_sample_query_statement",
+            "format_join_coverage_query_statement",
+        ],
+        "refused_formatters": {},
+    },
+    "DdlExtractionIntrospectionSupport": {
+        # No reader for retained DDL text and no assembly path: refused whole.
+        "answered_probes": [],
+        "refused_probes": [
+            "supports_ddl_extraction",
+            "supports_ddl_extraction_native",
+        ],
+        "answered_formatters": [],
+        "refused_formatters": {
+            "format_ddl_statement_query_statement": UnsupportedFeatureError,
+        },
+    },
+}
+
+
 def get_all_generic_protocols() -> dict:
     """Discover every generic dialect protocol defined in protocols.py."""
     from typing import Protocol
@@ -354,14 +469,177 @@ class TestDialectNegativeProtocolConformance:
         # __module__ names that submodule and never the package.
         positive = {p.__name__ for p in CLICKHOUSE_PROTOCOLS if p in all_protos}
         negative = {p.__name__ for p in CLICKHOUSE_NOT_IMPLEMENTED if p in all_protos}
+        refused = {p.__name__ for p in CLICKHOUSE_INTROSPECTION_REFUSED if p in all_protos}
 
         overlap = positive & negative
-        assert not overlap, f"Protocols in BOTH lists: {sorted(overlap)}"
+        assert not overlap, f"Protocols in BOTH positive and negative lists: {sorted(overlap)}"
 
-        unclassified = {p.__name__ for p in all_protos} - positive - negative
+        # A refused family is structurally present (core composes its mixin),
+        # so it cannot live in the not-implemented list -- that list asserts
+        # ``not isinstance``. Nor is it a capability the dialect claims, so it
+        # cannot live in the positive list either. The third bucket is where
+        # "present but every probe answers False" is recorded.
+        assert refused.isdisjoint(positive), (
+            f"Refused introspection protocols also claimed as implemented: "
+            f"{sorted(refused & positive)}"
+        )
+        assert refused.isdisjoint(negative), (
+            f"Structurally present introspection protocols in the not-implemented list: "
+            f"{sorted(refused & negative)}"
+        )
+
+        unclassified = {p.__name__ for p in all_protos} - positive - negative - refused
         assert not unclassified, (
             f"Generic protocols not classified for ClickHouse: {sorted(unclassified)}. "
-            f"Add each to CLICKHOUSE_PROTOCOLS or CLICKHOUSE_NOT_IMPLEMENTED."
+            f"Add each to CLICKHOUSE_PROTOCOLS, CLICKHOUSE_NOT_IMPLEMENTED or "
+            f"CLICKHOUSE_INTROSPECTION_REFUSED."
+        )
+
+
+class TestIntrospectionFamilyClassification:
+    """Classify every member of the four introspection families.
+
+    The single ``IntrospectionSupport`` used to be one row in the positive
+    list. It is four families now, and this backend answers two of them, so
+    the classification is per member: a probe that answers ``True`` and a
+    formatter this backend renders are positive; a probe that answers ``False``
+    and a formatter that refuses is negative/refused, with the refusal asserted.
+    No implementation is flipped to satisfy a row -- an absent family stays
+    absent and says so.
+    """
+
+    @pytest.fixture
+    def dialect(self):
+        return clickhouse_dialect.ClickHouseDialect()
+
+    @pytest.mark.parametrize("family", list(INTROSPECTION_FAMILIES))
+    def test_every_protocol_member_is_classified(self, family):
+        """Positive and refused sets partition the protocol's members exactly."""
+        protocol = getattr(dialect_protocols, family)
+        disposition = INTROSPECTION_FAMILIES[family]
+        answered = set(disposition["answered_probes"]) | set(disposition["answered_formatters"])
+        refused = set(disposition["refused_probes"]) | set(disposition["refused_formatters"])
+
+        assert answered.isdisjoint(refused), (
+            f"{family} classifies the same member both ways: {sorted(answered & refused)}"
+        )
+        assert answered | refused == get_all_protocol_methods(protocol), (
+            f"{family} leaves members unclassified: "
+            f"{sorted(get_all_protocol_methods(protocol) - answered - refused)}"
+        )
+
+    @pytest.mark.parametrize("family", list(INTROSPECTION_FAMILIES))
+    def test_async_twin_mirrors_the_family(self, family):
+        """The async twin declares the same members, so it is classified the same."""
+        sync_protocol = getattr(dialect_protocols, family)
+        async_protocol = getattr(dialect_protocols, "Async" + family)
+        assert get_all_protocol_methods(async_protocol) == get_all_protocol_methods(sync_protocol)
+
+    @pytest.mark.parametrize("family", list(INTROSPECTION_FAMILIES))
+    def test_answered_probes_answer_true(self, dialect, family):
+        for name in INTROSPECTION_FAMILIES[family]["answered_probes"]:
+            assert getattr(dialect, name)() is True, f"{family}.{name} should answer True"
+
+    @pytest.mark.parametrize("family", list(INTROSPECTION_FAMILIES))
+    def test_refused_probes_answer_false(self, dialect, family):
+        for name in INTROSPECTION_FAMILIES[family]["refused_probes"]:
+            assert getattr(dialect, name)() is False, f"{family}.{name} should answer False"
+
+    @pytest.mark.parametrize("family", list(INTROSPECTION_FAMILIES))
+    def test_answered_formatters_are_rendered_here(self, dialect, family):
+        """A positive formatter is this backend's own, not core's refusing one."""
+        for name in INTROSPECTION_FAMILIES[family]["answered_formatters"]:
+            owner = getattr(type(dialect), name).__qualname__.split(".")[0]
+            assert owner == "ClickHouseIntrospectionMixin", (
+                f"{family}.{name} resolves to {owner}, not the ClickHouse mixin"
+            )
+
+    @pytest.mark.parametrize("family", list(INTROSPECTION_FAMILIES))
+    def test_refused_formatters_raise(self, dialect, family):
+        """The refusal is explicit: calling the formatter raises, naming the work."""
+        for name, error in INTROSPECTION_FAMILIES[family]["refused_formatters"].items():
+            with pytest.raises(error):
+                getattr(dialect, name)(None)
+
+
+class TestIntrospectionProtocolSplit:
+    """Guard the four-family split itself against a silent rollback.
+
+    Core removed the single protocol and ``supports_partition_info`` with no
+    aliases. This backend must not reintroduce either name, must import each
+    family from the module core defines it in, and must point the CLI's
+    ``partitions`` family at the partition-metadata probe that exists here.
+    """
+
+    @pytest.fixture
+    def dialect(self):
+        return clickhouse_dialect.ClickHouseDialect()
+
+    def test_the_old_single_names_are_gone(self):
+        assert not hasattr(dialect_protocols, "IntrospectionSupport")
+        assert not hasattr(dialect_protocols, "AsyncIntrospectionSupport")
+        assert not hasattr(clickhouse_protocols, "IntrospectionSupport")
+        assert not hasattr(clickhouse_protocols, "AsyncIntrospectionSupport")
+
+    def test_the_four_families_come_from_their_core_modules(self):
+        """Each family is imported from the submodule that defines it."""
+        import importlib
+
+        module_by_family = {
+            "StructureIntrospectionSupport": "structure",
+            "OperationalStatsIntrospectionSupport": "operational_stats",
+            "DataProfileIntrospectionSupport": "data_profile",
+            "DdlExtractionIntrospectionSupport": "ddl_extraction",
+        }
+        for family, stem in module_by_family.items():
+            module = importlib.import_module(
+                "rhosocial.activerecord.backend.dialect.protocols.introspect." + stem
+            )
+            for name in (family, "Async" + family):
+                protocol = getattr(dialect_protocols, name)
+                assert getattr(module, name) is protocol, (
+                    f"{name} is not the class exported by introspect.{stem}"
+                )
+                assert protocol.__module__ == module.__name__, (
+                    f"{name} reports module {protocol.__module__}, expected {module.__name__}"
+                )
+
+    def test_supports_partition_info_is_absent(self, dialect):
+        """Core deleted the probe, and this backend never overrode it."""
+        assert not hasattr(dialect, "supports_partition_info")
+        assert not hasattr(type(dialect), "supports_partition_info")
+
+    def test_the_partitions_family_names_the_metadata_probe(self, dialect):
+        from rhosocial.activerecord.backend.impl.clickhouse.cli import introspect as introspect_cli
+
+        switch = introspect_cli._TYPE_CAPABILITIES["partitions"]
+        assert switch == "supports_partition_metadata_introspection"
+        assert getattr(dialect, switch)() is True, (
+            "partitions is offered only where system.parts answers the family"
+        )
+
+    def test_no_source_file_mentions_the_legacy_names(self):
+        """Neither name may survive in this backend's source, even in prose."""
+        import re
+        from pathlib import Path
+
+        import rhosocial.activerecord.backend.impl.clickhouse as clickhouse_pkg
+
+        root = Path(clickhouse_pkg.__path__[0])
+        patterns = {
+            "single introspection protocol": re.compile(r"\bIntrospectionSupport\b"),
+            "deleted partition probe": re.compile(r"\bsupports_partition_info\b"),
+        }
+        offenders = []
+        for path in root.rglob("*.py"):
+            text = path.read_text(encoding="utf-8", errors="replace")
+            for label, pattern in patterns.items():
+                if pattern.search(text):
+                    offenders.append(f"{path.relative_to(root)}: {label}")
+
+        assert not offenders, (
+            "legacy introspection names remain in the ClickHouse source:\n"
+            + "\n".join(f"  - {o}" for o in offenders)
         )
 
 
@@ -417,8 +695,12 @@ class TestProtocolNonOverlap:
             ("DropTriggerSupport", "ClickHouseTriggerSupport"),
             ("FulltextIndexSupport", "ClickHouseFullTextSearchSupport"),
             # Family protocols added by the core refactor deliberately restate
-            # members of the specialised ClickHouse protocols above.
-            ("IntrospectionSupport", "AsyncIntrospectionSupport"),
+            # members of the specialised ClickHouse protocols above. The async
+            # twin of each answered introspection family mirrors its sync
+            # sibling member for member; see
+            # test_introspection_protocol_split.py in core for the contract.
+            ("StructureIntrospectionSupport", "AsyncStructureIntrospectionSupport"),
+            ("DataProfileIntrospectionSupport", "AsyncDataProfileIntrospectionSupport"),
             ("ClickHouseDMLOperationSupport", "DMLSupport"),
             ("ClickHouseTableSupport", "DDLColumnSupport"),
             ("ClickHouseModifyColumnSupport", "DDLColumnSupport"),
