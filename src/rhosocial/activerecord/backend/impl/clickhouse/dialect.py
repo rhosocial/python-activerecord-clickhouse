@@ -9,52 +9,6 @@ based on the ClickHouse version provided at initialization.
 from typing import Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
-from rhosocial.activerecord.backend.dialect.protocols import (
-    CollationSupport,
-    CTESupport,
-    FilterClauseSupport,
-    WindowFunctionSupport,
-    ReturningSupport,
-    AdvancedGroupingSupport,
-    ArraySupport,
-    ExplainSupport,
-    GraphSupport,
-    MergeSupport,
-    OrderedSetAggregationSupport,
-    QualifyClauseSupport,
-    TemporalTableSupport,
-    UpsertSupport,
-    LateralJoinSupport,
-    WildcardSupport,
-    JoinSupport,
-    # Named objects: naming one, not creating or dropping it.
-    ViewObjectSupport,
-    MaterializedViewObjectSupport,
-    TableObjectSupport,
-    IndexObjectSupport,
-    SequenceObjectSupport,
-    TriggerObjectSupport,
-    RoutineObjectSupport,
-    TypeObjectSupport,
-    SynonymObjectSupport,
-    ForeignTableObjectSupport,
-    NamespaceSupport,
-    # DDL statement protocols
-    CreateTypeSupport,
-    AlterTypeSupport,
-    DropTypeSupport,
-    CreateDomainSupport,
-    AlterDomainSupport,
-    DropDomainSupport,
-    AutoIncrementColumnSupport,
-    IdentityColumnSupport,
-    ConstraintSupport,
-    IntrospectionSupport,
-    TruncateSupport,
-    TransactionControlSupport,
-    DataTypeSupport,
-    ColumnAttributeSupport,
-)
 from rhosocial.activerecord.backend.dialect.mixins import (
     # The object tree: each *NameMixin renders one object kind and inherits
     # NamespaceMixin for the namespace levels, so they precede it.
@@ -107,7 +61,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     DDLColumnMixin,
     # ColumnAttributeSupport gained two members that no longer come from
     # DDLColumnMixin. Compose core's standalone mixin so ClickHouseDialect
-    # still satisfies the protocol it declares; it precedes DDLColumnMixin's
+    # still satisfies the protocol structurally; it precedes DDLColumnMixin's
     # format_column_attributes() caller in the MRO.
     ColumnAttributeMixin,
     UserDefinedTypeMixin,
@@ -123,32 +77,6 @@ from rhosocial.activerecord.backend.dialect.mixins import (
     RepeatMixin,
     RpadMixin,
     TrimMixin,
-)
-from rhosocial.activerecord.backend.suggestion.protocols import (
-    ColumnTypeSuggestionSupport,
-    CreateTableLayoutSuggestionSupport,
-    DataTypeSuggestionSupport,
-    StringConcatenationSuggestionSupport,
-)
-from .protocols import (
-    ClickHouseTriggerSupport,
-    ClickHouseTableSupport,
-    ClickHouseJSONFunctionSupport,
-    ClickHouseSpatialSupport,
-    ClickHouseDMLOperationSupport,
-    ClickHouseFullTextSearchSupport,
-    ClickHouseLockingSupport,
-    ClickHouseModifyColumnSupport,
-    ClickHouseJsonDualityViewSupport,
-    ClickHouseOptimizerHintSupport,
-    ClickHousePartitionSupport,
-    ClickHouseRenameTableSupport,
-    ClickHouseTableStatementSupport,
-    ClickHouseMaintenanceSupport,
-    ClickHouseRoutineSupport,
-    ClickHouseLoadXMLSupport,
-    ClickHouseAdminCommandSupport,
-    ClickHouseTypeSupport,
 )
 from .mixins import (
     ClickHouseTransactionMixin,
@@ -278,10 +206,9 @@ class ClickHouseDialect(
     ClickHouseTableStatementMixin,
     RelationSourceMixin,
     # The object tree: each *NameMixin renders one object kind and inherits
-    # NamespaceMixin for the namespace levels, so they precede it. The object
-    # protocols name the format_*_object methods and inherit NamespaceSupport,
-    # so they precede it too. Both sit ahead of the DDL mixins because naming an
-    # object and changing one are independent capabilities.
+    # NamespaceMixin for the namespace levels, so they precede it. Both sit
+    # ahead of the DDL mixins because naming an object and changing one are
+    # independent capabilities.
     TableObjectMixin,
     ViewObjectMixin,
     MaterializedViewObjectMixin,
@@ -439,81 +366,6 @@ class ClickHouseDialect(
     RepeatMixin,
     RpadMixin,
     TrimMixin,
-    # Protocols for type checking
-    CollationSupport,
-    CTESupport,
-    FilterClauseSupport,
-    WindowFunctionSupport,
-    ClickHouseJSONFunctionSupport,
-    ReturningSupport,
-    AdvancedGroupingSupport,
-    ArraySupport,
-    ExplainSupport,
-    GraphSupport,
-    ClickHouseLockingSupport,
-    MergeSupport,
-    OrderedSetAggregationSupport,
-    QualifyClauseSupport,
-    TemporalTableSupport,
-    UpsertSupport,
-    LateralJoinSupport,
-    WildcardSupport,
-    JoinSupport,
-    CreateTypeSupport,
-    AlterTypeSupport,
-    DropTypeSupport,
-    CreateDomainSupport,
-    AlterDomainSupport,
-    DropDomainSupport,
-    AutoIncrementColumnSupport,
-    IdentityColumnSupport,
-    ClickHouseTableSupport,
-    ConstraintSupport,
-    IntrospectionSupport,
-    TruncateSupport,
-    TransactionControlSupport,
-    ClickHouseTriggerSupport,
-    ClickHouseSpatialSupport,
-    ClickHouseFullTextSearchSupport,
-    ClickHouseModifyColumnSupport,
-    ClickHouseJsonDualityViewSupport,
-    ClickHouseOptimizerHintSupport,
-    ClickHousePartitionSupport,
-    ClickHouseDMLOperationSupport,
-    ClickHouseRenameTableSupport,
-    ClickHouseTableStatementSupport,
-    ClickHouseMaintenanceSupport,
-    ClickHouseRoutineSupport,
-    ClickHouseLoadXMLSupport,
-    ClickHouseAdminCommandSupport,
-    # Core split ColumnAttributeSupport out of DDLColumnSupport: the standalone
-    # ColumnAttributeMixin above supplies its two members.
-    ColumnAttributeSupport,
-    # Before the generic DataTypeSupport it extends, for the same reason
-    # ClickHouseTypeSupportMixin precedes the mixin it completes: the backend
-    # protocol refines the generic one and must be seen first in the MRO.
-    ClickHouseTypeSupport,
-    DataTypeSupport,
-    # Suggestion protocols moved to backend.suggestion.protocols in core.
-    DataTypeSuggestionSupport,
-    ColumnTypeSuggestionSupport,
-    CreateTableLayoutSuggestionSupport,
-    StringConcatenationSuggestionSupport,
-    # Named objects. Each object protocol names the ``format_<kind>_object``
-    # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they
-    # precede it. They sit after the ClickHouse protocols that derive from them
-    # -- a subclass must precede its base.
-    TableObjectSupport,
-    ViewObjectSupport,
-    MaterializedViewObjectSupport,
-    ForeignTableObjectSupport,
-    IndexObjectSupport,
-    SequenceObjectSupport,
-    TriggerObjectSupport,
-    RoutineObjectSupport,
-    TypeObjectSupport,
-    SynonymObjectSupport,
-    NamespaceSupport,
 ):
     """
     ClickHouse dialect implementation that adapts to the ClickHouse version.

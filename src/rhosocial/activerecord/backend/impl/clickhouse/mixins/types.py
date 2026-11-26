@@ -12,7 +12,6 @@ from typing import Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.dialect.mixins.data_type import DataTypeMixin
-from rhosocial.activerecord.backend.dialect.protocols import DataTypeSupport
 from rhosocial.activerecord.backend.suggestion.definitions import (
     SubstituteAdviceSuggestion,
     SubstituteTypeSuggestion,
@@ -23,7 +22,6 @@ from rhosocial.activerecord.backend.expression.types import (
     BlobType,
     BooleanType,
     CharType,
-    DataType,
     DateType,
     DateTimeType,
     DecimalType,
@@ -87,13 +85,13 @@ from ..expression.types import (
 )
 
 
-class ClickHouseTypeSupportMixin(DataTypeMixin, DataTypeSupport):
+class ClickHouseTypeSupportMixin(DataTypeMixin):
     """ClickHouse DataType formatting.
 
-    Implements ``DataTypeSupport`` so the dialect can render ``DataType``
-    expressions to SQL strings. Reading a server-reported type spelling back
-    into a ``DataType`` is an introspection-only concern handled by
-    ``ClickHouseTypeParser`` in ``introspection/type_parser.py``.
+    Satisfies ``DataTypeSupport`` structurally so the dialect can render
+    ``DataType`` expressions to SQL strings. Reading a server-reported type
+    spelling back into a ``DataType`` is an introspection-only concern handled
+    by ``ClickHouseTypeParser`` in ``introspection/type_parser.py``.
 
     Formatting dispatches by the type instance's ``name`` through the
     naming-convention ``format_data_type_<name>`` methods (see

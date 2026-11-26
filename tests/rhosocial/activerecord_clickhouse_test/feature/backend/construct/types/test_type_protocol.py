@@ -872,11 +872,19 @@ class TestCorrespondence:
             dialect.format_data_type(IntervalType(dialect))
         assert "ClickHouseInt64Type" in str(excinfo.value)
 
-    def test_backend_type_protocol_is_in_the_mro_before_the_generic_one(self):
-        mro = ClickHouseDialect.__mro__
-        assert ClickHouseTypeSupport in mro
-        assert mro.index(ClickHouseTypeSupport) < mro.index(DataTypeSupport)
-        assert isinstance(ClickHouseDialect(), ClickHouseTypeSupport)
+    def test_backend_type_protocol_is_satisfied_structurally(self):
+        """Both type protocols are satisfied without being inherited.
+
+        A ``runtime_checkable`` Protocol answers from method presence, so
+        listing it as a base adds only ellipsis-bodied members and lets
+        ``isinstance`` speak for things nothing implements. The dialect must
+        satisfy both protocols and carry neither of them in its MRO.
+        """
+        dialect = ClickHouseDialect()
+        assert isinstance(dialect, ClickHouseTypeSupport)
+        assert isinstance(dialect, DataTypeSupport)
+        for protocol in (ClickHouseTypeSupport, DataTypeSupport):
+            assert protocol not in ClickHouseDialect.__mro__
 
     def test_protocol_does_not_absorb_the_set_type_contract(self):
         """``ClickHouseSetTypeSupport`` is about functions, not a column type."""

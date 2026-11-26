@@ -131,18 +131,22 @@ def test_type_and_domain_protocols_and_mixins_are_composed(
     assert isinstance(dialect, DomainMixin)
 
     mro = ClickHouseDialect.__mro__
-    for mixin, protocols in (
-        (UserDefinedTypeMixin, (CreateTypeSupport, AlterTypeSupport, DropTypeSupport)),
-        (DomainMixin, (CreateDomainSupport, AlterDomainSupport, DropDomainSupport)),
-    ):
+    for mixin in (UserDefinedTypeMixin, DomainMixin, ClickHouseTypeSupportMixin):
         assert mixin in mro
-        for protocol in protocols:
-            assert protocol in mro
-            assert mro.index(mixin) < mro.index(protocol)
+    # A protocol is a declaration, not an implementation: the dialect satisfies
+    # each one structurally (asserted above) and carries none in its MRO.
+    for protocol in (
+        DataTypeSupport,
+        CreateTypeSupport,
+        AlterTypeSupport,
+        DropTypeSupport,
+        CreateDomainSupport,
+        AlterDomainSupport,
+        DropDomainSupport,
+    ):
+        assert protocol not in mro
 
     assert issubclass(ClickHouseTypeSupportMixin, DataTypeMixin)
-    assert issubclass(ClickHouseTypeSupportMixin, DataTypeSupport)
-    assert mro.index(ClickHouseTypeSupportMixin) < mro.index(DataTypeSupport)
     assert not issubclass(ClickHouseTypeSupportMixin, UserDefinedTypeMixin)
     assert not issubclass(ClickHouseTypeSupportMixin, DomainMixin)
 

@@ -10,6 +10,13 @@ value. None of those may wear the ``supports_*`` name.
 The scan is an ``ast`` walk over ``src/**/*.py``; it also asserts the walk
 reached the tree, and is exercised against fabricated offending sources in
 ``tmp_path`` so a scanner that stops finding anything cannot pass silently.
+
+The second guard covers inheritance rather than switches: a ``runtime_checkable``
+Protocol is satisfied structurally, so inheriting a ``*Support`` protocol
+contributes only ellipsis-bodied stubs and makes ``isinstance`` answer for
+members nothing implements. No class ending ``Dialect`` may name such a base,
+and the walk is likewise exercised against a fabricated violation and a clean
+control.
 """
 
 from __future__ import annotations
@@ -78,6 +85,49 @@ def _scan(paths: Sequence[Path], label_for) -> List[str]:
     for path in paths:
         found.extend(
             _offenders(
+                ast.parse(path.read_text(encoding="utf-8")),
+                label_for(path),
+            )
+        )
+    return found
+
+
+def _base_name(node: ast.expr) -> str:
+    """The last name of a base expression (``Name`` or ``Attribute``)."""
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        return node.attr
+    return ""
+
+
+def _dialect_inheritance_offenders(tree: ast.Module, label: str) -> List[str]:
+    """Every ``*Dialect`` class inheriting a ``*Support`` protocol base."""
+    found = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ClassDef) or not node.name.endswith("Dialect"):
+            continue
+        for base in node.bases:
+            name = _base_name(base)
+            if name.endswith("Support"):
+                found.append(f"{label}:{node.lineno} {node.name} inherits {name}")
+    return found
+
+
+def _dialect_classes(tree: ast.Module) -> List[str]:
+    """Names of every ``*Dialect`` class in a module."""
+    return [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ClassDef) and node.name.endswith("Dialect")
+    ]
+
+
+def _scan_dialect_inheritance(paths: Sequence[Path], label_for) -> List[str]:
+    found = []
+    for path in paths:
+        found.extend(
+            _dialect_inheritance_offenders(
                 ast.parse(path.read_text(encoding="utf-8")),
                 label_for(path),
             )
@@ -164,3 +214,51 @@ def test_the_scan_accepts_a_quoted_bool_annotation(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert not _scan([probe], lambda path: path.name)
+
+
+def test_no_dialect_class_inherits_a_support_protocol() -> None:
+    """The inheritance rule, over the real source tree.
+
+    A protocol base whose name ends ``Support`` is a typing declaration, not
+    an implementation: inheriting it adds its ellipsis-bodied members and lets
+    ``isinstance`` pass for things the dialect does not do. The implementing
+    mixin is enough, and the conformance test checks the structural match.
+    """
+    files = _source_files()
+    assert files, f"no source files found under {_SRC}"
+    offenders = _scan_dialect_inheritance(files, lambda path: path.name)
+    assert not offenders, "\n".join(offenders)
+
+
+def test_the_dialect_scan_reaches_the_source_tree() -> None:
+    """At least one ``*Dialect`` class is seen, so the guard is not vacuous."""
+    files = _source_files()
+    dialect_names = [
+        name
+        for path in files
+        for name in _dialect_classes(ast.parse(path.read_text(encoding="utf-8")))
+    ]
+    assert dialect_names, f"no *Dialect class found under {_SRC}"
+
+
+def test_the_dialect_scan_flags_a_support_base(tmp_path: Path) -> None:
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "class ProbeDialect(BaseDialect, ThingSupport):\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    offenders = _scan_dialect_inheritance([probe], lambda path: path.name)
+    assert offenders and "ProbeDialect inherits ThingSupport" in offenders[0]
+
+
+def test_the_dialect_scan_accepts_a_clean_dialect(tmp_path: Path) -> None:
+    probe = tmp_path / "_probe.py"
+    probe.write_text(
+        "class ProbeDialect(BaseDialect, ThingMixin):\n"
+        "    pass\n"
+        "class ThingSupport:\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    assert not _scan_dialect_inheritance([probe], lambda path: path.name)

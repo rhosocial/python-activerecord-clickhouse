@@ -4,13 +4,9 @@ from rhosocial.activerecord.backend.suggestion.definitions import (
     ConcatenationFunctionSuggestion,
     CreateTableLayoutSuggestion,
 )
-from rhosocial.activerecord.backend.suggestion.protocols import (
-    CreateTableLayoutSuggestionSupport,
-    StringConcatenationSuggestionSupport,
-)
 
 
-class ClickHouseCreateTableLayoutSuggestionMixin(CreateTableLayoutSuggestionSupport):
+class ClickHouseCreateTableLayoutSuggestionMixin:
     """ClickHouse inlines indexes and the table comment in one CREATE TABLE."""
 
     def suggest_create_table_layout(self) -> CreateTableLayoutSuggestion:
@@ -28,7 +24,7 @@ class ClickHouseCreateTableLayoutSuggestionMixin(CreateTableLayoutSuggestionSupp
         )
 
 
-class ClickHouseStringConcatenationSuggestionMixin(StringConcatenationSuggestionSupport):
+class ClickHouseStringConcatenationSuggestionMixin:
     """ClickHouse spells string concatenation with the ``concat`` function."""
 
     def suggest_concatenation_function(self) -> ConcatenationFunctionSuggestion:
