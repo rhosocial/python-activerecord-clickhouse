@@ -4,9 +4,12 @@
 What is pinned here:
 
 * ``list_index_states`` answers from ``system.data_skipping_indices`` with the
-  engine's method name and skip expression;
+  engine's method name and skip expression; ``creation`` is asserted only on the
+  release lines that answer it (26.3 and later -- 25.8 refuses the column);
 * ``list_constraint_states`` answers from ``system.constraints`` with the
-  declared ``CHECK`` constraint and its expression;
+  declared ``CHECK`` constraint and its expression where that catalogue exists
+  (26.7 and later), and refuses by name on the lines that do not have it (25.8
+  and 26.3);
 * ``list_schemas`` answers the database names the server exposes;
 * ``list_derived_objects`` finds a projection and a materialized view that read
   from the table;
@@ -15,15 +18,21 @@ What is pinned here:
 * ``get_table_state`` reports an object's kind from its engine, so a view is not
   collapsed into a regular table.
 
-The live tests skip themselves when no server is reachable, through the same
-scenario support the rest of the backend tests use.
+The catalogue surface differs by release line, so the expectations come from
+``impl.clickhouse.catalogue`` -- the same table the SQL formatters use. The live
+tests skip themselves when no server is reachable, through the same scenario
+support the rest of the backend tests use.
 """
 
 import socket
 
 import pytest
-
+from rhosocial.activerecord.backend.introspection import IntrospectionNotSupportedError
 from rhosocial.activerecord.backend.introspection.types import ItemKind
+
+from rhosocial.activerecord.backend.impl.clickhouse.catalogue import (
+    capabilities_for_version,
+)
 
 TABLE = "test_intro_state_ch"
 VIEW = "test_intro_state_mv_ch"
@@ -74,6 +83,7 @@ def state_backend(live_server, clickhouse_backend_single):
 
 class TestIndexStates:
     def test_the_skipping_index_carries_its_method_and_expression(self, state_backend):
+        capabilities = capabilities_for_version(state_backend.get_server_version())
         states = state_backend.introspector.list_index_states(TABLE)
 
         assert [state.name for state in states] == ["idx_s"]
@@ -87,11 +97,26 @@ class TestIndexStates:
         assert state.usable is True
         assert state.backs_constraint is None
         assert state.raw["granularity"] == 4
-        assert state.raw["creation"] == "Explicit"
+        if "creation" in capabilities.skipping_index_columns:
+            assert state.raw["creation"] == "Explicit"
+        else:
+            # 25.8 has no ``creation`` column; the statement did not name it, so
+            # there is no value in ``raw`` and none is invented.
+            assert "creation" not in state.raw
 
 
 class TestConstraintStates:
     def test_the_check_constraint_is_reported_with_its_expression(self, state_backend):
+        capabilities = capabilities_for_version(state_backend.get_server_version())
+        if not capabilities.has_constraint_catalogue():
+            # 25.8 and 26.3 have no ``system.constraints``. The method must
+            # refuse by naming the catalogue, not answer an empty list: the
+            # table below *does* declare a constraint, so [] would be a lie.
+            with pytest.raises(IntrospectionNotSupportedError) as caught:
+                state_backend.introspector.list_constraint_states(TABLE)
+            assert "system.constraints" in str(caught.value)
+            return
+
         states = state_backend.introspector.list_constraint_states(TABLE)
 
         assert [state.name for state in states] == ["c1"]

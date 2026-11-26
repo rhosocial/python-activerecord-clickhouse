@@ -36,7 +36,7 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十一个类�
 
 六个服务端级 catalogue 家族同样是后端本地的。每一个都有自己的开关和结果类型，因为它们都不是带列和引擎的表。`functions` 读 `system.functions`，把内置函数和用户定义函数放在同一份清单里，用 `origin` 区分；名称是收窄条件而不是单行键，因为一个名称也可能对应一行别名。`dictionaries` 读 `system.dictionaries`，把带点的 `key.names` / `attribute.names` 列保留为具名列表字段，并原样报告配置文件中字典的 `database=''`。`clusters` 读 `system.clusters`，每个分片/副本成员一条记录而不是每个集群一条，因此从 1 开始的成员编号得以保留。`quotas`、`users` 与 `roles` 读各自的 `system.*` 表；users 家族报告认证**类型**，并且有意不投影 `auth_params`，因此凭据参数不会进入自省答案。读取这些访问控制表仍然取决于当前账号的权限：被拒绝时是查询错误，不是空清单。
 
-有两个对象家族保持不在 CLI 词汇表里，而不是提供后返回空。`constraints` 可通过对象状态 API 读取（`list_constraint_states`，读 `system.constraints`），但没有 CLI 类型；`tablespaces` 在 ClickHouse 背后根本没有 `system.*` 目录——它的存储是磁盘/part 加存储策略，而不是 SQL 表空间（这些已由 `status` 自省器读取）。本轮不新增 CLI 家族，因此这里记录其缺席，CLI 不接受该词。
+有两个对象家族保持不在 CLI 词汇表里，而不是提供后返回空。`constraints` 可通过对象状态 API 读取（`list_constraint_states`，在具备该目录的版本上读 `system.constraints`），但没有 CLI 类型；`tablespaces` 在 ClickHouse 背后根本没有 `system.*` 目录——它的存储是磁盘/part 加存储策略，而不是 SQL 表空间（这些已由 `status` 自省器读取）。本轮不新增 CLI 家族，因此这里记录其缺席，CLI 不接受该词。
 
 没有对应 CLI 类型的探针也在说话。`supports_foreign_key_introspection()` 与 `supports_trigger_introspection()` 回答 `False`，因为本引擎既不声明也不强制外键，且根本没有触发器——它们的类型**不在** CLI 词汇表里，而不是"提供后再拒绝"：回答 `False` 的开关说的是"这台服务器无法回答"，词汇表里缺席的词说的是"本后端从不问"。同一条区分也让 `show.*` 不进入 `introspect`：`SHOW` 与 `system.*` 并不等价，而这里每个类型都读 `system.*`。`supports_table_storage_introspection()` 回答 `True`，这正是表行携带 `size_bytes` 的原因，它读自 `system.tables.total_bytes`；`data_size_bytes` 与 `index_size_bytes` 保持 `None`，因为 ClickHouse 的数据以磁盘上的 part 形式存放，跳数索引是引擎自己维护的稀疏结构、不是数据的第二份副本——这个拆分是本引擎不保留的事实，不是缺口。`supports_extensions()` 保持 `False`：本后端没有声明任何附加组件目录。
 
@@ -49,10 +49,12 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十一个类�
 | `get_table_state` | 表种类、存储选项、注释与分区方案 | `system.tables` |
 | `get_partition_state` | `PartitionState`；`scheme=None` 表示未分区 | `system.tables` 取键，`system.parts` 取边界 |
 | `list_index_states` | 跳数索引的方法、表达式与大小 | `system.data_skipping_indices` |
-| `list_constraint_states` | `CHECK` / `ASSUME` 约束 | `system.constraints` |
+| `list_constraint_states` | `CHECK` / `ASSUME` 约束（26.7 及以后；更早的版本拒绝并点名目录） | `system.constraints` |
 | `list_schemas` | 服务端暴露的数据库名 | `system.databases` |
 | `list_derived_objects` | 某张表的 projection 与物化视图 | `system.projections`、`system.tables` |
 | `item_exists` | 数据库/表/函数是否存在；ClickHouse 没有的对象类回答 `False` | `system.databases` / `system.tables` / `system.functions` |
+
+目录并不在每条发布线都相同。`system.data_skipping_indices` 的 `creation` 从 26.3 起才读取（25.8 拒绝该列），`system.tables.target_table` 与 `system.constraints` 到 26.7 才出现。对于没有 `system.constraints` 的版本线，`list_constraint_states` 抛出 `IntrospectionNotSupportedError` 并点出该目录，而不是回答空清单："这个目录无法回答"与"这张表没有声明约束"是两件不同的事。实测的目录表面记录在 `impl/clickhouse/catalogue.py`，离线测试会针对每条已记录的版本线渲染所有语句，拒绝命名该版本线并不存在的列。
 
 分区方案来自**声明**而不是 parts：已写入的 MergeTree 表在 `system.parts` 里总至少有一行，包括没有 `PARTITION BY` 的表那一个 `'all'` 分区，因此 parts 非空证明不了任何事；`partition_key = ''` 才是 `scheme` 为 `None` 的依据。请求统计时每个边界携带 active part 的行数与字节和；不请求时这些计数根本不会被查询。`list_sequence_states` 不重写，任何触发器状态回答也不重写：ClickHouse 既没有序列也没有触发器，核心的拒绝会点出方法名，而不是回答空清单。
 

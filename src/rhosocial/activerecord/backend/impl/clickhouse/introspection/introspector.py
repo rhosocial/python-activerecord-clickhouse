@@ -595,6 +595,12 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
     ) -> List[ConstraintState]:
         """Project ``system.constraints`` rows onto ``ConstraintState``.
 
+        The catalogue table exists only on some release lines, and
+        :meth:`format_clickhouse_constraint_state_list_query` refuses the
+        statement on the lines that lack it. This parser only sees rows from a
+        server that has the table, so an empty list here is the real answer
+        "the table declares no constraints", not "the catalogue was missing".
+
         The engine reports two kinds: ``CHECK`` is enforced when rows are
         inserted, while ``ASSUME`` is an optimizer assumption that is never
         validated. There are no per-constraint validation flags, so
@@ -1243,7 +1249,15 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
         table_name: str,
         schema: Optional[str] = None,
     ) -> List[ConstraintState]:
-        """Read the table's ``CHECK`` / ``ASSUME`` constraints."""
+        """Read the table's ``CHECK`` / ``ASSUME`` constraints.
+
+        Raises:
+            IntrospectionNotSupportedError: when the server's release line has
+                no ``system.constraints`` catalogue (25.8 and 26.3 do not, by
+                measurement). There is no second source this backend reads:
+                a refusal naming the missing catalogue is the honest answer,
+                and an empty list would claim the table declares no constraint.
+        """
         target = schema if schema is not None else self.default_schema
         key = self._cache.key(
             IntrospectionScope.TABLE, table_name, schema=target, extra="constraints"
@@ -1710,7 +1724,14 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         table_name: str,
         schema: Optional[str] = None,
     ) -> List[ConstraintState]:
-        """Read the table's ``CHECK`` / ``ASSUME`` constraints."""
+        """Read the table's ``CHECK`` / ``ASSUME`` constraints.
+
+        Raises:
+            IntrospectionNotSupportedError: when the server's release line has
+                no ``system.constraints`` catalogue (25.8 and 26.3 do not, by
+                measurement). The refusal names the missing catalogue rather
+                than answering an empty list for a question it could not ask.
+        """
         target = schema if schema is not None else self.default_schema
         key = self._cache.key(
             IntrospectionScope.TABLE, table_name, schema=target, extra="constraints"

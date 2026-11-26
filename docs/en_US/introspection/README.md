@@ -81,7 +81,8 @@ account's rights: a refusal is a query error, not an empty listing.
 
 Two object families stay out of the CLI vocabulary rather than being offered
 empty. `constraints` is readable through the object-state API
-(`list_constraint_states`, from `system.constraints`) but has no CLI type, and
+(`list_constraint_states`, from `system.constraints` where the release line has
+that catalogue) but has no CLI type, and
 `tablespaces` has no ClickHouse catalogue behind it at all — its storage is
 disks/parts plus storage policies rather than SQL tablespaces (both of which the
 `status` introspector already reads). Offering a `constraints` CLI family would
@@ -113,10 +114,21 @@ dataclasses rather than backend catalogue records:
 | `get_table_state` | kind, storage options, comment and partition scheme | `system.tables` |
 | `get_partition_state` | `PartitionState`; `scheme=None` means not partitioned | `system.tables` for the key, `system.parts` for bounds |
 | `list_index_states` | skipping indices with method, expression and size | `system.data_skipping_indices` |
-| `list_constraint_states` | `CHECK` / `ASSUME` constraints | `system.constraints` |
+| `list_constraint_states` | `CHECK` / `ASSUME` constraints (26.7 and later; older lines refuse by name) | `system.constraints` |
 | `list_schemas` | the database names the server exposes | `system.databases` |
 | `list_derived_objects` | projections and materialized views for one table | `system.projections`, `system.tables` |
 | `item_exists` | database / table / function existence, `False` for the object classes ClickHouse lacks | `system.databases` / `system.tables` / `system.functions` |
+
+The catalogue is not the same on every release line. `creation` on
+`system.data_skipping_indices` is read from 26.3 on (25.8 refuses the column),
+and `system.tables.target_table` together with `system.constraints` appear by
+26.7. On the lines that lack `system.constraints`, `list_constraint_states`
+raises `IntrospectionNotSupportedError` naming that catalogue rather than
+answering an empty list: "this catalogue cannot answer" and "this table declares
+no constraint" are different statements. The measured surface lives in
+`impl/clickhouse/catalogue.py`, and an offline test renders every statement
+against each recorded line and rejects one that names a column the line does not
+have.
 
 The partition scheme is the declaration, not the parts: `system.parts` always
 holds at least one row for a written MergeTree table, including the single

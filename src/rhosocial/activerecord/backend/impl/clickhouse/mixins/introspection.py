@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from rhosocial.activerecord.backend.introspection.types import ProfileSource
 
+from ..catalogue import capabilities_for_version, version_label
+
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.introspection import (
         ColumnDataProfileQueryStatement,
@@ -1166,22 +1168,36 @@ class ClickHouseIntrospectionMixin:
         ``IndexInfo`` row: the engine's own method name and the expression it
         skips on. ``creation`` is ``Explicit`` / ``Implicit`` and is kept in
         ``raw`` rather than flattened into ``method``.
+
+        ``creation`` is the one column here that is release-dependent: it is
+        answered from 26.3 on, while 25.8 refuses the statement that names it
+        (``UNKNOWN_IDENTIFIER``, measured). :data:`..catalogue.CAPABILITY_MATRIX`
+        decides whether the projection may name it, so an older server is asked
+        for the columns it has and ``raw`` simply holds no ``creation`` entry.
         """
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
-        query = QueryStatement(
-            self,
-            select=[
-                self._column("name"),
-                self._column("type"),
-                self._column("type_full"),
-                self._column("expr"),
-                self._column("creation"),
+        capabilities = capabilities_for_version(self.version_or_none)
+        select = [
+            self._column("name"),
+            self._column("type"),
+            self._column("type_full"),
+            self._column("expr"),
+        ]
+        if "creation" in capabilities.skipping_index_columns:
+            select.append(self._column("creation"))
+        select.extend(
+            [
                 self._column("granularity"),
                 self._column("data_compressed_bytes"),
                 self._column("data_uncompressed_bytes"),
                 self._column("marks_bytes"),
-            ],
+            ]
+        )
+
+        query = QueryStatement(
+            self,
+            select=select,
             from_=self._system_relation("data_skipping_indices"),
             where=self._where(
                 self._equals(self._column("database"), Literal(self, expr.database)),
@@ -1199,8 +1215,28 @@ class ClickHouseIntrospectionMixin:
         ClickHouse's two constraint kinds are both declared, not enforced by a
         separate validation pass, so the row's ``type`` is the whole answer and
         the expression is kept in ``raw``.
+
+        The table itself is release-dependent: it does not exist on 25.8 or
+        26.3 (``UNKNOWN_TABLE``, measured), and appears by 26.7. A line without
+        it does not answer "no constraints" -- it cannot answer at all -- so the
+        statement refuses by name rather than rendering SQL the server will
+        reject. The introspector's ``list_constraint_states`` therefore raises
+        :class:`~rhosocial.activerecord.backend.introspection.errors.IntrospectionNotSupportedError`
+        on those lines, with the catalogue table named in the message.
         """
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.introspection.errors import (
+            IntrospectionNotSupportedError,
+        )
+
+        version = self.version_or_none
+        capabilities = capabilities_for_version(version)
+        if capabilities.constraint_columns is None:
+            raise IntrospectionNotSupportedError(
+                "constraint states (system.constraints) on ClickHouse release "
+                f"{version_label(version)}",
+                "ClickHouse",
+            )
 
         query = QueryStatement(
             self,
@@ -1249,18 +1285,28 @@ class ClickHouseIntrospectionMixin:
         The source table is not a catalogue dependency on this engine (the
         arrays are empty even for a view over a MergeTree), so ``as_select`` is
         projected and the caller decides which table a view consumes.
+
+        ``target_table`` is release-dependent: 25.8 and 26.3 do not answer it
+        (``UNKNOWN_IDENTIFIER``, measured) while 26.7 does. It is projected only
+        where the recorded capability table says the line has it; the caller
+        reads it with ``row.get`` so a line without it simply has no
+        ``target_table`` in ``raw``.
         """
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
 
+        capabilities = capabilities_for_version(self.version_or_none)
+        select = [
+            self._column("name"),
+            self._column("database"),
+            self._column("as_select"),
+        ]
+        if "target_table" in capabilities.system_table_columns:
+            select.append(self._column("target_table"))
+        select.append(self._column("dependencies_table"))
+
         query = QueryStatement(
             self,
-            select=[
-                self._column("name"),
-                self._column("database"),
-                self._column("as_select"),
-                self._column("target_table"),
-                self._column("dependencies_table"),
-            ],
+            select=select,
             from_=self._system_relation("tables"),
             where=self._where(
                 self._equals(self._column("database"), Literal(self, expr.database)),
