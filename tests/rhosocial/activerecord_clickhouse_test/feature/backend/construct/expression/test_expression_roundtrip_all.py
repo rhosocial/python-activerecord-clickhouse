@@ -148,6 +148,9 @@ from rhosocial.activerecord.backend.dialect.exceptions import (
     UnsupportedDataTypeError,
     UnsupportedFeatureError,
 )
+from rhosocial.activerecord.backend.introspection import (
+    IntrospectionNotSupportedError,
+)
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
     WindowClause,
@@ -1287,6 +1290,24 @@ LEGITIMATE_NON_RENDERS = {
     ),
     "rhosocial.activerecord.backend.expression.introspection.DDLStatementQueryStatement": (
         UnsupportedFeatureError, "does not support format_ddl_statement_query_statement",
+    ),
+
+    # ---- a ClickHouse catalogue that only newer release lines have ---------
+    #  ``system.constraints`` is not a table every supported release line has:
+    #  it is absent on 25.8 and 26.3 (``UNKNOWN_TABLE``, measured) and appears
+    #  by 26.7, where 26.10 also has it. The statement refuses by name on a line
+    #  without the catalogue rather than rendering SQL the server rejects, and
+    #  it refuses rather than answering an empty list -- "this catalogue cannot
+    #  answer" is a different fact from "this table declares no constraints".
+    #  The refusal is the class's own tree's answer, not a missing formatter, so
+    #  it is pinned as ``IntrospectionNotSupportedError`` and not widened into
+    #  ``UnsupportedFeatureError`` to pass this guard. The matrix's fixture is
+    #  24.3.1, which resolves to the 25.8 baseline, so this pin records the
+    #  pre-26.7 half; :class:`TestVersionGatedCatalogueStatement` drives the same
+    #  class across the gate and proves the render half at 26.7.
+    "rhosocial.activerecord.backend.impl.clickhouse.expression.introspection.ClickHouseConstraintStateListQuery": (
+        IntrospectionNotSupportedError,
+        "system.constraints",
     ),
 
 # ---- bases that name an expression category, not a renderable thing ----
@@ -2649,6 +2670,44 @@ class TestMatrixIntegrity:
             print(f"  not constructible: {fqn}")
         for feature, methods in sorted(UNMODELLED_FORMATTERS.items()):
             print(f"  not modelled: {feature} ({len(methods)} formatters)")
+
+
+class TestVersionGatedCatalogueStatement:
+    """Prove both halves of the matrix's one version-gated refusal.
+
+    ``clickhouse_matrix_dialect`` is pinned at 24.3.1 and every case uses it,
+    so the matrix itself can only see the pre-26.7 refusal. There is no per-case
+    version hook, and one would make every other pin's verdict depend on a
+    per-case choice it does not need. The gate is therefore crossed here,
+    deliberately and only for the class it is about: the same statement refuses
+    by name on 25.8 and 26.3, and renders -- through all three encodings -- on
+    26.7. Without the second half the entry would record only that the class
+    cannot render, which is half the fact.
+    """
+
+    _FQN = (
+        "rhosocial.activerecord.backend.impl.clickhouse.expression."
+        "introspection.ClickHouseConstraintStateListQuery"
+    )
+
+    def _instance(self, version):
+        dialect = ClickHouseDialect(version=version)
+        instance, source = make_instance(REGISTERED[self._FQN], dialect)
+        assert instance is not None, f"{self._FQN} could not be constructed on {version}: {source}"
+        return instance, dialect
+
+    @pytest.mark.parametrize("version", [(25, 8, 0), (26, 3, 0)])
+    def test_the_refusal_is_by_catalogue_name_before_26_7(self, version):
+        instance, _ = self._instance(version)
+        with pytest.raises(IntrospectionNotSupportedError) as caught:
+            instance.to_sql()
+        assert "system.constraints" in str(caught.value)
+        assert f"{version[0]}.{version[1]}" in str(caught.value)
+
+    def test_the_statement_renders_and_round_trips_from_26_7(self):
+        instance, dialect = self._instance((26, 7, 0))
+        verdict = assert_sql_roundtrip_classified(self._FQN, instance, dialect, CODEC_REGISTRY)
+        assert verdict == "rendered"
 
 
 # ---------------------------------------------------------------------------
