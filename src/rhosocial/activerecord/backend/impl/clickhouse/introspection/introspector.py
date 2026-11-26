@@ -39,8 +39,11 @@ from rhosocial.activerecord.backend.introspection.executor import (
 )
 from rhosocial.activerecord.backend.introspection.types import (
     ColumnNullable,
+    ConstraintState,
+    DerivedObjectState,
     IndexColumnInfo,
     IndexInfo,
+    IndexState,
     IndexType,
     IntrospectionColumnInfo,
     IntrospectionDatabaseInfo,
@@ -49,17 +52,28 @@ from rhosocial.activerecord.backend.introspection.types import (
     IntrospectionTableInfo,
     IntrospectionTriggerInfo,
     IntrospectionViewInfo,
+    ItemKind,
+    PartitionBound,
+    PartitionScheme,
+    PartitionState,
     ReferentialAction,
+    StorageOptionsState,
+    TableState,
     TableType,
 )
 
 from .type_parser import ClickHouseTypeParser
 from ..expression.introspection import (
     ClickHouseClusterListQuery,
+    ClickHouseConstraintStateListQuery,
     ClickHouseDictionaryListQuery,
     ClickHouseFunctionListQuery,
+    ClickHouseIndexStateListQuery,
+    ClickHouseMaterializedViewListQuery,
+    ClickHouseProjectionListQuery,
     ClickHouseQuotaListQuery,
     ClickHouseRoleListQuery,
+    ClickHouseSchemaListQuery,
     ClickHouseTableEngineQuery,
     ClickHouseTablePartitionsQuery,
     ClickHouseIntrospectionUserListQuery,
@@ -143,6 +157,32 @@ def _optional_text(value: Any) -> Optional[str]:
     if not value:
         return None
     return str(getattr(value, "value", value))
+
+
+def _ttl_from_engine_full(engine_full: Optional[str]) -> Optional[str]:
+    """The table-level ``TTL`` clause out of ``system.tables.engine_full``.
+
+    ``system.tables`` has no ``ttl`` column: the expression is part of the
+    storage clause the server normalizes, where it follows ``ORDER BY`` and
+    precedes ``SETTINGS``. Reading it from there is a split on two fixed words
+    rather than a parse of the clause grammar -- this backend needs the text
+    for a caller to inspect, not to evaluate, and a TTL expression can contain
+    arbitrary SQL that no local parser should claim to understand.
+
+    ``None`` when the clause is absent, which the server spells as the empty
+    string or as an engine definition with no ``TTL`` between its clauses.
+    """
+    if not engine_full:
+        return None
+    marker = " TTL "
+    if marker not in engine_full:
+        return None
+    tail = engine_full.split(marker, 1)[1]
+    for terminator in (" SETTINGS ", " SAMPLE BY ", " PRIMARY KEY ", " ORDER BY "):
+        if terminator in tail:
+            tail = tail.split(terminator, 1)[0]
+            break
+    return tail.strip() or None
 
 
 def _runtime_type_names(value: Any) -> List[str]:
@@ -484,10 +524,13 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
         def _number(value: Any) -> Optional[int]:
             return None if value is None else int(value)
 
+        engine = row.get("engine") or ""
+        engine_full = _optional_text(row.get("engine_full"))
+
         return ClickHouseTableEngineInfo(
             table_name=table,
             database=database,
-            engine=row.get("engine") or "",
+            engine=engine,
             sorting_key=row.get("sorting_key"),
             primary_key=row.get("primary_key"),
             partition_key=row.get("partition_key"),
@@ -495,7 +538,161 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             total_rows=_number(row.get("total_rows")),
             total_bytes=_number(row.get("total_bytes")),
             comment=row.get("comment"),
+            engine_full=engine_full,
+            ttl=_ttl_from_engine_full(engine_full),
+            is_temporary=_bool(row.get("is_temporary")),
+            storage_policy=_optional_text(row.get("storage_policy")),
         )
+
+    def parse_schema_names(self, rows: List[Dict[str, Any]]) -> List[str]:
+        """Read the database names out of ``system.databases``."""
+        return [str(row["name"]) for row in rows if row.get("name")]
+
+    def parse_index_states(
+        self,
+        rows: List[Dict[str, Any]],
+        table: str,
+        schema: str,
+    ) -> List[IndexState]:
+        """Project ``system.data_skipping_indices`` rows onto ``IndexState``.
+
+        ClickHouse has no unique, invalid or invisible index state: every
+        data-skipping index it reports is usable and visible, and uniqueness is
+        not a property it enforces. Those slots therefore carry the engine's
+        constant answer rather than a guess, and the engine's own figures
+        (``type_full``, ``granularity`` and the byte counters) stay in ``raw``.
+        """
+        found: List[IndexState] = []
+        for row in rows:
+            name = row.get("name")
+            if not name:
+                continue
+            found.append(
+                IndexState(
+                    name=str(name),
+                    table=table,
+                    schema=schema,
+                    unique=False,
+                    method=_optional_text(row.get("type")),
+                    predicate=_optional_text(row.get("expr")),
+                    visible=True,
+                    usable=True,
+                    backs_constraint=None,
+                    raw={
+                        key: value
+                        for key, value in row.items()
+                        if key not in {"name", "type", "expr"} and value is not None
+                    },
+                )
+            )
+        return found
+
+    def parse_constraint_states(
+        self,
+        rows: List[Dict[str, Any]],
+        table: str,
+        schema: str,
+    ) -> List[ConstraintState]:
+        """Project ``system.constraints`` rows onto ``ConstraintState``.
+
+        The engine reports two kinds: ``CHECK`` is enforced when rows are
+        inserted, while ``ASSUME`` is an optimizer assumption that is never
+        validated. There are no per-constraint validation flags, so
+        ``validated`` is true for both and ``enforced`` follows the kind. The
+        expression is the engine's own text and belongs in ``raw``, because it
+        is not one of the neutral slots.
+        """
+        found: List[ConstraintState] = []
+        for row in rows:
+            name = row.get("name")
+            if not name:
+                continue
+            kind = _optional_text(row.get("type")) or ""
+            expression = _optional_text(row.get("expression"))
+            raw: Dict[str, Any] = {}
+            if expression is not None:
+                raw["expression"] = expression
+            found.append(
+                ConstraintState(
+                    name=str(name),
+                    table=table,
+                    kind=kind,
+                    schema=schema,
+                    validated=True,
+                    enforced=kind != "ASSUME",
+                    deferred=False,
+                    disabled=False,
+                    backing_index=None,
+                    raw=raw,
+                )
+            )
+        return found
+
+    def parse_projection_states(
+        self,
+        rows: List[Dict[str, Any]],
+        table: str,
+    ) -> List[DerivedObjectState]:
+        """Project ``system.projections`` rows onto ``DerivedObjectState``."""
+        found: List[DerivedObjectState] = []
+        for row in rows:
+            name = row.get("name")
+            if not name:
+                continue
+            found.append(
+                DerivedObjectState(
+                    kind="projection",
+                    name=str(name),
+                    owned_by=table,
+                    raw={
+                        key: value
+                        for key, value in row.items()
+                        if key != "name" and value is not None
+                    },
+                )
+            )
+        return found
+
+    def parse_materialized_view_states(
+        self,
+        rows: List[Dict[str, Any]],
+        table: str,
+        database: str,
+    ) -> List[DerivedObjectState]:
+        """Project materialized views that read from *table*.
+
+        The catalogue reports no source dependency for this engine (the
+        dependency arrays are empty even for a view over a MergeTree), so the
+        association is read from two facts the catalogue does answer: the
+        declared ``dependencies_table`` when the server has it, and the
+        qualified table name inside ``as_select``, which ClickHouse normalizes
+        to ``database.table``. A view whose definition names the table anywhere
+        is reported under it; the caller asked which views consume this table,
+        not for a SQL parse.
+        """
+        found: List[DerivedObjectState] = []
+        qualified = f"{database}.{table}"
+        for row in rows:
+            name = row.get("name")
+            if not name:
+                continue
+            dependencies = _string_list(row.get("dependencies_table"))
+            definition = row.get("as_select") or ""
+            if table not in dependencies and qualified not in definition:
+                continue
+            found.append(
+                DerivedObjectState(
+                    kind="materialized_view",
+                    name=str(name),
+                    owned_by=table,
+                    raw={
+                        "database": row.get("database") or database,
+                        "as_select": definition or None,
+                        "target_table": row.get("target_table") or None,
+                    },
+                )
+            )
+        return found
 
     def parse_functions(self, rows: List[Dict[str, Any]]) -> List[ClickHouseFunctionInfo]:
         """Read ``system.functions`` rows into function records.
@@ -783,42 +980,43 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     # ClickHouse-specific reads
     # ------------------------------------------------------------------ #
 
-    def list_partitions(
+    def _partition_entries(
         self,
         table_name: str,
         database: Optional[str] = None,
+        include_stats: bool = True,
     ) -> List[ClickHousePartitionInfo]:
-        """List a table's partitions, aggregated from its active parts.
+        """Read a table's partitions from its active parts.
 
-        ClickHouse calls its top-level namespace a *database*; this backend has
-        no schema layer, so ``database`` is that parameter and ``None`` means the
-        connected database. The name is not translated into anything: it is the
-        same string ``system.parts.database`` holds.
+        This is the backend-specific catalogue read behind the neutral
+        :meth:`get_partition_state` and behind the partition-maintenance
+        service, which needs the ids the ``ALTER ... PARTITION ID`` verbs take. It
+        stays private because it is not a neutral answer: a caller reading
+        through the introspection manager uses ``get_partition_state``.
 
-        The result is cached under ``IntrospectionScope.TABLE`` with
-        ``extra="partition"`` — the table scope because a partition belongs to a
-        table, and the extra namespace because the same table also answers
-        column, index and engine questions and must not answer this one.
+        The filter ``active = 1`` is what makes the aggregate mean what it says;
+        ``include_stats=False`` asks only for the partition identity and its
+        readable value, because the caller did not ask for a measurement.
 
         Args:
             table_name: The table to read.
             database: ClickHouse database; defaults to the connected database.
+            include_stats: Sum rows and bytes on the server when true.
 
         Returns:
             One :class:`ClickHousePartitionInfo` per ``partition_id``, ordered
-            by that id. A table with no parts (empty, or an engine that has none)
-            returns an empty list — the server has nothing to report, so nothing
-            is invented.
+            by that id. A table with no active parts returns an empty list.
         """
         target = database if database is not None else self.default_schema
+        cache_extra = "partition-stats" if include_stats else "partition"
         key = self._cache.key(
-            IntrospectionScope.TABLE, table_name, schema=target, extra="partition"
+            IntrospectionScope.TABLE, table_name, schema=target, extra=cache_extra
         )
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         sql, params = ClickHouseTablePartitionsQuery(
-            self._backend.dialect, target, table_name
+            self._backend.dialect, target, table_name, include_stats=include_stats
         ).to_sql()
         result = self.parse_partitions(self._executor.execute(sql, params), table_name, target)
         self._cache.set(key, result)
@@ -831,8 +1029,9 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     ) -> Optional[ClickHouseTableEngineInfo]:
         """Read a table's engine and key expressions from ``system.tables``.
 
-        ``database`` follows the same rule as :meth:`list_partitions`: it is a
-        ClickHouse database name, and ``None`` means the connected database.
+        ``database`` follows the same rule as
+        :meth:`ClickHouseIntrospector._partition_entries`: it is a ClickHouse
+        database name, and ``None`` means the connected database.
 
         Cached under ``IntrospectionScope.TABLE`` with ``extra="engine"``. A
         missing table is **not** cached: the cache's ``get`` uses ``None`` for
@@ -857,6 +1056,267 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
         if result is not None:
             self._cache.set(key, result)
         return result
+
+    # ------------------------------------------------------------------ #
+    # Neutral object state
+    # ------------------------------------------------------------------ #
+
+    def get_table_state(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> TableState:
+        """Read the table's kind, storage options, comment and partition scheme.
+
+        ``schema`` is ClickHouse's database, the engine's only namespace level.
+
+        Raises:
+            LookupError: when the server has no such table. The neutral shape
+                is not optional, and an absent table is not a table state.
+        """
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="state")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        info = self.get_table_engine(table_name, database=target)
+        if info is None:
+            raise LookupError(f"Table '{table_name}' not found in database '{target}'")
+
+        engine = info.engine
+        kind = "regular"
+        if info.is_temporary:
+            kind = "temporary"
+        elif self.dialect.engine_kind(engine) is TableType.VIEW:
+            kind = "view"
+        elif self.dialect.engine_kind(engine) is TableType.MATERIALIZED_VIEW:
+            kind = "materialized_view"
+
+        traits: tuple = ()
+        if info.is_temporary:
+            traits += ("temporary",)
+        if engine.startswith("Replicated"):
+            traits += ("replicated",)
+        elif engine == "Distributed":
+            traits += ("distributed",)
+
+        storage_raw = {
+            "engine_full": info.engine_full,
+            "sorting_key": info.sorting_key,
+            "primary_key": info.primary_key,
+            "partition_key": info.partition_key,
+            "sampling_key": info.sampling_key,
+            "ttl": info.ttl,
+            "storage_policy": info.storage_policy,
+        }
+        state = TableState(
+            name=table_name,
+            schema=target,
+            kind=kind,
+            traits=traits,
+            storage=StorageOptionsState(
+                engine=info.engine or None,
+                raw=storage_raw,
+            ),
+            comment=info.comment or None,
+            partitioning=self.get_partition_state(table_name, schema=target),
+            raw={
+                "engine_full": info.engine_full,
+                "sorting_key": info.sorting_key,
+                "primary_key": info.primary_key,
+                "partition_key": info.partition_key,
+                "sampling_key": info.sampling_key,
+                "ttl": info.ttl,
+                "total_rows": info.total_rows,
+                "total_bytes": info.total_bytes,
+                "is_temporary": info.is_temporary,
+                "storage_policy": info.storage_policy,
+            },
+        )
+        self._cache.set(key, state)
+        return state
+
+    def get_partition_state(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+        include_stats: bool = False,
+    ) -> Optional[PartitionState]:
+        """Read the table's partition scheme and bounds.
+
+        **The partition key decides whether a table is partitioned, not
+        ``system.parts``.** The parts view always holds at least one row for a
+        MergeTree table -- the unpartitioned one reports a single ``'all'``
+        partition once it has data -- so treating a non-empty parts list as
+        "partitioned" would call every written MergeTree table partitioned. The
+        engine's ``partition_key`` is the declaration, and its empty string is
+        the answer here: ``scheme`` stays ``None`` and no bounds are reported.
+
+        ``None`` is returned only when the table does not exist. A table that
+        exists but declares no partition key is a :class:`PartitionState` with
+        ``scheme=None``.
+
+        ``include_stats`` adds per-partition ``row_count`` and ``size_bytes``;
+        when it is False the count and byte sums are never queried.
+        """
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.TABLE,
+            table_name,
+            schema=target,
+            extra=f"partition-state:{int(include_stats)}",
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        info = self.get_table_engine(table_name, database=target)
+        if info is None:
+            return None
+
+        partition_key = info.partition_key or ""
+        if not partition_key:
+            state = PartitionState(
+                scheme=None,
+                raw={
+                    "engine": info.engine,
+                    "partition_key": "",
+                    "sorting_key": info.sorting_key,
+                },
+            )
+            self._cache.set(key, state)
+            return state
+
+        entries = self._partition_entries(table_name, database=target, include_stats=include_stats)
+        bounds = tuple(
+            PartitionBound(
+                name=entry.partition_id,
+                upper=entry.partition,
+                row_count=entry.row_count if include_stats else None,
+                size_bytes=entry.bytes_on_disk if include_stats else None,
+                is_default=False,
+                is_maxvalue=False,
+                subpartition_count=0,
+                tablespace=None,
+            )
+            for entry in entries
+        )
+        state = PartitionState(
+            scheme=PartitionScheme.EXPRESSION,
+            key_expression=partition_key,
+            key_columns=(),
+            has_default=False,
+            auto_extend=False,
+            bounds=bounds,
+            raw={
+                "engine": info.engine,
+                "partition_key": partition_key,
+                "sorting_key": info.sorting_key,
+                "primary_key": info.primary_key,
+                "sampling_key": info.sampling_key,
+            },
+        )
+        self._cache.set(key, state)
+        return state
+
+    def list_index_states(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> List[IndexState]:
+        """Read the table's data-skipping indices, with expression and size."""
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.INDEX, table_name, schema=target, extra="state"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseIndexStateListQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        result = self.parse_index_states(self._executor.execute(sql, params), table_name, target)
+        self._cache.set(key, result)
+        return result
+
+    def list_constraint_states(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> List[ConstraintState]:
+        """Read the table's ``CHECK`` / ``ASSUME`` constraints."""
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=target, extra="constraints"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseConstraintStateListQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        result = self.parse_constraint_states(self._executor.execute(sql, params), table_name, target)
+        self._cache.set(key, result)
+        return result
+
+    def list_schemas(self) -> List[str]:
+        """Read the database names ``system.databases`` exposes."""
+        key = self._cache.key(IntrospectionScope.SCHEMA, extra="names")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseSchemaListQuery(self._backend.dialect).to_sql()
+        result = self.parse_schema_names(self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    def list_derived_objects(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> List[DerivedObjectState]:
+        """Read projections and materialized views that belong to the table."""
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=target, extra="derived"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        projection_sql, projection_params = ClickHouseProjectionListQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        view_sql, view_params = ClickHouseMaterializedViewListQuery(
+            self._backend.dialect, target
+        ).to_sql()
+        result = self.parse_projection_states(
+            self._executor.execute(projection_sql, projection_params), table_name
+        ) + self.parse_materialized_view_states(
+            self._executor.execute(view_sql, view_params), table_name, target
+        )
+        self._cache.set(key, result)
+        return result
+
+    def item_exists(
+        self,
+        kind: ItemKind,
+        name: str,
+        schema: Optional[str] = None,
+    ) -> bool:
+        """Whether a shared object of this kind exists.
+
+        ClickHouse catalogues databases, tables (views included) and functions.
+        The other kinds are not object classes this engine has at all -- there
+        are no sequences, named types, domains, extensions, tablespaces,
+        partition functions/schemes or full-text catalogues -- so their answer
+        is a real ``False`` rather than a refusal.
+        """
+        if kind is ItemKind.SCHEMA:
+            return name in self.list_schemas()
+        if kind is ItemKind.TABLE:
+            return self.get_table_engine(name, database=schema) is not None
+        if kind is ItemKind.FUNCTION:
+            return any(function.name == name for function in self.list_functions(name=name))
+        return False
 
     # ------------------------------------------------------------------ #
     # Server-wide catalogue families
@@ -1023,27 +1483,28 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     # ClickHouse-specific reads
     # ------------------------------------------------------------------ #
 
-    async def list_partitions(
+    async def _partition_entries(
         self,
         table_name: str,
         database: Optional[str] = None,
+        include_stats: bool = True,
     ) -> List[ClickHousePartitionInfo]:
-        """List a table's partitions, aggregated from its active parts.
+        """Read a table's partitions from its active parts.
 
-        The asynchronous counterpart of the synchronous method: same parameters,
-        same result, same cache key. See
-        :meth:`ClickHouseIntrospector.list_partitions` for the naming rule
-        (``database`` is ClickHouse's own top-level namespace) and the scope.
+        The asynchronous counterpart of
+        :meth:`ClickHouseIntrospector._partition_entries`: same parameters,
+        same result, same cache key.
         """
         target = database if database is not None else self.default_schema
+        cache_extra = "partition-stats" if include_stats else "partition"
         key = self._cache.key(
-            IntrospectionScope.TABLE, table_name, schema=target, extra="partition"
+            IntrospectionScope.TABLE, table_name, schema=target, extra=cache_extra
         )
         cached = self._cache.get(key)
         if cached is not None:
             return cached
         sql, params = ClickHouseTablePartitionsQuery(
-            self._backend.dialect, target, table_name
+            self._backend.dialect, target, table_name, include_stats=include_stats
         ).to_sql()
         result = self.parse_partitions(
             await self._executor.execute(sql, params), table_name, target
@@ -1074,6 +1535,253 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         if result is not None:
             self._cache.set(key, result)
         return result
+
+    # ------------------------------------------------------------------ #
+    # Neutral object state
+    # ------------------------------------------------------------------ #
+
+    async def get_table_state(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> TableState:
+        """Read the table's kind, storage options, comment and partition scheme.
+
+        The asynchronous twin of
+        :meth:`ClickHouseIntrospector.get_table_state`.
+        """
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="state")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        info = await self.get_table_engine(table_name, database=target)
+        if info is None:
+            raise LookupError(f"Table '{table_name}' not found in database '{target}'")
+
+        engine = info.engine
+        kind = "regular"
+        if info.is_temporary:
+            kind = "temporary"
+        elif self.dialect.engine_kind(engine) is TableType.VIEW:
+            kind = "view"
+        elif self.dialect.engine_kind(engine) is TableType.MATERIALIZED_VIEW:
+            kind = "materialized_view"
+
+        traits: tuple = ()
+        if info.is_temporary:
+            traits += ("temporary",)
+        if engine.startswith("Replicated"):
+            traits += ("replicated",)
+        elif engine == "Distributed":
+            traits += ("distributed",)
+
+        storage_raw = {
+            "engine_full": info.engine_full,
+            "sorting_key": info.sorting_key,
+            "primary_key": info.primary_key,
+            "partition_key": info.partition_key,
+            "sampling_key": info.sampling_key,
+            "ttl": info.ttl,
+            "storage_policy": info.storage_policy,
+        }
+        state = TableState(
+            name=table_name,
+            schema=target,
+            kind=kind,
+            traits=traits,
+            storage=StorageOptionsState(engine=info.engine or None, raw=storage_raw),
+            comment=info.comment or None,
+            partitioning=await self.get_partition_state(table_name, schema=target),
+            raw={
+                "engine_full": info.engine_full,
+                "sorting_key": info.sorting_key,
+                "primary_key": info.primary_key,
+                "partition_key": info.partition_key,
+                "sampling_key": info.sampling_key,
+                "ttl": info.ttl,
+                "total_rows": info.total_rows,
+                "total_bytes": info.total_bytes,
+                "is_temporary": info.is_temporary,
+                "storage_policy": info.storage_policy,
+            },
+        )
+        self._cache.set(key, state)
+        return state
+
+    async def get_partition_state(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+        include_stats: bool = False,
+    ) -> Optional[PartitionState]:
+        """Read the table's partition scheme and bounds.
+
+        The asynchronous twin of
+        :meth:`ClickHouseIntrospector.get_partition_state`: the engine's
+        ``partition_key`` decides whether the table is partitioned, never the
+        parts view.
+        """
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.TABLE,
+            table_name,
+            schema=target,
+            extra=f"partition-state:{int(include_stats)}",
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        info = await self.get_table_engine(table_name, database=target)
+        if info is None:
+            return None
+
+        partition_key = info.partition_key or ""
+        if not partition_key:
+            state = PartitionState(
+                scheme=None,
+                raw={
+                    "engine": info.engine,
+                    "partition_key": "",
+                    "sorting_key": info.sorting_key,
+                },
+            )
+            self._cache.set(key, state)
+            return state
+
+        entries = await self._partition_entries(
+            table_name, database=target, include_stats=include_stats
+        )
+        bounds = tuple(
+            PartitionBound(
+                name=entry.partition_id,
+                upper=entry.partition,
+                row_count=entry.row_count if include_stats else None,
+                size_bytes=entry.bytes_on_disk if include_stats else None,
+                is_default=False,
+                is_maxvalue=False,
+                subpartition_count=0,
+                tablespace=None,
+            )
+            for entry in entries
+        )
+        state = PartitionState(
+            scheme=PartitionScheme.EXPRESSION,
+            key_expression=partition_key,
+            key_columns=(),
+            has_default=False,
+            auto_extend=False,
+            bounds=bounds,
+            raw={
+                "engine": info.engine,
+                "partition_key": partition_key,
+                "sorting_key": info.sorting_key,
+                "primary_key": info.primary_key,
+                "sampling_key": info.sampling_key,
+            },
+        )
+        self._cache.set(key, state)
+        return state
+
+    async def list_index_states(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> List[IndexState]:
+        """Read the table's data-skipping indices, with expression and size."""
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.INDEX, table_name, schema=target, extra="state"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseIndexStateListQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        result = self.parse_index_states(
+            await self._executor.execute(sql, params), table_name, target
+        )
+        self._cache.set(key, result)
+        return result
+
+    async def list_constraint_states(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> List[ConstraintState]:
+        """Read the table's ``CHECK`` / ``ASSUME`` constraints."""
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=target, extra="constraints"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseConstraintStateListQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        result = self.parse_constraint_states(
+            await self._executor.execute(sql, params), table_name, target
+        )
+        self._cache.set(key, result)
+        return result
+
+    async def list_schemas(self) -> List[str]:
+        """Read the database names ``system.databases`` exposes."""
+        key = self._cache.key(IntrospectionScope.SCHEMA, extra="names")
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        sql, params = ClickHouseSchemaListQuery(self._backend.dialect).to_sql()
+        result = self.parse_schema_names(await self._executor.execute(sql, params))
+        self._cache.set(key, result)
+        return result
+
+    async def list_derived_objects(
+        self,
+        table_name: str,
+        schema: Optional[str] = None,
+    ) -> List[DerivedObjectState]:
+        """Read projections and materialized views that belong to the table."""
+        target = schema if schema is not None else self.default_schema
+        key = self._cache.key(
+            IntrospectionScope.TABLE, table_name, schema=target, extra="derived"
+        )
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        projection_sql, projection_params = ClickHouseProjectionListQuery(
+            self._backend.dialect, target, table_name
+        ).to_sql()
+        view_sql, view_params = ClickHouseMaterializedViewListQuery(
+            self._backend.dialect, target
+        ).to_sql()
+        result = self.parse_projection_states(
+            await self._executor.execute(projection_sql, projection_params), table_name
+        ) + self.parse_materialized_view_states(
+            await self._executor.execute(view_sql, view_params), table_name, target
+        )
+        self._cache.set(key, result)
+        return result
+
+    async def item_exists(
+        self,
+        kind: ItemKind,
+        name: str,
+        schema: Optional[str] = None,
+    ) -> bool:
+        """Whether a shared object of this kind exists.
+
+        The asynchronous twin of :meth:`ClickHouseIntrospector.item_exists`.
+        """
+        if kind is ItemKind.SCHEMA:
+            return name in await self.list_schemas()
+        if kind is ItemKind.TABLE:
+            return await self.get_table_engine(name, database=schema) is not None
+        if kind is ItemKind.FUNCTION:
+            return any(function.name == name for function in await self.list_functions(name=name))
+        return False
 
     # ------------------------------------------------------------------ #
     # Server-wide catalogue families

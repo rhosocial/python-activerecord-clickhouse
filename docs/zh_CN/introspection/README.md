@@ -14,7 +14,7 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十一个类�
 | `views` | `supports_view_introspection()` | `True` | `system.tables`（视图引擎） | 视图，可选 |
 | `columns` | `supports_column_introspection()` | `True` | `system.columns` | 表，必填 |
 | `indexes` | `supports_index_introspection()` | `True` | `system.data_skipping_indices` | 表，必填 |
-| `partitions` | `supports_partition_introspection()` | `True` | `system.parts`，仅 active part | 表，必填 |
+| `partitions` | `supports_partition_introspection()` | `True` | `system.tables` 取键，`system.parts` 取边界 | 表，必填 |
 | `table-engine` | `supports_table_engine_introspection()` | `True` | `system.tables` | 表，必填 |
 | `database` | `supports_database_info()` | `True` | `system.databases` | 拒绝 |
 | `functions` | `supports_function_introspection()` | `True` | `system.functions` | 名称，可选 |
@@ -32,13 +32,29 @@ CLI 的类型表也由同一份映射派生，所以它提供的二十一个类�
 | `value-samples` | `supports_column_value_sample()` | `True` | 行本身 | 表，必填 |
 | `join-coverage` | `supports_join_coverage()` | `True` | 行本身，两张表 | 左表，必填 |
 
-`partitions` 与 `table-engine` 是本后端自己的家族，不是核心的：它们各自挂在本后端 mixin 里声明的开关上，也各有自己的结果类型。核心的 `supports_partition_info()` 按继承保持 `False`，因为这里没有可供 `True` 承诺的核心分区方法；CLI 读的是本后端自己的开关，不是核心的。
+`table-engine` 是本后端自己的家族：它挂在本后端 mixin 里声明的开关上，也有自己的结果类型。`partitions` 由同一个开关提供，但渲染的是 `introspector.get_partition_state` 返回的**中立** `PartitionState`：`scheme` 来自引擎的 `partition_key`，`bounds` 是按 `partition_id` 分组的 active part。核心的 `supports_partition_info()` 按继承保持 `False`，因为这里的分区问题由对象状态 API 回答，而不是旧的 catalogue 家族；CLI 读的是本后端自己的开关，不是核心的。
 
 六个服务端级 catalogue 家族同样是后端本地的。每一个都有自己的开关和结果类型，因为它们都不是带列和引擎的表。`functions` 读 `system.functions`，把内置函数和用户定义函数放在同一份清单里，用 `origin` 区分；名称是收窄条件而不是单行键，因为一个名称也可能对应一行别名。`dictionaries` 读 `system.dictionaries`，把带点的 `key.names` / `attribute.names` 列保留为具名列表字段，并原样报告配置文件中字典的 `database=''`。`clusters` 读 `system.clusters`，每个分片/副本成员一条记录而不是每个集群一条，因此从 1 开始的成员编号得以保留。`quotas`、`users` 与 `roles` 读各自的 `system.*` 表；users 家族报告认证**类型**，并且有意不投影 `auth_params`，因此凭据参数不会进入自省答案。读取这些访问控制表仍然取决于当前账号的权限：被拒绝时是查询错误，不是空清单。
 
-有两个对象家族保持不在词汇表里，而不是提供后返回空。`constraints` 与 `tablespaces` 在 ClickHouse 背后没有 `system.*` 目录——ClickHouse 的约束支持是 DDL 中声明的 CHECK 子句，没有目录表；它的存储是磁盘/part 加存储策略，而不是 SQL 表空间（这两者已由 `status` 自省器读取）。提供任一家庭都会凭空造出一个引擎并未暴露的数据源，因此这里记录其缺席，CLI 不接受该词。
+有两个对象家族保持不在 CLI 词汇表里，而不是提供后返回空。`constraints` 可通过对象状态 API 读取（`list_constraint_states`，读 `system.constraints`），但没有 CLI 类型；`tablespaces` 在 ClickHouse 背后根本没有 `system.*` 目录——它的存储是磁盘/part 加存储策略，而不是 SQL 表空间（这些已由 `status` 自省器读取）。本轮不新增 CLI 家族，因此这里记录其缺席，CLI 不接受该词。
 
 没有对应 CLI 类型的探针也在说话。`supports_foreign_key_introspection()` 与 `supports_trigger_introspection()` 回答 `False`，因为本引擎既不声明也不强制外键，且根本没有触发器——它们的类型**不在** CLI 词汇表里，而不是"提供后再拒绝"：回答 `False` 的开关说的是"这台服务器无法回答"，词汇表里缺席的词说的是"本后端从不问"。同一条区分也让 `show.*` 不进入 `introspect`：`SHOW` 与 `system.*` 并不等价，而这里每个类型都读 `system.*`。`supports_table_storage_introspection()` 回答 `True`，这正是表行携带 `size_bytes` 的原因，它读自 `system.tables.total_bytes`；`data_size_bytes` 与 `index_size_bytes` 保持 `None`，因为 ClickHouse 的数据以磁盘上的 part 形式存放，跳数索引是引擎自己维护的稀疏结构、不是数据的第二份副本——这个拆分是本引擎不保留的事实，不是缺口。`supports_extensions()` 保持 `False`：本后端没有声明任何附加组件目录。
+
+### 中立对象状态方法
+
+管理器还回答核心的对象状态 API，其形态是核心 dataclass，而不是后端 catalogue 记录：
+
+| 方法 | 答案 | 读取 |
+|------|------|------|
+| `get_table_state` | 表种类、存储选项、注释与分区方案 | `system.tables` |
+| `get_partition_state` | `PartitionState`；`scheme=None` 表示未分区 | `system.tables` 取键，`system.parts` 取边界 |
+| `list_index_states` | 跳数索引的方法、表达式与大小 | `system.data_skipping_indices` |
+| `list_constraint_states` | `CHECK` / `ASSUME` 约束 | `system.constraints` |
+| `list_schemas` | 服务端暴露的数据库名 | `system.databases` |
+| `list_derived_objects` | 某张表的 projection 与物化视图 | `system.projections`、`system.tables` |
+| `item_exists` | 数据库/表/函数是否存在；ClickHouse 没有的对象类回答 `False` | `system.databases` / `system.tables` / `system.functions` |
+
+分区方案来自**声明**而不是 parts：已写入的 MergeTree 表在 `system.parts` 里总至少有一行，包括没有 `PARTITION BY` 的表那一个 `'all'` 分区，因此 parts 非空证明不了任何事；`partition_key = ''` 才是 `scheme` 为 `None` 的依据。请求统计时每个边界携带 active part 的行数与字节和；不请求时这些计数根本不会被查询。`list_sequence_states` 不重写，任何触发器状态回答也不重写：ClickHouse 既没有序列也没有触发器，核心的拒绝会点出方法名，而不是回答空清单。
 
 ### 回答 False 的五个
 

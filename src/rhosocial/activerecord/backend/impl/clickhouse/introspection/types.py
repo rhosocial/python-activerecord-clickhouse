@@ -110,6 +110,16 @@ class ClickHouseTableEngineInfo:
             empty for engines that do not track rows).
         total_bytes: ``total_bytes``, same treatment.
         comment: ``comment`` — ``''`` when the table has none.
+        engine_full: ``engine_full`` — the storage clause as the server holds
+            it, including ``PARTITION BY`` / ``ORDER BY`` / ``TTL`` / settings.
+        ttl: The ``TTL`` expression read out of ``engine_full``, or ``None``
+            when the table declares none. ``system.tables`` has no ``ttl``
+            column, so this is the engine's own normalized clause rather than
+            a separate catalogue cell.
+        is_temporary: ``is_temporary`` — whether the table lives in the
+            session's temporary namespace.
+        storage_policy: ``storage_policy`` — the policy name, ``''`` when the
+            server used its default.
     """
 
     table_name: str
@@ -122,6 +132,10 @@ class ClickHouseTableEngineInfo:
     total_rows: Optional[int] = None
     total_bytes: Optional[int] = None
     comment: Optional[str] = None
+    engine_full: Optional[str] = None
+    ttl: Optional[str] = None
+    is_temporary: bool = False
+    storage_policy: Optional[str] = None
 
 
 @dataclass

@@ -57,8 +57,11 @@ class _RecordingIntrospector:
         self.list_calls: List[Tuple[str, Optional[str]]] = []
         self.invalidated: List[Tuple[Optional[IntrospectionScope], Optional[str]]] = []
 
-    def list_partitions(
-        self, table_name: str, database: Optional[str] = None
+    def _partition_entries(
+        self,
+        table_name: str,
+        database: Optional[str] = None,
+        include_stats: bool = True,
     ) -> List[ClickHousePartitionInfo]:
         self.list_calls.append((table_name, database))
         return list(self.partitions)

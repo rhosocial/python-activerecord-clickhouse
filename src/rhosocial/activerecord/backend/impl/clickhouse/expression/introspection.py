@@ -32,6 +32,11 @@ if TYPE_CHECKING:  # pragma: no cover
 __all__ = [
     "ClickHouseTableEngineQuery",
     "ClickHouseTablePartitionsQuery",
+    "ClickHouseSchemaListQuery",
+    "ClickHouseIndexStateListQuery",
+    "ClickHouseConstraintStateListQuery",
+    "ClickHouseProjectionListQuery",
+    "ClickHouseMaterializedViewListQuery",
     "ClickHouseFunctionListQuery",
     "ClickHouseDictionaryListQuery",
     "ClickHouseClusterListQuery",
@@ -42,7 +47,46 @@ __all__ = [
 
 
 class ClickHouseTablePartitionsQuery(BaseExpression):
-    """Active parts of one table, aggregated per ``partition_id``."""
+    """Active parts of one table, grouped per ``partition_id``.
+
+    ``include_stats`` decides whether the aggregate's counters are asked for
+    at all. ``get_partition_state`` leaves it False when the caller did not
+    request statistics, because summing rows and bytes is a measurement rather
+    than a catalogue read and the neutral contract forbids running one unasked.
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        database: str,
+        table: str,
+        include_stats: bool = True,
+    ):
+        super().__init__(dialect)
+        self.database = database
+        self.table = table
+        self.include_stats = include_stats
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_clickhouse_table_partitions_query"
+
+
+class ClickHouseSchemaListQuery(BaseExpression):
+    """The database names ``system.databases`` exposes."""
+
+    def __init__(self, dialect: "SQLDialectBase"):
+        super().__init__(dialect)
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_clickhouse_schema_list_query"
+
+
+class ClickHouseIndexStateListQuery(BaseExpression):
+    """Data-skipping indices of one table, with their expression and size."""
 
     def __init__(self, dialect: "SQLDialectBase", database: str, table: str):
         super().__init__(dialect)
@@ -52,7 +96,54 @@ class ClickHouseTablePartitionsQuery(BaseExpression):
     @property
     def format_method(self) -> str:
         """The dialect formatting method that renders this expression."""
-        return "format_clickhouse_table_partitions_query"
+        return "format_clickhouse_index_state_list_query"
+
+
+class ClickHouseConstraintStateListQuery(BaseExpression):
+    """Constraints declared on one table, from ``system.constraints``."""
+
+    def __init__(self, dialect: "SQLDialectBase", database: str, table: str):
+        super().__init__(dialect)
+        self.database = database
+        self.table = table
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_clickhouse_constraint_state_list_query"
+
+
+class ClickHouseProjectionListQuery(BaseExpression):
+    """Projections declared on one table, from ``system.projections``."""
+
+    def __init__(self, dialect: "SQLDialectBase", database: str, table: str):
+        super().__init__(dialect)
+        self.database = database
+        self.table = table
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_clickhouse_projection_list_query"
+
+
+class ClickHouseMaterializedViewListQuery(BaseExpression):
+    """Materialized views in one database, with the query that defines them.
+
+    The catalogue does not report the source table as a dependency, so the
+    caller reads ``as_select`` to decide which table a view consumes; the
+    query is projected rather than filtered on because it is text the server
+    normalized, not an identifier the caller can bind.
+    """
+
+    def __init__(self, dialect: "SQLDialectBase", database: str):
+        super().__init__(dialect)
+        self.database = database
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_clickhouse_materialized_view_list_query"
 
 
 class ClickHouseTableEngineQuery(BaseExpression):

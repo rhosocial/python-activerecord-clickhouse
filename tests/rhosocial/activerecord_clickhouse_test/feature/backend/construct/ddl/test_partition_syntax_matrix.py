@@ -19,8 +19,8 @@ What this matrix pins, family by family:
   syntax;
 * the three management verbs are ``DROP`` / ``DETACH`` / ``ATTACH ... PARTITION
   ID``, and the six MySQL verbs have no spelling at all;
-* ``list_partitions`` aggregates active ``system.parts`` rows into
-  ``ClickHousePartitionInfo``;
+* ``get_partition_state`` reads the scheme from ``system.tables`` and aggregates
+  active ``system.parts`` rows into neutral bounds;
 * a successful mutation invalidates the table's cached listing and a failed
   one leaves it alone;
 * ``list(refresh=True)`` reads past the cache, ``list(refresh=False)`` does
@@ -42,6 +42,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.partition_maintenance import
     MANAGEMENT_VERBS,
     ClickHousePartitionMaintenance,
 )
+from rhosocial.activerecord.backend.introspection.types import PartitionScheme
 from rhosocial.activerecord.backend.result import QueryResult
 
 from partition_syntax_fixtures import (
@@ -59,16 +60,42 @@ class _RowsExecutor:
     """The introspector's executor: records questions, returns case rows.
 
     The rows are copied on each read, so a cached answer and a fresh read
-    cannot share the dictionaries a test mutates between the two.
+    cannot share the dictionaries a test mutates between the two. ``system.tables``
+    questions get the engine row; every other question gets the parts rows, so
+    ``get_partition_state`` can read the declaration and the bounds without a
+    server.
     """
 
-    def __init__(self, rows: Optional[List[Dict[str, Any]]] = None) -> None:
+    def __init__(
+        self,
+        rows: Optional[List[Dict[str, Any]]] = None,
+        engine_rows: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
         self.rows = [dict(row) for row in rows or []]
+        self.engine_rows = [dict(row) for row in engine_rows or []]
         self.questions: List[Tuple[str, tuple]] = []
 
     def execute(self, sql: str, params: tuple = ()) -> List[Dict[str, Any]]:
         self.questions.append((sql, params))
+        if "`system`.`tables`" in sql:
+            return [dict(row) for row in self.engine_rows]
         return [dict(row) for row in self.rows]
+
+
+#: The ``system.tables`` row ``get_partition_state`` reads for the matrix table.
+_ENGINE_ROW: Dict[str, Any] = {
+    "engine": "MergeTree",
+    "sorting_key": "id",
+    "primary_key": "id",
+    "partition_key": "toYYYYMM(event_date)",
+    "sampling_key": "",
+    "total_rows": 4,
+    "total_bytes": 400,
+    "comment": "",
+    "engine_full": "MergeTree PARTITION BY toYYYYMM(event_date) ORDER BY id",
+    "is_temporary": 0,
+    "storage_policy": "default",
+}
 
 
 class _MatrixBackend:
@@ -87,7 +114,7 @@ class _MatrixBackend:
     ) -> None:
         self.dialect = dialect
         self.config = SimpleNamespace(database=DATABASE)
-        self.executor = _RowsExecutor(rows)
+        self.executor = _RowsExecutor(rows, [_ENGINE_ROW])
         self.introspector = ClickHouseIntrospector(self, self.executor)
         self.calls: List[Tuple[str, tuple]] = []
         self.result = QueryResult(affected_rows=1)
@@ -249,7 +276,7 @@ def test_unsupported_verbs_raise(
 
 
 # --------------------------------------------------------------------------- #
-# system.parts -> ClickHousePartitionInfo
+# system.parts -> PartitionState
 # --------------------------------------------------------------------------- #
 
 
@@ -263,27 +290,27 @@ def test_introspection_result_mapping(
     rows = partition_syntax_case.builder(dialect)
     backend = _MatrixBackend(dialect, rows)
 
-    partitions = backend.introspector.list_partitions(TABLE)
+    state = backend.introspector.get_partition_state(TABLE, include_stats=True)
 
-    assert [item.partition_id for item in partitions] == ["202601", "202602"]
+    assert state is not None
+    assert state.scheme is PartitionScheme.EXPRESSION
+    assert state.key_expression == "toYYYYMM(event_date)"
+    bounds = state.bounds
+    assert [bound.name for bound in bounds] == ["202601", "202602"]
+    assert [bound.upper for bound in bounds] == ["202601", "202602"]
     observed = {
-        item.partition_id: (
-            item.row_count,
-            item.bytes_on_disk,
-            item.active_part_count,
-        )
-        for item in partitions
+        bound.name: (bound.row_count, bound.size_bytes) for bound in bounds
     }
-    assert observed == {"202601": (3, 300, 2), "202602": (1, 100, 1)}
-    for item in partitions:
-        assert item.table_name == TABLE
-        assert item.database == DATABASE
-        assert item.engine == "MergeTree"
-        assert item.partition == item.partition_id
-        assert item.min_modification_time == item.max_modification_time
+    assert observed == {"202601": (3, 300), "202602": (1, 100)}
+    for bound in bounds:
+        assert bound.subpartition_count == 0
+        assert bound.is_default is False
+        assert bound.is_maxvalue is False
 
-    assert len(backend.executor.questions) == 1
-    sql, params = backend.executor.questions[0]
+    # The engine row and the parts row, in that order: the declaration decides
+    # whether the table is partitioned, and only then are its bounds read.
+    assert len(backend.executor.questions) == 2
+    sql, params = backend.executor.questions[-1]
     _assert_fragments(partition_syntax_case, sql)
     assert params == (DATABASE, TABLE, 1)
 

@@ -157,7 +157,9 @@ class TestPartitionMaintenanceService:
             "202601": 2,
             "202602": 1,
         }
-        assert entries == partitioned_backend.introspector.list_partitions(TABLE)
+        assert entries == partitioned_backend.introspector._partition_entries(
+            TABLE, include_stats=True
+        )
 
     def test_detach_then_attach_round_trips(self, partitioned_backend):
         service = partitioned_backend.partition_maintenance

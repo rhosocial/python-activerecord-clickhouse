@@ -36,7 +36,7 @@ zero.
 | `views` | `supports_view_introspection()` | `True` | `system.tables` (view engines) | view, optional |
 | `columns` | `supports_column_introspection()` | `True` | `system.columns` | table, required |
 | `indexes` | `supports_index_introspection()` | `True` | `system.data_skipping_indices` | table, required |
-| `partitions` | `supports_partition_introspection()` | `True` | `system.parts`, active parts only | table, required |
+| `partitions` | `supports_partition_introspection()` | `True` | `system.tables` for the key, `system.parts` for bounds | table, required |
 | `table-engine` | `supports_table_engine_introspection()` | `True` | `system.tables` | table, required |
 | `database` | `supports_database_info()` | `True` | `system.databases` | refused |
 | `functions` | `supports_function_introspection()` | `True` | `system.functions` | name, optional |
@@ -54,11 +54,14 @@ zero.
 | `value-samples` | `supports_column_value_sample()` | `True` | the rows themselves | table, required |
 | `join-coverage` | `supports_join_coverage()` | `True` | the rows themselves, two tables | left table, required |
 
-`partitions` and `table-engine` are this backend's own families, not core's:
-each is gated on the switch declared beside it in the mixin, and each has a
-result type of its own. Core's `supports_partition_info()` stays `False` by
-inheritance, because there is no core partition method here for a `True` to
-oblige; the CLI reads the backend's switch, not core's.
+`table-engine` is this backend's own family: it is gated on the switch declared
+beside it in the mixin and has a result type of its own. `partitions` is offered
+by the same switch but renders the **neutral** `PartitionState` from
+`introspector.get_partition_state`: `scheme` comes from the engine's
+`partition_key`, and `bounds` are the active parts grouped by `partition_id`.
+Core's `supports_partition_info()` stays `False` by inheritance, because the
+core partition method is answered here through the object-state API rather than
+the older catalogue family; the CLI reads the backend's switch, not core's.
 
 The six server-wide catalogue families are backend-local too. Each is gated on
 its own switch and each has its own result type, because none of them is a
@@ -76,13 +79,14 @@ users family reports authentication *types* and deliberately does not project
 answer. Reading those access-control relations still depends on the connected
 account's rights: a refusal is a query error, not an empty listing.
 
-Two object families stay out of the vocabulary rather than being offered empty.
-`constraints` and `tablespaces` have no ClickHouse `system.*` catalogue behind
-them — ClickHouse's constraint support is a DDL-declared CHECK clause with no
-catalogue table, and its storage is disks/parts plus storage policies rather
-than SQL tablespaces (both of which the `status` introspector already reads).
-Offering either family would invent a source the engine does not expose, so the
-absence is documented here and the CLI does not accept the word.
+Two object families stay out of the CLI vocabulary rather than being offered
+empty. `constraints` is readable through the object-state API
+(`list_constraint_states`, from `system.constraints`) but has no CLI type, and
+`tablespaces` has no ClickHouse catalogue behind it at all — its storage is
+disks/parts plus storage policies rather than SQL tablespaces (both of which the
+`status` introspector already reads). Offering a `constraints` CLI family would
+be a new family this round did not add, so the absence is documented here and
+the CLI does not accept the word.
 
 Probes with no CLI type say something too. `supports_foreign_key_introspection()`
 and `supports_trigger_introspection()` answer `False` because the engine
@@ -98,6 +102,31 @@ answers `True` and is the reason a table row carries `size_bytes`, read from
 are sparse structures the engine maintains, not a second copy of the data —
 the split is a fact this engine does not keep, not a gap. `supports_extensions()`
 stays `False`: this backend declares no catalogue of add-on components.
+
+### The Neutral Object-State Methods
+
+The manager also answers the core object-state API, whose shapes are core
+dataclasses rather than backend catalogue records:
+
+| Method | Answer | Reads |
+|--------|--------|-------|
+| `get_table_state` | kind, storage options, comment and partition scheme | `system.tables` |
+| `get_partition_state` | `PartitionState`; `scheme=None` means not partitioned | `system.tables` for the key, `system.parts` for bounds |
+| `list_index_states` | skipping indices with method, expression and size | `system.data_skipping_indices` |
+| `list_constraint_states` | `CHECK` / `ASSUME` constraints | `system.constraints` |
+| `list_schemas` | the database names the server exposes | `system.databases` |
+| `list_derived_objects` | projections and materialized views for one table | `system.projections`, `system.tables` |
+| `item_exists` | database / table / function existence, `False` for the object classes ClickHouse lacks | `system.databases` / `system.tables` / `system.functions` |
+
+The partition scheme is the declaration, not the parts: `system.parts` always
+holds at least one row for a written MergeTree table, including the single
+`'all'` partition of a table with no `PARTITION BY`, so a non-empty parts list
+proves nothing. `partition_key = ''` is what makes `scheme` `None`. When stats
+are requested, each bound carries its active-part row and byte sums; when they
+are not, the counts are never queried. `list_sequence_states` is not overridden,
+and neither is any trigger-state answer: ClickHouse has neither sequences nor
+triggers, so the core refusal names the method instead of answering an empty
+list.
 
 ### The Five That Answer False
 

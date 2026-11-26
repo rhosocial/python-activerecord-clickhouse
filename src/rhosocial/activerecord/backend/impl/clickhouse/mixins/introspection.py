@@ -21,10 +21,15 @@ if TYPE_CHECKING:
 
     from ..expression.introspection import (
         ClickHouseClusterListQuery,
+        ClickHouseConstraintStateListQuery,
         ClickHouseDictionaryListQuery,
         ClickHouseFunctionListQuery,
+        ClickHouseIndexStateListQuery,
+        ClickHouseMaterializedViewListQuery,
+        ClickHouseProjectionListQuery,
         ClickHouseQuotaListQuery,
         ClickHouseRoleListQuery,
+        ClickHouseSchemaListQuery,
         ClickHouseTableEngineQuery,
         ClickHouseTablePartitionsQuery,
         ClickHouseIntrospectionUserListQuery,
@@ -1043,7 +1048,7 @@ class ClickHouseIntrospectionMixin:
     def format_clickhouse_table_partitions_query(
         self, expr: "ClickHouseTablePartitionsQuery"
     ) -> Tuple[str, tuple]:
-        """One row per partition of a table, aggregated from ``system.parts``.
+        """One row per partition of a table, grouped from ``system.parts``.
 
         The filter ``active = 1`` is what makes the aggregate mean what it says.
         ``system.parts`` keeps a part until its replacement has been written and
@@ -1061,6 +1066,10 @@ class ClickHouseIntrospectionMixin:
         rejects ``ANY`` (measured on 26.7.3.19: ``Function with name `ANY` does
         not exist``), while ``MIN`` is accepted; a column outside the ``GROUP BY``
         still has to be aggregated, so it is read this way.
+
+        ``include_stats=False`` projects only the identity and the readable
+        value: a caller who asked for the partition scheme did not ask for a
+        measurement, and summing rows and bytes is exactly that measurement.
         """
         from rhosocial.activerecord.backend.expression import Literal, QueryStatement
         from rhosocial.activerecord.backend.expression.functions.aggregate import (
@@ -1070,18 +1079,25 @@ class ClickHouseIntrospectionMixin:
             sum_,
         )
 
+        select = [
+            self._column("partition_id"),
+            min_(self, self._column("partition"), alias="partition"),
+            min_(self, self._column("engine"), alias="engine"),
+        ]
+        if expr.include_stats:
+            select.extend(
+                [
+                    count(self, "*", alias="active_part_count"),
+                    sum_(self, self._column("rows"), alias="row_count"),
+                    sum_(self, self._column("bytes_on_disk"), alias="bytes_on_disk"),
+                    min_(self, self._column("modification_time"), alias="min_modification_time"),
+                    max_(self, self._column("modification_time"), alias="max_modification_time"),
+                ]
+            )
+
         query = QueryStatement(
             self,
-            select=[
-                self._column("partition_id"),
-                min_(self, self._column("partition"), alias="partition"),
-                min_(self, self._column("engine"), alias="engine"),
-                count(self, "*", alias="active_part_count"),
-                sum_(self, self._column("rows"), alias="row_count"),
-                sum_(self, self._column("bytes_on_disk"), alias="bytes_on_disk"),
-                min_(self, self._column("modification_time"), alias="min_modification_time"),
-                max_(self, self._column("modification_time"), alias="max_modification_time"),
-            ],
+            select=select,
             from_=self._system_relation("parts"),
             where=self._where(
                 self._equals(self._column("database"), Literal(self, expr.database)),
@@ -1115,12 +1131,142 @@ class ClickHouseIntrospectionMixin:
                 self._column("total_rows"),
                 self._column("total_bytes"),
                 self._column("comment"),
+                self._column("engine_full"),
+                self._column("is_temporary"),
+                self._column("storage_policy"),
             ],
             from_=self._system_relation("tables"),
             where=self._where(
                 self._equals(self._column("database"), Literal(self, expr.database)),
                 self._equals(self._column("name"), Literal(self, expr.table)),
             ),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_schema_list_query(
+        self, expr: "ClickHouseSchemaListQuery"
+    ) -> Tuple[str, tuple]:
+        """The database names ``system.databases`` holds, ordered by name."""
+        from rhosocial.activerecord.backend.expression import QueryStatement
+
+        query = QueryStatement(
+            self,
+            select=[self._column("name")],
+            from_=self._system_relation("databases"),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_index_state_list_query(
+        self, expr: "ClickHouseIndexStateListQuery"
+    ) -> Tuple[str, tuple]:
+        """One row per data-skipping index on the table.
+
+        ``type`` and ``expr`` are the two facts ``IndexState`` carries beyond an
+        ``IndexInfo`` row: the engine's own method name and the expression it
+        skips on. ``creation`` is ``Explicit`` / ``Implicit`` and is kept in
+        ``raw`` rather than flattened into ``method``.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("type"),
+                self._column("type_full"),
+                self._column("expr"),
+                self._column("creation"),
+                self._column("granularity"),
+                self._column("data_compressed_bytes"),
+                self._column("data_uncompressed_bytes"),
+                self._column("marks_bytes"),
+            ],
+            from_=self._system_relation("data_skipping_indices"),
+            where=self._where(
+                self._equals(self._column("database"), Literal(self, expr.database)),
+                self._equals(self._column("table"), Literal(self, expr.table)),
+            ),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_constraint_state_list_query(
+        self, expr: "ClickHouseConstraintStateListQuery"
+    ) -> Tuple[str, tuple]:
+        """One row per constraint on the table, from ``system.constraints``.
+
+        ClickHouse's two constraint kinds are both declared, not enforced by a
+        separate validation pass, so the row's ``type`` is the whole answer and
+        the expression is kept in ``raw``.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("type"),
+                self._column("expression"),
+            ],
+            from_=self._system_relation("constraints"),
+            where=self._where(
+                self._equals(self._column("database"), Literal(self, expr.database)),
+                self._equals(self._column("table"), Literal(self, expr.table)),
+            ),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_projection_list_query(
+        self, expr: "ClickHouseProjectionListQuery"
+    ) -> Tuple[str, tuple]:
+        """One row per projection on the table, from ``system.projections``."""
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("type"),
+                self._column("sorting_key"),
+                self._column("query"),
+            ],
+            from_=self._system_relation("projections"),
+            where=self._where(
+                self._equals(self._column("database"), Literal(self, expr.database)),
+                self._equals(self._column("table"), Literal(self, expr.table)),
+            ),
+            order_by=self._order_by("name"),
+        )
+        return query.to_sql()
+
+    def format_clickhouse_materialized_view_list_query(
+        self, expr: "ClickHouseMaterializedViewListQuery"
+    ) -> Tuple[str, tuple]:
+        """Materialized views in the database, with the SELECT they run.
+
+        The source table is not a catalogue dependency on this engine (the
+        arrays are empty even for a view over a MergeTree), so ``as_select`` is
+        projected and the caller decides which table a view consumes.
+        """
+        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+
+        query = QueryStatement(
+            self,
+            select=[
+                self._column("name"),
+                self._column("database"),
+                self._column("as_select"),
+                self._column("target_table"),
+                self._column("dependencies_table"),
+            ],
+            from_=self._system_relation("tables"),
+            where=self._where(
+                self._equals(self._column("database"), Literal(self, expr.database)),
+                self._equals(self._column("engine"), Literal(self, "MaterializedView")),
+            ),
+            order_by=self._order_by("name"),
         )
         return query.to_sql()
 

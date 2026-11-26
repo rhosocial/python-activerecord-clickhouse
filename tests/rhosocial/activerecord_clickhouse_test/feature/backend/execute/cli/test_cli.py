@@ -199,9 +199,9 @@ class FakeIntrospector:
         self.calls.append(("list_indexes", table_name, schema))
         return [{"name": "idx_id"}]
 
-    def list_partitions(self, table_name, database=None):
-        self.calls.append(("list_partitions", table_name, database))
-        return [{"partition_id": "all"}]
+    def get_partition_state(self, table_name, schema=None, include_stats=False):
+        self.calls.append(("get_partition_state", table_name, schema, include_stats))
+        return {"scheme": None, "key_expression": "", "bounds": []}
 
     def get_table_engine(self, table_name, database=None):
         self.calls.append(("get_table_engine", table_name, database))
@@ -328,8 +328,8 @@ class FakeAsyncIntrospector:
     async def list_indexes(self, table_name, schema=None):
         return self._sync.list_indexes(table_name, schema=schema)
 
-    async def list_partitions(self, table_name, database=None):
-        return self._sync.list_partitions(table_name, database=database)
+    async def get_partition_state(self, table_name, schema=None, include_stats=False):
+        return self._sync.get_partition_state(table_name, schema=schema, include_stats=include_stats)
 
     async def get_table_engine(self, table_name, database=None):
         return self._sync.get_table_engine(table_name, database=database)

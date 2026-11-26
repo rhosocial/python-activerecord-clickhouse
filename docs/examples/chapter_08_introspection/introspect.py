@@ -105,10 +105,13 @@ def main() -> None:
         # Backend-specific families: ClickHouse calls the namespace a database,
         # so these reads take database= (not the core API's schema=).
         print("\nPartitions of", DEMO_TABLE, ":")
-        for partition in introspector.list_partitions(DEMO_TABLE):
+        state = introspector.get_partition_state(DEMO_TABLE, include_stats=True)
+        print("  scheme        :", state.scheme)
+        print("  key_expression:", state.key_expression)
+        for bound in state.bounds:
             print(
-                f"  {partition.partition_id}: {partition.active_part_count} part(s), "
-                f"{partition.row_count} row(s), {partition.bytes_on_disk} bytes"
+                f"  {bound.name}: {bound.raw['active_part_count']} part(s), "
+                f"{bound.row_count} row(s), {bound.size_bytes} bytes"
             )
 
         engine = introspector.get_table_engine(DEMO_TABLE)

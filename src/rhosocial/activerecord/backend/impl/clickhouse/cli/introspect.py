@@ -310,7 +310,8 @@ def create_parser(subparsers):
   # Get column details for a table
   %(prog)s columns users --database mydb
 
-  # List a table's partitions (from system.parts, grouped by partition_id)
+  # Show a table's partition scheme (from system.tables) and bounds
+  # (system.parts, grouped by partition_id)
   %(prog)s partitions events --database mydb
 
   # Show a table's engine and key expressions (from system.tables)
@@ -550,11 +551,18 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             provider.display_results(data, title=f"Indexes of {args.name}")
 
         elif args.type == "partitions":
-            # This backend has no schema layer, so the method's parameter is
-            # named ``database`` and ``None`` means the connected database.
-            partitions = introspector.list_partitions(args.name, database=None)
-            data = _serialize_for_output(partitions)
-            provider.display_results(data, title=f"Partitions of {args.name}")
+            # The neutral answer: the scheme and its bounds, not the backend's
+            # own aggregate row. ``schema`` is ClickHouse's database -- the
+            # only namespace level this engine has -- and ``None`` means the
+            # connected one.
+            state = introspector.get_partition_state(
+                args.name, schema=None, include_stats=True
+            )
+            if state is None:
+                print(f"Error: Table '{args.name}' not found", file=sys.stderr)
+                sys.exit(1)
+            data = _serialize_for_output(state)
+            provider.display_results([data], title=f"Partitions of {args.name}")
 
         elif args.type == "table-engine":
             engine = introspector.get_table_engine(args.name, database=None)
@@ -757,11 +765,16 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
             provider.display_results(data, title=f"Indexes of {args.name}")
 
         elif args.type == "partitions":
-            # This backend has no schema layer, so the method's parameter is
-            # named ``database`` and ``None`` means the connected database.
-            partitions = await introspector.list_partitions(args.name, database=None)
-            data = _serialize_for_output(partitions)
-            provider.display_results(data, title=f"Partitions of {args.name}")
+            # Same neutral answer as the synchronous branch: the scheme and
+            # its bounds, read through the core-shaped method.
+            state = await introspector.get_partition_state(
+                args.name, schema=None, include_stats=True
+            )
+            if state is None:
+                print(f"Error: Table '{args.name}' not found", file=sys.stderr)
+                sys.exit(1)
+            data = _serialize_for_output(state)
+            provider.display_results([data], title=f"Partitions of {args.name}")
 
         elif args.type == "table-engine":
             engine = await introspector.get_table_engine(args.name, database=None)

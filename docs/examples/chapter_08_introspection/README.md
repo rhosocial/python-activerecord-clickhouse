@@ -11,9 +11,10 @@ The reads shown, in order:
 - `introspector.get_database_info()` — the `system.databases` row;
 - `introspector.list_tables()` and `introspector.get_table_info(table)` —
   table and column declarations from `system.tables` / `system.columns`;
-- `introspector.list_partitions(table)` and
-  `introspector.get_table_engine(table)` — this backend's own families, which
-  take `database=` because ClickHouse has no schema layer beneath a database;
+- `introspector.get_partition_state(table)` and
+  `introspector.get_table_engine(table)` — the neutral partition scheme plus
+  this backend's own engine definition, which takes `database=` because
+  ClickHouse has no schema layer beneath a database;
 - `introspector.list_functions("toYYYYMM")` — a server-wide catalogue read.
 
 The script calls `backend.introspect_and_adapt()` before asking the probes, so

@@ -168,13 +168,16 @@ class ClickHousePartitionMaintenance:
         database: Optional[str] = None,
         refresh: bool = False,
     ) -> List[ClickHousePartitionInfo]:
-        """List a table's partitions, aggregated from its active parts.
+        """List a table's partitions, read from its active parts.
 
         This is the read a retention job decides from: every item carries the
         ``partition_id`` the three management helpers take, plus the readable
         ``partition`` value, the row count and the bytes on disk. The read is
-        the introspector's (``system.parts``, active parts only), so the two
-        entry points cannot disagree.
+        the introspector's own catalogue read (``system.parts``, active parts
+        only), so the two entry points cannot disagree. It stays the
+        backend-specific shape because a retention job needs the id a
+        ``DROP PARTITION ID`` takes; a caller asking the neutral question
+        reads ``introspector.get_partition_state`` instead.
 
         Args:
             table: The table to read. A table declared without ``PARTITION BY``
@@ -197,7 +200,9 @@ class ClickHousePartitionMaintenance:
         self._require_table(table)
         if refresh:
             self._invalidate(table)
-        return self._backend.introspector.list_partitions(table, database)
+        return self._backend.introspector._partition_entries(
+            table, database, include_stats=True
+        )
 
     def drop(
         self,

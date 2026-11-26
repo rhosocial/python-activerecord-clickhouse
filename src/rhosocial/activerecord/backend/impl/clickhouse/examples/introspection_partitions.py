@@ -1,21 +1,24 @@
-"""ClickHouse-specific introspection: partitions and table engine.
+"""ClickHouse-specific introspection: partition state and table engine.
 
 This example uses the two reads this backend adds to the standard introspection
 API:
 
-    backend.introspector.list_partitions(table, database=None)
+    backend.introspector.get_partition_state(table, schema=None, include_stats=True)
     backend.introspector.get_table_engine(table, database=None)
 
-``list_partitions`` aggregates the table's active parts from ``system.parts``
-per ``partition_id``: rows, bytes on disk, part count, the modification-time
-range and the engine. ``get_table_engine`` reads the storage definition from
-``system.tables``: engine, ``ORDER BY`` / ``PRIMARY KEY`` / ``PARTITION BY`` /
-``SAMPLE BY`` expressions, totals and comment.
+``get_partition_state`` is the neutral answer: ``scheme`` is read from the
+table engine's ``partition_key`` (an empty key means the table is not
+partitioned, whatever ``system.parts`` says), and ``bounds`` are the active
+parts grouped per ``partition_id``. ``include_stats=True`` asks the server for
+the per-partition row count and bytes on disk. ``get_table_engine`` reads the
+storage definition from ``system.tables``: engine, ``ORDER BY`` / ``PRIMARY KEY``
+/ ``PARTITION BY`` / ``SAMPLE BY`` expressions, the ``TTL`` clause, totals and
+comment.
 
 Naming: ClickHouse's top-level namespace is a *database*, and it has no schema
-layer. That is why both methods take ``database=`` rather than the core
-introspection API's ``schema=``; the value is the same namespace either way, and
-nothing is translated. Passing ``None`` uses the connected database.
+layer. That is why these reads take ``database=`` (or the core method's
+``schema=``) and the value is the same namespace either way; nothing is
+translated. Passing ``None`` uses the connected database.
 
 The second half of the example counts the statements the introspector sends and
 times both calls, cold (cache empty) and warm (cache filled), to show that the
@@ -129,16 +132,15 @@ def timed(read):
     return value, time.perf_counter() - started
 
 
-def print_partitions(partitions) -> None:
+def print_state(state) -> None:
     print("")
-    print(f"  {'partition_id':<14} {'partition':<12} {'parts':>6} {'rows':>6} {'bytes':>10}  engine")
-    for item in partitions:
+    print(f"  scheme        : {getattr(state.scheme, 'value', state.scheme)}")
+    print(f"  key_expression: {state.key_expression!r}")
+    print(f"  {'partition_id':<14} {'upper':<12} {'rows':>6} {'bytes':>10}")
+    for bound in state.bounds:
         print(
-            f"  {item.partition_id:<14} {str(item.partition):<12} "
-            f"{item.active_part_count:>6} {item.row_count:>6} {item.bytes_on_disk:>10}  {item.engine}"
-        )
-        print(
-            f"  {'':<14} modified {item.min_modification_time} .. {item.max_modification_time}"
+            f"  {bound.name:<14} {str(bound.upper):<12} "
+            f"{str(bound.row_count):>6} {str(bound.size_bytes):>10}"
         )
 
 
@@ -165,47 +167,55 @@ def main() -> None:
         counter = QuestionCounter(introspector._executor)
         introspector._executor = counter
 
-        # --- cold: the cache is empty, so both reads must ask the server ---
+        # --- cold: the cache is empty, so the engine and the parts are read ---
         introspector.clear_cache()
         cold_start = counter.questions
-        partitions, partitions_cold_seconds = timed(lambda: introspector.list_partitions(DEMO_TABLE))
+        state, state_cold_seconds = timed(
+            lambda: introspector.get_partition_state(
+                DEMO_TABLE, include_stats=True
+            )
+        )
         engine, engine_cold_seconds = timed(lambda: introspector.get_table_engine(DEMO_TABLE))
         cold_questions = counter.questions - cold_start
 
         print("")
-        print("Partitions (cold read):")
-        print_partitions(partitions)
+        print("Partition state (cold read):")
+        print_state(state)
         print("")
         print("Table engine (cold read):")
         print_engine(engine)
 
         # --- warm: same two calls, answered from the cache ---
         warm_start = counter.questions
-        warm_partitions, partitions_warm_seconds = timed(lambda: introspector.list_partitions(DEMO_TABLE))
+        warm_state, state_warm_seconds = timed(
+            lambda: introspector.get_partition_state(
+                DEMO_TABLE, include_stats=True
+            )
+        )
         warm_engine, engine_warm_seconds = timed(lambda: introspector.get_table_engine(DEMO_TABLE))
         warm_questions = counter.questions - warm_start
 
         # The cached answers are the same objects, not re-parsed copies.
-        assert warm_partitions is partitions
+        assert warm_state is state
         assert warm_engine is engine
 
         print("")
         print("Cache:")
         print(
             f"  cold : {cold_questions} question(s) to the server, "
-            f"{partitions_cold_seconds + engine_cold_seconds:.4f}s total"
+            f"{state_cold_seconds + engine_cold_seconds:.4f}s total"
         )
-        print(f"         list_partitions {partitions_cold_seconds:.4f}s, "
+        print(f"         get_partition_state {state_cold_seconds:.4f}s, "
               f"get_table_engine {engine_cold_seconds:.4f}s")
         print(
             f"  warm : {warm_questions} question(s) to the server, "
-            f"{partitions_warm_seconds + engine_warm_seconds:.4f}s total"
+            f"{state_warm_seconds + engine_warm_seconds:.4f}s total"
         )
-        print(f"         list_partitions {partitions_warm_seconds:.4f}s, "
+        print(f"         get_partition_state {state_warm_seconds:.4f}s, "
               f"get_table_engine {engine_warm_seconds:.4f}s")
         print("")
         print("The warm reads send nothing because each answer was cached under")
-        print("IntrospectionScope.TABLE with extra='partition' / extra='engine'.")
+        print("IntrospectionScope.TABLE with extra='partition-state:1' / extra='engine'.")
     finally:
         backend.execute(f"DROP TABLE IF EXISTS {DEMO_TABLE}")
         backend.disconnect()
