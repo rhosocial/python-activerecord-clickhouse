@@ -1,4 +1,4 @@
-# tests/test_support_switches_take_no_arguments.py
+# tests/test_supports_switches_are_parameterless_bools.py
 """Guard: every ``supports_*`` in ``src`` is a parameterless bool switch.
 
 A capability flag answers "does this dialect have capability k", so its only
