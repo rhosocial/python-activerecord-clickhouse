@@ -106,6 +106,9 @@ CLICKHOUSE_PROTOCOLS = [
     # storage type. The mixin reports that as "embedded-in-type", so the
     # dialect answers the suggestion protocol with a no-clause DDL decision.
     suggestion_protocols.GeneratedValueSuggestionSupport,
+    # Function catalogue: the dialect answers ``suggest_functions()`` with a
+    # ``FunctionSuggestion`` -- a value, not a ``supports_*`` switch.
+    suggestion_protocols.FunctionSuggestionSupport,
     dialect_protocols.QualifyClauseSupport,
     dialect_protocols.TemporalTableSupport,
     dialect_protocols.UpsertSupport,
@@ -128,7 +131,6 @@ CLICKHOUSE_PROTOCOLS = [
     dialect_protocols.ConstraintSupport,
     dialect_protocols.IntrospectionSupport,
     dialect_protocols.TransactionControlSupport,
-    dialect_protocols.SQLFunctionSupport,
     # Generic protocols ClickHouse also satisfies (previously omitted from this list).
     dialect_protocols.AlterTableModifierSupport,
     dialect_protocols.DataTypeSupport,

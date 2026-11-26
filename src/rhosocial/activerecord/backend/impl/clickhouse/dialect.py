@@ -52,7 +52,6 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     IntrospectionSupport,
     TruncateSupport,
     TransactionControlSupport,
-    SQLFunctionSupport,
     DataTypeSupport,
     ColumnAttributeSupport,
 )
@@ -129,6 +128,7 @@ from rhosocial.activerecord.backend.suggestion.protocols import (
     ColumnTypeSuggestionSupport,
     CreateTableLayoutSuggestionSupport,
     DataTypeSuggestionSupport,
+    FunctionSuggestionSupport,
     StringConcatenationSuggestionSupport,
 )
 from .protocols import (
@@ -487,7 +487,6 @@ class ClickHouseDialect(
     ClickHouseRoutineSupport,
     ClickHouseLoadXMLSupport,
     ClickHouseAdminCommandSupport,
-    SQLFunctionSupport,
     # Core split ColumnAttributeSupport out of DDLColumnSupport: the standalone
     # ColumnAttributeMixin above supplies its two members.
     ColumnAttributeSupport,
@@ -501,6 +500,7 @@ class ClickHouseDialect(
     ColumnTypeSuggestionSupport,
     CreateTableLayoutSuggestionSupport,
     StringConcatenationSuggestionSupport,
+    FunctionSuggestionSupport,
     # Named objects. Each object protocol names the ``format_<kind>_object``
     # method its ``*NameMixin`` provides, and inherits NamespaceSupport, so they
     # precede it. They sit after the ClickHouse protocols that derive from them

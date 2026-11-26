@@ -1,5 +1,7 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/function.py
-from typing import Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import List, Optional, Tuple, TYPE_CHECKING
+
+from rhosocial.activerecord.backend.suggestion.definitions import FunctionSuggestion
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.bases import BaseExpression
@@ -73,8 +75,13 @@ class ClickHouseFunctionMixin:
         "avg": (None, None),
     }
 
-    def supports_functions(self) -> Dict[str, bool]:
-        """Return supported SQL functions as function_name -> bool mapping."""
+    def suggest_functions(self) -> "FunctionSuggestion":
+        """Return the SQL function catalogue this dialect renders.
+
+        The answer is a suggestion value, not a capability switch: it carries
+        a ``function_name -> bool`` mapping, which is a catalogue rather than
+        a parameterless yes/no.
+        """
         from rhosocial.activerecord.backend.expression.functions import (
             __all__ as core_functions,
         )
@@ -98,7 +105,7 @@ class ClickHouseFunctionMixin:
         for func_name in core_functions:
             if func_name not in expression_constructors:
                 result[func_name] = self._is_clickhouse_function_supported(func_name)
-        return result
+        return FunctionSuggestion(result)
 
     def _is_clickhouse_function_supported(self, func_name: str) -> bool:
         """Check if a ClickHouse-specific function is supported based on version.

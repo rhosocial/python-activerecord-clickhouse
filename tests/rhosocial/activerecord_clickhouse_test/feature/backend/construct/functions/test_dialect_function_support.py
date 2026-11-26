@@ -1,35 +1,43 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/construct/functions/test_dialect_function_support.py
 """
-Test SQLFunctionSupport protocol implementation for ClickHouse dialect.
+Test FunctionSuggestion support for ClickHouse dialect.
 
-This module tests the supports_functions() method and version-dependent
+This module tests the suggest_functions() method and version-dependent
 function availability detection in ClickHouseDialect.
 """
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
+from rhosocial.activerecord.backend.suggestion.definitions import FunctionSuggestion
 
 
 class TestFunctionSupportBasic:
     """Basic tests for ClickHouse function support detection."""
 
-    def test_supports_functions_returns_dict(self):
-        """Test that supports_functions returns a dictionary."""
+    def test_suggest_functions_returns_suggestion(self):
+        """Test that suggest_functions returns the suggestion value."""
         dialect = ClickHouseDialect((26, 7, 1))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions()
+        assert isinstance(result, FunctionSuggestion)
+        assert isinstance(result.functions, dict)
+
+    def test_suggest_functions_returns_dict(self):
+        """Test that the suggestion carries a non-empty function mapping."""
+        dialect = ClickHouseDialect((26, 7, 1))
+        result = dialect.suggest_functions().functions
         assert isinstance(result, dict)
         assert len(result) > 0
 
-    def test_supports_functions_all_values_are_bool(self):
+    def test_suggest_functions_all_values_are_bool(self):
         """Test that all values in the returned dict are booleans."""
         dialect = ClickHouseDialect((26, 7, 1))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         for func_name, supported in result.items():
             assert isinstance(supported, bool), f"Value for {func_name} is not bool"
 
     def test_core_functions_always_supported(self):
         """Test that core functions are marked as supported."""
         dialect = ClickHouseDialect((26, 7, 1))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         core_functions = ["count", "sum_", "avg", "min_", "max_", "coalesce", "nullif"]
         for func in core_functions:
             assert func in result, f"Core function {func} not in result"
@@ -38,7 +46,7 @@ class TestFunctionSupportBasic:
     def test_sqlxml_constructors_are_not_plain_functions(self):
         """Test that standard SQL/XML constructors are not plain functions."""
         dialect = ClickHouseDialect((26, 7, 1))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         sqlxml_constructors = [
             "xmlparse",
             "xmlserialize",
@@ -74,7 +82,7 @@ class TestFunctionSupportVersionDependent:
         wrappers like ``bit_and``, ``find_in_set`` are absent.
         """
         dialect = ClickHouseDialect(version=(26, 7, 3))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
 
         # Core JSON functions are reported (they use the dialect mixin)
         assert "json_extract" in result
@@ -106,7 +114,7 @@ class TestFunctionSupportVersionDependent:
     def test_core_functions_available_all_versions(self):
         """Core math/aggregate functions are available in all ClickHouse versions."""
         dialect = ClickHouseDialect((26, 7, 3))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
 
         # Functions present in the core expression.functions module
         core_functions = [
@@ -126,7 +134,7 @@ class TestFunctionSupportVersionDependent:
     def test_aggregate_and_scalar_core_functions(self):
         """Core aggregate/scalar functions are reported."""
         dialect = ClickHouseDialect((26, 7, 3))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
         for func in ["count", "sum_", "avg", "min_", "max_", "coalesce", "nullif"]:
             assert result.get(func) is True, f"{func} should be supported"
 
@@ -153,7 +161,7 @@ class TestFunctionSupportIntegration:
     def test_function_dict_contains_core_functions(self):
         """Test that the result contains core functions (not MySQL wrappers)."""
         dialect = ClickHouseDialect((26, 7, 1))
-        result = dialect.supports_functions()
+        result = dialect.suggest_functions().functions
 
         assert any(func in result for func in ["count", "sum_", "avg"])
         # MySQL-derived wrappers are absent
@@ -171,8 +179,8 @@ class TestFunctionSupportIntegration:
         old_dialect = ClickHouseDialect(version=(25, 8, 0))
         new_dialect = ClickHouseDialect(version=(26, 7, 1))
 
-        old_result = old_dialect.supports_functions()
-        new_result = new_dialect.supports_functions()
+        old_result = old_dialect.suggest_functions().functions
+        new_result = new_dialect.suggest_functions().functions
 
         for func in ["count", "sum_", "avg", "coalesce"]:
             assert old_result.get(func) is True
