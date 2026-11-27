@@ -120,6 +120,58 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
         """Whether ``OPTIMIZE TABLE ... [PARTITION ...] [FINAL]`` is supported — it is."""
         ...
 
+    def supports_add_partition(self) -> bool:
+        """Whether ``ADD PARTITION`` exists — it does not; a partition materialises."""
+        ...
+
+    def supports_truncate_partition(self) -> bool:
+        """Whether ``TRUNCATE PARTITION`` exists — it does not; see the class note."""
+        ...
+
+    def supports_split_partition(self) -> bool:
+        """Whether ``SPLIT PARTITION`` exists — it does not."""
+        ...
+
+    def supports_merge_partition(self) -> bool:
+        """Whether ``MERGE PARTITION`` exists — it does not."""
+        ...
+
+    def supports_exchange_partition(self) -> bool:
+        """Whether a partition can be swapped with a standalone table — it cannot."""
+        ...
+
+    def supports_reorganize_partition(self) -> bool:
+        """Whether MySQL's ``REORGANIZE PARTITION`` exists here — it does not."""
+        ...
+
+    def supports_coalesce_partition(self) -> bool:
+        """Whether ``COALESCE PARTITION`` exists — it does not."""
+        ...
+
+    def supports_analyze_partition(self) -> bool:
+        """Whether ``ANALYZE PARTITION`` exists — it does not."""
+        ...
+
+    def supports_check_partition(self) -> bool:
+        """Whether ``CHECK PARTITION`` exists — it does not."""
+        ...
+
+    def supports_optimize_partition(self) -> bool:
+        """Whether MySQL's ``OPTIMIZE PARTITION`` exists here — it does not."""
+        ...
+
+    def supports_rebuild_partition(self) -> bool:
+        """Whether ``REBUILD PARTITION`` exists — it does not."""
+        ...
+
+    def supports_repair_partition(self) -> bool:
+        """Whether ``REPAIR PARTITION`` exists — it does not."""
+        ...
+
+    def supports_remove_partitioning(self) -> bool:
+        """Whether ``REMOVE PARTITIONING`` exists — it does not."""
+        ...
+
     def format_drop_partition_statement(
         self, expr: "ClickHouseDropPartitionStatement"
     ) -> Tuple[str, tuple]:

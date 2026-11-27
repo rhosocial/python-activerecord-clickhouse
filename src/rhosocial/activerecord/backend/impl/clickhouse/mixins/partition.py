@@ -183,6 +183,74 @@ class ClickHousePartitionMixin:
         return True
 
     # ------------------------------------------------------------------
+    # The action family: what a plan may ask to do to a partition
+    # ------------------------------------------------------------------
+    # ClickHouse partitions are ranges of parts on disk, and the engine
+    # derives them from the ``PARTITION BY`` expression; only the statements
+    # this backend can render answer True. Every other name is a definite
+    # False -- the statement does not exist -- rather than a gap in the
+    # implementation.
+
+    def supports_add_partition(self) -> bool:
+        """False: partitions appear from inserts; there is no ADD PARTITION."""
+        return False
+
+    def supports_truncate_partition(self) -> bool:
+        """False: no TRUNCATE PARTITION; ``DROP PARTITION`` is the per-range removal."""
+        return False
+
+    def supports_split_partition(self) -> bool:
+        """False: no SPLIT PARTITION statement."""
+        return False
+
+    def supports_merge_partition(self) -> bool:
+        """False: no MERGE PARTITION statement."""
+        return False
+
+    def supports_exchange_partition(self) -> bool:
+        """False: no swap with a standalone table.
+
+        ``REPLACE PARTITION`` consumes another table's parts and has its own
+        switch; it is not the two-way exchange other engines offer.
+        """
+        return False
+
+    def supports_reorganize_partition(self) -> bool:
+        """False: MySQL's REORGANIZE PARTITION has no ClickHouse counterpart."""
+        return False
+
+    def supports_coalesce_partition(self) -> bool:
+        """False: the partition count is not a hash modulus that can be reduced."""
+        return False
+
+    def supports_analyze_partition(self) -> bool:
+        """False: no ANALYZE PARTITION; ``OPTIMIZE`` merges parts instead."""
+        return False
+
+    def supports_check_partition(self) -> bool:
+        """False: no CHECK PARTITION statement."""
+        return False
+
+    def supports_optimize_partition(self) -> bool:
+        """False: this name is MySQL's statement; the engine's form is FINAL.
+
+        See :meth:`supports_optimize_partition_final`.
+        """
+        return False
+
+    def supports_rebuild_partition(self) -> bool:
+        """False: no REBUILD PARTITION statement."""
+        return False
+
+    def supports_repair_partition(self) -> bool:
+        """False: no REPAIR PARTITION statement."""
+        return False
+
+    def supports_remove_partitioning(self) -> bool:
+        """False: ``PARTITION BY`` is fixed at CREATE; changing it needs a new table."""
+        return False
+
+    # ------------------------------------------------------------------
     # Refusals
     # ------------------------------------------------------------------
 

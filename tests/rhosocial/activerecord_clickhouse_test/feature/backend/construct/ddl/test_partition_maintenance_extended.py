@@ -514,6 +514,12 @@ class TestCapabilityProbes:
         assert isinstance(answer, bool)
         assert answer is True
 
-    def test_the_mysql_optimize_probe_stays_absent(self, dialect):
-        """``supports_optimize_partition`` names MySQL's statement; it is not this one."""
-        assert not hasattr(dialect, "supports_optimize_partition")
+    def test_the_mysql_optimize_probe_answers_false(self, dialect):
+        """``supports_optimize_partition`` names MySQL's statement.
+
+        The name is declared and answers False: "this engine has no such
+        statement" is a definite answer, and leaving the name out would be
+        indistinguishable from a gap. ClickHouse's own form is
+        ``supports_optimize_partition_final``.
+        """
+        assert getattr(dialect, "supports_optimize_partition")() is False
