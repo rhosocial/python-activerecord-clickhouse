@@ -113,10 +113,12 @@ class ClickHouseIndexMixin:
         an inline-CREATE-only assumption into ``ALTER TABLE``.
 
         Raises:
-            TypeError: if ``expr`` is not a ``ClickHouseAddIndexStatement``.
-            UnsupportedFeatureError: for a misplaced qualifier, a missing
-                table/name/type/expression, an expression that would bind a
-                parameter in a DDL position, or an invalid granularity.
+            TypeError: if ``expr`` is not a ``ClickHouseAddIndexStatement``, or
+                if the table or index name is missing/blank (a caller error;
+                a blank name cannot be rendered).
+            UnsupportedFeatureError: for a misplaced qualifier, a non-node
+                expression, an expression that would bind a parameter in a
+                DDL position, a missing/unsafe type, or an invalid granularity.
         """
         from ..expression.index import ClickHouseAddIndexStatement
 
@@ -216,9 +218,10 @@ class ClickHouseIndexMixin:
         """Render ``ALTER TABLE ... DROP INDEX [IF EXISTS] <name>``.
 
         Raises:
-            TypeError: if ``expr`` is not a ``ClickHouseDropIndexStatement``.
-            UnsupportedFeatureError: for a misplaced qualifier or a missing
-                table or index name.
+            TypeError: if ``expr`` is not a ``ClickHouseDropIndexStatement``, or
+                if the table or index name is missing/blank (a caller error;
+                a blank name cannot be rendered).
+            UnsupportedFeatureError: for a misplaced qualifier.
         """
         from ..expression.index import ClickHouseDropIndexStatement
 
@@ -274,6 +277,15 @@ class ClickHouseIndexMixin:
         return table_sql
 
     def _require_index_name(self, value: Any, feature: str, detail: str) -> None:
-        """Require a non-empty string: a DDL action must be aimable by name."""
+        """Require a non-empty string: a DDL action must be aimable by name.
+
+        A missing or blank name is a caller defect, not a dialect gap, so this
+        raises ``TypeError`` rather than ``UnsupportedFeatureError``. The
+        message keeps the feature spelling (``ADD INDEX`` / ``DROP INDEX``) so
+        a refusal still names what it refused.
+        """
         if not isinstance(value, str) or not value.strip():
-            raise UnsupportedFeatureError(self.name, feature, detail)
+            raise TypeError(
+                f"'{self.name}' dialect cannot render {feature}: expected a "
+                f"non-empty name, got {value!r}. {detail}"
+            )

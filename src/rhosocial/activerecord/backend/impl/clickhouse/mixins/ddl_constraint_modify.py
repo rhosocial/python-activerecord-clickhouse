@@ -42,7 +42,10 @@ class ClickHouseModifyConstraintMixin:
         Validation lives here: the kind must be ``CHECK`` or ``ASSUME``, the
         table and constraint name must be non-empty, and the condition is
         rendered inline because DDL carries no bind parameters. A condition
-        that yields parameters is refused rather than silently inlined.
+        that yields parameters is refused rather than silently inlined. Every
+        one of those checks describes a caller defect, so each raises
+        ``TypeError``; only the capability probe below raises
+        ``UnsupportedFeatureError``.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import (
             UnsupportedFeatureError,
@@ -61,20 +64,20 @@ class ClickHouseModifyConstraintMixin:
             )
         kind = expr.kind.upper() if isinstance(expr.kind, str) else expr.kind
         if kind not in MODIFY_CONSTRAINT_KINDS:
-            raise ValueError(
+            raise TypeError(
                 f"unknown constraint kind {expr.kind!r}; expected one of "
                 f"{MODIFY_CONSTRAINT_KINDS}"
             )
         if not isinstance(expr.table, str) or not expr.table.strip():
-            raise ValueError("MODIFY CONSTRAINT requires a non-empty table name")
+            raise TypeError("MODIFY CONSTRAINT requires a non-empty table name")
         if not isinstance(expr.name, str) or not expr.name.strip():
-            raise ValueError("MODIFY CONSTRAINT requires a non-empty constraint name")
+            raise TypeError("MODIFY CONSTRAINT requires a non-empty constraint name")
         if expr.condition is None:
-            raise ValueError("MODIFY CONSTRAINT requires a condition expression")
+            raise TypeError("MODIFY CONSTRAINT requires a condition expression")
 
         condition_sql, condition_params = expr.condition.to_sql()
         if condition_params:
-            raise ValueError(
+            raise TypeError(
                 "MODIFY CONSTRAINT takes no bind parameters: the condition must "
                 "render inline (DDL has no parameter slot)"
             )

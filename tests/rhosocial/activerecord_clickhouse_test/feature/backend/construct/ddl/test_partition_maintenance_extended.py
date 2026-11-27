@@ -128,13 +128,22 @@ class TestReplacePartition:
             == "REPLACE PARTITION"
         )
 
-    def test_a_missing_partition_is_refused_by_name(self, dialect):
+    def test_a_blank_partition_is_refused_by_name(self, dialect):
         assert (
             _feature(
-                ClickHouseReplacePartitionStatement(dialect, TABLE, None, "staging")
+                ClickHouseReplacePartitionStatement(dialect, TABLE, "", "staging")
             )
             == "REPLACE PARTITION"
         )
+
+    def test_a_missing_partition_is_reported_before_the_formatter(self, dialect):
+        """``None`` is caught by the generic required-parameter check."""
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) partition_id are None"
+        ):
+            _render(
+                ClickHouseReplacePartitionStatement(dialect, TABLE, None, "staging")
+            )
 
     def test_the_backend_helper_executes_the_rendered_statement(self, service):
         backend = service.backend
@@ -522,4 +531,4 @@ class TestCapabilityProbes:
         indistinguishable from a gap. ClickHouse's own form is
         ``supports_optimize_partition_final``.
         """
-        assert getattr(dialect, "supports_optimize_partition")() is False
+        assert dialect.supports_optimize_partition() is False

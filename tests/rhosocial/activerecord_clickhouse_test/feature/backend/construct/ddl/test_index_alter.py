@@ -161,14 +161,28 @@ class TestRefusals:
         with pytest.raises(UnsupportedFeatureError, match=feature):
             _drop(dialect, **kwargs).to_sql()
 
-    @pytest.mark.parametrize("table", ["", "  ", None, 42])
+    def test_add_reports_a_missing_table_before_the_formatter(self, dialect):
+        """``None`` is caught by the generic required-parameter check."""
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) table are None"
+        ):
+            _add(dialect, table=None).to_sql()
+
+    @pytest.mark.parametrize("table", ["", "  ", 42])
     def test_add_rejects_an_unaimable_table(self, dialect, table):
-        with pytest.raises(UnsupportedFeatureError, match="ADD INDEX"):
+        """A blank or non-string table name is a caller error, not a gap."""
+        with pytest.raises(TypeError, match="ADD INDEX"):
             _add(dialect, table=table).to_sql()
 
-    @pytest.mark.parametrize("name", ["", "  ", None, 42])
+    def test_add_reports_a_missing_name_before_the_formatter(self, dialect):
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) name are None"
+        ):
+            _add(dialect, name=None).to_sql()
+
+    @pytest.mark.parametrize("name", ["", "  ", 42])
     def test_add_rejects_an_unnamed_index(self, dialect, name):
-        with pytest.raises(UnsupportedFeatureError, match="ADD INDEX"):
+        with pytest.raises(TypeError, match="ADD INDEX"):
             _add(dialect, name=name).to_sql()
 
     @pytest.mark.parametrize("type_", [None, "", "  ", 42, "minmax; DROP TABLE t"])
@@ -176,7 +190,13 @@ class TestRefusals:
         with pytest.raises(UnsupportedFeatureError, match="ADD INDEX TYPE"):
             _add(dialect, type=type_).to_sql()
 
-    @pytest.mark.parametrize("expression", [None, "val", 7])
+    def test_add_reports_a_missing_expression_before_the_formatter(self, dialect):
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) expression are None"
+        ):
+            _add(dialect, expression=None).to_sql()
+
+    @pytest.mark.parametrize("expression", ["val", 7])
     def test_add_rejects_a_non_node_expression(self, dialect, expression):
         with pytest.raises(UnsupportedFeatureError, match="ADD INDEX <expression>"):
             _add(dialect, expression=expression).to_sql()
@@ -190,14 +210,26 @@ class TestRefusals:
         with pytest.raises(UnsupportedFeatureError, match="ADD INDEX GRANULARITY"):
             _add(dialect, granularity=granularity).to_sql()
 
-    @pytest.mark.parametrize("table", ["", "  ", None])
+    def test_drop_reports_a_missing_table_before_the_formatter(self, dialect):
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) table are None"
+        ):
+            _drop(dialect, table=None).to_sql()
+
+    @pytest.mark.parametrize("table", ["", "  "])
     def test_drop_rejects_an_unaimable_table(self, dialect, table):
-        with pytest.raises(UnsupportedFeatureError, match="DROP INDEX"):
+        with pytest.raises(TypeError, match="DROP INDEX"):
             _drop(dialect, table=table).to_sql()
 
-    @pytest.mark.parametrize("name", ["", "  ", None])
+    def test_drop_reports_a_missing_name_before_the_formatter(self, dialect):
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) name are None"
+        ):
+            _drop(dialect, name=None).to_sql()
+
+    @pytest.mark.parametrize("name", ["", "  "])
     def test_drop_rejects_an_unnamed_index(self, dialect, name):
-        with pytest.raises(UnsupportedFeatureError, match="DROP INDEX"):
+        with pytest.raises(TypeError, match="DROP INDEX"):
             _drop(dialect, name=name).to_sql()
 
     def test_wrong_node_kind_is_a_type_error(self, dialect):

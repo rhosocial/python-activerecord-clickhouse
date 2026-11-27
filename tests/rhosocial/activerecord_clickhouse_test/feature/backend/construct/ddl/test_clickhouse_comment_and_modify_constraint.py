@@ -139,19 +139,22 @@ class TestModifyConstraint:
         assert dialect.supports_modify_constraint() is True
 
     def test_unknown_kind_is_refused(self, dialect):
-        with pytest.raises(ValueError, match="unknown constraint kind"):
+        with pytest.raises(TypeError, match="unknown constraint kind"):
             ClickHouseModifyConstraintStatement(
                 dialect, "events", "ck", "UNIQUE", self._condition(dialect)
             ).to_sql()
 
     def test_blank_name_is_refused(self, dialect):
-        with pytest.raises(ValueError, match="non-empty constraint name"):
+        with pytest.raises(TypeError, match="non-empty constraint name"):
             ClickHouseModifyConstraintStatement(
                 dialect, "events", " ", "CHECK", self._condition(dialect)
             ).to_sql()
 
     def test_missing_condition_is_refused(self, dialect):
-        with pytest.raises(ValueError, match="requires a condition"):
+        """``None`` is caught by the generic required-parameter check."""
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) condition are None"
+        ):
             ClickHouseModifyConstraintStatement(
                 dialect, "events", "ck", "CHECK", None
             ).to_sql()
@@ -160,7 +163,7 @@ class TestModifyConstraint:
         bound = ComparisonPredicate(
             dialect, "gt", Column(dialect, "c"), Literal(dialect, 100)
         )
-        with pytest.raises(ValueError, match="no bind parameters"):
+        with pytest.raises(TypeError, match="no bind parameters"):
             ClickHouseModifyConstraintStatement(
                 dialect, "events", "ck", "CHECK", bound
             ).to_sql()
