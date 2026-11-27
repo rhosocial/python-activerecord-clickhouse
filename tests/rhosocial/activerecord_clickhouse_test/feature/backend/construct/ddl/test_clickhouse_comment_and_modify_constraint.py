@@ -62,8 +62,16 @@ class TestTableComment:
         assert excinfo.value.feature_name == "ALTER TABLE IF EXISTS MODIFY COMMENT"
 
     def test_blank_table_is_refused(self, dialect):
-        with pytest.raises(ValueError, match="non-empty table name"):
+        """A blank table name is a caller error, not a capability gap."""
+        with pytest.raises(TypeError, match="non-empty table name"):
             ClickHouseModifyTableCommentStatement(dialect, "  ", "x").to_sql()
+
+    def test_missing_table_is_reported_before_the_formatter(self, dialect):
+        """``None`` is caught by the generic required-parameter check."""
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) table are None"
+        ):
+            ClickHouseModifyTableCommentStatement(dialect, None, "x").to_sql()
 
     def test_non_string_comment_is_refused(self, dialect):
         with pytest.raises(TypeError, match="comment to be a string"):
@@ -106,8 +114,18 @@ class TestColumnComment:
         )
 
     def test_blank_column_is_refused(self, dialect):
-        with pytest.raises(ValueError, match="non-empty column name"):
+        """A blank column name is a caller error, not a capability gap."""
+        with pytest.raises(TypeError, match="non-empty column name"):
             ClickHouseModifyColumnCommentStatement(dialect, "t", " ", "x").to_sql()
+
+    def test_missing_column_is_reported_before_the_formatter(self, dialect):
+        """``None`` is caught by the generic required-parameter check."""
+        with pytest.raises(
+            TypeError, match=r"required parameter\(s\) column are None"
+        ):
+            ClickHouseModifyColumnCommentStatement(
+                dialect, "t", None, "x"
+            ).to_sql()
 
 
 class TestModifyConstraint:

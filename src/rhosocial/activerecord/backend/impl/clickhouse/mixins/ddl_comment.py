@@ -54,6 +54,12 @@ class ClickHouseCommentMixin:
 
         ``IF EXISTS`` is not part of this production, so requesting it is
         refused by name; an empty comment is legal and removes the comment.
+
+        Raises:
+            TypeError: if the comment is not a string, or if the table name is
+                missing/blank (a caller error; a blank name cannot be rendered).
+            UnsupportedFeatureError: below 23.9, or with the table-level
+                ``IF EXISTS`` qualifier this production does not carry.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import (
             UnsupportedFeatureError,
@@ -72,7 +78,7 @@ class ClickHouseCommentMixin:
                 "ClickHouse's ALTER TABLE header has no IF EXISTS for MODIFY COMMENT.",
             )
         if not isinstance(expr.table, str) or not expr.table.strip():
-            raise ValueError("MODIFY COMMENT requires a non-empty table name")
+            raise TypeError("MODIFY COMMENT requires a non-empty table name")
         if not isinstance(expr.comment, str):
             raise TypeError(
                 "MODIFY COMMENT requires comment to be a string, got "
@@ -89,6 +95,13 @@ class ClickHouseCommentMixin:
 
         Only the comment modifier is modelled. ``IF EXISTS`` belongs after
         ``MODIFY COLUMN``; the table-level qualifier is refused by name.
+
+        Raises:
+            TypeError: if the comment is not a string, or if the table or
+                column name is missing/blank (a caller error; a blank name
+                cannot be rendered).
+            UnsupportedFeatureError: below 23.9, or with the table-level
+                ``IF EXISTS`` qualifier this production does not carry.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import (
             UnsupportedFeatureError,
@@ -107,9 +120,9 @@ class ClickHouseCommentMixin:
                 "ClickHouse's ALTER TABLE header has no IF EXISTS for MODIFY COLUMN.",
             )
         if not isinstance(expr.table, str) or not expr.table.strip():
-            raise ValueError("MODIFY COLUMN COMMENT requires a non-empty table name")
+            raise TypeError("MODIFY COLUMN COMMENT requires a non-empty table name")
         if not isinstance(expr.column, str) or not expr.column.strip():
-            raise ValueError("MODIFY COLUMN COMMENT requires a non-empty column name")
+            raise TypeError("MODIFY COLUMN COMMENT requires a non-empty column name")
         if not isinstance(expr.comment, str):
             raise TypeError(
                 "MODIFY COLUMN COMMENT requires comment to be a string, got "
