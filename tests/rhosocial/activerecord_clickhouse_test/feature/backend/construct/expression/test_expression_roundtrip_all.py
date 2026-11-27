@@ -1195,13 +1195,10 @@ UNCONSTRUCTIBLE = (
     # feature; Range stays constructible through the harness' explicit factory.
     "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByHashClause",
     "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByListClause",
-    # The three UUID nodes refuse in __init__, not in to_sql(): ClickHouse
-    # spells no UUID SQL, so the answer is the same for every argument and no
-    # registered constructor can change it. Measured with a valid ``which`` --
-    # an invalid one raises ValueError first and hides the dialect's answer.
-    "rhosocial.activerecord.backend.expression.uuid.UUIDCastFunction",
-    "rhosocial.activerecord.backend.expression.uuid.UUIDConstantExpression",
-    "rhosocial.activerecord.backend.expression.uuid.UUIDGenerationExpression",
+    # The three UUID value nodes are no longer here: their constructors stopped
+    # refusing a dialect, and the capability answer now arrives from
+    # `format_uuid_*` at render time -- which is an outcome the matrix already
+    # classifies.
 )
 # Four XML classes used to be entries here, and retiring them is what the pin
 # demands rather than a loss of coverage: each named a gap that no longer exists.
@@ -1887,6 +1884,13 @@ UNMODELLED_FORMATTERS = {
     "the TableSource root (every concrete row source overrides its "
     "formatter; the root carries nothing but an alias and is never "
     "rendered)": ("format_table_source",),
+    "the UUID value nodes (this dialect composes no UUID support mixin: "
+    "ClickHouse spells no UUID generation, constant or text-to-UUID cast, so "
+    "all three nodes reach the dispatch and find no base method declared)": (
+        "format_uuid_generation_expression",
+        "format_uuid_constant_expression",
+        "format_uuid_cast",
+    ),
 }
 
 
