@@ -105,12 +105,14 @@ class TestPartitionMixinCoverage:
         assert dialect.supports_detach_partition() is True
         assert dialect.supports_attach_partition() is True
 
-    def test_mysql_partition_statement_switches_are_gone(self, dialect):
-        """No ``supports_*`` switch exists for a statement ClickHouse lacks.
+    def test_mysql_partition_scheme_switches_are_gone(self, dialect):
+        """No ``supports_*`` switch exists for MySQL's partition-method granularity.
 
-        One switch per MySQL statement would be an inventory of statements this
-        server has never had; the authoritative inventory is the ALTER ... PARTITION
-        reference. Absence of the method is the honest answer.
+        ``RANGE COLUMNS`` / ``LIST COLUMNS`` / ``KEY`` / ``LINEAR ...`` and the
+        partition-definition options are MySQL's decomposition of one concept
+        ClickHouse spells with its own ``PARTITION BY`` expression. One switch
+        per MySQL spelling would be an inventory of a grammar this server has
+        never had; absence of the method is the honest answer.
         """
         for name in (
             "supports_range_columns_partitioning",
@@ -120,6 +122,20 @@ class TestPartitionMixinCoverage:
             "supports_linear_key_partitioning",
             "supports_partition_definition_options",
             "supports_partition_value_maxvalue",
+        ):
+            assert not hasattr(dialect, name), name
+
+    def test_mysql_partition_action_switches_answer_false(self, dialect):
+        """A partition action ClickHouse has no statement for answers False.
+
+        The names are declared rather than omitted: "the engine has no such
+        statement" is a definite answer a caller can act on, and omitting the
+        name would be indistinguishable from an implementation gap. The
+        ClickHouse-only form of each is a separate switch (``REPLACE
+        PARTITION``, ``OPTIMIZE ... FINAL``, ``FREEZE``/``UNFREEZE``, ``CLEAR
+        ... IN PARTITION``).
+        """
+        for name in (
             "supports_add_partition",
             "supports_truncate_partition",
             "supports_reorganize_partition",
@@ -132,7 +148,7 @@ class TestPartitionMixinCoverage:
             "supports_rebuild_partition",
             "supports_repair_partition",
         ):
-            assert not hasattr(dialect, name), name
+            assert getattr(dialect, name)() is False, name
 
     def test_mysql_partition_formatters_are_gone(self, dialect):
         for name in (

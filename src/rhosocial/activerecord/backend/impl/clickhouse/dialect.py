@@ -81,6 +81,7 @@ from rhosocial.activerecord.backend.dialect.mixins import (
 from .mixins import (
     ClickHouseTransactionMixin,
     ClickHouseDMLOperationMixin,
+    ClickHouseReturningMixin,
     ClickHouseFullTextSearchMixin,
     ClickHouseTriggerMixin,
     ClickHouseTableMixin,
@@ -350,6 +351,11 @@ class ClickHouseDialect(
     ClickHouseDDLColumnMixin,
     DDLColumnMixin,
     ColumnAttributeMixin,
+    # ClickHouse's DML grammar has no RETURNING clause, and three of the core
+    # ReturningMixin defaults are True. This must precede DMLMixin, which
+    # brings ReturningMixin in; a mixin placed after the class it overrides
+    # never wins.
+    ClickHouseReturningMixin,
     DMLMixin,
     TransactionControlMixin,
     ClickHouseSetOperationMixin,

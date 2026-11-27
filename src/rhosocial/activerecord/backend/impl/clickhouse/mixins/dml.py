@@ -116,6 +116,15 @@ class ClickHouseDMLOperationMixin:
         sql = " ".join(parts)
 
         if expr.returning:
+            # The engine has no RETURNING clause, so rendering one would emit
+            # SQL it rejects. Probes answer False for the whole family; this
+            # refuses by name instead of producing the invalid statement.
+            self.check_feature_support(
+                "supports_returning_insert",
+                "RETURNING",
+                "ClickHouse has no RETURNING clause; read the rows back with a "
+                "SELECT (or with FINAL when they must be merged) instead.",
+            )
             returning_sql, returning_params = self.format_returning_clause(expr.returning)
             sql += f" {returning_sql}"
             all_params.extend(returning_params)

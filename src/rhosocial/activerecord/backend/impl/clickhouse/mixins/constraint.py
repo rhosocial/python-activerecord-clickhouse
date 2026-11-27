@@ -377,6 +377,20 @@ class ClickHouseConstraintMixin:
         """
         return False
 
+    def supports_foreign_key_on_delete(self) -> bool:
+        """False: the core spelling of :meth:`supports_fk_on_delete`.
+
+        Both names ask the same question, and both have to answer here: the
+        core ``ConstraintMixin`` defaults this one to True, so leaving it
+        undeclared advertised a referential action for an engine with no
+        foreign keys at all.
+        """
+        return False
+
+    def supports_foreign_key_on_update(self) -> bool:
+        """False: the core spelling of :meth:`supports_fk_on_update`."""
+        return False
+
     def supports_exclude_constraint(self) -> bool:
         """False: ``EXCLUDE`` is not among the two kinds ClickHouse has.
 

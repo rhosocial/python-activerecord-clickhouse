@@ -11,6 +11,7 @@ from .set_type import ClickHouseSetTypeMixin
 from .json import ClickHouseJSONFunctionMixin
 from .spatial import ClickHouseSpatialMixin
 from .dml import ClickHouseDMLOperationMixin
+from .returning import ClickHouseReturningMixin
 from .fulltext import ClickHouseFullTextSearchMixin
 from .locking import ClickHouseLockingMixin
 from .column import ClickHouseModifyColumnMixin
@@ -74,6 +75,7 @@ __all__ = [
     "ClickHouseJSONFunctionMixin",
     "ClickHouseSpatialMixin",
     "ClickHouseDMLOperationMixin",
+    "ClickHouseReturningMixin",
     "ClickHouseFullTextSearchMixin",
     "ClickHouseLockingMixin",
     "ClickHouseModifyColumnMixin",
