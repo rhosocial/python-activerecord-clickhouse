@@ -134,7 +134,7 @@ class TestColumnReorder:
 
         column = ColumnDefinition(dialect, "age", IntegerType(dialect))
         add = ClickHouseAddColumnAction(dialect, column, after="name")
-        add_statement = AlterTableStatement(dialect, Table(dialect, "t"), [add])
+        add_statement = AlterTableStatement(dialect, Table(dialect, "t"), add)
         assert add_statement.to_sql()[0] == ("ALTER TABLE `t` ADD COLUMN `age` Int32 AFTER `name`")
         portable = ModifyColumnAction(dialect, column, after_column="name")
         with pytest.raises(UnsupportedFeatureError, match="MODIFY COLUMN FIRST/AFTER"):
@@ -176,8 +176,8 @@ class TestTableConstraintChange:
         operations = answer.operations
         assert isinstance(operations, tuple) and len(operations) == 1
         assert isinstance(operations[0], AlterTableStatement)
-        assert len(operations[0].actions) == 1
-        assert isinstance(operations[0].actions[0], AddTableConstraintAction)
+        assert operations[0].action is not None
+        assert isinstance(operations[0].action, AddTableConstraintAction)
         assert all(isinstance(node, BaseExpression) for node in operations)
         assert _sql(operations) == ["ALTER TABLE `events` ADD CONSTRAINT `ck` CHECK (`a` = `b`)"]
 
@@ -190,7 +190,7 @@ class TestTableConstraintChange:
         )
         operations = answer.operations
         assert isinstance(operations, tuple) and len(operations) == 1
-        assert isinstance(operations[0].actions[0], DropTableConstraintAction)
+        assert isinstance(operations[0].action, DropTableConstraintAction)
         assert _sql(operations) == ["ALTER TABLE `events` DROP CONSTRAINT IF EXISTS `ck`"]
 
     def test_changed_declaration_drops_then_adds(self, dialect):

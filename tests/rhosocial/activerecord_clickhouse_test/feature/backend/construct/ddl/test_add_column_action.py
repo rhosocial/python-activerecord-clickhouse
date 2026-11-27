@@ -43,7 +43,7 @@ def dialect():
 
 
 def _alter(dialect, action):
-    return AlterTableStatement(dialect, Table(dialect, "users"), [action]).to_sql()
+    return AlterTableStatement(dialect, Table(dialect, "users"), action).to_sql()
 
 
 def _action(dialect, cls, **kwargs):

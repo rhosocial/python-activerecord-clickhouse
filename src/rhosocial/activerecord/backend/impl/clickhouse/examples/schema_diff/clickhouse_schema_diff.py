@@ -120,7 +120,7 @@ add_status = AddColumnAction(
         ],
     ),
 )
-alter_expr = AlterTableStatement(dialect, "events", [add_status])
+alter_expr = AlterTableStatement(dialect, "events", add_status)
 sql, params = alter_expr.to_sql()
 print(f"ALTER (add column): {sql}")
 backend.execute(sql, params)
@@ -130,7 +130,7 @@ modify_value = ModifyColumnAction(
     dialect,
     ColumnDefinition(dialect, "value", ClickHouseFloat64Type(dialect)),
 )
-alter_expr = AlterTableStatement(dialect, "events", [modify_value])
+alter_expr = AlterTableStatement(dialect, "events", modify_value)
 sql, params = alter_expr.to_sql()
 print(f"ALTER (modify type): {sql}")
 backend.execute(sql, params)

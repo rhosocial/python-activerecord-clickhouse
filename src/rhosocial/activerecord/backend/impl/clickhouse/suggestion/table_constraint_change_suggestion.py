@@ -126,7 +126,7 @@ class ClickHouseTableConstraintChangeSuggestionMixin:
             AlterTableStatement(
                 self,
                 table,
-                [DropTableConstraintAction(self, name, if_exists=if_exists)],
+                DropTableConstraintAction(self, name, if_exists=if_exists),
             )
             for name in drops
         ]
@@ -143,7 +143,7 @@ class ClickHouseTableConstraintChangeSuggestionMixin:
                 AlterTableStatement(
                     self,
                     table,
-                    [AddTableConstraintAction(self, constraint)],
+                    AddTableConstraintAction(self, constraint),
                 )
             )
         return TableConstraintChangeSuggestion(operations=tuple(operations))
