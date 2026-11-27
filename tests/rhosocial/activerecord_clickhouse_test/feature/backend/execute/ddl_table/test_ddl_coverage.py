@@ -19,11 +19,15 @@ not support them and the corresponding dialect mixins fail fast with
 import pytest
 
 from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    AddColumnAction,
     AlterColumnAction,
     AlterTableStatement,
     ColumnAlterOperation,
+    DropColumnAction,
 )
+from rhosocial.activerecord.backend.expression.statements.ddl_table import ColumnDefinition
 from rhosocial.activerecord.backend.expression.statements.ddl_truncate import TruncateStatement
+from rhosocial.activerecord.backend.expression.types import IntegerType
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.impl.clickhouse import expression as clickhouse_expr
@@ -153,3 +157,30 @@ class TestAlterColumnDefault:
             assert "DEFAULT" not in create
         finally:
             backend.execute("DROP TABLE IF EXISTS ar_alter_default")
+
+
+class TestMultiActionAlterTable:
+    """One ``ALTER TABLE`` takes a comma-separated list of actions.
+
+    The engine's base grammar accepts several actions in one statement, of
+    mixed kinds, applied left to right -- the COLUMN reference says "a list of
+    one or more comma-separated actions" and shows ``MODIFY COLUMN browser
+    LowCardinality(String), ADD COLUMN page_id UInt64``. The dialect declares
+    the capability explicitly rather than inheriting core's default, so these
+    tests pin both the answer and the SQL the generic comma join produces.
+    """
+
+    def test_two_actions_share_one_statement(self, dialect):
+        actions = [
+            DropColumnAction(dialect, "a"),
+            AddColumnAction(
+                dialect,
+                column=ColumnDefinition(dialect, "b", IntegerType(dialect)),
+            ),
+        ]
+        sql, params = AlterTableStatement(dialect, Table(dialect, "t"), actions).to_sql()
+        assert sql == "ALTER TABLE `t` DROP COLUMN `a`, ADD COLUMN `b` Int32"
+        assert params == ()
+
+    def test_the_switch_is_declared_true(self, dialect):
+        assert dialect.supports_multi_action_alter_table() is True

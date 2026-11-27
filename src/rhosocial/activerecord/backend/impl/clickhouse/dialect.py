@@ -514,3 +514,22 @@ class ClickHouseDialect(
     def supports_alter_table_index_actions(self) -> bool:
         """No traditional indexes; skipping indexes cannot use ADD/DROP INDEX actions."""
         return False
+
+    def supports_multi_action_alter_table(self) -> bool:
+        """One ``ALTER TABLE`` takes a comma-separated list of actions.
+
+        The COLUMN reference states "a list of one or more comma-separated
+        actions" and its examples mix kinds (``MODIFY COLUMN browser
+        LowCardinality(String), ADD COLUMN page_id UInt64``); a live 26.7.3.19
+        parser error recorded in ``mixins/constraint.py`` lists ``Comma`` among
+        the tokens expected after a column action. There is one documented
+        exception, not a general limit: a packed ``ADD INDEX`` +
+        ``MATERIALIZE INDEX`` segment mix is refused on a
+        ``DatabaseReplicated`` database only.
+
+        Declared here rather than left to core's default: the answer is a
+        measurement (docs plus that parser response), and the planner composes
+        single-action statements today, so the capability is permissible but
+        currently unexercised.
+        """
+        return True

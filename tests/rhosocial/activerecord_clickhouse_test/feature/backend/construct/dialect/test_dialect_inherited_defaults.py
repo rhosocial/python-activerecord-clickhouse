@@ -31,8 +31,8 @@ from rhosocial.activerecord.backend.expression.statements.dml import (
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 #: True answers ClickHouse inherits rather than declares. Each one is a
-#: capability of the engine itself (CREATE/DROP, joins, EXPLAIN, multi-action
-#: ALTER, microsecond timestamps), so the generic default is the answer.
+#: capability of the engine itself (CREATE/DROP, joins, EXPLAIN, microsecond
+#: timestamps), so the generic default is the answer.
 INHERITED_TRUE = (
     "supports_alter_table",
     "supports_create_table",
@@ -47,7 +47,6 @@ INHERITED_TRUE = (
     "supports_json_path",
     "supports_left_join",
     "supports_microsecond_timestamp",
-    "supports_multi_action_alter_table",
     "supports_unconditional_cte_order_by",
 )
 
