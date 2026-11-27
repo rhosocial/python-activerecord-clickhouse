@@ -280,7 +280,7 @@ class TestUpsertStub:
 
     def test_format_on_conflict_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            OnConflictClause(dialect, None, do_nothing=True).to_sql()
+            OnConflictClause(dialect, ["id"], do_nothing=True).to_sql()
 
 
 class TestDeclarativePartitionStub:

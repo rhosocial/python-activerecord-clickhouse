@@ -182,17 +182,19 @@ def test_clickhouse_format_cast_expression_valid(dialect):
 
 
 def test_clickhouse_format_cast_expression_rejects_injection(dialect):
-    """A string in the type position is refused at construction.
+    """A string in the type position is refused at render time.
 
     The type position cannot be bound as a parameter, so whatever lands there is
     rendered into the statement text. That is why a string is not accepted at
     all rather than being escaped: there is nothing to escape it into, since it
-    is code and not data."""
+    is code and not data. The node itself still collects — the refusal belongs
+    to the formatter.
+    """
     from rhosocial.activerecord.backend.expression.core import CastExpression, Column
 
+    expr = CastExpression(dialect, Column(dialect, "column"), "INTEGER; DROP TABLE users--")
     with pytest.raises(TypeError, match="takes a DataType instance"):
-        CastExpression(dialect, Column(dialect, "column"),
-                       "INTEGER; DROP TABLE users--")
+        expr.to_sql()
 
 
 class TestEscapeSqlStringBackslash:
