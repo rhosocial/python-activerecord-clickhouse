@@ -91,8 +91,17 @@ dialect's support switches agree: `supports_subpartitioning()`,
 `supports_range_table_partitioning()`, `supports_list_table_partitioning()` and
 `supports_hash_table_partitioning()` all answer `False`, while
 `supports_drop_partition()`, `supports_detach_partition()` and
-`supports_attach_partition()` answer `True`. Nothing is emulated and no
-statement the server would reject is rendered.
+`supports_attach_partition()` answer `True`. The action switches for the
+statements this engine has no spelling for — `supports_add_partition()`,
+`supports_truncate_partition()`, `supports_split_partition()`,
+`supports_merge_partition()`, `supports_exchange_partition()`,
+`supports_reorganize_partition()`, `supports_coalesce_partition()`,
+`supports_analyze_partition()`, `supports_check_partition()`,
+`supports_optimize_partition()`, `supports_rebuild_partition()`,
+`supports_repair_partition()` and `supports_remove_partitioning()` — answer
+`False` rather than being absent, so a caller can ask every name in the family
+and get one definite answer. Nothing is emulated and no statement the server
+would reject is rendered.
 
 > ⚠️ Partition ids are assigned by the server. The helpers act on partitions
 > that already exist; ClickHouse has no way to pre-create an empty one. A row

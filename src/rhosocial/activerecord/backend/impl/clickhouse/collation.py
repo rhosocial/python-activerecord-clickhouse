@@ -1,32 +1,30 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/collation.py
-"""ClickHouse collation support.
+"""Collation names are carried, not validated.
 
-ClickHouse does not enforce MySQL-style collations. This module retains the
-class and function signatures for backward compatibility, but validation is
-a no-op (accepts any collation name as valid).
+ClickHouse has no collation objects and applies no MySQL-style collation rules:
+a column's ordering comes from its type and from the query. A portable
+declaration may still carry a collation name, so the formatter passes it through
+unchanged instead of refusing it. ``validate_clickhouse_collation_name`` is the
+hook ``ClickHouseCollationMixin`` calls; the two helpers below are pass-throughs
+of the same kind. None of them validates anything, because there is no catalogue
+to validate against.
 """
 
 from typing import Optional
 
 
 class ClickHouseCollation:
-    """ClickHouse collation constants (placeholder).
+    """The single default token a portable declaration may name.
 
-    ClickHouse does not use MySQL-style collations. The original MySQL
-    collation enum (utf8mb4_*, utf16_*, etc.) has been removed.
-    This class is kept for API compatibility.
+    ``DEFAULT`` names nothing on this engine: there is no collation catalogue,
+    so the value is never compared with a server-side one.
     """
 
-    # Single sentinel value for compatibility
     DEFAULT = "utf8"
 
 
 class ClickHouseCollationValidator:
-    """ClickHouse collation validator (no-op).
-
-    ClickHouse does not enforce MySQL-style collations.
-    All collation names are accepted as valid.
-    """
+    """A pass-through: every name is accepted because there is nothing to check."""
 
     @staticmethod
     def is_supported(name: str) -> bool:
@@ -38,16 +36,14 @@ class ClickHouseCollationValidator:
 
 
 def validate_clickhouse_collation_name(name: str, version: Optional[tuple] = None) -> str:
-    """Validate a collation name (no-op for ClickHouse).
-
-    ClickHouse does not enforce MySQL-style collations.
-    Any collation name is accepted and returned as-is.
+    """Return the collation name unchanged.
 
     Args:
-        name: Collation name to validate
-        version: Optional server version tuple (ignored)
+        name: Collation name carried by a portable declaration.
+        version: Optional server version tuple; unused, since no version gates
+            a check that does not exist.
 
     Returns:
-        The collation name unchanged.
+        The collation name, unchanged.
     """
     return name

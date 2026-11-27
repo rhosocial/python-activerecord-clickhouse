@@ -85,7 +85,15 @@ dialect 的支持开关也给出同样的答案：
 `supports_subpartitioning()`、`supports_range_table_partitioning()`、
 `supports_list_table_partitioning()`、`supports_hash_table_partitioning()`
 均为 `False`，而 `supports_drop_partition()`、`supports_detach_partition()`、
-`supports_attach_partition()` 为 `True`。这里不做任何模拟，也不会渲染服务器
+`supports_attach_partition()` 为 `True`。对引擎没有对应语句的那些动作开关
+——`supports_add_partition()`、`supports_truncate_partition()`、
+`supports_split_partition()`、`supports_merge_partition()`、
+`supports_exchange_partition()`、`supports_reorganize_partition()`、
+`supports_coalesce_partition()`、`supports_analyze_partition()`、
+`supports_check_partition()`、`supports_optimize_partition()`、
+`supports_rebuild_partition()`、`supports_repair_partition()`、
+`supports_remove_partitioning()`——一律声明并返回 `False`，而不是缺席，
+这样调用方可以逐个询问整族名字并得到确定的答案。这里不做任何模拟，也不会渲染服务器
 会拒绝的语句。
 
 > ⚠️ 分区 id 由服务器分配。这些助手只作用于已经存在的分区；ClickHouse

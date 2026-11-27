@@ -162,8 +162,18 @@ ClickHouse **确实**支持分区，但方式与 MySQL 不同：在 `MergeTree` 
 `PARTITION BY <expr>` 声明，没有策略关键字，没有 `VALUES LESS THAN` /
 `VALUES IN` / `MAXVALUE` 边界，也没有子分区。该子句通过 `storage_options` 声明；
 维护按 partition id 进行（`DROP` / `DETACH` / `ATTACH PARTITION ID`）；
-自省走 `system.parts`。下表中的 MySQL 语句在 ClickHouse 没有对应写法，
-因此是**彻底移除**而不是逐条关掉开关——证明其缺失的清单见
+自省走 `system.parts`。下表中的 MySQL 语句在 ClickHouse 没有对应写法；凡是
+**动作**，都声明为开关并返回 `False`——`supports_add_partition()`、
+`supports_truncate_partition()`、`supports_split_partition()`、
+`supports_merge_partition()`、`supports_reorganize_partition()`、
+`supports_exchange_partition()`、`supports_coalesce_partition()`、
+`supports_remove_partitioning()`、`supports_analyze_partition()`、
+`supports_check_partition()`、`supports_optimize_partition()`、
+`supports_rebuild_partition()`、`supports_repair_partition()`——这样调用方可以
+逐个询问整族名字并得到确定答案。MySQL 的**分区方法**粒度（`RANGE COLUMNS`、
+`LIST COLUMNS`、`KEY`、`LINEAR ...`、`MAXVALUE`、定义选项）则保持缺席：它们是
+ClickHouse 用一条 `PARTITION BY` 表达式表达的同一概念的分解，没有动作可答。
+证明这些语句不存在的清单见
 <https://clickhouse.com/docs/sql-reference/statements/alter/partition>。
 
 | 功能 | 行为 | 替代 |

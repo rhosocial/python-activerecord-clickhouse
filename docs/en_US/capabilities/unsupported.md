@@ -176,8 +176,19 @@ ClickHouse *does* partition, but not the way MySQL does: `PARTITION BY <expr>` o
 `VALUES IN` / `MAXVALUE` boundary and no subpartitioning. The clause is declared
 through `storage_options`; maintenance is by partition id
 (`DROP` / `DETACH` / `ATTACH PARTITION ID`); introspection is `system.parts`.
-The MySQL statements below have no ClickHouse spelling and are absent rather
-than switched off one at a time — the inventory that proves the absence is
+The MySQL statements below have no ClickHouse spelling. Every one that names an
+*action* is declared and answers `False` — `supports_add_partition()`,
+`supports_truncate_partition()`, `supports_split_partition()`,
+`supports_merge_partition()`, `supports_reorganize_partition()`,
+`supports_exchange_partition()`, `supports_coalesce_partition()`,
+`supports_remove_partitioning()`, `supports_analyze_partition()`,
+`supports_check_partition()`, `supports_optimize_partition()`,
+`supports_rebuild_partition()`, `supports_repair_partition()` — so a caller can
+ask every name in the family and get one definite answer. MySQL's partition
+*method* granularity (`RANGE COLUMNS`, `LIST COLUMNS`, `KEY`, `LINEAR ...`,
+`MAXVALUE`, the definition options) stays absent instead: those decompose a
+concept ClickHouse writes as a single `PARTITION BY` expression, so there is no
+action to answer for. The inventory that proves the statements do not exist is
 <https://clickhouse.com/docs/sql-reference/statements/alter/partition>.
 
 | Feature | Behavior | Alternative |
