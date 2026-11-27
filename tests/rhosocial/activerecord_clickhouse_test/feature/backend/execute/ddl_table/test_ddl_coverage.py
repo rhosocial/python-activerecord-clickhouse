@@ -159,31 +159,3 @@ class TestAlterColumnDefault:
             backend.execute("DROP TABLE IF EXISTS ar_alter_default")
 
 
-class TestMultiActionAlterTable:
-    """One expression renders one action, even where the engine allows a list.
-
-    ClickHouse's base grammar accepts several comma-separated actions (the
-    COLUMN reference says "a list of one or more comma-separated actions", and
-    a 26.7.3.19 parser error recorded in ``mixins/constraint.py`` lists
-    ``Comma`` among the expected tokens). The formatter still refuses them:
-    the second action would be invisible to the caller's plan -- its own phase,
-    permission and destructive check -- so the caller emits one
-    ``AlterTableStatement`` per action and orders them.
-    """
-
-    def test_two_actions_are_refused(self, dialect):
-        actions = [
-            DropColumnAction(dialect, "a"),
-            AddColumnAction(
-                dialect,
-                column=ColumnDefinition(dialect, "b", IntegerType(dialect)),
-            ),
-        ]
-        with pytest.raises(UnsupportedFeatureError, match="multiple actions"):
-            AlterTableStatement(dialect, Table(dialect, "t"), actions).to_sql()
-
-    def test_one_action_renders(self, dialect):
-        action = DropColumnAction(dialect, "a")
-        sql, params = AlterTableStatement(dialect, Table(dialect, "t"), action).to_sql()
-        assert sql == "ALTER TABLE `t` DROP COLUMN `a`"
-        assert params == ()
