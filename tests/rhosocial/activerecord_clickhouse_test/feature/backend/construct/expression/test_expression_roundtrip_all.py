@@ -210,6 +210,7 @@ from rhosocial.activerecord.backend.expression.statements import (
     ddl_alter,
     ddl_comment,
     ddl_database,
+    ddl_partition,
     ddl_table,
     dml,
 )
@@ -760,6 +761,34 @@ def register_specials():
         "statements.ddl_alter.DropTableConstraintAction",
         lambda d: DropTableConstraintAction(d, "ck"),
     )
+    # ALTER CONSTRAINT. The enforcement keyword and the constraint kind are
+    # the action's own grammar, and ``constraint_kind`` now travels as a
+    # spelling rather than a class object, so a real CHECK branch builds here
+    # and survives all three channels. The render is then refused by this
+    # dialect's capability probe, which the matrix classifies.
+    register_special_constructor(
+        "statements.ddl_alter.AlterConstraintAction",
+        lambda d: ddl_alter.AlterConstraintAction(
+            d, "ck", enforced=True, constraint_kind=ddl_table.TableCheckConstraint
+        ),
+    )
+    # ADD DOMAIN CHECK. A real ``DomainCheckConstraint`` over a column-only
+    # condition is the payload DDL accepts -- nothing in it binds -- and the
+    # action collects it. The dialect refuses the whole ALTER DOMAIN form at
+    # render, which the matrix classifies rather than hides.
+    def add_domain_check(d):
+        from rhosocial.activerecord.backend.expression.statements.ddl_domain import (
+            AddDomainCheckAction,
+            DomainCheckConstraint,
+        )
+
+        return AddDomainCheckAction(
+            d, DomainCheckConstraint(d, _column_predicate(d), name="chk")
+        )
+
+    register_special_constructor(
+        "statements.ddl_domain.AddDomainCheckAction", add_domain_check
+    )
     # -- declared-result annotations: the source must be aliasable ------------
     # ``format_declared_result`` reads the alias of both the annotation and
     # the node it annotates, and the rewritten ``Literal`` is deliberately
@@ -967,6 +996,18 @@ def register_specials():
     # plus the remaining ClickHouse-only partition operations, each with a
     # real constructor below so the artifact carries the parameters the
     # formatter consumes.
+    #
+    # Core's strategy clauses are collectors now, not refusers: a non-empty key
+    # list is validated by ``check_renderable()`` at render time, so a real
+    # ``Column`` key builds HASH and LIST here and survives the artifact. The
+    # strategy itself is not a ClickHouse spelling, and
+    # ``format_partition_clause`` says so through the capability probe, which
+    # the matrix classifies.
+    for _name in ("PartitionByHashClause", "PartitionByListClause"):
+        register_special_constructor(
+            f"statements.ddl_partition.{_name}",
+            lambda d, _n=_name: getattr(ddl_partition, _n)(d, [Column(d, "id")]),
+        )
     for _name in (
         "ClickHouseDropPartitionStatement",
         "ClickHouseDetachPartitionStatement",
@@ -1161,45 +1202,40 @@ register_specials()
 #: a class that starts failing to build fails here too -- neither can become a
 #: quiet skip.
 #:
-#: The registered constructors above bring this down to four. What remains is
-#: either a shape the introspective guess cannot satisfy -- keyword-only
-#: parameters hidden behind defaulted positionals -- or a class that needs a
-#: renderable member to exist at all. Registering a constructor for any of them
-#: is the way to retire an entry.
+#: The registered constructors above leave this empty. Nothing is exempt: every
+#: class the matrix collects is built either by the introspective constructor or
+#: by a registered one, so there is no coverage gap to name.
 #:
-#: A second cause is a misread annotation, and that one belongs to testsuite rather
-#: than here: a parameter typed ``Sequence[X]`` was read as the Sequence *object*
-#: because the alias' own name carries the word. That retired four XML entries
-#: once the harness was fixed, which is the better outcome -- no exemption at all.
+#: The tuple stays because the pin it feeds is what keeps that true:
+#: :func:`test_unconstructible_list_is_exact` fails in both directions, so a
+#: class that stops building fails CI instead of becoming a quiet skip, and a
+#: stale entry fails too. A new entry needs a reason in the comment beside it.
+#:
+#: The last four retired together, each by a registered constructor:
+#:
+#: * ``AlterConstraintAction`` -- its enforcement keyword and constraint kind
+#:   are the action's own grammar. Core now carries the kind as a *spelling*
+#:   rather than a class object on the wire, so a factory supplying
+#:   ``enforced=True`` and a CHECK branch builds an action that round-trips
+#:   through all three channels.
+#: * ``AddDomainCheckAction`` -- a real ``DomainCheckConstraint`` over a
+#:   column-only condition is the payload DDL accepts and the action collects.
+#: * ``PartitionByHashClause`` / ``PartitionByListClause`` -- core's strategy
+#:   clauses collect, and ``check_renderable()`` judges the key list at render
+#:   time, so a factory with a real ``Column`` key builds them. ClickHouse's
+#:   refusal to spell a MySQL-style strategy is then the dialect's own answer
+#:   from ``format_partition_clause``, which the matrix classifies rather than
+#:   records as a construction gap.
+#:
+#: A second cause of past entries was a misread annotation, and that one
+#: belongs to testsuite rather than here: a parameter typed ``Sequence[X]`` was
+#: read as the Sequence *object* because the alias' own name carries the word.
+#: That retired four XML entries once the harness was fixed, which is the
+#: better outcome -- no exemption at all.
 #:
 #: Sorted, because the integrity test compares this against a sorted tuple of
-#: what it observes. The reasons below are grouped by cause.
-UNCONSTRUCTIBLE = (
-    # ALTER CONSTRAINT. ``name`` and ``constraint_type`` sit behind defaulted
-    # positionals and are keyword-only, so the introspective constructor skips
-    # them and the class refuses an incomplete action.
-    "rhosocial.activerecord.backend.expression.statements.ddl_alter.AlterConstraintAction",
-    # VALIDATE CONSTRAINT used to sit here with the same shape as
-    # AlterConstraint. Core moved ``constraint_name`` into the positional
-    # required slot, so the guesser's "x" builds it now -- and the built
-    # instance is what the graph of pinned renders asserts against.
-    # ADD DOMAIN CHECK. Widens a SQLPredicate into a DomainCheckConstraint and
-    # needs one; the guess supplies a bare comparison whose literal would have
-    # to render as a bind parameter, which DDL cannot carry.
-    "rhosocial.activerecord.backend.expression.statements.ddl_domain.AddDomainCheckAction",
-    # Core replaced the old partition-strategy enum with dedicated PartitionBy*
-    # expression nodes. Hash and List require a non-empty key list the generic
-    # constructor cannot guess (it supplies keys=[]). ClickHouse declares
-    # partitioning as an arbitrary PARTITION BY expression, not a MySQL-style
-    # strategy clause, so a registered constructor here would invent a dialect
-    # feature; Range stays constructible through the harness' explicit factory.
-    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByHashClause",
-    "rhosocial.activerecord.backend.expression.statements.ddl_partition.PartitionByListClause",
-    # The three UUID value nodes are no longer here: their constructors stopped
-    # refusing a dialect, and the capability answer now arrives from
-    # `format_uuid_*` at render time -- which is an outcome the matrix already
-    # classifies.
-)
+#: what it observes.
+UNCONSTRUCTIBLE = ()
 # Four XML classes used to be entries here, and retiring them is what the pin
 # demands rather than a loss of coverage: each named a gap that no longer exists.
 # Their list-valued parameters are annotated ``Sequence[XMLAttribute]``,
