@@ -14,29 +14,30 @@ Design principle: Sync and Async are separate and cannot coexist.
 from typing import Any, Dict, List, Optional
 
 from rhosocial.activerecord.backend.introspection.executor import (
-    IntrospectorExecutor,
     AsyncIntrospectorExecutor,
+    IntrospectorExecutor,
 )
+
 from ..expression.show import (
-    ShowCreateTableStatement,
-    ShowCreateViewStatement,
-    ShowColumnsStatement,
-    ShowIndexStatement,
-    ShowTablesStatement,
-    ShowDatabasesStatement,
-    ShowTableStatusStatement,
-    ShowTriggersStatement,
-    ShowCreateTriggerStatement,
-    ShowVariablesStatement,
-    ShowStatusStatement,
-    ShowProcessListStatement,
-    ShowWarningsStatement,
-    ShowErrorsStatement,
-    ShowEnginesStatement,
-    ShowCharsetStatement,
-    ShowCollationStatement,
-    ShowGrantsStatement,
-    ShowPluginsStatement,
+    ClickHouseShowCharsetStatement,
+    ClickHouseShowCollationStatement,
+    ClickHouseShowColumnsStatement,
+    ClickHouseShowCreateTableStatement,
+    ClickHouseShowCreateTriggerStatement,
+    ClickHouseShowCreateViewStatement,
+    ClickHouseShowDatabasesStatement,
+    ClickHouseShowEnginesStatement,
+    ClickHouseShowErrorsStatement,
+    ClickHouseShowGrantsStatement,
+    ClickHouseShowIndexStatement,
+    ClickHouseShowPluginsStatement,
+    ClickHouseShowProcessListStatement,
+    ClickHouseShowStatusStatement,
+    ClickHouseShowTablesStatement,
+    ClickHouseShowTableStatusStatement,
+    ClickHouseShowTriggersStatement,
+    ClickHouseShowVariablesStatement,
+    ClickHouseShowWarningsStatement,
 )
 
 
@@ -204,10 +205,7 @@ class ShowMixin:
         """
         from ..show.types import ShowTableResult
 
-        return [
-            ShowTableResult(name=row.get("name"), table_type=row.get("engine"))
-            for row in rows
-        ]
+        return [ShowTableResult(name=row.get("name"), table_type=row.get("engine")) for row in rows]
 
     @staticmethod
     def parse_databases(rows: List[Dict]):
@@ -288,13 +286,19 @@ class ShowMixin:
     def parse_variables(rows: List[Dict]):
         from ..show.types import ShowVariableResult
 
-        return [ShowVariableResult(variable_name=row.get("Variable_name"), value=row.get("Value")) for row in rows]
+        return [
+            ShowVariableResult(variable_name=row.get("Variable_name"), value=row.get("Value"))
+            for row in rows
+        ]
 
     @staticmethod
     def parse_status(rows: List[Dict]):
         from ..show.types import ShowStatusResult
 
-        return [ShowStatusResult(variable_name=row.get("Variable_name"), value=row.get("Value")) for row in rows]
+        return [
+            ShowStatusResult(variable_name=row.get("Variable_name"), value=row.get("Value"))
+            for row in rows
+        ]
 
     @staticmethod
     def parse_processlist(rows: List[Dict]):
@@ -356,7 +360,10 @@ class ShowMixin:
         from ..show.types import ShowWarningResult
 
         return [
-            ShowWarningResult(level=row.get("Level"), code=row.get("Code"), message=row.get("Message")) for row in rows
+            ShowWarningResult(
+                level=row.get("Level"), code=row.get("Code"), message=row.get("Message")
+            )
+            for row in rows
         ]
 
     @staticmethod
@@ -514,13 +521,13 @@ class ShowIntrospector(ShowMixin):
 
     def create_table(self, table: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = ShowCreateTableStatement(self.dialect, table, schema=schema)
+        expr = ClickHouseShowCreateTableStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_create_table(self._exec(sql, params), table)
 
     def create_view(self, view_name: str, schema: Optional[str] = None):
         """Get CREATE VIEW statement for a view."""
-        expr = ShowCreateViewStatement(self.dialect, view_name, schema=schema)
+        expr = ClickHouseShowCreateViewStatement(self.dialect, view_name, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_create_view(self._exec(sql, params), view_name)
 
@@ -532,7 +539,7 @@ class ShowIntrospector(ShowMixin):
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = ShowColumnsStatement(
+        expr = ClickHouseShowColumnsStatement(
             self.dialect, table, full=full, like_pattern=like, schema=schema
         )
         sql, params = expr.to_sql()
@@ -540,7 +547,7 @@ class ShowIntrospector(ShowMixin):
 
     def indexes(self, table: str, schema: Optional[str] = None):
         """Get index information for a table."""
-        expr = ShowIndexStatement(self.dialect, table, schema=schema)
+        expr = ClickHouseShowIndexStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_indexes(self._exec(sql, params))
 
@@ -551,7 +558,7 @@ class ShowIntrospector(ShowMixin):
         full: bool = False,
     ):
         """List tables in the database."""
-        expr = ShowTablesStatement(
+        expr = ClickHouseShowTablesStatement(
             self.dialect, schema=schema, like_pattern=like, full=full
         )
         sql, params = expr.to_sql()
@@ -559,89 +566,85 @@ class ShowIntrospector(ShowMixin):
 
     def databases(self, like: Optional[str] = None):
         """List databases."""
-        expr = ShowDatabasesStatement(self.dialect, like_pattern=like)
+        expr = ClickHouseShowDatabasesStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_databases(self._exec(sql, params))
 
     def table_status(self, schema: Optional[str] = None, like: Optional[str] = None):
         """Get table status information."""
-        expr = ShowTableStatusStatement(
-            self.dialect, schema=schema, like_pattern=like
-        )
+        expr = ClickHouseShowTableStatusStatement(self.dialect, schema=schema, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_table_status(self._exec(sql, params))
 
     def triggers(self, schema: Optional[str] = None, table: Optional[str] = None):
         """List triggers."""
-        expr = ShowTriggersStatement(self.dialect, schema=schema, table=table)
+        expr = ClickHouseShowTriggersStatement(self.dialect, schema=schema, table=table)
         sql, params = expr.to_sql()
         return self.parse_triggers(self._exec(sql, params))
 
     def create_trigger(self, trigger: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement."""
-        expr = ShowCreateTriggerStatement(self.dialect, trigger, schema=schema)
+        expr = ClickHouseShowCreateTriggerStatement(self.dialect, trigger, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_create_trigger(self._exec(sql, params), trigger)
 
     def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables."""
-        expr = ShowVariablesStatement(
-            self.dialect, session=session, like_pattern=like
-        )
+        expr = ClickHouseShowVariablesStatement(self.dialect, session=session, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_variables(self._exec(sql, params))
 
     def status(self, like: Optional[str] = None, session: bool = True):
         """Show server status."""
-        expr = ShowStatusStatement(self.dialect, session=session, like_pattern=like)
+        expr = ClickHouseShowStatusStatement(self.dialect, session=session, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_status(self._exec(sql, params))
 
     def processlist(self, full: bool = False):
         """Show process list."""
-        expr = ShowProcessListStatement(self.dialect, full=full)
+        expr = ClickHouseShowProcessListStatement(self.dialect, full=full)
         sql, params = expr.to_sql()
         return self.parse_processlist(self._exec(sql, params))
 
     def warnings(self, limit: Optional[int] = None):
         """Show warnings."""
-        expr = ShowWarningsStatement(self.dialect, limit=limit)
+        expr = ClickHouseShowWarningsStatement(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self.parse_warnings(self._exec(sql, params))
 
     def errors(self, limit: Optional[int] = None):
         """Show errors."""
-        expr = ShowErrorsStatement(self.dialect, limit=limit)
+        expr = ClickHouseShowErrorsStatement(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self.parse_warnings(self._exec(sql, params))
 
     def engines(self):
         """Show storage engines."""
-        expr = ShowEnginesStatement(self.dialect)
+        expr = ClickHouseShowEnginesStatement(self.dialect)
         sql, params = expr.to_sql()
         return self.parse_engines(self._exec(sql, params))
 
     def charset(self, like: Optional[str] = None):
         """Show character sets."""
-        expr = ShowCharsetStatement(self.dialect, like_pattern=like)
+        expr = ClickHouseShowCharsetStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_charset(self._exec(sql, params))
 
     def collation(self, like: Optional[str] = None):
         """Show collations."""
-        expr = ShowCollationStatement(self.dialect, like_pattern=like)
+        expr = ClickHouseShowCollationStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_collation(self._exec(sql, params))
 
     def grants(self, user: Optional[str] = None, host: Optional[str] = None):
         """Show grants."""
-        expr = ShowGrantsStatement(self.dialect, user=user, host=host)
+        expr = ClickHouseShowGrantsStatement(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         return self.parse_grants(self._exec(sql, params))
 
     def plugins(self):
         """Show plugins."""
-        expr = ShowPluginsStatement(self.dialect)
+        expr = ClickHouseShowPluginsStatement(self.dialect)
         sql, params = expr.to_sql()
         return self.parse_plugins(self._exec(sql, params))
 
@@ -673,13 +676,13 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def create_table(self, table: str, schema: Optional[str] = None):
         """Get CREATE TABLE statement for a table."""
-        expr = ShowCreateTableStatement(self.dialect, table, schema=schema)
+        expr = ClickHouseShowCreateTableStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_create_table(await self._exec(sql, params), table)
 
     async def create_view(self, view_name: str, schema: Optional[str] = None):
         """Get CREATE VIEW statement for a view."""
-        expr = ShowCreateViewStatement(self.dialect, view_name, schema=schema)
+        expr = ClickHouseShowCreateViewStatement(self.dialect, view_name, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_create_view(await self._exec(sql, params), view_name)
 
@@ -691,7 +694,7 @@ class AsyncShowIntrospector(ShowMixin):
         like: Optional[str] = None,
     ):
         """Get column information for a table."""
-        expr = ShowColumnsStatement(
+        expr = ClickHouseShowColumnsStatement(
             self.dialect, table, full=full, like_pattern=like, schema=schema
         )
         sql, params = expr.to_sql()
@@ -699,7 +702,7 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def indexes(self, table: str, schema: Optional[str] = None):
         """Get index information for a table."""
-        expr = ShowIndexStatement(self.dialect, table, schema=schema)
+        expr = ClickHouseShowIndexStatement(self.dialect, table, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_indexes(await self._exec(sql, params))
 
@@ -710,7 +713,7 @@ class AsyncShowIntrospector(ShowMixin):
         full: bool = False,
     ):
         """List tables in the database."""
-        expr = ShowTablesStatement(
+        expr = ClickHouseShowTablesStatement(
             self.dialect, schema=schema, like_pattern=like, full=full
         )
         sql, params = expr.to_sql()
@@ -718,88 +721,84 @@ class AsyncShowIntrospector(ShowMixin):
 
     async def databases(self, like: Optional[str] = None):
         """List databases."""
-        expr = ShowDatabasesStatement(self.dialect, like_pattern=like)
+        expr = ClickHouseShowDatabasesStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_databases(await self._exec(sql, params))
 
     async def table_status(self, schema: Optional[str] = None, like: Optional[str] = None):
         """Get table status information."""
-        expr = ShowTableStatusStatement(
-            self.dialect, schema=schema, like_pattern=like
-        )
+        expr = ClickHouseShowTableStatusStatement(self.dialect, schema=schema, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_table_status(await self._exec(sql, params))
 
     async def triggers(self, schema: Optional[str] = None, table: Optional[str] = None):
         """List triggers."""
-        expr = ShowTriggersStatement(self.dialect, schema=schema, table=table)
+        expr = ClickHouseShowTriggersStatement(self.dialect, schema=schema, table=table)
         sql, params = expr.to_sql()
         return self.parse_triggers(await self._exec(sql, params))
 
     async def create_trigger(self, trigger: str, schema: Optional[str] = None):
         """Get CREATE TRIGGER statement."""
-        expr = ShowCreateTriggerStatement(self.dialect, trigger, schema=schema)
+        expr = ClickHouseShowCreateTriggerStatement(self.dialect, trigger, schema=schema)
         sql, params = expr.to_sql()
         return self.parse_create_trigger(await self._exec(sql, params), trigger)
 
     async def variables(self, like: Optional[str] = None, session: bool = True):
         """Show server variables."""
-        expr = ShowVariablesStatement(
-            self.dialect, session=session, like_pattern=like
-        )
+        expr = ClickHouseShowVariablesStatement(self.dialect, session=session, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_variables(await self._exec(sql, params))
 
     async def status(self, like: Optional[str] = None, session: bool = True):
         """Show server status."""
-        expr = ShowStatusStatement(self.dialect, session=session, like_pattern=like)
+        expr = ClickHouseShowStatusStatement(self.dialect, session=session, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_status(await self._exec(sql, params))
 
     async def processlist(self, full: bool = False):
         """Show process list."""
-        expr = ShowProcessListStatement(self.dialect, full=full)
+        expr = ClickHouseShowProcessListStatement(self.dialect, full=full)
         sql, params = expr.to_sql()
         return self.parse_processlist(await self._exec(sql, params))
 
     async def warnings(self, limit: Optional[int] = None):
         """Show warnings."""
-        expr = ShowWarningsStatement(self.dialect, limit=limit)
+        expr = ClickHouseShowWarningsStatement(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self.parse_warnings(await self._exec(sql, params))
 
     async def errors(self, limit: Optional[int] = None):
         """Show errors."""
-        expr = ShowErrorsStatement(self.dialect, limit=limit)
+        expr = ClickHouseShowErrorsStatement(self.dialect, limit=limit)
         sql, params = expr.to_sql()
         return self.parse_warnings(await self._exec(sql, params))
 
     async def engines(self):
         """Show storage engines."""
-        expr = ShowEnginesStatement(self.dialect)
+        expr = ClickHouseShowEnginesStatement(self.dialect)
         sql, params = expr.to_sql()
         return self.parse_engines(await self._exec(sql, params))
 
     async def charset(self, like: Optional[str] = None):
         """Show character sets."""
-        expr = ShowCharsetStatement(self.dialect, like_pattern=like)
+        expr = ClickHouseShowCharsetStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_charset(await self._exec(sql, params))
 
     async def collation(self, like: Optional[str] = None):
         """Show collations."""
-        expr = ShowCollationStatement(self.dialect, like_pattern=like)
+        expr = ClickHouseShowCollationStatement(self.dialect, like_pattern=like)
         sql, params = expr.to_sql()
         return self.parse_collation(await self._exec(sql, params))
 
     async def grants(self, user: Optional[str] = None, host: Optional[str] = None):
         """Show grants."""
-        expr = ShowGrantsStatement(self.dialect, user=user, host=host)
+        expr = ClickHouseShowGrantsStatement(self.dialect, user=user, host=host)
         sql, params = expr.to_sql()
         return self.parse_grants(await self._exec(sql, params))
 
     async def plugins(self):
         """Show plugins."""
-        expr = ShowPluginsStatement(self.dialect)
+        expr = ClickHouseShowPluginsStatement(self.dialect)
         sql, params = expr.to_sql()
         return self.parse_plugins(await self._exec(sql, params))

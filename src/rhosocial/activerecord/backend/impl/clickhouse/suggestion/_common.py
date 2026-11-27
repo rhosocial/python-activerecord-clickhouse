@@ -26,7 +26,9 @@ def _get(plan: Any, name: str, default: Any = None) -> Any:
         return default
     if isinstance(plan, Mapping):
         return plan.get(name, default)
-    return getattr(plan, name, default)
+    if isinstance(plan, (str, bytes, int, float, bool, list, tuple, set, frozenset)):
+        return default
+    return vars(plan).get(name, default)
 
 
 class ClickHousePartitionSuggestionBase:
@@ -45,7 +47,7 @@ class ClickHousePartitionSuggestionBase:
         """Return a plain table name for the ``PARTITION ID`` statements."""
         target = _get(plan, "table")
         if isinstance(target, Table):
-            name = getattr(target, "name", None)
+            name = vars(target).get("name", None)
             return name if isinstance(name, str) and name.strip() else None
         if isinstance(target, str) and target.strip():
             return target

@@ -14,9 +14,7 @@ from typing import Any, List, Optional, Tuple
 try:
     import clickhouse_connect
     from clickhouse_connect.dbapi import connect as clickhouse_connect_dbapi_connect
-    from clickhouse_connect.driver.exceptions import (
-        Error as ClickHouseError,
-    )
+    from clickhouse_connect.driver.exceptions import Error as ClickHouseError
 except ImportError:  # pragma: no cover
     clickhouse_connect = None  # type: ignore
     clickhouse_connect_dbapi_connect = None  # type: ignore
@@ -36,6 +34,8 @@ from rhosocial.activerecord.backend.errors import (
     TransactionError,
     attach_diagnostics,
 )
+from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
+from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
 from rhosocial.activerecord.backend.options import (
     BulkInsertOptions,
     BulkUpdateOptions,
@@ -46,18 +46,17 @@ from rhosocial.activerecord.backend.options import (
     UpdateOptions,
 )
 from rhosocial.activerecord.backend.result import QueryResult
-from rhosocial.activerecord.backend.introspection.backend_mixin import IntrospectorBackendMixin
-from rhosocial.activerecord.backend.explain import SyncExplainBackendMixin
 from rhosocial.activerecord.logging.redaction import unwrap_sensitive
+
 from ..config import ClickHouseConnectionConfig
 from ..dialect import ClickHouseDialect
-from ..transaction import ClickHouseTransactionManager
+from ..id_generator import generate_id, generate_id_sequence
 from ..mixins import (
     ClickHouseBackendMixin,
     ClickHouseConcurrencyMixin,
     ClickHousePartitionMaintenanceMixin,
 )
-from ..id_generator import generate_id, generate_id_sequence
+from ..transaction import ClickHouseTransactionManager
 
 
 class ClickHouseBackend(
@@ -142,6 +141,7 @@ class ClickHouseBackend(
     def _create_introspector(self) -> Any:
         """Create a ClickHouseIntrospector backed by a IntrospectorExecutor."""
         from rhosocial.activerecord.backend.introspection.executor import IntrospectorExecutor
+
         from ..introspection import ClickHouseIntrospector
 
         return ClickHouseIntrospector(self, IntrospectorExecutor(self))
@@ -203,7 +203,9 @@ class ClickHouseBackend(
             count = len(options.rows)
             generated_ids = generate_id_sequence(count)
             new_columns = [pk] + list(options.columns)
-            new_rows = [[gid] + list(row) for gid, row in zip(generated_ids, options.rows, strict=False)]
+            new_rows = [
+                [gid] + list(row) for gid, row in zip(generated_ids, options.rows, strict=False)
+            ]
             options = BulkInsertOptions(
                 table=options.table,
                 schema_name=options.schema_name,
@@ -254,7 +256,11 @@ class ClickHouseBackend(
         # ClickHouse cannot report how many rows a mutation affected, so capture
         # the matching-row count BEFORE running the mutation (the WHERE columns
         # may be modified by the UPDATE itself).
-        expected = self._count_predicate_rows(options.table, options.schema_name, options.where) if options.where else 0
+        expected = (
+            self._count_predicate_rows(options.table, options.schema_name, options.where)
+            if options.where
+            else 0
+        )
         result = super().update(options)
         if expected >= 0 and options.where is not None:
             result.affected_rows = expected
@@ -267,7 +273,11 @@ class ClickHouseBackend(
         ``rowcount`` is always 0/1, so the real number of deleted rows is
         derived from a pre-count on the same WHERE predicate.
         """
-        expected = self._count_predicate_rows(options.table, options.schema_name, options.where) if options.where else 0
+        expected = (
+            self._count_predicate_rows(options.table, options.schema_name, options.where)
+            if options.where
+            else 0
+        )
         result = super().delete(options)
         if options.where is not None:
             result.affected_rows = expected
@@ -373,11 +383,11 @@ class ClickHouseBackend(
             # keys: secure (use https), verify (validate server cert incl.
             # hostname), ca_cert (CA root path when verify=True), client_cert
             # / client_cert_key (mTLS).
-            ssl_mode = getattr(self.config, "ssl_mode", None)
-            ssl_ca = getattr(self.config, "ssl_ca", None)
-            ssl_cert = getattr(self.config, "ssl_cert", None)
-            ssl_key = getattr(self.config, "ssl_key", None)
-            ssl_verify_cert = getattr(self.config, "ssl_verify_cert", False)
+            ssl_mode = vars(self.config).get("ssl_mode", None)
+            ssl_ca = vars(self.config).get("ssl_ca", None)
+            ssl_cert = vars(self.config).get("ssl_cert", None)
+            ssl_key = vars(self.config).get("ssl_key", None)
+            ssl_verify_cert = vars(self.config).get("ssl_verify_cert", False)
 
             # HTTPS is used for any explicit SSL mode other than disabled,
             # or whenever CA/client-cert/verify flags are set.
@@ -402,18 +412,18 @@ class ClickHouseBackend(
                 conn_params["verify"] = True
 
             # Add driver settings
-            connect_timeout = getattr(self.config, "connect_timeout", None)
+            connect_timeout = vars(self.config).get("connect_timeout", None)
             if connect_timeout:
                 conn_params["connect_timeout"] = connect_timeout
-            send_receive_timeout = getattr(self.config, "send_receive_timeout", None)
+            send_receive_timeout = vars(self.config).get("send_receive_timeout", None)
             if send_receive_timeout:
                 conn_params["send_receive_timeout"] = send_receive_timeout
-            compress = getattr(self.config, "compress", None)
+            compress = vars(self.config).get("compress", None)
             if compress is not None:
                 conn_params["compress"] = compress
 
             # Map generic options into driver settings
-            options = getattr(self.config, "options", None)
+            options = vars(self.config).get("options", None)
             if options:
                 settings = dict(options.get("settings", {}))
                 if "settings" in options:
@@ -434,7 +444,7 @@ class ClickHouseBackend(
             raise attach_diagnostics(
                 ConnectionError(f"Failed to connect to ClickHouse: {str(e)}"),
                 operation="connect",
-                driver_code=getattr(e, "code", None),
+                driver_code=vars(e).get("code", None),
                 backend="clickhouse",
                 transient=False,
             ) from e
@@ -596,7 +606,10 @@ class ClickHouseBackend(
             self.log(logging.INFO, f"ClickHouse server version: {major}.{minor}.{patch}")
             return version_tuple
         except Exception as e:
-            self.log(logging.WARNING, f"Could not determine ClickHouse version: {str(e)}, defaulting to 26.0.0")
+            self.log(
+                logging.WARNING,
+                f"Could not determine ClickHouse version: {str(e)}, defaulting to 26.0.0",
+            )
             return (26, 0, 0)  # Default to a recent version
         finally:
             if cursor:
@@ -649,7 +662,10 @@ class ClickHouseBackend(
                     self.connect()
                     return True
                 except Exception as connect_error:
-                    self.log(logging.ERROR, f"Failed to reconnect after ping failure: {str(connect_error)}")
+                    self.log(
+                        logging.ERROR,
+                        f"Failed to reconnect after ping failure: {str(connect_error)}",
+                    )
                     return False
             return False
 
@@ -696,7 +712,7 @@ class ClickHouseBackend(
             return
 
         # For ClickHouse, if autocommit is disabled, we need to commit explicitly
-        if getattr(self.config, "autocommit", True):
+        if vars(self.config).get("autocommit", True):
             return
 
         try:

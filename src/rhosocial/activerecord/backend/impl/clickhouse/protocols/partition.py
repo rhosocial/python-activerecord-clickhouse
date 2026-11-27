@@ -5,10 +5,9 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 
 from rhosocial.activerecord.backend.dialect.protocols import PartitionSupport
-
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
@@ -44,7 +43,7 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
     the table's ``storage_options`` mapping by
     ``ClickHouseTableEngineMixin.format_table_engine_clauses``, not by a
     partition formatter; the generic ``PartitionSupport`` members
-    (``format_partition_clause`` / ``format_partition_definition``) refuse
+    (``format_partition_clause`` / ``_refuse_partition_definition``) refuse
     rather than invent a boundary syntax.
 
     Official Documentation:
@@ -74,12 +73,12 @@ class ClickHousePartitionSupport(PartitionSupport, Protocol):
       claimed, because none can be evidenced.
     """
 
-    def format_partition_definition(self, expr) -> Tuple[str, tuple]:
+    def _refuse_partition_definition(self, expr) -> Tuple[str, tuple]:
         """Refuse an inline ``PARTITION ... VALUES ...`` definition.
 
         Core's generic ``PartitionSupport`` names
         ``format_partition_definition_expression`` for this node; ClickHouse's
-        mixin still carries the older ``format_partition_definition`` refusal,
+        mixin still carries the older ``_refuse_partition_definition`` refusal,
         so declare it here to keep the protocol and its mixin in step.
         """
         ...

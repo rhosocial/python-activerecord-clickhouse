@@ -34,7 +34,13 @@ column's value, exactly the different count this node exists to spell. The
 rendering contract is verified by test.
 """
 
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.wildcard import (
+        ClickHouseRowCountDistinctWildcard,
+    )
+
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.expression.bases import BaseExpression
@@ -52,7 +58,7 @@ class ClickHouseWildcardMixin:
     """
 
     def format_row_count_wildcard(
-        self, expr: "BaseExpression"
+        self, expr: "ClickHouseRowCountDistinctWildcard"
     ) -> Tuple[str, tuple]:
         """Render ``COUNT``'s argument: the bare ``*``, or ``DISTINCT *``.
 

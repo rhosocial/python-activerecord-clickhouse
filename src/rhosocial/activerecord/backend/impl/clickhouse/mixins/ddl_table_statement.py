@@ -1,7 +1,13 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table_statement.py
-from typing import Any, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.table_statement import (
+        ClickHouseTableStatement,
+        ClickHouseValuesStatement,
+    )
 
 
 class ClickHouseTableStatementMixin:
@@ -27,14 +33,16 @@ class ClickHouseTableStatementMixin:
     def supports_values_table_constructor(self) -> bool:
         return False
 
-    def format_table_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_table_statement(self, expr: "ClickHouseTableStatement") -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "TABLE statement",
+            self.name,
+            "TABLE statement",
             suggestion="Use SELECT * FROM <table> instead of TABLE.",
         )
 
-    def format_values_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_values_statement(self, expr: "ClickHouseValuesStatement") -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "VALUES table value constructor",
+            self.name,
+            "VALUES table value constructor",
             suggestion="Use SELECT ... UNION ALL SELECT ... for row constructors.",
         )

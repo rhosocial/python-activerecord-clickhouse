@@ -6,157 +6,166 @@ This dialect implements protocols for features that ClickHouse actually supports
 based on the ClickHouse version provided at initialization.
 """
 
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.base import SQLDialectBase
+
+# The object tree: each *NameMixin renders one object kind and inherits
+# NamespaceMixin for the namespace levels, so they precede it.
+# ColumnAttributeSupport gained two members that no longer come from
+# DDLColumnMixin. Compose core's standalone mixin so ClickHouseDialect still
+# satisfies the protocol structurally; it precedes DDLColumnMixin's
+# format_column_attributes() caller in the MRO.
+# ``LPAD``/``RPAD``/``REPEAT`` are nodes with default formatters, and ClickHouse
+# spells all three natively -- the aliases ``lpad``/``rpad`` of
+# ``leftPad``/``rightPad`` (21.8+) and ``repeat`` (20.1+) -- so the shared
+# defaults are the answer for those three and no override is needed.
+# ``TRIM`` is the one that differs; see ClickHouseTrimMixin.
 from rhosocial.activerecord.backend.dialect.mixins import (
-    # The object tree: each *NameMixin renders one object kind and inherits
-    # NamespaceMixin for the namespace levels, so they precede it.
-    RelationSourceMixin,
-    NamespaceMixin,
-    TableObjectMixin,
-    ViewObjectMixin,
-    MaterializedViewObjectMixin,
-    ForeignTableObjectMixin,
-    IndexObjectMixin,
-    SequenceObjectMixin,
-    TriggerObjectMixin,
-    RoutineObjectMixin,
-    TypeObjectMixin,
-    SynonymObjectMixin,
-    SchemaNameMixin,
-    DatabaseNameMixin,
-    PropertyGraphNameMixin,
-    CollationMixin,
-    CTEMixin,
-
-    WindowFunctionMixin,
-    JSONMixin,
-
     ArrayMixin,
-    ExplainMixin,
-    GraphMixin,
-
-    MergeMixin,
-
-    TemporalTableMixin,
-    UpsertMixin,
-    LateralJoinMixin,
-    JoinMixin,
-    ViewMixin,
-    IndexMixin,
     AutoIncrementColumnMixin,
-    IdentityColumnMixin,
-    TableMixin,
+    CollationMixin,
+    ColumnAttributeMixin,
     ConstraintMixin,
-    TriggerMixin,
-    TruncateMixin,
+    CTEMixin,
+    DatabaseNameMixin,
+    DateTimeMixin,
+    DDLColumnMixin,
+    DMLMixin,
+    DomainMixin,
+    DQLMixin,
+    ExplainMixin,
+    ExpressionMixin,
+    ForeignTableObjectMixin,
+    GraphMixin,
+    IdentityColumnMixin,
+    IndexMixin,
+    IndexObjectMixin,
     IntrospectionMixin,
+    JoinMixin,
+    JSONMixin,
+    LateralJoinMixin,
+    LpadMixin,
+    MaterializedViewObjectMixin,
+    MergeMixin,
+    NamespaceMixin,
     PartitionMixin,
     PredicateMixin,
-    ExpressionMixin,
-    DateTimeMixin,
-    DQLMixin,
-    DMLMixin,
-    DDLColumnMixin,
-    # ColumnAttributeSupport gained two members that no longer come from
-    # DDLColumnMixin. Compose core's standalone mixin so ClickHouseDialect
-    # still satisfies the protocol structurally; it precedes DDLColumnMixin's
-    # format_column_attributes() caller in the MRO.
-    ColumnAttributeMixin,
-    UserDefinedTypeMixin,
-    DomainMixin,
-    TransactionControlMixin,
-    SetOperationMixin,
-    # ``LPAD``/``RPAD``/``REPEAT`` are nodes with default formatters, and
-    # ClickHouse spells all three natively -- the aliases ``lpad``/``rpad`` of
-    # ``leftPad``/``rightPad`` (21.8+) and ``repeat`` (20.1+) -- so the shared
-    # defaults are the answer for those three and no override is needed.
-    # ``TRIM`` is the one that differs; see ClickHouseTrimMixin.
-    LpadMixin,
+    PropertyGraphNameMixin,
+    RelationSourceMixin,
     RepeatMixin,
+    RoutineObjectMixin,
     RpadMixin,
+    SchemaNameMixin,
+    SequenceObjectMixin,
+    SetOperationMixin,
+    SynonymObjectMixin,
+    TableMixin,
+    TableObjectMixin,
+    TemporalTableMixin,
+    TransactionControlMixin,
+    TriggerMixin,
+    TriggerObjectMixin,
     TrimMixin,
+    TruncateMixin,
+    TypeObjectMixin,
+    UpsertMixin,
+    UserDefinedTypeMixin,
+    ViewMixin,
+    ViewObjectMixin,
+    WindowFunctionMixin,
+)
+
+# New feature-specific ClickHouse mixins. ``ClickHouseMaterializedViewMixin``
+# overrides ``ClickHouseViewMixin`` and core's ``ViewMixin`` for MV DDL.
+# TRIM differs and is overridden by ClickHouseTrimMixin (above): the direction
+# is the function name, and the no-characters ANSI form the default renders is
+# a syntax error here.
+from .mixins import (
+    ClickHouseMaterializedViewMixin,  # MV DDL overrides ClickHouseViewMixin and ViewMixin
 )
 from .mixins import (
-    ClickHouseTransactionMixin,
+    ClickHouseAdminCommandMixin,
+    ClickHouseArrayMixin,
+    ClickHouseAutoIncrementColumnMixin,
+    ClickHouseCollationMixin,
+    ClickHouseColumnTypeMixin,
+    ClickHouseCommentMixin,
+    ClickHouseConstraintMixin,
+    ClickHouseCTEMixin,
+    ClickHouseDatabaseMixin,
+    ClickHouseDataTypeSuggestionsMixin,
+    ClickHouseDateTimeMixin,
+    ClickHouseDDLColumnMixin,
     ClickHouseDMLOperationMixin,
-    ClickHouseReturningMixin,
+    ClickHouseDQLMixin,
+    ClickHouseExplainMixin,
     ClickHouseFullTextSearchMixin,
-    ClickHouseTriggerMixin,
-    ClickHouseTableMixin,
-    ClickHouseJSONFunctionMixin,
-    ClickHouseSpatialMixin,
+    ClickHouseFunctionMixin,
+    ClickHouseGroupingMixin,
+    ClickHouseIndexMixin,
     ClickHouseIntrospectionMixin,
-    ClickHouseStatusQueryMixin,
-    ClickHouseLockingMixin,
-    ClickHouseModifyColumnMixin,
+    ClickHouseJoinMixin,
     ClickHouseJsonDualityViewMixin,
+    ClickHouseJSONFunctionMixin,
+    ClickHouseLiteralValueMixin,
+    ClickHouseLoadXMLLMixin,
+    ClickHouseLockingMixin,
+    ClickHouseMaintenanceMixin,
+    ClickHouseModifyColumnMixin,
+    ClickHouseModifyConstraintMixin,
+    ClickHouseNamespaceMixin,
     ClickHouseOptimizerHintMixin,
     ClickHousePartitionMixin,
-    ClickHouseDataTypeSuggestionsMixin,
-    ClickHouseTypeSupportMixin,
-    ClickHouseRenameTableMixin,
-    ClickHouseCommentMixin,
-    ClickHouseModifyConstraintMixin,
-    ClickHouseTruncateMixin,
-    ClickHouseTableStatementMixin,
-    ClickHouseMaintenanceMixin,
-    ClickHouseRoutineMixin,
-    ClickHouseLoadXMLLMixin,
-    ClickHouseAdminCommandMixin,
-    ClickHouseTableEngineMixin,
     ClickHouseQueryClauseMixin,
-    # New feature-specific ClickHouse mixins
-    ClickHouseDateTimeMixin,
-    ClickHouseCollationMixin,
-    ClickHouseCTEMixin,
-    ClickHouseAutoIncrementColumnMixin,
-    ClickHouseWindowMixin,
-    ClickHouseGroupingMixin,
-    ClickHouseArrayMixin,
-    ClickHouseExplainMixin,
-    ClickHouseTemporalMixin,
-    ClickHouseUpsertMixin,
-    ClickHouseJoinMixin,
-    ClickHouseSetOperationMixin,
-    ClickHouseDQLMixin,
-    ClickHouseWildcardMixin,
-    ClickHouseMaterializedViewMixin,  # MV DDL overrides ClickHouseViewMixin and ViewMixin
-    ClickHouseViewMixin,
-    ClickHouseNamespaceMixin,
-    ClickHouseDatabaseMixin,
-    ClickHouseIndexMixin,
+    ClickHouseRenameTableMixin,
+    ClickHouseReturningMixin,
+    ClickHouseRoutineMixin,
     ClickHouseSequenceMixin,
-    ClickHouseConstraintMixin,
-    ClickHouseDDLColumnMixin,
-    ClickHouseFunctionMixin,
-    ClickHouseColumnTypeMixin,
-    # TRIM differs and is overridden by ClickHouseTrimMixin (above) for the
-    # reason documented there: the direction is the function name, and the
-    # no-characters ANSI form the default renders is a syntax error here.
+    ClickHouseSetOperationMixin,
+    ClickHouseSpatialMixin,
+    ClickHouseStatusQueryMixin,
+    ClickHouseTableEngineMixin,
+    ClickHouseTableMixin,
+    ClickHouseTableStatementMixin,
+    ClickHouseTemporalMixin,
+    ClickHouseTransactionMixin,
+    ClickHouseTriggerMixin,
     ClickHouseTrimMixin,
-    ClickHouseLiteralValueMixin,
+    ClickHouseTruncateMixin,
+    ClickHouseTypeSupportMixin,
+    ClickHouseUpsertMixin,
+    ClickHouseViewMixin,
+    ClickHouseWildcardMixin,
+    ClickHouseWindowMixin,
 )
+from .reserved_words import CLICKHOUSE_RESERVED_WORDS
+from .show.dialect import ClickHouseShowDialectMixin
 from .suggestion import (
     ClickHouseColumnReorderSuggestionMixin,
-    ClickHousePartitionSchemeChangeSuggestionMixin,
-    ClickHouseTableConstraintChangeSuggestionMixin,
-    ClickHouseTableIndexChangeSuggestionMixin,
-    ClickHouseGeneratedValueSuggestionMixin,
     ClickHouseCreateTableLayoutSuggestionMixin,
-    ClickHouseStringConcatenationSuggestionMixin,
+    ClickHouseGeneratedValueSuggestionMixin,
     ClickHousePartitionAddSuggestionMixin,
     ClickHousePartitionBuildSuggestionMixin,
     ClickHousePartitionDropSuggestionMixin,
     ClickHousePartitionMergeSuggestionMixin,
     ClickHousePartitionRetentionSuggestionMixin,
+    ClickHousePartitionSchemeChangeSuggestionMixin,
     ClickHousePartitionSplitSuggestionMixin,
     ClickHousePartitionTableAlterSuggestionMixin,
     ClickHousePartitionTableDropSuggestionMixin,
+    ClickHouseStringConcatenationSuggestionMixin,
+    ClickHouseTableConstraintChangeSuggestionMixin,
+    ClickHouseTableIndexChangeSuggestionMixin,
 )
-from .reserved_words import CLICKHOUSE_RESERVED_WORDS
-from .show.dialect import ClickHouseShowDialectMixin
+
+
+def _escape_backticks(identifier: str) -> str:
+    """Double each backtick in a single identifier atom, by character scan."""
+    escaped: List[str] = []
+    for char in identifier:
+        escaped.append("``" if char == "`" else char)
+    return "".join(escaped)
 
 
 class ClickHouseDialect(
@@ -472,7 +481,9 @@ class ClickHouseDialect(
         if not need_quote:
             if self.is_reserved_word(identifier):
                 import warnings
+
                 from rhosocial.activerecord.backend.warnings import IdentifierQuotingWarning
+
                 warnings.warn(
                     f"Identifier '{identifier}' is a reserved word in {self.name} "
                     f"and may cause SQL errors without quoting.",
@@ -480,7 +491,7 @@ class ClickHouseDialect(
                     stacklevel=2,
                 )
             return identifier
-        escaped = identifier.replace("`", "``")
+        escaped = _escape_backticks(identifier)
         return f"`{escaped}`"
 
     def supports_drop_column(self) -> bool:

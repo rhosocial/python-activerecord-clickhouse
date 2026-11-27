@@ -12,18 +12,14 @@ from typing import Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.dialect.mixins.data_type import DataTypeMixin
-from rhosocial.activerecord.backend.suggestion.definitions import (
-    SubstituteAdviceSuggestion,
-    SubstituteTypeSuggestion,
-)
 from rhosocial.activerecord.backend.expression.types import (
     ArrayType,
     BigIntType,
     BlobType,
     BooleanType,
     CharType,
-    DateType,
     DateTimeType,
+    DateType,
     DecimalType,
     DoubleType,
     FloatType,
@@ -32,35 +28,40 @@ from rhosocial.activerecord.backend.expression.types import (
     RealType,
     SmallIntType,
     TextType,
-    TimeType,
     TimestampType,
+    TimeType,
     TinyIntType,
     UUIDType,
     VarCharType,
 )
+from rhosocial.activerecord.backend.suggestion.definitions import (
+    SubstituteAdviceSuggestion,
+    SubstituteTypeSuggestion,
+)
+
 from ..expression.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
     ClickHouseBoolType,
     ClickHouseDate32Type,
-    ClickHouseDateType,
     ClickHouseDateTime64Type,
     ClickHouseDateTimeType,
+    ClickHouseDateType,
     ClickHouseDecimal32Type,
     ClickHouseDecimal64Type,
     ClickHouseDecimal128Type,
     ClickHouseDecimalType,
-    ClickHouseEnum16Type,
     ClickHouseEnum8Type,
+    ClickHouseEnum16Type,
     ClickHouseFixedStringType,
     ClickHouseFloat32Type,
     ClickHouseFloat64Type,
     ClickHouseGeometryCollectionType,
     ClickHouseGeometryType,
+    ClickHouseInt8Type,
     ClickHouseInt16Type,
     ClickHouseInt32Type,
     ClickHouseInt64Type,
-    ClickHouseInt8Type,
     ClickHouseIPv4Type,
     ClickHouseIPv6Type,
     ClickHouseJSONType,
@@ -76,10 +77,10 @@ from ..expression.types import (
     ClickHouseSimpleAggregateFunctionType,
     ClickHouseStringType,
     ClickHouseTupleType,
+    ClickHouseUInt8Type,
     ClickHouseUInt16Type,
     ClickHouseUInt32Type,
     ClickHouseUInt64Type,
-    ClickHouseUInt8Type,
     ClickHouseUUIDType,
     ClickHouseVectorType,
 )
@@ -393,19 +394,27 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
     def format_data_type_clickhouse_decimal(self, expr: ClickHouseDecimalType) -> Tuple[str, tuple]:
         return f"Decimal({expr.precision}, {expr.scale})", ()
 
-    def format_data_type_clickhouse_decimal32(self, expr: ClickHouseDecimal32Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal32(
+        self, expr: ClickHouseDecimal32Type
+    ) -> Tuple[str, tuple]:
         return f"Decimal32({expr.scale})", ()
 
-    def format_data_type_clickhouse_decimal64(self, expr: ClickHouseDecimal64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal64(
+        self, expr: ClickHouseDecimal64Type
+    ) -> Tuple[str, tuple]:
         return f"Decimal64({expr.scale})", ()
 
-    def format_data_type_clickhouse_decimal128(self, expr: ClickHouseDecimal128Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_decimal128(
+        self, expr: ClickHouseDecimal128Type
+    ) -> Tuple[str, tuple]:
         return f"Decimal128({expr.scale})", ()
 
     def format_data_type_clickhouse_string(self, expr: ClickHouseStringType) -> Tuple[str, tuple]:
         return "String", ()
 
-    def format_data_type_clickhouse_fixed_string(self, expr: ClickHouseFixedStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_fixed_string(
+        self, expr: ClickHouseFixedStringType
+    ) -> Tuple[str, tuple]:
         return f"FixedString({expr.length})", ()
 
     def format_data_type_clickhouse_date(self, expr: ClickHouseDateType) -> Tuple[str, tuple]:
@@ -414,10 +423,14 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
     def format_data_type_clickhouse_date32(self, expr: ClickHouseDate32Type) -> Tuple[str, tuple]:
         return "Date32", ()
 
-    def format_data_type_clickhouse_timestamp(self, expr: ClickHouseDateTimeType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_timestamp(
+        self, expr: ClickHouseDateTimeType
+    ) -> Tuple[str, tuple]:
         return "DateTime", ()
 
-    def format_data_type_clickhouse_timestamp64(self, expr: ClickHouseDateTime64Type) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_timestamp64(
+        self, expr: ClickHouseDateTime64Type
+    ) -> Tuple[str, tuple]:
         return f"DateTime64({expr.precision})", ()
 
     def format_data_type_clickhouse_bool(self, expr: ClickHouseBoolType) -> Tuple[str, tuple]:
@@ -461,11 +474,15 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
             params.extend(elem_params)
         return f"Tuple({', '.join(parts)})", tuple(params)
 
-    def format_data_type_clickhouse_nullable(self, expr: ClickHouseNullableType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_nullable(
+        self, expr: ClickHouseNullableType
+    ) -> Tuple[str, tuple]:
         inner_sql, inner_params = self.format_data_type(expr.inner_type)
         return f"Nullable({inner_sql})", inner_params
 
-    def format_data_type_clickhouse_low_cardinality(self, expr: ClickHouseLowCardinalityType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_low_cardinality(
+        self, expr: ClickHouseLowCardinalityType
+    ) -> Tuple[str, tuple]:
         inner_sql, inner_params = self.format_data_type(expr.inner_type)
         return f"LowCardinality({inner_sql})", inner_params
 
@@ -485,7 +502,9 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
         args = ", ".join(self.format_data_type(t)[0] for t in expr.arg_types)
         return f"SimpleAggregateFunction({expr.function_name}, {args})", ()
 
-    def format_data_type_clickhouse_geometry(self, expr: ClickHouseGeometryType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_geometry(
+        self, expr: ClickHouseGeometryType
+    ) -> Tuple[str, tuple]:
         if expr.srid is not None:
             return f"GEOMETRY SRID {expr.srid}", ()
         return "GEOMETRY", ()
@@ -495,7 +514,9 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
             return f"POINT SRID {expr.srid}", ()
         return "POINT", ()
 
-    def format_data_type_clickhouse_linestring(self, expr: ClickHouseLineStringType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_linestring(
+        self, expr: ClickHouseLineStringType
+    ) -> Tuple[str, tuple]:
         if expr.srid is not None:
             return f"LINESTRING SRID {expr.srid}", ()
         return "LINESTRING", ()
@@ -505,7 +526,9 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
             return f"POLYGON SRID {expr.srid}", ()
         return "POLYGON", ()
 
-    def format_data_type_clickhouse_multipoint(self, expr: ClickHouseMultiPointType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_multipoint(
+        self, expr: ClickHouseMultiPointType
+    ) -> Tuple[str, tuple]:
         if expr.srid is not None:
             return f"MULTIPOINT SRID {expr.srid}", ()
         return "MULTIPOINT", ()
@@ -518,7 +541,9 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
             return f"MULTILINESTRING SRID {expr.srid}", ()
         return "MULTILINESTRING", ()
 
-    def format_data_type_clickhouse_multipolygon(self, expr: ClickHouseMultiPolygonType) -> Tuple[str, tuple]:
+    def format_data_type_clickhouse_multipolygon(
+        self, expr: ClickHouseMultiPolygonType
+    ) -> Tuple[str, tuple]:
         if expr.srid is not None:
             return f"MULTIPOLYGON SRID {expr.srid}", ()
         return "MULTIPOLYGON", ()
@@ -839,17 +864,19 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
             native type here would promise a feature whose version floor this
             dialect does not check.
         """
-        return SubstituteTypeSuggestion(mapping={
-            "binary": ClickHouseStringType,
-            "varbinary": ClickHouseStringType,
-            "custom": ClickHouseStringType,
-            "enum": ClickHouseStringType,
-            "interval": ClickHouseInt64Type,
-            "jsonb": ClickHouseStringType,
-            "timetz": ClickHouseDateTimeType,
-            "timestamptz": ClickHouseDateTime64Type,
-            "xml": TextType,
-        })
+        return SubstituteTypeSuggestion(
+            mapping={
+                "binary": ClickHouseStringType,
+                "varbinary": ClickHouseStringType,
+                "custom": ClickHouseStringType,
+                "enum": ClickHouseStringType,
+                "interval": ClickHouseInt64Type,
+                "jsonb": ClickHouseStringType,
+                "timetz": ClickHouseDateTimeType,
+                "timestamptz": ClickHouseDateTime64Type,
+                "xml": TextType,
+            }
+        )
 
     def suggest_substitute_advice(self, name: str) -> SubstituteAdviceSuggestion:
         """No extra caveat: every substitute above is already explained in its docstring."""
@@ -992,17 +1019,11 @@ class ClickHouseTypeSupportMixin(DataTypeMixin):
         come back truncated — so the precision is rendered, not discarded.
         ``ClickHouseDateTime64Type`` is the type that carries that parameter.
         """
-        precision = getattr(expr, "precision", None)
+        precision = vars(expr).get("precision", None)
         if precision is None:
             return "DateTime", ()
-        if (
-            isinstance(precision, bool)
-            or not isinstance(precision, int)
-            or not 0 <= precision <= 9
-        ):
-            raise ValueError(
-                f"TIMESTAMP precision must be an integer in 0..9, got {precision!r}"
-            )
+        if isinstance(precision, bool) or not isinstance(precision, int) or not 0 <= precision <= 9:
+            raise ValueError(f"TIMESTAMP precision must be an integer in 0..9, got {precision!r}")
         return self.format_data_type_clickhouse_timestamp64(
             ClickHouseDateTime64Type(precision=precision)
         )

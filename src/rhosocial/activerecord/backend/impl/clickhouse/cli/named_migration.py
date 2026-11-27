@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
+    AsyncClickHouseBackend,
+)
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider
@@ -81,10 +83,10 @@ def handle(args):
         return backend
 
     def disconnect():
-        if backend and getattr(backend, "_connection", None):
+        if backend and vars(backend).get("_connection", None):
             backend.disconnect()
 
-    is_async = getattr(args, "is_async", False)
+    is_async = vars(args).get("is_async", False)
     if is_async:
         async_backend = None
 
@@ -95,7 +97,7 @@ def handle(args):
             return async_backend
 
         async def disconnect_async():
-            if async_backend and getattr(async_backend, "_connection", None):
+            if async_backend and vars(async_backend).get("_connection", None):
                 await async_backend.disconnect()
 
         handle_nm(

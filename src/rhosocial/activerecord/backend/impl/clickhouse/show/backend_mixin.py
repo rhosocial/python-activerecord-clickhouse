@@ -46,8 +46,8 @@ class ClickHouseShowMixin:
         from .functionality import ClickHouseShowFunctionality
 
         # Get server version for feature adaptation
-        version = getattr(self, "_version", None)
-        if version is None and hasattr(self, "get_server_version"):
+        version = vars(self).get("_version", None)
+        if version is None and any("get_server_version" in vars(cls) for cls in type(self).__mro__):
             try:
                 version = self.get_server_version()
             except Exception:

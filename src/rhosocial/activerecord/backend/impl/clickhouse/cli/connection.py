@@ -107,12 +107,13 @@ def resolve_connection_config_from_args(args):
         2. Explicit connection parameters (--host, --port, etc.)
         3. Default values
     """
-    from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
-    from rhosocial.activerecord.backend.named_connection.cli import parse_params
     from rhosocial.activerecord.backend.named_connection import NamedConnectionResolver
+    from rhosocial.activerecord.backend.named_connection.cli import parse_params
 
-    named_conn = getattr(args, "named_connection", None)
-    conn_params = getattr(args, "connection_params", [])
+    from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
+
+    named_conn = vars(args).get("named_connection", None)
+    conn_params = vars(args).get("connection_params", [])
 
     if conn_params:
         conn_params = parse_params(conn_params)
@@ -136,7 +137,7 @@ def resolve_connection_config_from_args(args):
         "username": args.user,
         "password": args.password,
     }
-    ssl_mode = getattr(args, "ssl", None)
+    ssl_mode = vars(args).get("ssl", None)
     if ssl_mode and ssl_mode not in ("disabled", "auto", None):
         config_kwargs["ssl_mode"] = ssl_mode
         # require  -> HTTPS, no cert validation

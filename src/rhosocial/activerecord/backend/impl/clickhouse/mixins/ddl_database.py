@@ -1,9 +1,10 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_database.py
 """ClickHouse database DDL mixin."""
+
 from __future__ import annotations
 
 from enum import Enum
-from typing import Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Database
@@ -14,6 +15,14 @@ if TYPE_CHECKING:
         CreateDatabaseStatement,
         DropDatabaseStatement,
     )
+
+
+def _escape_single_quotes(value: str) -> str:
+    """Double each quote in a comment atom, by character scan."""
+    escaped = []
+    for char in value:
+        escaped.append("''" if char == "'" else char)
+    return "".join(escaped)
 
 
 class ClickHouseDatabaseMixin:
@@ -56,9 +65,7 @@ class ClickHouseDatabaseMixin:
         """ClickHouse supports COMMENT for databases."""
         return True
 
-    def format_create_database_statement(
-        self, expr: CreateDatabaseStatement
-    ) -> Tuple[str, tuple]:
+    def format_create_database_statement(self, expr: CreateDatabaseStatement) -> Tuple[str, tuple]:
         """Format ``CREATE DATABASE``.
 
         Raises:
@@ -75,7 +82,7 @@ class ClickHouseDatabaseMixin:
             parts.append("IF NOT EXISTS")
         parts.append(expr.database.to_sql()[0])
         if expr.comment:
-            escaped_comment = expr.comment.replace("'", "''")
+            escaped_comment = _escape_single_quotes(expr.comment)
             parts.append(f"COMMENT '{escaped_comment}'")
         # ``ENGINE`` / ``ON CLUSTER`` are ClickHouse clauses and live on this
         # backend's own node; the generic CreateDatabaseStatement carries
@@ -90,9 +97,7 @@ class ClickHouseDatabaseMixin:
                 parts.append(f"ON CLUSTER {self.format_identifier(expr.on_cluster)}")
         return " ".join(parts), ()
 
-    def format_drop_database_statement(
-        self, expr: DropDatabaseStatement
-    ) -> Tuple[str, tuple]:
+    def format_drop_database_statement(self, expr: DropDatabaseStatement) -> Tuple[str, tuple]:
         """Format ``DROP DATABASE``.
 
         Raises:
@@ -116,9 +121,7 @@ class ClickHouseDatabaseMixin:
             parts.append("SYNC")
         return " ".join(parts), ()
 
-    def format_alter_database_statement(
-        self, expr: AlterDatabaseStatement
-    ) -> Tuple[str, tuple]:
+    def format_alter_database_statement(self, expr: AlterDatabaseStatement) -> Tuple[str, tuple]:
         """Format ``ALTER DATABASE``.
 
         ClickHouse's ALTER DATABASE takes a list of ALTER commands, and
@@ -145,6 +148,7 @@ class ClickHouseDatabaseMixin:
         from rhosocial.activerecord.backend.expression.statements.ddl_database import (
             AlterDatabaseAction,
         )
+
         # ``MODIFY COMMENT`` was read off this branch by name and core's
         # AlterDatabaseAction has no such member, so every ALTER DATABASE
         # raised AttributeError before reaching any of this; an action
@@ -165,11 +169,8 @@ class ClickHouseDatabaseMixin:
         raise UnsupportedFeatureError(
             self.name,
             f"ALTER DATABASE {action}",
-            suggestion=(
-                "ClickHouse's ALTER DATABASE takes MODIFY SETTING / MODIFY "
-                "COMMENT."
-            ),
+            suggestion=("ClickHouse's ALTER DATABASE takes MODIFY SETTING / MODIFY " "COMMENT."),
         )
 
 
-__all__ = ['ClickHouseDatabaseMixin']
+__all__ = ["ClickHouseDatabaseMixin"]

@@ -88,15 +88,17 @@ class ClickHouseBackendMixin:
 
     def requires_manual_commit(self) -> bool:
         """Check if manual commit is required for this database."""
-        return not getattr(self.config, "autocommit", True)
+        return not vars(self.config).get("autocommit", True)
 
     def _check_returning_compatibility(self, _returning_clause):
         """Check if RETURNING clause is compatible with this ClickHouse version."""
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-        if (self.dialect.supports_returning_insert() or
-                self.dialect.supports_returning_update() or
-                self.dialect.supports_returning_delete()):
+        if (
+            self.dialect.supports_returning_insert()
+            or self.dialect.supports_returning_update()
+            or self.dialect.supports_returning_delete()
+        ):
             return True
         else:
             raise UnsupportedFeatureError(
@@ -124,9 +126,9 @@ class ClickHouseBackendMixin:
         from rhosocial.activerecord.backend.adapters.bitstring import BitString
         from rhosocial.activerecord.backend.adapters.geometry import Geometry
         from rhosocial.activerecord.backend.adapters.network import IPAddress, MacAddress
+        from rhosocial.activerecord.backend.adapters.portable import PORTABLE_TYPE_MAPPINGS
         from rhosocial.activerecord.backend.adapters.range import Multirange, Range
         from rhosocial.activerecord.backend.adapters.vector import Vector
-        from rhosocial.activerecord.backend.adapters.portable import PORTABLE_TYPE_MAPPINGS
         from rhosocial.activerecord.backend.base.type_adaption import (
             merge_adapter_suggestions,
         )
@@ -186,9 +188,7 @@ class ClickHouseBackendMixin:
         deterministic and a new list is returned on every call.
         """
         adapters = list(self.adapter_registry.get_all_adapters().values())
-        adapters.extend(
-            suggestion[0] for suggestion in self.suggest_data_adapters().table.values()
-        )
+        adapters.extend(suggestion[0] for suggestion in self.suggest_data_adapters().table.values())
         unique: Dict[Tuple[str, str], SQLTypeAdapter] = {}
         for adapter in adapters:
             adapter_cls = type(adapter)
@@ -235,9 +235,9 @@ class ClickHouseBackendMixin:
 
     def _error_code(self, error: Exception) -> Optional[int]:
         """Return the ClickHouse server error code when the driver exposes one."""
-        code = getattr(error, "code", None)
+        code = vars(error).get("code", None)
         if code is None:
-            code = getattr(error, "errno", None)
+            code = vars(error).get("errno", None)
         return code
 
     def _is_connection_error(self, error: Exception) -> bool:
@@ -293,11 +293,13 @@ class ClickHouseBackendMixin:
         exhaustion (code 241) are infrastructure failures and are marked
         transient instead.
         """
+        from clickhouse_connect.driver.exceptions import DatabaseError as ClickHouseDatabaseError
+        from clickhouse_connect.driver.exceptions import Error as ClickHouseError
+        from clickhouse_connect.driver.exceptions import IntegrityError as ClickHouseIntegrityError
         from clickhouse_connect.driver.exceptions import (
-            DatabaseError as ClickHouseDatabaseError,
-            Error as ClickHouseError,
-            IntegrityError as ClickHouseIntegrityError,
             OperationalError as ClickHouseOperationalError,
+        )
+        from clickhouse_connect.driver.exceptions import (
             ProgrammingError as ClickHouseProgrammingError,
         )
         from rhosocial.activerecord.backend.errors import (

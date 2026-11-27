@@ -1,5 +1,5 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_table.py
-from typing import Any, List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Table
@@ -89,7 +89,6 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         """
         return True
 
-
     def supports_create_table_as_bind_parameters(self) -> bool:
         """ClickHouse accepts bind parameters in a CTAS body.
 
@@ -98,6 +97,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         interpolated client-side, so the value is baked into the text.
         """
         return True
+
     def supports_create_table_clone(self) -> bool:
         """ClickHouse has ``CREATE TABLE target CLONE AS source``."""
         return True
@@ -173,22 +173,24 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         """
         if not isinstance(expr.table, Table):
             raise TypeError(
-                f"CreateTableStatement.table must be a Table, "
-                f"got {type(expr.table).__name__}"
+                f"CreateTableStatement.table must be a Table, " f"got {type(expr.table).__name__}"
             )
         if expr.tablespace:
             raise UnsupportedFeatureError(
-                self.name, "TABLESPACE",
+                self.name,
+                "TABLESPACE",
                 "ClickHouse does not support table tablespaces.",
             )
         if expr.inherits:
             raise UnsupportedFeatureError(
-                self.name, "table INHERITS",
+                self.name,
+                "table INHERITS",
                 "ClickHouse does not support table inheritance.",
             )
         if expr.storage_options is not None:
             raise UnsupportedFeatureError(
-                self.name, "STORAGE OPTIONS",
+                self.name,
+                "STORAGE OPTIONS",
                 "ClickHouse has no generic storage-options clause. Declare the "
                 "clauses on ClickHouseCreateTableOptions(table_storage_options=...) "
                 "instead.",
@@ -214,15 +216,18 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         # ``ON CLUSTER`` follows the table name, before the column list -- it is
         # not a header qualifier and cannot come from
         # ``format_clickhouse_create_table_options``.
-        on_cluster = getattr(expr.table_options, "on_cluster", None)
+        on_cluster = (
+            vars(expr.table_options).get("on_cluster", None)
+            if expr.table_options is not None
+            else None
+        )
         if on_cluster is not None:
             parts.append(f"ON CLUSTER {self.format_identifier(on_cluster)}")
 
         primary_key_columns = tuple(self._primary_key_columns(expr))
         key_columns = tuple(
             dict.fromkeys(
-                primary_key_columns
-                + tuple(self._declared_key_columns(expr.table_options))
+                primary_key_columns + tuple(self._declared_key_columns(expr.table_options))
             )
         )
         # ClickHouse has no AUTO_INCREMENT: a single-column integer primary key
@@ -249,7 +254,10 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             all_params.extend(col_params)
 
         for t_const in expr.table_constraints:
-            if isinstance(t_const.branch, TableUniqueConstraint) and not self.supports_unique_constraint():
+            if (
+                isinstance(t_const.branch, TableUniqueConstraint)
+                and not self.supports_unique_constraint()
+            ):
                 continue
             const_sql, const_params = self.format_table_constraint(t_const)
             column_parts.append(const_sql)
@@ -262,9 +270,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
 
         parts.append(f"({', '.join(column_parts)})")
 
-        storage_sql, storage_params = self._format_table_storage_clauses(
-            expr.table_options
-        )
+        storage_sql, storage_params = self._format_table_storage_clauses(expr.table_options)
         if storage_sql:
             parts.append(storage_sql)
             all_params.extend(storage_params)
@@ -298,10 +304,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         primary_key = self._primary_key_columns(expr)
         if primary_key:
             body = ", ".join(self.format_identifier(column) for column in primary_key)
-            return (
-                f"ENGINE = MergeTree() ORDER BY ({body}) "
-                f"{_LIGHTWEIGHT_MUTATION_SETTINGS}"
-            )
+            return f"ENGINE = MergeTree() ORDER BY ({body}) " f"{_LIGHTWEIGHT_MUTATION_SETTINGS}"
         return f"ENGINE = MergeTree() ORDER BY tuple() {_LIGHTWEIGHT_MUTATION_SETTINGS}"
 
     @staticmethod
@@ -337,7 +340,11 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         :attr:`ClickHouseStorageOptionKind.rank` before rendering, so a caller
         that declares them out of order still gets ClickHouse's order.
         """
-        clauses = getattr(table_options, "table_storage_options", ())
+        clauses = (
+            vars(table_options).get("table_storage_options", ())
+            if table_options is not None
+            else ()
+        )
         if not clauses:
             return "", ()
         params: List[Any] = []
@@ -391,9 +398,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         parts.append(f"AS {source}")
         return " ".join(parts), ()
 
-    def format_create_table_as_statement(
-        self, expr: "CreateTableAsStatement"
-    ) -> Tuple[str, tuple]:
+    def format_create_table_as_statement(self, expr: "CreateTableAsStatement") -> Tuple[str, tuple]:
         """Format ClickHouse ``CREATE TABLE ... AS <query>``.
 
         ClickHouse's CTAS always populates the new table and has no
@@ -409,8 +414,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             raise UnsupportedFeatureError(
                 self.name,
                 "CREATE TABLE ... WITH DATA",
-                "ClickHouse CTAS always populates the new table; there is no "
-                "WITH DATA clause.",
+                "ClickHouse CTAS always populates the new table; there is no " "WITH DATA clause.",
             )
         if expr.no_data:
             raise UnsupportedFeatureError(
@@ -594,7 +598,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             )
 
         type_sql = col_def.data_type.to_sql()[0]
-        dialect = getattr(col_def.data_type, "_dialect", None)
+        dialect = vars(col_def.data_type).get("_dialect", None)
 
         data_type = col_def.data_type
         if widen_integers:
@@ -608,9 +612,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             if type_sql.startswith("LowCardinality("):
                 data_type = ClickHouseLowCardinalityType(
                     dialect,
-                    inner_type=ClickHouseNullableType(
-                        dialect, inner_type=data_type.inner_type
-                    ),
+                    inner_type=ClickHouseNullableType(dialect, inner_type=data_type.inner_type),
                 )
             elif not type_sql.startswith(self._NON_NULLABLE_CONTAINER_PREFIXES):
                 data_type = ClickHouseNullableType(dialect, inner_type=data_type)
@@ -662,7 +664,12 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         from ..expression.storage_option import ClickHouseStorageOptionKind
 
         names: List[str] = []
-        for clause in getattr(table_options, "table_storage_options", ()):
+        clauses = (
+            vars(table_options).get("table_storage_options", ())
+            if table_options is not None
+            else ()
+        )
+        for clause in clauses:
             if clause.option not in (
                 ClickHouseStorageOptionKind.ORDER_BY,
                 ClickHouseStorageOptionKind.PRIMARY_KEY,
@@ -671,9 +678,10 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             value = clause.value
             items = value if isinstance(value, (list, tuple)) else [value]
             for item in items:
-                name = getattr(item, "name", None)
-                if isinstance(item, ColumnBase) and isinstance(name, str):
-                    names.append(name)
+                if isinstance(item, ColumnBase):
+                    name = vars(item).get("name", None)
+                    if isinstance(name, str):
+                        names.append(name)
         return names
 
     @staticmethod
@@ -766,28 +774,31 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             params.extend(branch_params)
         elif isinstance(branch, TableUniqueConstraint):
             raise UnsupportedFeatureError(
-                self.name, "UNIQUE table constraint",
-                suggestion="ClickHouse does not support UNIQUE constraints."
+                self.name,
+                "UNIQUE table constraint",
+                suggestion="ClickHouse does not support UNIQUE constraints.",
             )
         elif isinstance(branch, TableForeignKeyConstraint):
             raise UnsupportedFeatureError(
-                self.name, "FOREIGN KEY constraint",
+                self.name,
+                "FOREIGN KEY constraint",
                 suggestion=(
                     "ClickHouse does not support FOREIGN KEY constraints, and an "
                     "unnamed FOREIGN KEY (...) REFERENCES ... clause is accepted and "
                     "then silently discarded, so emitting one would produce a schema "
                     "with no foreign key and no enforcement. Maintain referential "
                     "integrity in the application, or use CONSTRAINT ... CHECK."
-                )
+                ),
             )
         elif isinstance(branch, TableExcludeConstraint):
             raise UnsupportedFeatureError(
-                self.name, "EXCLUDE table constraint",
+                self.name,
+                "EXCLUDE table constraint",
                 suggestion=(
                     "ClickHouse's table-constraint grammar is CHECK and ASSUME; the "
                     "server prints 'Expected one of: CHECK, ASSUME.' for every third "
                     "kind (Code 62, measured on 26.7.3.19)."
-                )
+                ),
             )
 
         # The production-level traits. ClickHouse has no spelling for either, so
@@ -799,9 +810,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
             or expr.initially_deferred
             or expr.initially_immediate
         ):
-            raise UnsupportedFeatureError(
-                self.name, "DEFERRABLE / INITIALLY table constraint"
-            )
+            raise UnsupportedFeatureError(self.name, "DEFERRABLE / INITIALLY table constraint")
         enforcement = self.format_constraint_enforcement(expr)
         if enforcement:
             parts.append(enforcement)
@@ -819,8 +828,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
 
         if expr.unique:
             raise UnsupportedFeatureError(
-                self.name, "UNIQUE index",
-                suggestion="ClickHouse cannot enforce unique indexes."
+                self.name, "UNIQUE index", suggestion="ClickHouse cannot enforce unique indexes."
             )
         parts = ["INDEX", self.format_identifier(expr.name)]
         cols_str = ", ".join(self.format_identifier(c) for c in expr.columns)
@@ -879,4 +887,3 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
     def supports_ilike(self) -> bool:
         """ClickHouse supports ILIKE operator."""
         return True
-

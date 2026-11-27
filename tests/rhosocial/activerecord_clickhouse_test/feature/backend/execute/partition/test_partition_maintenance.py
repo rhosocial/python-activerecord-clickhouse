@@ -18,13 +18,13 @@ https://clickhouse.com/docs/sql-reference/statements/alter/partition
 import socket
 
 import pytest
-
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.core import Column
 from rhosocial.activerecord.backend.expression.statements import (
     PartitionByRangeClause,
     PartitionDefinitionExpression,
 )
+
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseAttachPartitionStatement,
     ClickHouseDetachPartitionStatement,
@@ -76,9 +76,7 @@ def partitioned_backend(live_server, clickhouse_backend_single):
     backend.execute(
         f"INSERT INTO {TABLE} (id, created_at) VALUES (1, '2026-01-05'), (2, '2026-01-06')"
     )
-    backend.execute(
-        f"INSERT INTO {TABLE} (id, created_at) VALUES (3, '2026-02-05')"
-    )
+    backend.execute(f"INSERT INTO {TABLE} (id, created_at) VALUES (3, '2026-02-05')")
     yield backend
     backend.execute(f"DROP TABLE IF EXISTS {TABLE}")
 
@@ -87,8 +85,7 @@ def _partition_ids(backend):
     return sorted(
         row["partition_id"]
         for row in backend.fetch_all(
-            f"SELECT partition_id FROM system.parts "
-            f"WHERE table = '{TABLE}' AND active"
+            f"SELECT partition_id FROM system.parts " f"WHERE table = '{TABLE}' AND active"
         )
     )
 
@@ -270,9 +267,7 @@ class TestMySQLPartitionStatementsAreRejectedByTheServer:
 
     def test_delete_in_partition_is_the_truncate_substitute(self, partitioned_backend):
         """What a caller reaches for instead of ``TRUNCATE PARTITION``."""
-        partitioned_backend.execute(
-            f"ALTER TABLE {TABLE} DELETE IN PARTITION ID '202601' WHERE 1"
-        )
+        partitioned_backend.execute(f"ALTER TABLE {TABLE} DELETE IN PARTITION ID '202601' WHERE 1")
         assert _row_count(partitioned_backend) == 1
 
 
@@ -286,5 +281,5 @@ class TestGenericPartitionExpressionsRefuseWithTheClickHouseAlternative:
 
     def test_inline_partition_definition_refuses(self, dialect):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            dialect.format_partition_definition(PartitionDefinitionExpression(dialect, name="p1"))
+            dialect._refuse_partition_definition(PartitionDefinitionExpression(dialect, name="p1"))
         assert "PARTITION BY <expr>" in excinfo.value.suggestion

@@ -20,9 +20,7 @@ class ClickHouseConcurrencyMixin:
         try:
             from ..expression.status import ClickHouseSettingQuery
 
-            sql, params = ClickHouseSettingQuery(
-                self.dialect, "max_concurrent_queries"
-            ).to_sql()
+            sql, params = ClickHouseSettingQuery(self.dialect, "max_concurrent_queries").to_sql()
             cursor = self._connection.cursor()
             cursor.execute(sql, params)
             row = cursor.fetchone()
@@ -30,7 +28,7 @@ class ClickHouseConcurrencyMixin:
 
             if row:
                 max_connections = int(row[0])
-                pool_size = getattr(self.config, "pool_size", 5) or 5
+                pool_size = vars(self.config).get("pool_size", 5) or 5
                 limit = min(max_connections, pool_size)
                 self._concurrency_hint = ConcurrencyHint(
                     max_concurrency=limit,
@@ -63,9 +61,7 @@ class AsyncClickHouseConcurrencyMixin:
         try:
             from ..expression.status import ClickHouseSettingQuery
 
-            sql, params = ClickHouseSettingQuery(
-                self.dialect, "max_concurrent_queries"
-            ).to_sql()
+            sql, params = ClickHouseSettingQuery(self.dialect, "max_concurrent_queries").to_sql()
             cursor = await self._connection.cursor(dictionary=True)
             await cursor.execute(sql, params)
             row = await cursor.fetchone()
@@ -73,7 +69,7 @@ class AsyncClickHouseConcurrencyMixin:
 
             if row:
                 max_connections = int(row["value"])
-                pool_size = getattr(self.config, "pool_size", 5) or 5
+                pool_size = vars(self.config).get("pool_size", 5) or 5
                 limit = min(max_connections, pool_size)
                 self._concurrency_hint = ConcurrencyHint(
                     max_concurrency=limit,

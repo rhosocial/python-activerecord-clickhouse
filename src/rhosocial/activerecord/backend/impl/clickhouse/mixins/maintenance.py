@@ -1,7 +1,12 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/maintenance.py
-from typing import Any, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.maintenance import (
+        ClickHouseTableMaintenanceStatement,
+    )
 
 
 class ClickHouseMaintenanceMixin:
@@ -30,8 +35,11 @@ class ClickHouseMaintenanceMixin:
     def supports_repair_table(self) -> bool:
         return False
 
-    def format_table_maintenance_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_table_maintenance_statement(
+        self, expr: "ClickHouseTableMaintenanceStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "MySQL whole-table maintenance (ANALYZE/CHECK/CHECKSUM/REPAIR)",
+            self.name,
+            "MySQL whole-table maintenance (ANALYZE/CHECK/CHECKSUM/REPAIR)",
             suggestion="Use ClickHouse OPTIMIZE TABLE ... FINAL or SYSTEM commands instead.",
         )

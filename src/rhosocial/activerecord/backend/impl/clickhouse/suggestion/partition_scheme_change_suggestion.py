@@ -140,11 +140,11 @@ def _make_optimize(dialect: Any, table: str, params: Mapping) -> Optional[BaseEx
 #: operation name -> (capability probe, existing-node factory). The four
 #: data-changing names are deliberately absent: see _refuse_data_changing_operation.
 _OPERATIONS = {
-    "detach": ("supports_detach_partition", _make_detach),
-    "attach": ("supports_attach_partition", _make_attach),
-    "freeze": ("supports_freeze_partition", _make_freeze),
-    "unfreeze": ("supports_unfreeze_partition", _make_unfreeze),
-    "optimize": ("supports_optimize_partition_final", _make_optimize),
+    "detach": (lambda mixin: mixin.supports_detach_partition(), _make_detach),
+    "attach": (lambda mixin: mixin.supports_attach_partition(), _make_attach),
+    "freeze": (lambda mixin: mixin.supports_freeze_partition(), _make_freeze),
+    "unfreeze": (lambda mixin: mixin.supports_unfreeze_partition(), _make_unfreeze),
+    "optimize": (lambda mixin: mixin.supports_optimize_partition_final(), _make_optimize),
 }
 
 
@@ -221,7 +221,7 @@ class ClickHousePartitionSchemeChangeSuggestionMixin:
             if partition_id is _INVALID or (name == "attach" and partition_id not in detached):
                 return PartitionSchemeChangeSuggestion(operations=False)
             probe, factory = _OPERATIONS[name]
-            if not bool(getattr(self, probe)()):  # type: ignore[attr-defined]
+            if not bool(probe(self)):
                 return PartitionSchemeChangeSuggestion(operations=False)
             node = factory(self, table_name, params)
             if not isinstance(node, BaseExpression):

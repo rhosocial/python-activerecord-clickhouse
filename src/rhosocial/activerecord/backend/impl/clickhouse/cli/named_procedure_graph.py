@@ -57,7 +57,7 @@ def handle(args):
         if backend and backend._connection:
             backend.disconnect()
 
-    is_async = getattr(args, "is_async", False)
+    is_async = vars(args).get("is_async", False)
 
     if is_async:
         async_backend = None

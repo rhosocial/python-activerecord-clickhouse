@@ -60,23 +60,25 @@ Design principle: Sync and Async are separate and cannot coexist.
 - ClickHouseStatusIntrospector: for synchronous backends
 - AsyncClickHouseStatusIntrospector: for asynchronous backends
 """
+
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from rhosocial.activerecord.backend.introspection.status import (
-    StatusItem,
-    StatusCategory,
-    ServerOverview,
-    DatabaseBriefInfo,
-    UserInfo,
-    ConnectionInfo,
-    StorageInfo,
-    SessionInfo,
-    ProcessInfo,
     AbstractStatusIntrospector,
     AsyncAbstractStatusIntrospector,
+    ConnectionInfo,
+    DatabaseBriefInfo,
+    ProcessInfo,
+    ServerOverview,
+    SessionInfo,
+    StatusCategory,
+    StatusItem,
+    StorageInfo,
+    UserInfo,
 )
+
 from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
     ClickHouseAsynchronousMetricsQuery,
     ClickHouseConnectionGaugesQuery,
@@ -96,7 +98,6 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
     ClickHouseUserListQuery,
     ClickHouseVersionQuery,
 )
-
 
 # --------------------------------------------------------------------------- #
 # Inventories — (name, StatusCategory).
@@ -655,7 +656,9 @@ class ClickHouseStatusIntrospectorMixin:
         return items
 
     @staticmethod
-    def _filter_category(items: List[StatusItem], category: Optional[StatusCategory]) -> List[StatusItem]:
+    def _filter_category(
+        items: List[StatusItem], category: Optional[StatusCategory]
+    ) -> List[StatusItem]:
         if category is None:
             return items
         return [item for item in items if item.category == category]
@@ -699,9 +702,7 @@ class ClickHouseStatusIntrospectorMixin:
         """
         replication_summary = None
         try:
-            sql, params = self._render(
-                ClickHouseReplicaListQuery(self._backend.dialect, limit=20)
-            )
+            sql, params = self._render(ClickHouseReplicaListQuery(self._backend.dialect, limit=20))
             result = self._backend.execute(sql, params)
             replication_summary = result.data
         except Exception:
@@ -781,7 +782,7 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
                 return str(next(iter(result.data[0].values())))
         except Exception:
             pass
-        version_tuple = getattr(self._backend, "_version", None)
+        version_tuple = vars(self._backend).get("_version", None)
         if not version_tuple:
             return ""
         return ".".join(str(v) for v in version_tuple)
@@ -821,9 +822,7 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
         )
 
         server_sql, server_params = self._render(
-            ClickHouseServerSettingsQuery(
-                dialect, [name for name, _ in CLICKHOUSE_SERVER_SETTINGS]
-            )
+            ClickHouseServerSettingsQuery(dialect, [name for name, _ in CLICKHOUSE_SERVER_SETTINGS])
         )
         server_rows = self._rows(server_sql, server_params)
         items.extend(
@@ -837,7 +836,9 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
 
         return self._filter_category(items, category)
 
-    def list_performance_metrics(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
+    def list_performance_metrics(
+        self, category: Optional[StatusCategory] = None
+    ) -> List[StatusItem]:
         """List ClickHouse performance metrics.
 
         Three tables, because ClickHouse reports three different things:
@@ -862,13 +863,17 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
             ClickHouseMetricsQuery(dialect, [name for name, _ in CLICKHOUSE_GAUGE_METRICS])
         )
         gauge_rows = self._rows(gauge_sql, gauge_params)
-        items.extend(self._build_gauge_items(gauge_rows, CLICKHOUSE_GAUGE_METRICS, "system.metrics"))
+        items.extend(
+            self._build_gauge_items(gauge_rows, CLICKHOUSE_GAUGE_METRICS, "system.metrics")
+        )
 
         event_sql, event_params = self._render(
             ClickHouseEventsQuery(dialect, [name for name, _ in CLICKHOUSE_COUNTER_EVENTS])
         )
         event_rows = self._rows(event_sql, event_params)
-        items.extend(self._build_event_items(event_rows, CLICKHOUSE_COUNTER_EVENTS, "system.events"))
+        items.extend(
+            self._build_event_items(event_rows, CLICKHOUSE_COUNTER_EVENTS, "system.events")
+        )
 
         async_sql, async_params = self._render(
             ClickHouseAsynchronousMetricsQuery(
@@ -877,7 +882,9 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
         )
         async_rows = self._rows(async_sql, async_params)
         items.extend(
-            self._build_async_metric_items(async_rows, CLICKHOUSE_ASYNC_METRICS, "system.asynchronous_metrics")
+            self._build_async_metric_items(
+                async_rows, CLICKHOUSE_ASYNC_METRICS, "system.asynchronous_metrics"
+            )
         )
 
         return self._filter_category(items, category)
@@ -949,7 +956,9 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
 
         return StorageInfo(
             total_size_bytes=self.parse_variable_value(total_size),
-            free_space_bytes=self.parse_variable_value(default_disk.get("free_space")) if default_disk else None,
+            free_space_bytes=(
+                self.parse_variable_value(default_disk.get("free_space")) if default_disk else None
+            ),
             extra={
                 "database": self._backend.config.database,
                 "data_path": default_disk.get("path") if default_disk else None,
@@ -979,9 +988,7 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
         view_counts: Dict[str, int] = {}
 
         try:
-            sql, params = self._render(
-                ClickHouseTableCountQuery(self._backend.dialect, db_names)
-            )
+            sql, params = self._render(ClickHouseTableCountQuery(self._backend.dialect, db_names))
             result = self._backend.execute(sql, params)
             if result and result.data:
                 for row in result.data:
@@ -1021,9 +1028,7 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
         if not user_rows:
             return users
 
-        grant_sql, grant_params = self._render(
-            ClickHouseGrantListQuery(self._backend.dialect)
-        )
+        grant_sql, grant_params = self._render(ClickHouseGrantListQuery(self._backend.dialect))
         grant_rows = self._rows(grant_sql, grant_params)
         grants_by_user: Dict[str, List[str]] = {}
         for row in grant_rows:
@@ -1032,9 +1037,7 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
             if name and access_type:
                 grants_by_user.setdefault(name, []).append(str(access_type))
 
-        role_sql, role_params = self._render(
-            ClickHouseRoleGrantListQuery(self._backend.dialect)
-        )
+        role_sql, role_params = self._render(ClickHouseRoleGrantListQuery(self._backend.dialect))
         role_rows = self._rows(role_sql, role_params)
         roles_by_user: Dict[str, List[str]] = {}
         for row in role_rows:
@@ -1116,7 +1119,9 @@ class ClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AbstractSt
         return processes
 
 
-class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, AsyncAbstractStatusIntrospector):
+class AsyncClickHouseStatusIntrospector(
+    ClickHouseStatusIntrospectorMixin, AsyncAbstractStatusIntrospector
+):
     """Asynchronous ClickHouse status introspector.
 
     Reads configuration from ``system.settings`` / ``system.server_settings``
@@ -1170,7 +1175,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
                 return str(next(iter(result.data[0].values())))
         except Exception:
             pass
-        version_tuple = getattr(self._backend, "_version", None)
+        version_tuple = vars(self._backend).get("_version", None)
         if not version_tuple:
             return ""
         return ".".join(str(v) for v in version_tuple)
@@ -1183,7 +1188,9 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         except Exception:
             return []
 
-    async def list_configuration(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
+    async def list_configuration(
+        self, category: Optional[StatusCategory] = None
+    ) -> List[StatusItem]:
         """List ClickHouse configuration parameters.
 
         ClickHouse splits its configuration in two, so both halves are read:
@@ -1207,9 +1214,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         )
 
         server_sql, server_params = self._render(
-            ClickHouseServerSettingsQuery(
-                dialect, [name for name, _ in CLICKHOUSE_SERVER_SETTINGS]
-            )
+            ClickHouseServerSettingsQuery(dialect, [name for name, _ in CLICKHOUSE_SERVER_SETTINGS])
         )
         server_rows = await self._rows(server_sql, server_params)
         items.extend(
@@ -1223,7 +1228,9 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
 
         return self._filter_category(items, category)
 
-    async def list_performance_metrics(self, category: Optional[StatusCategory] = None) -> List[StatusItem]:
+    async def list_performance_metrics(
+        self, category: Optional[StatusCategory] = None
+    ) -> List[StatusItem]:
         """List ClickHouse performance metrics.
 
         Three tables, because ClickHouse reports three different things:
@@ -1241,13 +1248,17 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
             ClickHouseMetricsQuery(dialect, [name for name, _ in CLICKHOUSE_GAUGE_METRICS])
         )
         gauge_rows = await self._rows(gauge_sql, gauge_params)
-        items.extend(self._build_gauge_items(gauge_rows, CLICKHOUSE_GAUGE_METRICS, "system.metrics"))
+        items.extend(
+            self._build_gauge_items(gauge_rows, CLICKHOUSE_GAUGE_METRICS, "system.metrics")
+        )
 
         event_sql, event_params = self._render(
             ClickHouseEventsQuery(dialect, [name for name, _ in CLICKHOUSE_COUNTER_EVENTS])
         )
         event_rows = await self._rows(event_sql, event_params)
-        items.extend(self._build_event_items(event_rows, CLICKHOUSE_COUNTER_EVENTS, "system.events"))
+        items.extend(
+            self._build_event_items(event_rows, CLICKHOUSE_COUNTER_EVENTS, "system.events")
+        )
 
         async_sql, async_params = self._render(
             ClickHouseAsynchronousMetricsQuery(
@@ -1256,7 +1267,9 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         )
         async_rows = await self._rows(async_sql, async_params)
         items.extend(
-            self._build_async_metric_items(async_rows, CLICKHOUSE_ASYNC_METRICS, "system.asynchronous_metrics")
+            self._build_async_metric_items(
+                async_rows, CLICKHOUSE_ASYNC_METRICS, "system.asynchronous_metrics"
+            )
         )
 
         return self._filter_category(items, category)
@@ -1328,7 +1341,9 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
 
         return StorageInfo(
             total_size_bytes=self.parse_variable_value(total_size),
-            free_space_bytes=self.parse_variable_value(default_disk.get("free_space")) if default_disk else None,
+            free_space_bytes=(
+                self.parse_variable_value(default_disk.get("free_space")) if default_disk else None
+            ),
             extra={
                 "database": self._backend.config.database,
                 "data_path": default_disk.get("path") if default_disk else None,
@@ -1352,9 +1367,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         view_counts: Dict[str, int] = {}
 
         try:
-            sql, params = self._render(
-                ClickHouseTableCountQuery(self._backend.dialect, db_names)
-            )
+            sql, params = self._render(ClickHouseTableCountQuery(self._backend.dialect, db_names))
             result = await self._backend.execute(sql, params)
             if result and result.data:
                 for row in result.data:
@@ -1394,9 +1407,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
         if not user_rows:
             return users
 
-        grant_sql, grant_params = self._render(
-            ClickHouseGrantListQuery(self._backend.dialect)
-        )
+        grant_sql, grant_params = self._render(ClickHouseGrantListQuery(self._backend.dialect))
         grant_rows = await self._rows(grant_sql, grant_params)
         grants_by_user: Dict[str, List[str]] = {}
         for row in grant_rows:
@@ -1405,9 +1416,7 @@ class AsyncClickHouseStatusIntrospector(ClickHouseStatusIntrospectorMixin, Async
             if name and access_type:
                 grants_by_user.setdefault(name, []).append(str(access_type))
 
-        role_sql, role_params = self._render(
-            ClickHouseRoleGrantListQuery(self._backend.dialect)
-        )
+        role_sql, role_params = self._render(ClickHouseRoleGrantListQuery(self._backend.dialect))
         role_rows = await self._rows(role_sql, role_params)
         roles_by_user: Dict[str, List[str]] = {}
         for row in role_rows:

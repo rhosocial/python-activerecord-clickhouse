@@ -38,11 +38,17 @@ not invent partitions or an engine for a server it could not reach.
 import os
 import sys
 import time
+from enum import Enum
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
 DEMO_TABLE = "introspection_partitions_demo"
+
+
+def _enum_value(value):
+    """Unwrap an enum member by declared type; leave a plain value alone."""
+    return value.value if isinstance(value, Enum) else value
 
 
 def build_config() -> ClickHouseConnectionConfig:
@@ -62,7 +68,10 @@ def connect(config: ClickHouseConnectionConfig) -> ClickHouseBackend:
     try:
         backend.connect()
     except Exception as error:  # noqa: BLE001 - any connection failure is the same answer here
-        print(f"Could not connect to ClickHouse at {config.host}:{config.port}: {error}", file=sys.stderr)
+        print(
+            f"Could not connect to ClickHouse at {config.host}:{config.port}: {error}",
+            file=sys.stderr,
+        )
         print("", file=sys.stderr)
         print("Start a server and set the environment variables the tests use:", file=sys.stderr)
         print("  CLICKHOUSE_HOST=127.0.0.1", file=sys.stderr)
@@ -82,8 +91,7 @@ def ensure_demo_table(backend: ClickHouseBackend) -> None:
     table is partitioned by month: one partition per month makes the grouped
     read visible.
     """
-    backend.execute(
-        f"""
+    backend.execute(f"""
         CREATE TABLE IF NOT EXISTS {DEMO_TABLE} (
             id UInt32,
             event_date Date,
@@ -91,20 +99,19 @@ def ensure_demo_table(backend: ClickHouseBackend) -> None:
         ) ENGINE = MergeTree()
         PARTITION BY toYYYYMM(event_date)
         ORDER BY id
-        """
-    )
+        """)
     row = backend.execute(f"SELECT count() AS row_count FROM {DEMO_TABLE}").data[0]
     if row["row_count"]:
-        print(f"Table {DEMO_TABLE} already holds {row['row_count']} rows; leaving them as they are.")
+        print(
+            f"Table {DEMO_TABLE} already holds {row['row_count']} rows; leaving them as they are."
+        )
         return
-    backend.execute(
-        f"""
+    backend.execute(f"""
         INSERT INTO {DEMO_TABLE} (id, event_date, label) VALUES
             (1, toDate('2026-01-05'), 'alpha'),
             (2, toDate('2026-01-19'), 'beta'),
             (3, toDate('2026-02-02'), 'gamma')
-        """
-    )
+        """)
     print(f"Created {DEMO_TABLE} and inserted 3 rows across two monthly partitions.")
 
 
@@ -134,7 +141,7 @@ def timed(read):
 
 def print_state(state) -> None:
     print("")
-    print(f"  scheme        : {getattr(state.scheme, 'value', state.scheme)}")
+    print(f"  scheme        : {_enum_value(state.scheme)}")
     print(f"  key_expression: {state.key_expression!r}")
     print(f"  {'partition_id':<14} {'upper':<12} {'rows':>6} {'bytes':>10}")
     for bound in state.bounds:
@@ -171,9 +178,7 @@ def main() -> None:
         introspector.clear_cache()
         cold_start = counter.questions
         state, state_cold_seconds = timed(
-            lambda: introspector.get_partition_state(
-                DEMO_TABLE, include_stats=True
-            )
+            lambda: introspector.get_partition_state(DEMO_TABLE, include_stats=True)
         )
         engine, engine_cold_seconds = timed(lambda: introspector.get_table_engine(DEMO_TABLE))
         cold_questions = counter.questions - cold_start
@@ -188,9 +193,7 @@ def main() -> None:
         # --- warm: same two calls, answered from the cache ---
         warm_start = counter.questions
         warm_state, state_warm_seconds = timed(
-            lambda: introspector.get_partition_state(
-                DEMO_TABLE, include_stats=True
-            )
+            lambda: introspector.get_partition_state(DEMO_TABLE, include_stats=True)
         )
         warm_engine, engine_warm_seconds = timed(lambda: introspector.get_table_engine(DEMO_TABLE))
         warm_questions = counter.questions - warm_start
@@ -205,14 +208,18 @@ def main() -> None:
             f"  cold : {cold_questions} question(s) to the server, "
             f"{state_cold_seconds + engine_cold_seconds:.4f}s total"
         )
-        print(f"         get_partition_state {state_cold_seconds:.4f}s, "
-              f"get_table_engine {engine_cold_seconds:.4f}s")
+        print(
+            f"         get_partition_state {state_cold_seconds:.4f}s, "
+            f"get_table_engine {engine_cold_seconds:.4f}s"
+        )
         print(
             f"  warm : {warm_questions} question(s) to the server, "
             f"{state_warm_seconds + engine_warm_seconds:.4f}s total"
         )
-        print(f"         get_partition_state {state_warm_seconds:.4f}s, "
-              f"get_table_engine {engine_warm_seconds:.4f}s")
+        print(
+            f"         get_partition_state {state_warm_seconds:.4f}s, "
+            f"get_table_engine {engine_warm_seconds:.4f}s"
+        )
         print("")
         print("The warm reads send nothing because each answer was cached under")
         print("IntrospectionScope.TABLE with extra='partition-state:1' / extra='engine'.")

@@ -11,48 +11,48 @@ import json
 from typing import Any, Dict, List, Tuple
 
 from rhosocial.activerecord.backend.dialect import capabilities as _cap
-from rhosocial.activerecord.logging.defaults import get_logger
-
 from rhosocial.activerecord.backend.dialect.protocols import (
-    WindowFunctionSupport,
-    CTESupport,
-    FilterClauseSupport,
-    ReturningSupport,
-    UpsertSupport,
-    LateralJoinSupport,
-    JoinSupport,
-    JSONSupport,
-    ExplainSupport,
-    GraphSupport,
-    SetOperationSupport,
-    ViewObjectSupport,
-    TableObjectSupport,
-    TruncateSupport,
-    GeneratedColumnSupport,
-    TriggerObjectSupport,
-    RoutineObjectSupport,
     AdvancedGroupingSupport,
     ArraySupport,
+    CTESupport,
+    ExplainSupport,
+    FilterClauseSupport,
+    GeneratedColumnSupport,
+    GraphSupport,
     ILIKESupport,
     IndexObjectSupport,
+    JoinSupport,
+    JSONSupport,
+    LateralJoinSupport,
     LockingSupport,
     MergeSupport,
+    NamespaceSupport,
     OrderedSetAggregationSupport,
     QualifyClauseSupport,
-    NamespaceSupport,
+    ReturningSupport,
+    RoutineObjectSupport,
     SequenceObjectSupport,
+    SetOperationSupport,
+    TableObjectSupport,
     TemporalTableSupport,
+    TriggerObjectSupport,
+    TruncateSupport,
+    UpsertSupport,
+    ViewObjectSupport,
+    WindowFunctionSupport,
 )
+from rhosocial.activerecord.logging.defaults import get_logger
+
 from rhosocial.activerecord.backend.impl.clickhouse.protocols import (
-    ClickHouseTriggerSupport,
-    ClickHouseTableSupport,
-    ClickHouseSetTypeSupport,
     ClickHouseJSONFunctionSupport,
+    ClickHouseSetTypeSupport,
     ClickHouseSpatialSupport,
+    ClickHouseTableSupport,
+    ClickHouseTriggerSupport,
 )
 
 from .connection import add_connection_args, add_version_arg, resolve_connection_config_from_args
-from .output import INFO_OUTPUT_CHOICES, create_provider, RICH_AVAILABLE
+from .output import INFO_OUTPUT_CHOICES, RICH_AVAILABLE, create_provider
 
 logger = get_logger(__name__)
 
@@ -166,7 +166,7 @@ def handle(args):
     version_display = None
     server_variables: Dict[str, Any] = {}
 
-    named_conn = getattr(args, "named_connection", None)
+    named_conn = vars(args).get("named_connection", None)
     if named_conn or args.database:
         try:
             from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
@@ -289,12 +289,18 @@ def check_protocol_support(dialect, protocol_class: type) -> Dict[str, Any]:
     results = {}
     methods = get_protocol_support_methods(protocol_class)
     for method_name in methods:
-        if hasattr(dialect, method_name):
+        declared = next(
+            (vars(cls)[method_name] for cls in type(dialect).__mro__ if method_name in vars(cls)),
+            None,
+        )
+        if declared is not None:
             try:
-                method = getattr(dialect, method_name)
+                method = declared.__get__(dialect, type(dialect))
                 # Check if method requires arguments (beyond self)
                 sig = inspect.signature(method)
-                params = [p for p in sig.parameters.values() if p.default == inspect.Parameter.empty]
+                params = [
+                    p for p in sig.parameters.values() if p.default == inspect.Parameter.empty
+                ]
                 required_params = [p for p in params if p.name != "self"]
 
                 if len(required_params) == 0:
@@ -331,9 +337,9 @@ def _build_server_variables(backend) -> Dict[str, Any]:
         items = backend.introspector.status.list_configuration(StatusCategory.CONFIGURATION)
         if isinstance(items, (list, tuple)):
             for item in items:
-                name = getattr(item, "name", None)
+                name = vars(item).get("name", None)
                 if name is not None:
-                    variables[str(name)] = getattr(item, "value", None)
+                    variables[str(name)] = vars(item).get("value", None)
     except Exception:
         pass
     return variables
@@ -363,7 +369,9 @@ def _calculate_protocol_stats(support_methods: Dict[str, Any]) -> Tuple[int, int
     return supported_count, total_count
 
 
-def _build_protocol_info(dialect, group_name: str, protocols: List[type], verbose: int) -> Dict[str, Dict[str, Any]]:
+def _build_protocol_info(
+    dialect, group_name: str, protocols: List[type], verbose: int
+) -> Dict[str, Dict[str, Any]]:
     """Build protocol support information for a single group.
 
     Args:
@@ -413,7 +421,12 @@ def _get_status_style(pct: float) -> Tuple[str, str]:
 
 def _format_method_display(method: str) -> str:
     """Format method name for display."""
-    return method.replace("supports_", "").replace("_", " ").replace("is_", "").replace("_available", "")
+    return (
+        method.replace("supports_", "")
+        .replace("_", " ")
+        .replace("is_", "")
+        .replace("_available", "")
+    )
 
 
 def _display_method_details(console: Any, method: str, value: Any) -> None:
@@ -430,7 +443,9 @@ def _display_method_details(console: Any, method: str, value: Any) -> None:
         console.print(f"        {m_status} {method_display}")
 
 
-def _display_protocol_item(console: Any, protocol_name: str, stats: Dict[str, Any], verbose: int) -> None:
+def _display_protocol_item(
+    console: Any, protocol_name: str, stats: Dict[str, Any], verbose: int
+) -> None:
     """Display a single protocol's support information."""
     pct = stats["percentage"]
     color, symbol = _get_status_style(pct)
@@ -453,10 +468,14 @@ def _display_protocol_item(console: Any, protocol_name: str, stats: Dict[str, An
             _display_method_details(console, method, value)
 
 
-def _display_protocol_group(console: Any, group_name: str, protocols: Dict[str, Any], verbose: int) -> None:
+def _display_protocol_group(
+    console: Any, group_name: str, protocols: Dict[str, Any], verbose: int
+) -> None:
     """Display a protocol group's support information."""
     if group_name in DIALECT_SPECIFIC_GROUPS:
-        console.print(f"\n  [bold underline]{group_name}:[/bold underline] [dim](dialect-specific)[/dim]")
+        console.print(
+            f"\n  [bold underline]{group_name}:[/bold underline] [dim](dialect-specific)[/dim]"
+        )
     else:
         console.print(f"\n  [bold underline]{group_name}:[/bold underline]")
 
@@ -473,7 +492,9 @@ def _display_info_rich(info: Dict, verbose: int, version_display: str, is_connec
     console.print("\n[bold cyan]ClickHouse Environment Information[/bold cyan]\n")
 
     if is_connected:
-        console.print(f"[bold]ClickHouse Version:[/bold] {version_display} [dim](from actual connection)[/dim]\n")
+        console.print(
+            f"[bold]ClickHouse Version:[/bold] {version_display} [dim](from actual connection)[/dim]\n"
+        )
     else:
         console.print(
             f"[bold]ClickHouse Version:[/bold] {version_display} "

@@ -38,31 +38,31 @@ rendering has to respect that rather than MySQL's shape:
   FIELDS``), so ``full=True`` cannot be rendered and is not rendered.
 """
 
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
     from ..expression.show import (
-        ShowCreateTableStatement,
-        ShowCreateViewStatement,
-        ShowColumnsStatement,
-        ShowIndexStatement,
-        ShowTablesStatement,
-        ShowDatabasesStatement,
-        ShowTableStatusStatement,
-        ShowTriggersStatement,
-        ShowCreateTriggerStatement,
-        ShowVariablesStatement,
-        ShowStatusStatement,
-        ShowProcessListStatement,
-        ShowWarningsStatement,
-        ShowErrorsStatement,
-        ShowEnginesStatement,
-        ShowCharsetStatement,
-        ShowCollationStatement,
-        ShowGrantsStatement,
-        ShowPluginsStatement,
+        ClickHouseShowCharsetStatement,
+        ClickHouseShowCollationStatement,
+        ClickHouseShowColumnsStatement,
+        ClickHouseShowCreateTableStatement,
+        ClickHouseShowCreateTriggerStatement,
+        ClickHouseShowCreateViewStatement,
+        ClickHouseShowDatabasesStatement,
+        ClickHouseShowEnginesStatement,
+        ClickHouseShowErrorsStatement,
+        ClickHouseShowGrantsStatement,
+        ClickHouseShowIndexStatement,
+        ClickHouseShowPluginsStatement,
+        ClickHouseShowProcessListStatement,
+        ClickHouseShowStatusStatement,
+        ClickHouseShowTablesStatement,
+        ClickHouseShowTableStatusStatement,
+        ClickHouseShowTriggersStatement,
+        ClickHouseShowVariablesStatement,
+        ClickHouseShowWarningsStatement,
     )
 
 
@@ -95,7 +95,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW CREATE Statements ==========
 
-    def format_show_create_table_statement(self, expr: "ShowCreateTableStatement") -> Tuple[str, tuple]:
+    def format_show_create_table_statement(
+        self, expr: "ClickHouseShowCreateTableStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW CREATE TABLE statement.
 
         The name goes through ``format_table_object``, so the ``schema`` slot
@@ -107,14 +109,18 @@ class ClickHouseShowDialectMixin:
         table = Table(self, expr.table, catalog_name=expr.schema).to_sql()[0]
         return f"SHOW CREATE TABLE {table}", ()
 
-    def format_show_create_view_statement(self, expr: "ShowCreateViewStatement") -> Tuple[str, tuple]:
+    def format_show_create_view_statement(
+        self, expr: "ClickHouseShowCreateViewStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW CREATE VIEW statement."""
         from rhosocial.activerecord.backend.expression.objects import View
 
         view = View(self, expr.view_name, catalog_name=expr.schema).to_sql()[0]
         return f"SHOW CREATE VIEW {view}", ()
 
-    def format_show_create_trigger_statement(self, expr: "ShowCreateTriggerStatement") -> Tuple[str, tuple]:
+    def format_show_create_trigger_statement(
+        self, expr: "ClickHouseShowCreateTriggerStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW CREATE TRIGGER statement.
 
         Note:
@@ -128,7 +134,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW COLUMNS/INDEX ==========
 
-    def format_show_columns_statement(self, expr: "ShowColumnsStatement") -> Tuple[str, tuple]:
+    def format_show_columns_statement(
+        self, expr: "ClickHouseShowColumnsStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW [FULL] COLUMNS FROM <table> [LIKE <pattern>].
 
         ClickHouse has this statement and answers it with lower-cased column
@@ -154,7 +162,9 @@ class ClickHouseShowDialectMixin:
 
         return " ".join(parts), sql_params
 
-    def format_show_index_statement(self, expr: "ShowIndexStatement") -> Tuple[str, tuple]:
+    def format_show_index_statement(
+        self, expr: "ClickHouseShowIndexStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW INDEX FROM <table>.
 
         ClickHouse has this statement, explicitly "for compatibility with MySQL",
@@ -167,7 +177,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW TABLES/DATABASES ==========
 
-    def format_show_tables_statement(self, expr: "ShowTablesStatement") -> Tuple[str, tuple]:
+    def format_show_tables_statement(
+        self, expr: "ClickHouseShowTablesStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW [FULL] TABLES statement."""
         parts = ["SHOW"]
         if expr.full:
@@ -183,13 +195,17 @@ class ClickHouseShowDialectMixin:
 
         return " ".join(parts), sql_params
 
-    def format_show_databases_statement(self, expr: "ShowDatabasesStatement") -> Tuple[str, tuple]:
+    def format_show_databases_statement(
+        self, expr: "ClickHouseShowDatabasesStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW DATABASES statement."""
         if expr.like_pattern:
             return f"SHOW DATABASES LIKE {self.p()}", (expr.like_pattern,)
         return "SHOW DATABASES", ()
 
-    def format_show_table_status_statement(self, expr: "ShowTableStatusStatement") -> Tuple[str, tuple]:
+    def format_show_table_status_statement(
+        self, expr: "ClickHouseShowTableStatusStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW TABLE STATUS statement.
 
         Note:
@@ -203,7 +219,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW TRIGGERS ==========
 
-    def format_show_triggers_statement(self, expr: "ShowTriggersStatement") -> Tuple[str, tuple]:
+    def format_show_triggers_statement(
+        self, expr: "ClickHouseShowTriggersStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW TRIGGERS statement.
 
         Note:
@@ -217,7 +235,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW VARIABLES/STATUS ==========
 
-    def format_show_variables_statement(self, expr: "ShowVariablesStatement") -> Tuple[str, tuple]:
+    def format_show_variables_statement(
+        self, expr: "ClickHouseShowVariablesStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW VARIABLES statement.
 
         Note:
@@ -229,7 +249,9 @@ class ClickHouseShowDialectMixin:
             suggestion="Query system.settings instead.",
         )
 
-    def format_show_status_statement(self, expr: "ShowStatusStatement") -> Tuple[str, tuple]:
+    def format_show_status_statement(
+        self, expr: "ClickHouseShowStatusStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW STATUS statement.
 
         Note:
@@ -243,7 +265,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW PROCESSLIST/WARNINGS/ERRORS ==========
 
-    def format_show_process_list_statement(self, expr: "ShowProcessListStatement") -> Tuple[str, tuple]:
+    def format_show_process_list_statement(
+        self, expr: "ClickHouseShowProcessListStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW PROCESSLIST.
 
         ClickHouse's ``SHOW PROCESSLIST`` is ``SELECT * FROM system.processes``:
@@ -258,7 +282,9 @@ class ClickHouseShowDialectMixin:
         """
         return "SHOW PROCESSLIST", ()
 
-    def format_show_warnings_statement(self, expr: "ShowWarningsStatement") -> Tuple[str, tuple]:
+    def format_show_warnings_statement(
+        self, expr: "ClickHouseShowWarningsStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW WARNINGS statement.
 
         Note:
@@ -270,7 +296,9 @@ class ClickHouseShowDialectMixin:
             suggestion="Query system.query_log or system.text_log instead.",
         )
 
-    def format_show_errors_statement(self, expr: "ShowErrorsStatement") -> Tuple[str, tuple]:
+    def format_show_errors_statement(
+        self, expr: "ClickHouseShowErrorsStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW ERRORS statement.
 
         Note:
@@ -284,7 +312,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW ENGINES/CHARSET/COLLATION ==========
 
-    def format_show_engines_statement(self, expr: "ShowEnginesStatement") -> Tuple[str, tuple]:
+    def format_show_engines_statement(
+        self, expr: "ClickHouseShowEnginesStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW ENGINES.
 
         ClickHouse's ``SHOW ENGINES`` is ``SELECT * FROM system.table_engines``.
@@ -299,7 +329,9 @@ class ClickHouseShowDialectMixin:
         """
         return "SHOW ENGINES", ()
 
-    def format_show_charset_statement(self, expr: "ShowCharsetStatement") -> Tuple[str, tuple]:
+    def format_show_charset_statement(
+        self, expr: "ClickHouseShowCharsetStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW CHARACTER SET statement.
 
         Note:
@@ -311,7 +343,9 @@ class ClickHouseShowDialectMixin:
             suggestion="ClickHouse does not support MySQL character sets; query system.character_sets instead.",
         )
 
-    def format_show_collation_statement(self, expr: "ShowCollationStatement") -> Tuple[str, tuple]:
+    def format_show_collation_statement(
+        self, expr: "ClickHouseShowCollationStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW COLLATION statement.
 
         Note:
@@ -325,7 +359,9 @@ class ClickHouseShowDialectMixin:
 
     # ========== SHOW GRANTS/PLUGINS ==========
 
-    def format_show_grants_statement(self, expr: "ShowGrantsStatement") -> Tuple[str, tuple]:
+    def format_show_grants_statement(
+        self, expr: "ClickHouseShowGrantsStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW GRANTS [FOR <user>].
 
         ClickHouse's grammar is ``SHOW GRANTS [FOR user1 [, user2 ...]] [WITH
@@ -342,7 +378,9 @@ class ClickHouseShowDialectMixin:
             return "SHOW GRANTS", ()
         return f"SHOW GRANTS FOR {self.format_identifier(expr.user)}", ()
 
-    def format_show_plugins_statement(self, expr: "ShowPluginsStatement") -> Tuple[str, tuple]:
+    def format_show_plugins_statement(
+        self, expr: "ClickHouseShowPluginsStatement"
+    ) -> Tuple[str, tuple]:
         """Format SHOW PLUGINS statement.
 
         Note:

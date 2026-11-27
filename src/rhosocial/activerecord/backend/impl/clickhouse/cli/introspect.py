@@ -188,9 +188,7 @@ _TYPE_OPTIONS = {
 
 #: Every option in ``_TYPE_OPTIONS``, by attribute, for the stray-flag check.
 _TYPE_OPTION_FLAGS = {
-    attribute: flag
-    for options in _TYPE_OPTIONS.values()
-    for attribute, flag, _required in options
+    attribute: flag for options in _TYPE_OPTIONS.values() for attribute, flag, _required in options
 }
 
 
@@ -205,10 +203,18 @@ def _require_capability(args, backend) -> None:
     switch = _TYPE_CAPABILITIES.get(args.type)
     if switch is None:
         return
-    dialect = getattr(backend, "dialect", None)
+    dialect = vars(backend).get("dialect")
+    if dialect is None:
+        dialect = vars(type(backend)).get("dialect")
     if dialect is None:
         return
-    supported = getattr(dialect, switch, None)
+    supported = vars(dialect).get(switch)
+    if supported is None:
+        declared = next(
+            (vars(cls)[switch] for cls in type(dialect).__mro__ if switch in vars(cls)),
+            None,
+        )
+        supported = declared.__get__(dialect, type(dialect)) if declared is not None else None
     if supported is None or supported():
         return
     print(
@@ -262,12 +268,11 @@ def _validate_options(args) -> None:
     missing = [
         flag
         for attribute, flag, required in options
-        if required and not getattr(args, attribute, None)
+        if required and not vars(args).get(attribute, None)
     ]
     if missing:
         print(
-            f"Error: {', '.join(missing)} is required for "
-            f"'{args.type}' introspection",
+            f"Error: {', '.join(missing)} is required for " f"'{args.type}' introspection",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -275,7 +280,7 @@ def _validate_options(args) -> None:
     for attribute, flag in _TYPE_OPTION_FLAGS.items():
         if attribute in accepted:
             continue
-        if getattr(args, attribute, None) not in (None, ""):
+        if vars(args).get(attribute, None) not in (None, ""):
             print(
                 f"Error: '{args.type}' introspection takes no {flag}",
                 file=sys.stderr,
@@ -292,7 +297,7 @@ def _value_sample_arguments(args) -> Dict[str, int]:
     number the signature already owns -- and a place no test could keep in
     step with it.
     """
-    limit = getattr(args, "limit", None)
+    limit = vars(args).get("limit", None)
     return {} if limit is None else {"limit": limit}
 
 
@@ -432,8 +437,7 @@ def create_parser(subparsers):
         type=int,
         default=None,
         help=(
-            "Maximum values to list for value-samples "
-            "(default: the introspector's own limit)."
+            "Maximum values to list for value-samples " "(default: the introspector's own limit)."
         ),
     )
     parser.add_argument(
@@ -452,7 +456,7 @@ def handle(args):
     _validate_name(args)
     _validate_options(args)
 
-    named_conn = getattr(args, "named_connection", None)
+    named_conn = vars(args).get("named_connection", None)
     if not named_conn and not args.database:
         print("Error: --database is required for introspection", file=sys.stderr)
         sys.exit(1)
@@ -488,7 +492,7 @@ def _serialize_for_output(obj: Any) -> Any:
     """Serialize object for JSON output, handling non-serializable types."""
     if obj is None:
         return None
-    if hasattr(obj, "model_dump"):
+    if callable(vars(type(obj)).get("model_dump")):
         try:
             result = obj.model_dump(mode="json")
             return _serialize_for_output(result)
@@ -559,9 +563,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             # own aggregate row. ``schema`` is ClickHouse's database -- the
             # only namespace level this engine has -- and ``None`` means the
             # connected one.
-            state = introspector.get_partition_state(
-                args.name, schema=None, include_stats=True
-            )
+            state = introspector.get_partition_state(args.name, schema=None, include_stats=True)
             if state is None:
                 print(f"Error: Table '{args.name}' not found", file=sys.stderr)
                 sys.exit(1)
@@ -653,9 +655,7 @@ def _handle_introspect_sync(args, backend: ClickHouseBackend, provider):
             # A name narrows the graph to the edges that object carries --
             # "what breaks if I drop this" -- rather than asking a different
             # family, so it is optional here the way a view's name is.
-            dependencies = introspector.list_object_dependencies(
-                object_name=args.name, schema=None
-            )
+            dependencies = introspector.list_object_dependencies(object_name=args.name, schema=None)
             data = _serialize_for_output(dependencies)
             title = f"Dependencies of {args.name}" if args.name else "Object Dependencies"
             provider.display_results(data, title=title)
@@ -870,9 +870,7 @@ async def _handle_introspect_async(args, backend: AsyncClickHouseBackend, provid
                 "(source='aggregate') -- exact, and paid for with a full scan per column.",
                 file=sys.stderr,
             )
-            profiles = await introspector.list_column_data_profiles(
-                args.name, schema=None
-            )
+            profiles = await introspector.list_column_data_profiles(args.name, schema=None)
             data = _serialize_for_output(profiles)
             provider.display_results(data, title=f"Column profiles of {args.name}")
 

@@ -1,7 +1,20 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/spatial.py
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.spatial import (
+        ClickHouseCreateSpatialIndexStatement,
+        ClickHouseSpatialLiteralExpression,
+        ClickHouseSTAsGeoJSONExpression,
+        ClickHouseSTAsTextExpression,
+        ClickHouseSTContainsExpression,
+        ClickHouseSTDistanceExpression,
+        ClickHouseSTGeomFromTextExpression,
+        ClickHouseSTGeomFromWKBExpression,
+        ClickHouseSTWithinExpression,
+    )
 
 
 class ClickHouseSpatialMixin:
@@ -34,57 +47,84 @@ class ClickHouseSpatialMixin:
     def supports_geometry_collection_type(self) -> bool:
         return False
 
-    def format_spatial_literal_expression(self, expr) -> Tuple[str, tuple]:
+    def format_spatial_literal_expression(
+        self, expr: "ClickHouseSpatialLiteralExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "spatial types",
+            self.name,
+            "spatial types",
             suggestion="ClickHouse has no spatial types; store WKT as String.",
         )
 
-    def format_st_geom_from_text_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_geom_from_text_expression(
+        self, expr: "ClickHouseSTGeomFromTextExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_GeomFromText",
+            self.name,
+            "ST_GeomFromText",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_geom_from_wkb_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_geom_from_wkb_expression(
+        self, expr: "ClickHouseSTGeomFromWKBExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_GeomFromWKB",
+            self.name,
+            "ST_GeomFromWKB",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_as_text_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_as_text_expression(
+        self, expr: "ClickHouseSTAsTextExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_AsText",
+            self.name,
+            "ST_AsText",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_as_geo_json_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_as_geo_json_expression(
+        self, expr: "ClickHouseSTAsGeoJSONExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_AsGeoJSON",
+            self.name,
+            "ST_AsGeoJSON",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_distance_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_distance_expression(
+        self, expr: "ClickHouseSTDistanceExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_Distance",
+            self.name,
+            "ST_Distance",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_within_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_within_expression(
+        self, expr: "ClickHouseSTWithinExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_Within",
+            self.name,
+            "ST_Within",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_st_contains_expression(self, expr) -> Tuple[str, tuple]:
+    def format_st_contains_expression(
+        self, expr: "ClickHouseSTContainsExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ST_Contains",
+            self.name,
+            "ST_Contains",
             suggestion="ClickHouse has no ST_* spatial function family.",
         )
 
-    def format_create_spatial_index_statement(self, expr) -> Tuple[str, tuple]:
+    def format_create_spatial_index_statement(
+        self, expr: "ClickHouseCreateSpatialIndexStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "SPATIAL indexes",
+            self.name,
+            "SPATIAL indexes",
             suggestion="ClickHouse has no SPATIAL indexes; use a skip index declared as "
             "INDEX name (col) TYPE <type> GRANULARITY n (e.g. minmax, set, bloom_filter, text).",
         )

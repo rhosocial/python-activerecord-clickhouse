@@ -16,10 +16,20 @@ so they are provided as backend-local support mixins:
 
 from __future__ import annotations
 
-from typing import Any, List, Tuple
+from typing import TYPE_CHECKING, Any, List, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.create_table_options import (
+        ClickHouseCreateTableOptions,
+    )
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.storage_option import (
+        ClickHouseEngineSpec,
+        ClickHouseSetting,
+        ClickHouseTableStorageOption,
+    )
 
 
 class ClickHouseTableEngineSupport:
@@ -70,7 +80,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
     orders them by :attr:`ClickHouseStorageOptionKind.rank` and joins them.
     """
 
-    def format_clickhouse_engine_spec(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_engine_spec(self, expr: "ClickHouseEngineSpec") -> Tuple[str, tuple]:
         """Render an engine name and its parameters.
 
         ``ENGINE = MergeTree`` has no parameters; ``ReplacingMergeTree(version)``
@@ -86,7 +96,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
             params.extend(parameter_params)
         return f"{expr.engine}({', '.join(rendered)})", tuple(params)
 
-    def format_clickhouse_setting(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_setting(self, expr: "ClickHouseSetting") -> Tuple[str, tuple]:
         """Render one ``name = value`` pair of a ``SETTINGS`` clause.
 
         A scalar goes through :meth:`format_literal`, so the caller's text is
@@ -98,7 +108,9 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
             return f"{expr.name} = {value_sql}", params
         return f"{expr.name} = {self.format_literal(value)}", ()
 
-    def format_clickhouse_table_storage_option(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_table_storage_option(
+        self, expr: "ClickHouseTableStorageOption"
+    ) -> Tuple[str, tuple]:
         """Render one ClickHouse table storage clause.
 
         The clause's spelling is decided here, not by the caller: the caller
@@ -138,7 +150,9 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
         body = rendered[0] if len(rendered) == 1 else f"({', '.join(rendered)})"
         return f"{option.keyword} {body}", tuple(params)
 
-    def format_clickhouse_create_table_options(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_create_table_options(
+        self, expr: "ClickHouseCreateTableOptions"
+    ) -> Tuple[str, tuple]:
         """Render the ClickHouse ``CREATE`` header qualifier.
 
         ClickHouse places ``OR REPLACE`` between ``CREATE`` and ``TABLE``, the
@@ -161,11 +175,13 @@ class ClickHouseQueryClauseMixin(ClickHouseTableEngineSupport):
     SELECT queries.
     """
 
-    def format_final_modifier(self) -> Tuple[str, tuple]:
+    def _refuse_final_modifier(self) -> Tuple[str, tuple]:
         """Return the FINAL modifier."""
         return "FINAL", ()
 
-    def build_array_join_clause(self, array_exprs: List[str], is_left: bool = False) -> Tuple[str, tuple]:
+    def build_array_join_clause(
+        self, array_exprs: List[str], is_left: bool = False
+    ) -> Tuple[str, tuple]:
         """Format an ARRAY JOIN clause.
 
         Args:

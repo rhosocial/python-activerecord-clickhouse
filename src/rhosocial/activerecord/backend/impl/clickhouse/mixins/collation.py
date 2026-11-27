@@ -29,4 +29,6 @@ class ClickHouseCollationMixin:
             validate_clickhouse_collation_name,
         )
 
-        return validate_clickhouse_collation_name(expr.collation_name, getattr(self, "version", None))
+        return validate_clickhouse_collation_name(
+            expr.collation_name, vars(self).get("version", None)
+        )

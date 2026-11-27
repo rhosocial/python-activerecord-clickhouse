@@ -1,11 +1,20 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/dml.py
-from typing import Any, List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements import InsertStatement
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.load_data import (
+        ClickHouseLoadDataStatement,
+    )
+
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.expression.statements import (
+        InsertStatement,
+        OnConflictClause,
+    )
 
 
 class ClickHouseDMLOperationMixin:
@@ -25,15 +34,17 @@ class ClickHouseDMLOperationMixin:
     def supports_load_data(self) -> bool:
         return False
 
-    def format_load_data_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_load_data_statement(self, expr: "ClickHouseLoadDataStatement") -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "LOAD DATA",
-            suggestion="ClickHouse does not support LOAD DATA INFILE; use INSERT or clickhouse-client --query."
+            self.name,
+            "LOAD DATA",
+            suggestion="ClickHouse does not support LOAD DATA INFILE; use INSERT or clickhouse-client --query.",
         )
 
-    def format_on_conflict_clause(self, expr: Any) -> Tuple[str, tuple]:
+    def format_on_conflict_clause(self, expr: "OnConflictClause") -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "ON DUPLICATE KEY UPDATE",
+            self.name,
+            "ON DUPLICATE KEY UPDATE",
             suggestion=(
                 "ClickHouse does not support ON DUPLICATE KEY UPDATE; "
                 "use INSERT with ReplacingMergeTree or other merge mechanisms."
@@ -55,8 +66,7 @@ class ClickHouseDMLOperationMixin:
         """
         if not isinstance(expr.into, Table):
             raise TypeError(
-                f"InsertStatement.into must be a Table, "
-                f"got {type(expr.into).__name__}"
+                f"InsertStatement.into must be a Table, " f"got {type(expr.into).__name__}"
             )
         if self.strict_validation:
             expr.validate(strict=True)
@@ -67,18 +77,17 @@ class ClickHouseDMLOperationMixin:
         # carries, so an INSERT OR REPLACE silently rendered as a plain INSERT).
         if expr.or_replace:
             raise UnsupportedFeatureError(
-                self.name, "REPLACE INTO",
-                suggestion="ClickHouse does not support REPLACE INTO."
+                self.name, "REPLACE INTO", suggestion="ClickHouse does not support REPLACE INTO."
             )
         if expr.or_ignore:
             raise UnsupportedFeatureError(
-                self.name, "INSERT IGNORE",
-                suggestion="ClickHouse does not support INSERT IGNORE."
+                self.name, "INSERT IGNORE", suggestion="ClickHouse does not support INSERT IGNORE."
             )
         if expr.on_conflict:
             raise UnsupportedFeatureError(
-                self.name, "ON CONFLICT / ON DUPLICATE KEY",
-                suggestion="ClickHouse does not support upsert conflict clauses."
+                self.name,
+                "ON CONFLICT / ON DUPLICATE KEY",
+                suggestion="ClickHouse does not support upsert conflict clauses.",
             )
 
         all_params: List[Any] = []

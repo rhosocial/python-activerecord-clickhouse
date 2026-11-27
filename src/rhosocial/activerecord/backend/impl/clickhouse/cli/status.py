@@ -9,12 +9,15 @@ from dataclasses import asdict, is_dataclass
 from enum import Enum
 from typing import Any
 
-from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
+    AsyncClickHouseBackend,
+)
+
 from .connection import add_connection_args, resolve_connection_config_from_args
-from .output import OUTPUT_CHOICES, create_provider, RICH_AVAILABLE
+from .output import OUTPUT_CHOICES, RICH_AVAILABLE, create_provider
 
 STATUS_TYPES = ["all", "config", "performance", "connections", "storage", "databases", "users"]
 
@@ -91,7 +94,7 @@ def handle(args):
     """Handle the status subcommand."""
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
 
-    named_conn = getattr(args, "named_connection", None)
+    named_conn = vars(args).get("named_connection", None)
     if not named_conn and not args.database:
         print("Error: --database is required for status", file=sys.stderr)
         sys.exit(1)
@@ -115,7 +118,7 @@ def _serialize_for_output(obj: Any) -> Any:
     """Serialize object for JSON output, handling non-serializable types."""
     if obj is None:
         return None
-    if hasattr(obj, "model_dump"):
+    if callable(vars(type(obj)).get("model_dump")):
         try:
             result = obj.model_dump(mode="json")
             return _serialize_for_output(result)
@@ -229,11 +232,15 @@ async def _handle_status_async(args, backend: AsyncClickHouseBackend, provider):
             else:
                 _display_status_rich(status, args.verbose)
         elif status_type == "config":
-            config_items = await status_introspector.list_configuration(StatusCategory.CONFIGURATION)
+            config_items = await status_introspector.list_configuration(
+                StatusCategory.CONFIGURATION
+            )
             data = _serialize_for_output(config_items)
             provider.display_results(data, title="Configuration")
         elif status_type == "performance":
-            perf_items = await status_introspector.list_performance_metrics(StatusCategory.PERFORMANCE)
+            perf_items = await status_introspector.list_performance_metrics(
+                StatusCategory.PERFORMANCE
+            )
             data = _serialize_for_output(perf_items)
             provider.display_results(data, title="Performance")
         elif status_type == "connections":
@@ -269,9 +276,9 @@ async def _handle_status_async(args, backend: AsyncClickHouseBackend, provider):
 
 def _display_status_rich(status, verbose: int = 0):
     """Display status using rich console."""
+    from rhosocial.activerecord.backend.introspection.status import StatusCategory
     from rich.console import Console
     from rich.table import Table
-    from rhosocial.activerecord.backend.introspection.status import StatusCategory
 
     console = Console(force_terminal=True)
 
@@ -281,7 +288,7 @@ def _display_status_rich(status, verbose: int = 0):
     console.print(f"[bold]Vendor:[/bold] {status.server_vendor}")
 
     # Session info
-    if hasattr(status, "session") and status.session:
+    if "session" in vars(status) and status.session:
         session = status.session
         console.print()
         console.print("[bold green]Session[/bold green]")
@@ -303,7 +310,7 @@ def _display_status_rich(status, verbose: int = 0):
             console.print(f"  [bold]Auth Method:[/bold] {auth_method}")
 
     # Connection info
-    if hasattr(status, "connections") and status.connections:
+    if "connections" in vars(status) and status.connections:
         conn = status.connections
         if conn.active_count is not None:
             console.print(f"[bold]Active Connections:[/bold] {conn.active_count}")
@@ -313,7 +320,9 @@ def _display_status_rich(status, verbose: int = 0):
     console.print()
 
     # Configuration section
-    config_items = [item for item in status.configuration if item.category == StatusCategory.CONFIGURATION]
+    config_items = [
+        item for item in status.configuration if item.category == StatusCategory.CONFIGURATION
+    ]
     if config_items:
         console.print("[bold green]Configuration[/bold green]")
         config_table = Table(show_header=True, header_style="bold")
@@ -335,7 +344,9 @@ def _display_status_rich(status, verbose: int = 0):
     # Performance section. ServerOverview keeps performance metrics in
     # `performance`; reading `configuration` here would print the setting list a
     # second time under the wrong heading.
-    perf_items = [item for item in status.performance if item.category == StatusCategory.PERFORMANCE]
+    perf_items = [
+        item for item in status.performance if item.category == StatusCategory.PERFORMANCE
+    ]
     if perf_items:
         console.print("[bold green]Performance[/bold green]")
         perf_table = Table(show_header=True, header_style="bold")

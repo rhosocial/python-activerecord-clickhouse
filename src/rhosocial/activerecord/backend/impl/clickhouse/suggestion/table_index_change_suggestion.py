@@ -30,11 +30,11 @@ from ....dialect.exceptions import UnsupportedFeatureError
 from ....expression.bases import BaseExpression
 from ....expression.core import Column
 from ....expression.statements.ddl_table import IndexDefinition
+from ....suggestion.definitions import TableIndexChangeSuggestion
 from ..expression.index import (
     ClickHouseAddIndexStatement,
     ClickHouseDropIndexStatement,
 )
-from ....suggestion.definitions import TableIndexChangeSuggestion
 
 __all__ = ["ClickHouseTableIndexChangeSuggestionMixin"]
 
@@ -214,7 +214,7 @@ class ClickHouseTableIndexChangeSuggestionMixin:
         index_type = declaration.type
         if not isinstance(index_type, str) or not index_type.strip():
             return None
-        granularity = getattr(declaration, "granularity", None)
+        granularity = vars(declaration).get("granularity", None)
         if_not_exists = bool(declaration.if_not_exists)
         if if_not_exists and not self.supports_index_if_not_exists():  # type: ignore[attr-defined]
             return None

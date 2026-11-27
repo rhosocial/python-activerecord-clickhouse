@@ -1,7 +1,12 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/fulltext.py
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.match_against import (
+        ClickHouseMatchAgainstExpression,
+    )
 
 
 class ClickHouseFullTextSearchMixin:
@@ -26,9 +31,12 @@ class ClickHouseFullTextSearchMixin:
     def supports_fulltext_query_expansion(self) -> bool:
         return False
 
-    def format_match_against_expression(self, expr) -> Tuple[str, tuple]:
+    def format_match_against_expression(
+        self, expr: "ClickHouseMatchAgainstExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "MATCH ... AGAINST",
+            self.name,
+            "MATCH ... AGAINST",
             suggestion="ClickHouse does not support MATCH ... AGAINST; use a text inverted index "
             "with hasAllTokens / hasAnyTokens, or LIKE.",
         )

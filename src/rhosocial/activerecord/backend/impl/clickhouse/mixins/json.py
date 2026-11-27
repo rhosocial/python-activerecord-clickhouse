@@ -1,8 +1,26 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/json.py
-from typing import Union, Any, List, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.json import (
+        ClickHouseJSONArrayExpression,
+        ClickHouseJSONContainsExpression,
+        ClickHouseJSONExtractExpression,
+        ClickHouseJSONObjectExpression,
+        ClickHouseJSONRemoveExpression,
+        ClickHouseJSONSearchExpression,
+        ClickHouseJSONSetExpression,
+        ClickHouseJSONTypeExpression,
+        ClickHouseJSONUnquoteExpression,
+        ClickHouseJSONValidExpression,
+    )
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
+        ClickHouseJSONTableExpression,
+    )
+
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.advanced_functions import (
@@ -16,6 +34,32 @@ if TYPE_CHECKING:
     #: path chain can keep going after ``->>``; that inheritance is about
     #: accessors, not about ``->>`` yielding a document.
     JSONPathNode = Union[JSONDocumentValue, JSONTextValue]
+
+
+def _simple_json_path_parts(path: str) -> Optional[List[str]]:
+    """Keys of a simple ``$.a.b`` path, or ``None`` for a complex path.
+
+    A path is simple when it starts with ``$`` and names only dotted keys;
+    array indexing, wildcards, filters and braces need ``JSON_VALUE`` instead.
+    The decision and the split are one character scan, not SQL-text rewriting.
+    """
+    if not path or path[0] != "$":
+        return None
+    for char in path:
+        if char in "{[*(":
+            return None
+    parts: List[str] = []
+    current: List[str] = []
+    for char in path:
+        if char == ".":
+            if current:
+                parts.append("".join(current))
+                current = []
+        elif char != "$":
+            current.append(char)
+    if current:
+        parts.append("".join(current))
+    return parts
 
 
 class ClickHouseJSONFunctionMixin:
@@ -52,25 +96,17 @@ class ClickHouseJSONFunctionMixin:
             col_sql, col_params = self.format_identifier(str(expr.column)), ()
 
         escaped_path = self.escape_sql_string(expr.path)
-        is_simple = (
-            expr.path.startswith("$")
-            and "{" not in expr.path
-            and "[" not in expr.path
-            and "*" not in expr.path
-            and "(" not in expr.path
-        )
+        simple_parts = _simple_json_path_parts(expr.path)
 
         if expr.operation == "->":
-            if is_simple:
-                parts = [p for p in expr.path.lstrip("$.").split(".") if p]
-                args = "".join(f", '{self.escape_sql_string(p)}'" for p in parts)
+            if simple_parts is not None:
+                args = "".join(f", '{self.escape_sql_string(p)}'" for p in simple_parts)
                 sql = f"JSONExtractRaw({col_sql}{args})"
             else:
                 sql = f"JSON_VALUE({col_sql}, '{escaped_path}')"
         elif expr.operation == "->>":
-            if is_simple:
-                parts = [p for p in expr.path.lstrip("$.").split(".") if p]
-                args = "".join(f", '{self.escape_sql_string(p)}'" for p in parts)
+            if simple_parts is not None:
+                args = "".join(f", '{self.escape_sql_string(p)}'" for p in simple_parts)
                 sql = f"JSONExtractString({col_sql}{args})"
             else:
                 sql = f"JSON_VALUE({col_sql}, '{escaped_path}')"
@@ -84,7 +120,9 @@ class ClickHouseJSONFunctionMixin:
 
         return sql, params
 
-    def format_json_extract_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_extract_expression(
+        self, expr: "ClickHouseJSONExtractExpression"
+    ) -> Tuple[str, tuple]:
         """Format JSONExtract function."""
         all_paths = [expr.path]
         if expr.paths:
@@ -96,13 +134,17 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(all_paths)
 
-    def format_json_unquote_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_unquote_expression(
+        self, expr: "ClickHouseJSONUnquoteExpression"
+    ) -> Tuple[str, tuple]:
         sql = f"JSONExtractString({expr.json_val})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_json_object_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_object_expression(
+        self, expr: "ClickHouseJSONObjectExpression"
+    ) -> Tuple[str, tuple]:
         """Format map function (ClickHouse equivalent of JSON_OBJECT)."""
         pairs = expr.pairs
         if not pairs:
@@ -126,7 +168,9 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(params)
 
-    def format_json_array_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_array_expression(
+        self, expr: "ClickHouseJSONArrayExpression"
+    ) -> Tuple[str, tuple]:
         """Format ClickHouse array literal (equivalent to JSON_ARRAY)."""
         values = expr.values
         if not values:
@@ -138,7 +182,9 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(values)
 
-    def format_json_contains_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_contains_expression(
+        self, expr: "ClickHouseJSONContainsExpression"
+    ) -> Tuple[str, tuple]:
         """Format JSON_CONTAINS approximation for ClickHouse.
 
         ClickHouse has no direct JSON_CONTAINS equivalent. This uses
@@ -157,7 +203,7 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    def format_json_set_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_set_expression(self, expr: "ClickHouseJSONSetExpression") -> Tuple[str, tuple]:
         """Format JSON_SET approximation for ClickHouse.
 
         ClickHouse has no direct JSON_SET equivalent. This uses mapUpdate
@@ -183,7 +229,9 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(params)
 
-    def format_json_remove_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_remove_expression(
+        self, expr: "ClickHouseJSONRemoveExpression"
+    ) -> Tuple[str, tuple]:
         """Format JSON_REMOVE approximation for ClickHouse.
 
         ClickHouse has no direct JSON_REMOVE equivalent. This uses mapRemove
@@ -199,19 +247,25 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, tuple(all_paths)
 
-    def format_json_type_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_type_expression(
+        self, expr: "ClickHouseJSONTypeExpression"
+    ) -> Tuple[str, tuple]:
         sql = f"JSONType({expr.json_val})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_json_valid_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_valid_expression(
+        self, expr: "ClickHouseJSONValidExpression"
+    ) -> Tuple[str, tuple]:
         sql = f"JSON_VALID({expr.json_val})"
         if expr.alias:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, ()
 
-    def format_json_search_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_search_expression(
+        self, expr: "ClickHouseJSONSearchExpression"
+    ) -> Tuple[str, tuple]:
         """Format JSON_SEARCH approximation for ClickHouse.
 
         ClickHouse has no direct JSON_SEARCH equivalent. This uses
@@ -230,7 +284,9 @@ class ClickHouseJSONFunctionMixin:
             sql = f"{sql} AS {self.format_identifier(expr.alias)}"
         return sql, params
 
-    def format_json_table_expression(self, expr) -> Tuple[str, tuple]:
+    def format_json_table_expression(
+        self, expr: "ClickHouseJSONTableExpression"
+    ) -> Tuple[str, tuple]:
         """JSON_TABLE is not supported by ClickHouse."""
         raise UnsupportedFeatureError(
             self.name,

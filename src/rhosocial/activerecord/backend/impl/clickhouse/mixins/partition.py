@@ -15,7 +15,8 @@ References (both fetched and HTTP-resolving):
 https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key
 https://clickhouse.com/docs/sql-reference/statements/alter/partition
 """
-from typing import NoReturn, Optional, Tuple, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, NoReturn, Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
@@ -264,7 +265,7 @@ class ClickHousePartitionMixin:
         """
         self._refuse_mysql_partition("declarative PARTITION BY <strategy>")
 
-    def format_partition_definition(self, expr) -> Tuple[str, tuple]:
+    def _refuse_partition_definition(self, expr) -> Tuple[str, tuple]:
         """Refuse an inline ``PARTITION ... VALUES ...`` definition.
 
         ClickHouse has no inline partition definitions: a partition is not
@@ -278,9 +279,9 @@ class ClickHousePartitionMixin:
 
         Core's PartitionDefinitionExpression dispatches to this name; ClickHouse
         has no inline partition definitions, so it refuses exactly as
-        ``format_partition_definition`` does.
+        ``_refuse_partition_definition`` does.
         """
-        return self.format_partition_definition(expr)
+        return self._refuse_partition_definition(expr)
 
     def _refuse_mysql_partition(self, feature: str) -> NoReturn:
         """Raise ``UnsupportedFeatureError`` naming ClickHouse's partitioning."""
@@ -314,13 +315,10 @@ class ClickHousePartitionMixin:
             )
         partition_id = expr.partition_id
         if not isinstance(partition_id, str) or not partition_id.strip():
-            raise UnsupportedFeatureError(
-                self.name, "DROP PARTITION", _PARTITION_ALTERNATIVES
-            )
+            raise UnsupportedFeatureError(self.name, "DROP PARTITION", _PARTITION_ALTERNATIVES)
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         return (
-            f"ALTER TABLE {table_sql} DROP "
-            f"{self._partition_expression(partition_id)}",
+            f"ALTER TABLE {table_sql} DROP " f"{self._partition_expression(partition_id)}",
             (),
         )
 
@@ -348,13 +346,10 @@ class ClickHousePartitionMixin:
             )
         partition_id = expr.partition_id
         if not isinstance(partition_id, str) or not partition_id.strip():
-            raise UnsupportedFeatureError(
-                self.name, "DETACH PARTITION", _PARTITION_ALTERNATIVES
-            )
+            raise UnsupportedFeatureError(self.name, "DETACH PARTITION", _PARTITION_ALTERNATIVES)
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         return (
-            f"ALTER TABLE {table_sql} DETACH "
-            f"{self._partition_expression(partition_id)}",
+            f"ALTER TABLE {table_sql} DETACH " f"{self._partition_expression(partition_id)}",
             (),
         )
 
@@ -382,13 +377,10 @@ class ClickHousePartitionMixin:
             )
         partition_id = expr.partition_id
         if not isinstance(partition_id, str) or not partition_id.strip():
-            raise UnsupportedFeatureError(
-                self.name, "ATTACH PARTITION", _PARTITION_ALTERNATIVES
-            )
+            raise UnsupportedFeatureError(self.name, "ATTACH PARTITION", _PARTITION_ALTERNATIVES)
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         return (
-            f"ALTER TABLE {table_sql} ATTACH "
-            f"{self._partition_expression(partition_id)}",
+            f"ALTER TABLE {table_sql} ATTACH " f"{self._partition_expression(partition_id)}",
             (),
         )
 
@@ -525,9 +517,7 @@ class ClickHousePartitionMixin:
         self._require_name(expr.table, "UNFREEZE PARTITION", detail)
         self._require_optional_name(expr.partition_id, "UNFREEZE PARTITION", detail)
         if expr.name is None or not isinstance(expr.name, str) or not expr.name.strip():
-            raise UnsupportedFeatureError(
-                self.name, "UNFREEZE PARTITION WITH NAME", detail
-            )
+            raise UnsupportedFeatureError(self.name, "UNFREEZE PARTITION WITH NAME", detail)
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         parts = [f"ALTER TABLE {table_sql} UNFREEZE"]
         if expr.partition_id is not None:
@@ -574,12 +564,8 @@ class ClickHousePartitionMixin:
             or not isinstance(expr.partition_id, str)
             or not expr.partition_id.strip()
         ):
-            raise UnsupportedFeatureError(
-                self.name, f"CLEAR {kind} IN PARTITION", detail
-            )
-        self._require_optional_name(
-            expr.partition_id, f"CLEAR {kind} IN PARTITION", detail
-        )
+            raise UnsupportedFeatureError(self.name, f"CLEAR {kind} IN PARTITION", detail)
+        self._require_optional_name(expr.partition_id, f"CLEAR {kind} IN PARTITION", detail)
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         parts = [
             f"ALTER TABLE {table_sql} CLEAR {kind}",
@@ -614,9 +600,7 @@ class ClickHousePartitionMixin:
         self._require_name(expr.table, "OPTIMIZE TABLE", detail)
         self._require_optional_name(expr.partition_id, "OPTIMIZE TABLE", detail)
         if not isinstance(expr.final, bool):
-            raise UnsupportedFeatureError(
-                self.name, "OPTIMIZE TABLE ... FINAL", detail
-            )
+            raise UnsupportedFeatureError(self.name, "OPTIMIZE TABLE ... FINAL", detail)
         table_sql = self._partition_table_sql(expr.table, expr.schema)
         parts = [f"OPTIMIZE TABLE {table_sql}"]
         if expr.partition_id is not None:
@@ -633,9 +617,7 @@ class ClickHousePartitionMixin:
         """Render a table name with the database in ClickHouse's catalog slot."""
         from rhosocial.activerecord.backend.expression.objects import Table
 
-        table_sql, _params = self.format_table_object(
-            Table(self, table, catalog_name=schema)
-        )
+        table_sql, _params = self.format_table_object(Table(self, table, catalog_name=schema))
         return table_sql
 
     def _partition_expression(self, partition_id: str) -> str:

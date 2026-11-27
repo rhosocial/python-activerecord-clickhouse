@@ -56,7 +56,7 @@ https://clickhouse.com/docs/sql-reference/statements/alter/partition
 https://clickhouse.com/docs/sql-reference/statements/optimize
 """
 
-from typing import List, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
@@ -200,9 +200,7 @@ class ClickHousePartitionMaintenance:
         self._require_table(table)
         if refresh:
             self._invalidate(table)
-        return self._backend.introspector._partition_entries(
-            table, database, include_stats=True
-        )
+        return self._backend.introspector._partition_entries(table, database, include_stats=True)
 
     def drop(
         self,
@@ -560,7 +558,8 @@ class ClickHousePartitionMaintenance:
             raise TypeError("partition_id must be a string")
         if not partition_id.strip():
             raise ValueError(f"{name} needs a partition_id from system.parts.partition_id")
-        return getattr(self, name)(table, partition_id, database=database)
+        handlers = {"drop": self.drop, "detach": self.detach, "attach": self.attach}
+        return handlers[name](table, partition_id, database=database)
 
     # ------------------------------------------------------------------ #
     # Internals

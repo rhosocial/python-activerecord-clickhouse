@@ -14,7 +14,8 @@ helper: clicking the shared renderer is what keeps the database a name carries
 from being dropped between the statement that wrote it and the statement that
 reads it back.
 """
-from typing import Any, Tuple, TYPE_CHECKING, Union
+
+from typing import TYPE_CHECKING, Any, Tuple, Union
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression.objects import MaterializedView, Table
@@ -25,6 +26,7 @@ if TYPE_CHECKING:  # pragma: no cover
         DropMaterializedViewStatement,
         RefreshMaterializedViewStatement,
     )
+
     from ..expression.materialized_view import (
         ClickHouseCreateMaterializedViewStatement,
         ClickHouseDropMaterializedViewStatement,
@@ -45,7 +47,6 @@ class ClickHouseMaterializedViewMixin:
         """ClickHouse supports incremental and refreshable materialized views."""
         return True
 
-
     def supports_materialized_view_bind_parameters(self) -> bool:
         """ClickHouse accepts bind parameters in a materialized view body.
 
@@ -54,6 +55,7 @@ class ClickHouseMaterializedViewMixin:
         client-side and the value is baked into the stored definition.
         """
         return True
+
     def supports_refresh_materialized_view(self) -> bool:
         """Refreshable MVs are refreshed through ``SYSTEM REFRESH VIEW``."""
         return True
@@ -85,9 +87,7 @@ class ClickHouseMaterializedViewMixin:
 
     def format_create_materialized_view_statement(
         self,
-        expr: Union[
-            "ClickHouseCreateMaterializedViewStatement", "CreateMaterializedViewStatement"
-        ],
+        expr: Union["ClickHouseCreateMaterializedViewStatement", "CreateMaterializedViewStatement"],
     ) -> Tuple[str, tuple]:
         """Format ``CREATE MATERIALIZED VIEW`` for both ClickHouse MV flavours.
 
@@ -135,8 +135,8 @@ class ClickHouseMaterializedViewMixin:
             # TO and ENGINE are not fields of the generic node; a caller that
             # carries them attaches them on the instance, and they are read
             # here exactly as the ClickHouse node's own fields are.
-            to_table = getattr(expr, "to_table", None)
-            engine = getattr(expr, "engine", None)
+            to_table = vars(expr).get("to_table", None)
+            engine = vars(expr).get("engine", None)
             if to_table is None and engine is None:
                 # Nothing anchors the view: ClickHouse requires a TO target
                 # table or an ENGINE, and the generic node provides neither.
@@ -157,14 +157,14 @@ class ClickHouseMaterializedViewMixin:
         # own node only, so a generic statement reaching the render below
         # carries none of them; ``getattr`` keeps one render path for both.
         parts = ["CREATE"]
-        if getattr(expr, "or_replace", False):
+        if vars(expr).get("or_replace", False):
             parts.append("OR REPLACE")
         parts.append("MATERIALIZED VIEW")
-        if getattr(expr, "if_not_exists", False):
+        if vars(expr).get("if_not_exists", False):
             parts.append("IF NOT EXISTS")
         parts.append(expr.view.to_sql()[0])
 
-        on_cluster = getattr(expr, "on_cluster", None)
+        on_cluster = vars(expr).get("on_cluster", None)
         if on_cluster:
             parts.append(f"ON CLUSTER {self.format_identifier(str(on_cluster))}")
 
@@ -172,7 +172,7 @@ class ClickHouseMaterializedViewMixin:
             # The target table carries its own database. Reusing the view's here
             # would aim the materialized view at another database's table.
             target = to_table.to_sql()[0]
-            to_columns = getattr(expr, "to_columns", None)
+            to_columns = vars(expr).get("to_columns", None)
             if to_columns:
                 target = f"{target} ({', '.join(str(c) for c in to_columns)})"
             parts.append(f"TO {target}")
@@ -180,23 +180,23 @@ class ClickHouseMaterializedViewMixin:
         if engine:
             parts.append(f"ENGINE = {engine}")
 
-        if getattr(expr, "populate", False):
+        if vars(expr).get("populate", False):
             parts.append("POPULATE")
 
-        refresh = getattr(expr, "refresh", None)
+        refresh = vars(expr).get("refresh", None)
         if refresh is not None:
             # The schedule is a node of its own; the dialect spells it through
             # its ``format_method``, the same dispatch every other clause goes
             # through.
             parts.append(refresh.to_sql()[0])
 
-        if getattr(expr, "empty", False):
+        if vars(expr).get("empty", False):
             parts.append("EMPTY")
 
         query_sql, query_params = self._materialized_view_query_sql(expr)
         parts.append(f"AS {query_sql}")
 
-        comment = getattr(expr, "comment", None)
+        comment = vars(expr).get("comment", None)
         if comment is not None:
             parts.append(f"COMMENT '{self.escape_sql_string(str(comment))}'")
 
@@ -204,9 +204,7 @@ class ClickHouseMaterializedViewMixin:
 
     def format_drop_materialized_view_statement(
         self,
-        expr: Union[
-            "ClickHouseDropMaterializedViewStatement", "DropMaterializedViewStatement"
-        ],
+        expr: Union["ClickHouseDropMaterializedViewStatement", "DropMaterializedViewStatement"],
     ) -> Tuple[str, tuple]:
         """Format ``DROP VIEW [IF EXISTS]`` — ClickHouse has no ``DROP MATERIALIZED VIEW``.
 
@@ -360,14 +358,10 @@ class ClickHouseMaterializedViewMixin:
         if schedule.randomize_for:
             parts.append(f"RANDOMIZE FOR {schedule.randomize_for}")
         if schedule.depends_on:
-            deps = ", ".join(
-                upstream.to_sql()[0] for upstream in schedule.depends_on
-            )
+            deps = ", ".join(upstream.to_sql()[0] for upstream in schedule.depends_on)
             parts.append(f"DEPENDS ON {deps}")
         if schedule.settings:
-            rendered = ", ".join(
-                f"{key} = {value}" for key, value in schedule.settings.items()
-            )
+            rendered = ", ".join(f"{key} = {value}" for key, value in schedule.settings.items())
             parts.append(f"SETTINGS {rendered}")
         if schedule.append:
             parts.append("APPEND INCREMENTAL" if schedule.incremental else "APPEND")

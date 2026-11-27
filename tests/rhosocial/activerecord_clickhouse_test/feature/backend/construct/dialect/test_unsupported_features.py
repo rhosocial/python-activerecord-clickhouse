@@ -29,15 +29,14 @@ expression-to-formatter dispatch path is exercised.
 """
 
 import pytest
-
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+from rhosocial.activerecord.backend.expression.core import Column
 from rhosocial.activerecord.backend.expression.objects import (
     Function,
     Procedure,
     Table,
     Trigger,
 )
-from rhosocial.activerecord.backend.expression.core import Column
 from rhosocial.activerecord.backend.expression.statements import (
     OnConflictClause,
     PartitionByRangeClause,
@@ -49,6 +48,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
     TriggerEvent,
     TriggerTiming,
 )
+
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
     ClickHouseFlushStatement,
@@ -99,9 +99,13 @@ def dialect():
 class TestTriggerStub:
     def test_supports_flags(self, dialect):
         for m in (
-            "supports_trigger", "supports_create_trigger", "supports_drop_trigger",
-            "supports_instead_of_trigger", "supports_statement_trigger",
-            "supports_trigger_referencing", "supports_trigger_when",
+            "supports_trigger",
+            "supports_create_trigger",
+            "supports_drop_trigger",
+            "supports_instead_of_trigger",
+            "supports_statement_trigger",
+            "supports_trigger_referencing",
+            "supports_trigger_when",
             "supports_trigger_if_not_exists",
         ):
             assert getattr(dialect, m)() is False, m
@@ -119,9 +123,7 @@ class TestTriggerStub:
 
     def test_format_drop_trigger_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            DropTriggerStatement(
-                dialect, Trigger(dialect, "trg"), Table(dialect, "tbl")
-            ).to_sql()
+            DropTriggerStatement(dialect, Trigger(dialect, "trg"), Table(dialect, "tbl")).to_sql()
 
 
 class TestSpatialStub:
@@ -173,8 +175,10 @@ class TestTableStatementStub:
 class TestMaintenanceStub:
     def test_supports_flags(self, dialect):
         for m in (
-            "supports_analyze_table", "supports_check_table",
-            "supports_checksum_table", "supports_optimize_table",
+            "supports_analyze_table",
+            "supports_check_table",
+            "supports_checksum_table",
+            "supports_optimize_table",
             "supports_repair_table",
         ):
             assert getattr(dialect, m)() is False, m
@@ -220,12 +224,23 @@ class TestLoadXmlStub:
 class TestAdminCommandStub:
     def test_supports_flags(self, dialect):
         for m in (
-            "supports_flush", "supports_reset", "supports_cache_index",
-            "supports_install_component", "supports_install_plugin",
-            "supports_clone", "supports_restart", "supports_binlog",
-            "supports_handler", "supports_do", "supports_kill",
-            "supports_shutdown", "supports_help", "supports_create_user",
-            "supports_drop_user", "supports_grant", "supports_revoke",
+            "supports_flush",
+            "supports_reset",
+            "supports_cache_index",
+            "supports_install_component",
+            "supports_install_plugin",
+            "supports_clone",
+            "supports_restart",
+            "supports_binlog",
+            "supports_handler",
+            "supports_do",
+            "supports_kill",
+            "supports_shutdown",
+            "supports_help",
+            "supports_create_user",
+            "supports_drop_user",
+            "supports_grant",
+            "supports_revoke",
         ):
             assert getattr(dialect, m)() is False, m
 
@@ -245,9 +260,7 @@ class TestJsonDualityViewStub:
 
     def test_format_create_json_duality_view_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError):
-            ClickHouseCreateJsonDualityViewStatement(
-                dialect, "v", DualityObjectSpec()
-            ).to_sql()
+            ClickHouseCreateJsonDualityViewStatement(dialect, "v", DualityObjectSpec()).to_sql()
 
 
 class TestFullTextStub:
@@ -303,5 +316,5 @@ class TestDeclarativePartitionStub:
 
     def test_inline_partition_definition_raises(self, dialect):
         with pytest.raises(UnsupportedFeatureError) as excinfo:
-            dialect.format_partition_definition(PartitionDefinitionExpression(dialect, name="p1"))
+            dialect._refuse_partition_definition(PartitionDefinitionExpression(dialect, name="p1"))
         assert "PARTITION BY <expr>" in excinfo.value.suggestion

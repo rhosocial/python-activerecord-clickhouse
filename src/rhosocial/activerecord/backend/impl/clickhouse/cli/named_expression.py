@@ -4,9 +4,12 @@
 named-expression requires connection arguments, output arguments, and --rich-ascii.
 """
 
-from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
 from rhosocial.activerecord.backend.options import ExecutionOptions
+
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
+    AsyncClickHouseBackend,
+)
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider
@@ -32,14 +35,16 @@ def create_parser(subparsers):
 
 def handle(args):
     """Handle the named-expression subcommand."""
-    from rhosocial.activerecord.backend.named_expression.cli import handle_named_expression as handle_ne
+    from rhosocial.activerecord.backend.named_expression.cli import (
+        handle_named_expression as handle_ne,
+    )
 
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
 
     from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
     def _get_requested_version():
-        ver = getattr(args, "dialect_version", None)
+        ver = vars(args).get("dialect_version", None)
         if ver:
             return tuple(int(p) for p in ver.split("."))
         return None
@@ -70,7 +75,7 @@ def handle(args):
         if backend and backend._connection:
             backend.disconnect()
 
-    is_async = getattr(args, "is_async", False)
+    is_async = vars(args).get("is_async", False)
     if is_async:
         async_backend = None
 
@@ -84,7 +89,9 @@ def handle(args):
             return b.dialect
 
         async def execute_query_async(sql, params, stmt_type):
-            return await async_backend.execute(sql, params, options=ExecutionOptions(stmt_type=stmt_type))
+            return await async_backend.execute(
+                sql, params, options=ExecutionOptions(stmt_type=stmt_type)
+            )
 
         async def disconnect_async():
             if async_backend and async_backend._connection:

@@ -5,13 +5,14 @@ Split out of the former single-module ``clickhouse/protocols.py``; one
 concern per module so the protocol surface stays legible.
 """
 
-from typing import Any, Protocol, runtime_checkable, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
     from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
         ClickHouseCreateJsonDualityViewStatement,
         ClickHouseDropJsonDualityViewStatement,
     )
+
 
 @runtime_checkable
 class ClickHouseJsonDualityViewSupport(Protocol):
@@ -53,14 +54,14 @@ class ClickHouseJsonDualityViewSupport(Protocol):
         """Format DROP VIEW statement for a JSON Duality View."""
         ...
 
-    def format_duality_object_select(self, expr: Any) -> str:
+    def _refuse_duality_object_select(self, expr: Any) -> str:
         """Format SELECT JSON_DUALITY_OBJECT(...) FROM table clause."""
         ...
 
-    def format_duality_object_body(self, expr: Any) -> str:
+    def _refuse_duality_object_body(self, expr: Any) -> str:
         """Format JSON_DUALITY_OBJECT(...) body."""
         ...
 
-    def format_nested_duality(self, expr: Any) -> str:
+    def _refuse_nested_duality(self, expr: Any) -> str:
         """Format nested JSON_ARRAYAGG(JSON_DUALITY_OBJECT(...)) subquery."""
         ...

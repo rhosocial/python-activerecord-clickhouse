@@ -1,7 +1,12 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/optimizer_hint.py
-from typing import Any, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.optimizer_hint import (
+        ClickHouseOptimizerHintExpression,
+    )
 
 
 class ClickHouseOptimizerHintMixin:
@@ -18,8 +23,11 @@ class ClickHouseOptimizerHintMixin:
     def supports_hypergraph_optimizer(self) -> bool:
         return False
 
-    def format_optimizer_hint_expression(self, expr: Any) -> Tuple[str, tuple]:
+    def format_optimizer_hint_expression(
+        self, expr: "ClickHouseOptimizerHintExpression"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "optimizer hints",
+            self.name,
+            "optimizer hints",
             suggestion="ClickHouse does not support /*+ SET_VAR */ hints; use SETTINGS.",
         )

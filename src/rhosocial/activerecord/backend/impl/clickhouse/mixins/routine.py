@@ -1,7 +1,16 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/routine.py
-from typing import Any, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.routine import (
+        ClickHouseCallStatement,
+        ClickHouseCreateFunctionStatement,
+        ClickHouseCreateProcedureStatement,
+        ClickHouseDropFunctionStatement,
+        ClickHouseDropProcedureStatement,
+    )
 
 
 class ClickHouseRoutineMixin:
@@ -23,32 +32,45 @@ class ClickHouseRoutineMixin:
     def supports_call(self) -> bool:
         return False
 
-    def format_create_procedure_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_create_procedure_statement(
+        self, expr: "ClickHouseCreateProcedureStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "stored procedures",
+            self.name,
+            "stored procedures",
             suggestion="ClickHouse has no CREATE PROCEDURE / CALL.",
         )
 
-    def format_drop_procedure_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_drop_procedure_statement(
+        self, expr: "ClickHouseDropProcedureStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "stored procedures",
+            self.name,
+            "stored procedures",
             suggestion="ClickHouse has no DROP PROCEDURE.",
         )
 
-    def format_create_function_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_create_function_statement(
+        self, expr: "ClickHouseCreateFunctionStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "stored functions",
+            self.name,
+            "stored functions",
             suggestion="Use ClickHouse CREATE FUNCTION name AS lambda(...) for UDFs.",
         )
 
-    def format_drop_function_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_drop_function_statement(
+        self, expr: "ClickHouseDropFunctionStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "stored functions",
+            self.name,
+            "stored functions",
             suggestion="Use ClickHouse DROP FUNCTION for UDFs, not this MySQL-style routine mixin.",
         )
 
-    def format_call_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_call_statement(self, expr: "ClickHouseCallStatement") -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "CALL",
+            self.name,
+            "CALL",
             suggestion="ClickHouse has no CALL statement / stored procedures.",
         )

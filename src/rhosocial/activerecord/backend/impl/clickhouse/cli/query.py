@@ -8,11 +8,12 @@ import argparse
 import logging
 import sys
 
-from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.errors import ConnectionError, QueryError
 
+from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
+
 from .connection import add_connection_args, resolve_connection_config_from_args
-from .output import OUTPUT_CHOICES, create_provider, RICH_AVAILABLE
+from .output import OUTPUT_CHOICES, RICH_AVAILABLE, create_provider
 
 
 def create_parser(subparsers):
@@ -83,7 +84,7 @@ def create_parser(subparsers):
 def handle(args):
     """Handle the query subcommand."""
     # Set log level (query only)
-    numeric_level = getattr(logging, args.log_level.upper(), None)
+    numeric_level = vars(logging).get(args.log_level.upper(), None)
     if not isinstance(numeric_level, int):
         raise ValueError(f"Invalid log level: {args.log_level}")
 
@@ -96,14 +97,24 @@ def handle(args):
             from rich.console import Console
             from rich.logging import RichHandler
 
-            handler = RichHandler(rich_tracebacks=True, show_path=False, console=Console(stderr=True))
-            logging.basicConfig(level=numeric_level, format="%(message)s", datefmt="[%X]", handlers=[handler])
+            handler = RichHandler(
+                rich_tracebacks=True, show_path=False, console=Console(stderr=True)
+            )
+            logging.basicConfig(
+                level=numeric_level, format="%(message)s", datefmt="[%X]", handlers=[handler]
+            )
         else:
             logging.basicConfig(
-                level=numeric_level, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stderr
+                level=numeric_level,
+                format="%(asctime)s - %(levelname)s - %(message)s",
+                stream=sys.stderr,
             )
     else:
-        logging.basicConfig(level=numeric_level, format="%(asctime)s - %(levelname)s - %(message)s", stream=sys.stderr)
+        logging.basicConfig(
+            level=numeric_level,
+            format="%(asctime)s - %(levelname)s - %(message)s",
+            stream=sys.stderr,
+        )
 
     provider.display_greeting()
 
@@ -180,4 +191,3 @@ def _execute_query_sync(sql_query: str, backend: ClickHouseBackend, provider, **
         if backend._connection:  # type: ignore
             backend.disconnect()
             provider.display_disconnect(is_async=False)
-

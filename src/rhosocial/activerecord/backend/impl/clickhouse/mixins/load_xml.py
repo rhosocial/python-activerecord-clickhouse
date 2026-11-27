@@ -1,7 +1,12 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/load_xml.py
-from typing import Any, Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
+        ClickHouseLoadXMLStatement,
+    )
 
 
 class ClickHouseLoadXMLLMixin:
@@ -16,8 +21,11 @@ class ClickHouseLoadXMLLMixin:
     def supports_load_xml(self) -> bool:
         return False
 
-    def format_clickhouse_load_xml_statement(self, expr: Any) -> Tuple[str, tuple]:
+    def format_clickhouse_load_xml_statement(
+        self, expr: "ClickHouseLoadXMLStatement"
+    ) -> Tuple[str, tuple]:
         raise UnsupportedFeatureError(
-            self.name, "LOAD XML",
+            self.name,
+            "LOAD XML",
             suggestion="ClickHouse has no LOAD XML; use a format parser or input() table function.",
         )

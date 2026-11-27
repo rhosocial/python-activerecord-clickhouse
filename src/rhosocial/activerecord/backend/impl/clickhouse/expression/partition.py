@@ -62,7 +62,8 @@ https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partit
 https://clickhouse.com/docs/sql-reference/statements/alter/partition
 https://clickhouse.com/docs/sql-reference/statements/optimize
 """
-from typing import Optional, TYPE_CHECKING
+
+from typing import TYPE_CHECKING, Optional
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
@@ -149,25 +150,17 @@ class _ClickHousePartitionIdExpression(BaseExpression):
         self.schema = schema
         self.partition_id = partition_id
 
-    @property
-    def format_method(self) -> str:
-        """The dialect formatting method that renders this expression.
-
-        Declared as a constant by each subclass (the convention the rest of
-        this backend follows, and what the structural sweep in
-        ``test_clickhouse_type_protocol.py`` reads off the class rather than an
-        instance). ``test_format_method_names_the_dialect_formatter`` in
-        ``tests/.../backend/expression/test_expression_signatures.py`` keeps each
-        constant in step with its ``verb``.
-        """
-        raise NotImplementedError(
-            f"{type(self).__name__} must declare its format_method property."
-        )
+    # No ``format_method`` here on purpose: this shared shape is not a kind of
+    # its own. Each concrete subclass declares its formatter, which is also what
+    # keeps the private base out of the artifact registry (a base that names no
+    # formatter cannot be carried by an artifact).
+    # ``test_format_method_names_the_dialect_formatter`` in
+    # ``tests/.../backend/expression/test_expression_signatures.py`` keeps each
+    # declaration in step with its ``verb``.
 
     def __repr__(self) -> str:
         return (
-            f"{type(self).__name__}(table={self.table!r}, "
-            f"partition_id={self.partition_id!r})"
+            f"{type(self).__name__}(table={self.table!r}, " f"partition_id={self.partition_id!r})"
         )
 
 

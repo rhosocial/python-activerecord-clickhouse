@@ -25,6 +25,7 @@ Design principle: Sync and Async are separate and cannot coexist.
 """
 
 import copy
+from enum import Enum
 from typing import Any, Dict, List, Optional
 
 from rhosocial.activerecord.backend.introspection.base import (
@@ -62,13 +63,13 @@ from rhosocial.activerecord.backend.introspection.types import (
     TableType,
 )
 
-from .type_parser import ClickHouseTypeParser
 from ..expression.introspection import (
     ClickHouseClusterListQuery,
     ClickHouseConstraintStateListQuery,
     ClickHouseDictionaryListQuery,
     ClickHouseFunctionListQuery,
     ClickHouseIndexStateListQuery,
+    ClickHouseIntrospectionUserListQuery,
     ClickHouseMaterializedViewListQuery,
     ClickHouseProjectionListQuery,
     ClickHouseQuotaListQuery,
@@ -76,7 +77,6 @@ from ..expression.introspection import (
     ClickHouseSchemaListQuery,
     ClickHouseTableEngineQuery,
     ClickHouseTablePartitionsQuery,
-    ClickHouseIntrospectionUserListQuery,
 )
 from .show_introspector import (
     AsyncShowIntrospector,
@@ -86,6 +86,7 @@ from .status_introspector import (
     AsyncClickHouseStatusIntrospector,
     ClickHouseStatusIntrospector,
 )
+from .type_parser import ClickHouseTypeParser
 from .types import (
     ClickHouseClusterInfo,
     ClickHouseDictionaryInfo,
@@ -96,6 +97,11 @@ from .types import (
     ClickHouseTableEngineInfo,
     ClickHouseUserInfo,
 )
+
+
+def _enum_value(value: Any) -> Any:
+    """Unwrap an enum member by declared type; leave a plain value alone."""
+    return value.value if isinstance(value, Enum) else value
 
 
 def _string_list(value: Any) -> List[str]:
@@ -111,7 +117,7 @@ def _string_list(value: Any) -> List[str]:
         return []
     if isinstance(value, str):
         return [value]
-    return [str(getattr(item, "value", item)) for item in value]
+    return [str(_enum_value(item)) for item in value]
 
 
 def _int_list(value: Any) -> List[int]:
@@ -156,7 +162,7 @@ def _optional_text(value: Any) -> Optional[str]:
     """
     if not value:
         return None
-    return str(getattr(value, "value", value))
+    return str(_enum_value(value))
 
 
 def _ttl_from_engine_full(engine_full: Optional[str]) -> Optional[str]:
@@ -221,9 +227,19 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
     @property
     def default_schema(self) -> str:
         """Return the ClickHouse database name from the backend config."""
-        if hasattr(self._backend, "config") and hasattr(self._backend.config, "database"):
-            return self._backend.config.database or ""
-        return ""
+        backend = self._backend
+        config = vars(backend).get("config")
+        if config is None:
+            config = next(
+                (vars(cls)["config"] for cls in type(backend).__mro__ if "config" in vars(cls)),
+                None,
+            )
+        if config is None:
+            return ""
+        database = (
+            config.get("database") if isinstance(config, dict) else vars(config).get("database")
+        )
+        return database or ""
 
     def _catalog_key(self, family: str, *parts: str) -> str:
         """A cache key for a server-wide catalogue family.
@@ -723,9 +739,7 @@ class ClickHouseIntrospectorMixin(IntrospectorMixin):
             for row in rows
         ]
 
-    def parse_dictionaries(
-        self, rows: List[Dict[str, Any]]
-    ) -> List[ClickHouseDictionaryInfo]:
+    def parse_dictionaries(self, rows: List[Dict[str, Any]]) -> List[ClickHouseDictionaryInfo]:
         """Read ``system.dictionaries`` rows into dictionary records.
 
         The driver may hand back ``DateTime`` columns as their native values
@@ -1231,9 +1245,7 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     ) -> List[IndexState]:
         """Read the table's data-skipping indices, with expression and size."""
         target = schema if schema is not None else self.default_schema
-        key = self._cache.key(
-            IntrospectionScope.INDEX, table_name, schema=target, extra="state"
-        )
+        key = self._cache.key(IntrospectionScope.INDEX, table_name, schema=target, extra="state")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -1268,7 +1280,9 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
         sql, params = ClickHouseConstraintStateListQuery(
             self._backend.dialect, target, table_name
         ).to_sql()
-        result = self.parse_constraint_states(self._executor.execute(sql, params), table_name, target)
+        result = self.parse_constraint_states(
+            self._executor.execute(sql, params), table_name, target
+        )
         self._cache.set(key, result)
         return result
 
@@ -1290,9 +1304,7 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
     ) -> List[DerivedObjectState]:
         """Read projections and materialized views that belong to the table."""
         target = schema if schema is not None else self.default_schema
-        key = self._cache.key(
-            IntrospectionScope.TABLE, table_name, schema=target, extra="derived"
-        )
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="derived")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -1365,9 +1377,7 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
         catalogue, which also includes configuration-file dictionaries whose
         database is the empty string.
         """
-        key = self._catalog_key(
-            "dictionaries", name or "", "*" if database is None else database
-        )
+        key = self._catalog_key("dictionaries", name or "", "*" if database is None else database)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -1414,7 +1424,9 @@ class ClickHouseIntrospector(ClickHouseIntrospectorMixin, AbstractIntrospector):
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        sql, params = ClickHouseIntrospectionUserListQuery(self._backend.dialect, name=name).to_sql()
+        sql, params = ClickHouseIntrospectionUserListQuery(
+            self._backend.dialect, name=name
+        ).to_sql()
         result = self.parse_users(self._executor.execute(sql, params))
         self._cache.set(key, result)
         return result
@@ -1704,9 +1716,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     ) -> List[IndexState]:
         """Read the table's data-skipping indices, with expression and size."""
         target = schema if schema is not None else self.default_schema
-        key = self._cache.key(
-            IntrospectionScope.INDEX, table_name, schema=target, extra="state"
-        )
+        key = self._cache.key(IntrospectionScope.INDEX, table_name, schema=target, extra="state")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -1766,9 +1776,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     ) -> List[DerivedObjectState]:
         """Read projections and materialized views that belong to the table."""
         target = schema if schema is not None else self.default_schema
-        key = self._cache.key(
-            IntrospectionScope.TABLE, table_name, schema=target, extra="derived"
-        )
+        key = self._cache.key(IntrospectionScope.TABLE, table_name, schema=target, extra="derived")
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -1808,9 +1816,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
     # Server-wide catalogue families
     # ------------------------------------------------------------------ #
 
-    async def list_functions(
-        self, name: Optional[str] = None
-    ) -> List[ClickHouseFunctionInfo]:
+    async def list_functions(self, name: Optional[str] = None) -> List[ClickHouseFunctionInfo]:
         """List functions from ``system.functions``, asynchronously.
 
         The asynchronous counterpart of
@@ -1837,9 +1843,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         :meth:`ClickHouseIntrospector.list_dictionaries`: same parameters, same
         result, same cache key.
         """
-        key = self._catalog_key(
-            "dictionaries", name or "", "*" if database is None else database
-        )
+        key = self._catalog_key("dictionaries", name or "", "*" if database is None else database)
         cached = self._cache.get(key)
         if cached is not None:
             return cached
@@ -1850,9 +1854,7 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         self._cache.set(key, result)
         return result
 
-    async def list_clusters(
-        self, name: Optional[str] = None
-    ) -> List[ClickHouseClusterInfo]:
+    async def list_clusters(self, name: Optional[str] = None) -> List[ClickHouseClusterInfo]:
         """List cluster members from ``system.clusters``, asynchronously.
 
         The asynchronous counterpart of
@@ -1895,7 +1897,9 @@ class AsyncClickHouseIntrospector(ClickHouseIntrospectorMixin, AsyncAbstractIntr
         cached = self._cache.get(key)
         if cached is not None:
             return cached
-        sql, params = ClickHouseIntrospectionUserListQuery(self._backend.dialect, name=name).to_sql()
+        sql, params = ClickHouseIntrospectionUserListQuery(
+            self._backend.dialect, name=name
+        ).to_sql()
         result = self.parse_users(await self._executor.execute(sql, params))
         self._cache.set(key, result)
         return result

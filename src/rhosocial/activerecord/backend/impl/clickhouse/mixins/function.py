@@ -1,7 +1,11 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/function.py
-from typing import List, Optional, Tuple, TYPE_CHECKING
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from rhosocial.activerecord.backend.suggestion.definitions import FunctionSuggestion
+
+from rhosocial.activerecord.backend.impl.clickhouse.expression.engine_function import (
+    ClickHouseEngineFunctionExpression,
+)
 
 if TYPE_CHECKING:
     from rhosocial.activerecord.backend.expression.bases import BaseExpression
@@ -28,15 +32,13 @@ class ClickHouseFunctionMixin:
         and the server answers ``Function with name `X` does not exist`` --
         which is how ``MINORNULL`` failed all five data-profile CI jobs.
 
-        A name the renderer cannot case correctly is therefore handed to SQL as
-        text, and the node is a
-        :class:`~...expression.operators.RawSQL` rather than a
-        :class:`~...expression.core.FunctionCall` precisely so no companion
-        code path re-applies the case rule to it. The *operands* still render
-        through their own nodes -- a column is quoted and catalog-qualified by
-        the dialect's identifier renderer, and a literal binds where
-        ``Literal`` says it binds -- so only the optional operator text is
-        raw; the whole call never is.
+        A name the renderer cannot case correctly is therefore carried by a
+        dedicated expression node rather than by the generic function call, so
+        no companion code path re-applies the case rule to it. The *operands*
+        still render through their own nodes -- a column is quoted and
+        catalog-qualified by the dialect's identifier renderer, and a literal
+        binds where ``Literal`` says it binds -- so the call is assembled from
+        typed parts, never from caller-vouched SQL text.
 
         Args:
             name: The function name, in the engine's own spelling.
@@ -44,21 +46,25 @@ class ClickHouseFunctionMixin:
             alias: Optional result alias.
 
         Returns:
-            A ``RawSQL`` node rendering ``name(operand_sql, ...)``, carrying
-            the parameters the operands collected, in argument order.
+            A typed node rendering ``name(operand_sql, ...)``, carrying the
+            parameters the operands collected, in argument order.
         """
+        return ClickHouseEngineFunctionExpression(self, name, *operands, alias=alias)
+
+    def format_clickhouse_engine_function_expression(
+        self, expr: "ClickHouseEngineFunctionExpression"
+    ) -> Tuple[str, tuple]:
+        """Render a case-preserving engine call from its typed operand nodes."""
         parts: List[str] = []
         collected: List = []
-        for operand in operands:
+        for operand in expr.operands:
             part_sql, part_params = operand.to_sql()
             parts.append(part_sql)
             collected.extend(part_params)
-        sql = f"{name}({', '.join(parts)})"
-        if alias:
-            sql = f"{sql} AS {self.format_identifier(alias)}"
-        from rhosocial.activerecord.backend.expression.operators import RawSQL
-
-        return RawSQL(self, sql, tuple(collected))
+        sql = f"{expr.name}({', '.join(parts)})"
+        if expr.alias:
+            sql = f"{sql} AS {self.format_identifier(expr.alias)}"
+        return sql, tuple(collected)
 
     # ClickHouse function version support: function_name -> (min_version, max_version)
     _CLICKHOUSE_FUNCTION_VERSIONS = {
@@ -82,9 +88,7 @@ class ClickHouseFunctionMixin:
         a ``function_name -> bool`` mapping, which is a catalogue rather than
         a parameterless yes/no.
         """
-        from rhosocial.activerecord.backend.expression.functions import (
-            __all__ as core_functions,
-        )
+        from rhosocial.activerecord.backend.expression.functions import __all__ as core_functions
 
         expression_constructors = {
             "xmlagg",

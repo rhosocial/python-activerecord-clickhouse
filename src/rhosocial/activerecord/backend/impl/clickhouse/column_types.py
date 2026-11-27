@@ -14,17 +14,19 @@ from typing import TYPE_CHECKING
 from rhosocial.activerecord.backend.expression.column_types import VectorColumn
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.operators import RawSQL
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.engine_function import (
+        ClickHouseEngineFunctionExpression,
+    )
 
 
 class ClickHouseVectorColumn(VectorColumn):
     """A vector column with ClickHouse's built-in distance functions."""
 
-    def l2_distance(self, other) -> "RawSQL":
+    def l2_distance(self, other) -> "ClickHouseEngineFunctionExpression":
         """``L2Distance(col, other)``: Euclidean distance."""
         return self._dialect._engine_function("L2Distance", self, other)
 
-    def cosine_distance(self, other) -> "RawSQL":
+    def cosine_distance(self, other) -> "ClickHouseEngineFunctionExpression":
         """``cosineDistance(col, other)``: cosine distance."""
         return self._dialect._engine_function("cosineDistance", self, other)
 

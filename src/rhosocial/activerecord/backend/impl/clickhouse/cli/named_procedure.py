@@ -5,7 +5,9 @@ named-procedure requires connection arguments, output arguments, and --rich-asci
 """
 
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
-from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import AsyncClickHouseBackend
+from rhosocial.activerecord.backend.impl.clickhouse.backend.async_backend import (
+    AsyncClickHouseBackend,
+)
 
 from .connection import create_connection_parent_parser, resolve_connection_config_from_args
 from .output import create_provider
@@ -17,7 +19,9 @@ def create_parser(subparsers):
     Reuses the shared create_named_procedure_parser, passing a parent parser
     containing only connection and output arguments.
     """
-    from rhosocial.activerecord.backend.named_expression.cli_procedure import create_named_procedure_parser
+    from rhosocial.activerecord.backend.named_expression.cli_procedure import (
+        create_named_procedure_parser,
+    )
 
     local_parent = create_connection_parent_parser()
 
@@ -45,7 +49,9 @@ def create_parser(subparsers):
 
 def handle(args):
     """Handle the named-procedure subcommand."""
-    from rhosocial.activerecord.backend.named_expression.cli_procedure import handle_named_procedure as handle_np
+    from rhosocial.activerecord.backend.named_expression.cli_procedure import (
+        handle_named_procedure as handle_np,
+    )
 
     provider = create_provider(args.output, ascii_borders=args.rich_ascii)
 
@@ -63,7 +69,7 @@ def handle(args):
         if backend and backend._connection:
             backend.disconnect()
 
-    is_async = getattr(args, "is_async", False)
+    is_async = vars(args).get("is_async", False)
     if is_async:
         async_backend = None
 

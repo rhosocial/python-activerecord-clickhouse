@@ -51,6 +51,7 @@ MySQL would answer ``Table``/``Create Table``, ``View``/``Create View``,
 ``Savepoints``, and ``Grants for`` — so the ones below are the ClickHouse
 column names, not a restatement of the MySQL ones.
 """
+
 import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.introspection.show_introspector import ShowMixin
@@ -126,48 +127,89 @@ COLUMN_ROWS = [
 
 COLUMN_FULL_ROWS = [
     {
-        "field": "id", "type": "UInt32", "null": "NO", "key": "PRI SOR",
-        "default": None, "extra": "", "collation": None, "comment": "",
+        "field": "id",
+        "type": "UInt32",
+        "null": "NO",
+        "key": "PRI SOR",
+        "default": None,
+        "extra": "",
+        "collation": None,
+        "comment": "",
         "privileges": "",
     }
 ]
 
 INDEX_ROWS = [
     {
-        "table": "idx_probe", "non_unique": 1, "key_name": "idx_s",
-        "seq_in_index": 1, "pk_col": "", "collation": None, "cardinality": 0,
-        "sub_part": None, "packed": None, "null": None,
-        "index_type": "BLOOM_FILTER", "comment": "", "index_comment": "",
-        "visible": "YES", "expression": "s",
+        "table": "idx_probe",
+        "non_unique": 1,
+        "key_name": "idx_s",
+        "seq_in_index": 1,
+        "pk_col": "",
+        "collation": None,
+        "cardinality": 0,
+        "sub_part": None,
+        "packed": None,
+        "null": None,
+        "index_type": "BLOOM_FILTER",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": "s",
     },
     {
-        "table": "idx_probe", "non_unique": 1, "key_name": "PRIMARY",
-        "seq_in_index": 1, "pk_col": "id", "collation": "A", "cardinality": 0,
-        "sub_part": None, "packed": None, "null": None,
-        "index_type": "PRIMARY", "comment": "", "index_comment": "",
-        "visible": "YES", "expression": "",
+        "table": "idx_probe",
+        "non_unique": 1,
+        "key_name": "PRIMARY",
+        "seq_in_index": 1,
+        "pk_col": "id",
+        "collation": "A",
+        "cardinality": 0,
+        "sub_part": None,
+        "packed": None,
+        "null": None,
+        "index_type": "PRIMARY",
+        "comment": "",
+        "index_comment": "",
+        "visible": "YES",
+        "expression": "",
     },
 ]
 
 PROCESSLIST_ROWS = [
     {
-        "is_initial_query": 1, "user": "root",
+        "is_initial_query": 1,
+        "user": "root",
         "query_id": "0a944dd1-8a7e-4fd2-9733-e9e44f4d9f53",
-        "address": "::ffff:192.168.65.1", "port": 39550,
-        "elapsed": 0.00164, "read_rows": 0, "read_bytes": 0,
-        "memory_usage": 4438556, "query": "SELECT 1", "query_kind": "Select",
-        "thread_ids": [42], "current_database": "test_db", "is_internal": 0,
+        "address": "::ffff:192.168.65.1",
+        "port": 39550,
+        "elapsed": 0.00164,
+        "read_rows": 0,
+        "read_bytes": 0,
+        "memory_usage": 4438556,
+        "query": "SELECT 1",
+        "query_kind": "Select",
+        "thread_ids": [42],
+        "current_database": "test_db",
+        "is_internal": 0,
     }
 ]
 
 ENGINE_ROWS = [
     {
-        "name": "AggregatingMergeTree", "supports_settings": 1,
-        "supports_skipping_indices": 1, "supports_projections": 1,
-        "supports_sort_order": 1, "supports_ttl": 1, "supports_replication": 0,
-        "supports_deduplication": 0, "supports_parallel_insert": 1,
-        "description": "# AggregatingMergeTree", "syntax": "AGGREGATING",
-        "examples": "", "introduced_in": "",
+        "name": "AggregatingMergeTree",
+        "supports_settings": 1,
+        "supports_skipping_indices": 1,
+        "supports_projections": 1,
+        "supports_sort_order": 1,
+        "supports_ttl": 1,
+        "supports_replication": 0,
+        "supports_deduplication": 0,
+        "supports_parallel_insert": 1,
+        "description": "# AggregatingMergeTree",
+        "syntax": "AGGREGATING",
+        "examples": "",
+        "introduced_in": "",
         "related": ["ReplicatedAggregatingMergeTree"],
     }
 ]
@@ -196,17 +238,30 @@ class TestColumnsOutputShape:
         """The three extra columns appear only under ``FULL``, in lower case."""
         result = ShowMixin.parse_columns(COLUMN_FULL_ROWS)
         assert (result[0].collation, result[0].comment, result[0].privileges) == (
-            None, "", "",
+            None,
+            "",
+            "",
         )
 
     def test_plain_columns_leave_the_full_only_columns_empty(self):
         result = ShowMixin.parse_columns(COLUMN_ROWS)
-        assert all(r.collation is None and r.comment is None and r.privileges is None for r in result)
+        assert all(
+            r.collation is None and r.comment is None and r.privileges is None for r in result
+        )
 
     def test_mysql_column_names_are_not_consulted(self):
         """MySQL's ``Field``/``Type``/``Key`` must not be looked for."""
         result = ShowMixin.parse_columns(
-            [{"Field": "id", "Type": "int", "Null": "NO", "Key": "PRI", "Default": None, "Extra": ""}]
+            [
+                {
+                    "Field": "id",
+                    "Type": "int",
+                    "Null": "NO",
+                    "Key": "PRI",
+                    "Default": None,
+                    "Extra": "",
+                }
+            ]
         )
         assert [(r.field, r.type, r.key) for r in result] == [(None, None, None)]
 
@@ -229,7 +284,9 @@ class TestIndexOutputShape:
 
     def test_index_carries_no_mysql_btree_default(self):
         """``index_type`` must come from the server, not default to ``BTREE``."""
-        result = ShowMixin.parse_indexes([{"table": "t", "non_unique": 1, "key_name": "PRIMARY", "seq_in_index": 1}])
+        result = ShowMixin.parse_indexes(
+            [{"table": "t", "non_unique": 1, "key_name": "PRIMARY", "seq_in_index": 1}]
+        )
         assert result[0].index_type is None
 
     def test_mysql_column_names_are_not_consulted(self):
@@ -288,7 +345,15 @@ class TestEnginesOutputShape:
     def test_mysql_column_names_are_not_consulted(self):
         """MySQL's ``Engine``/``Support``/``XA`` must not be looked for."""
         result = ShowMixin.parse_engines(
-            [{"Engine": "InnoDB", "Support": "DEFAULT", "Transactions": "YES", "XA": "NO", "Savepoints": "NO"}]
+            [
+                {
+                    "Engine": "InnoDB",
+                    "Support": "DEFAULT",
+                    "Transactions": "YES",
+                    "XA": "NO",
+                    "Savepoints": "NO",
+                }
+            ]
         )
         assert result[0].engine is None
 
@@ -336,10 +401,10 @@ class TestShowDialectRendersWhatTheServerAccepts:
 
     def _columns(self, dialect, **kw):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowColumnsStatement,
+            ClickHouseShowColumnsStatement,
         )
 
-        expr = ShowColumnsStatement(
+        expr = ClickHouseShowColumnsStatement(
             dialect,
             "t",
             schema=kw.get("schema"),
@@ -357,43 +422,45 @@ class TestShowDialectRendersWhatTheServerAccepts:
     def test_index_sql_uses_one_table_reference(self, dialect):
         """``SHOW INDEX FROM t FROM db`` is a SYNTAX_ERROR; ``db.t`` is the form."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowIndexStatement,
+            ClickHouseShowIndexStatement,
         )
 
-        expr = ShowIndexStatement(dialect, "t", schema="db")
+        expr = ClickHouseShowIndexStatement(dialect, "t", schema="db")
         assert expr.to_sql() == ("SHOW INDEX FROM `db`.`t`", ())
 
     def test_processlist_sql_never_emits_full(self, dialect):
         """``SHOW FULL PROCESSLIST`` is a SYNTAX_ERROR on 26.7.3.19."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowProcessListStatement,
+            ClickHouseShowProcessListStatement,
         )
 
-        assert ShowProcessListStatement(dialect).to_sql() == ("SHOW PROCESSLIST", ())
-        assert ShowProcessListStatement(dialect, full=True).to_sql() == (
+        assert ClickHouseShowProcessListStatement(dialect).to_sql() == ("SHOW PROCESSLIST", ())
+        assert ClickHouseShowProcessListStatement(dialect, full=True).to_sql() == (
             "SHOW PROCESSLIST",
             (),
         )
 
     def test_engines_sql(self, dialect):
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowEnginesStatement,
+            ClickHouseShowEnginesStatement,
         )
 
-        assert ShowEnginesStatement(dialect).to_sql() == ("SHOW ENGINES", ())
+        assert ClickHouseShowEnginesStatement(dialect).to_sql() == ("SHOW ENGINES", ())
 
     def test_grants_sql_drops_the_mysql_host_part(self, dialect):
         """``SHOW GRANTS FOR root@localhost`` is UNKNOWN_ROLE on 26.7.3.19."""
         from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
-            ShowGrantsStatement,
+            ClickHouseShowGrantsStatement,
         )
 
-        assert ShowGrantsStatement(dialect).to_sql() == ("SHOW GRANTS", ())
-        assert ShowGrantsStatement(dialect, user="root").to_sql() == (
-            "SHOW GRANTS FOR `root`", (),
+        assert ClickHouseShowGrantsStatement(dialect).to_sql() == ("SHOW GRANTS", ())
+        assert ClickHouseShowGrantsStatement(dialect, user="root").to_sql() == (
+            "SHOW GRANTS FOR `root`",
+            (),
         )
-        assert ShowGrantsStatement(dialect, user="root", host="localhost").to_sql() == (
-            "SHOW GRANTS FOR `root`", (),
+        assert ClickHouseShowGrantsStatement(dialect, user="root", host="localhost").to_sql() == (
+            "SHOW GRANTS FOR `root`",
+            (),
         )
 
 
@@ -409,9 +476,7 @@ class TestShowOutputAgainstTheServer:
             "CREATE TABLE ar_show_shape (id UInt32, created_at DateTime) "
             "ENGINE = MergeTree PARTITION BY toYYYYMM(created_at) ORDER BY id"
         )
-        backend.execute(
-            "CREATE VIEW ar_show_shape_v AS SELECT id FROM ar_show_shape"
-        )
+        backend.execute("CREATE VIEW ar_show_shape_v AS SELECT id FROM ar_show_shape")
         yield backend
         backend.execute("DROP VIEW IF EXISTS ar_show_shape_v")
         backend.execute("DROP TABLE IF EXISTS ar_show_shape")
@@ -443,8 +508,7 @@ class TestShowOutputAgainstTheServer:
 
     def test_full_tables_reports_the_storage_engine(self, show_fixture):
         rows = {
-            row.name: row.table_type
-            for row in show_fixture.introspector.show.tables(full=True)
+            row.name: row.table_type for row in show_fixture.introspector.show.tables(full=True)
         }
         assert rows["ar_show_shape"] == "MergeTree"
         assert rows["ar_show_shape_v"] == "View"
@@ -484,7 +548,9 @@ class TestShowOutputAgainstTheServer:
         assert [c.field for c in cols] == ["created_at", "id"]
 
     def test_full_columns_adds_comment_and_privileges(self, show_fixture):
-        cols = {c.field: c for c in show_fixture.introspector.show.columns("ar_show_shape", full=True)}
+        cols = {
+            c.field: c for c in show_fixture.introspector.show.columns("ar_show_shape", full=True)
+        }
         assert cols["id"].comment == ""
         assert cols["id"].privileges == ""
         # The server documents this column as always NULL: no per-column collations.
@@ -500,10 +566,7 @@ class TestShowOutputAgainstTheServer:
 
     def test_indexes_reports_sorting_key_and_skipping_index(self, indexed_fixture):
         backend, table = indexed_fixture
-        rows = {
-            (r.key_name, r.seq_in_index): r
-            for r in backend.introspector.show.indexes(table)
-        }
+        rows = {(r.key_name, r.seq_in_index): r for r in backend.introspector.show.indexes(table)}
         primary_1 = rows[("PRIMARY", 1)]
         primary_2 = rows[("PRIMARY", 2)]
         assert (primary_1.column_name, primary_1.collation) == ("id", "A")

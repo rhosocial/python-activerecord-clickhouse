@@ -143,13 +143,15 @@ import uuid
 from typing import Dict
 
 import pytest
-
+from expression_roundtrip_harness import (
+    collect_expression_classes,
+    make_instance,
+    register_all,
+    register_special_constructor,
+)
 from rhosocial.activerecord.backend.dialect.exceptions import (
     UnsupportedDataTypeError,
     UnsupportedFeatureError,
-)
-from rhosocial.activerecord.backend.introspection import (
-    IntrospectionNotSupportedError,
 )
 from rhosocial.activerecord.backend.expression.advanced_functions import (
     CaseExpression,
@@ -183,9 +185,9 @@ from rhosocial.activerecord.backend.expression.objects import (
 )
 from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation
 from rhosocial.activerecord.backend.expression.predicates import (
-    LikeOperator,
     ComparisonPredicate,
     ILikePredicate,
+    LikeOperator,
     LikePredicate,
 )
 from rhosocial.activerecord.backend.expression.query_parts import JoinClause
@@ -200,8 +202,8 @@ from rhosocial.activerecord.backend.expression.serialization import (
 )
 from rhosocial.activerecord.backend.expression.sources import NamedRelationRef
 from rhosocial.activerecord.backend.expression.statements import (
-    CreateTableStatement,
     CreateTableLikeStatement,
+    CreateTableStatement,
     CreateViewStatement,
     DropViewStatement,
     InsertStatement,
@@ -214,15 +216,15 @@ from rhosocial.activerecord.backend.expression.statements import (
     ddl_table,
     dml,
 )
+from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
+    AddTableConstraintAction,
+    DropTableConstraintAction,
+)
 from rhosocial.activerecord.backend.expression.statements.ddl_database import (
     AlterDatabaseAction,
     AlterDatabaseStatement,
     CreateDatabaseStatement,
     DropDatabaseStatement,
-)
-from rhosocial.activerecord.backend.expression.statements.ddl_alter import (
-    AddTableConstraintAction,
-    DropTableConstraintAction,
 )
 from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     CreateTableCloneStatement,
@@ -239,18 +241,21 @@ from rhosocial.activerecord.backend.expression.statements.dql import (
     SetOperationStatement,
 )
 from rhosocial.activerecord.backend.expression.types import IntegerType, VarCharType
-from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
-    ClickHouseNamespaceMixin,
+from rhosocial.activerecord.backend.introspection import (
+    IntrospectionNotSupportedError,
 )
+
+from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseModifyMaterializedViewRefreshStatement,
     ClickHouseRefreshSchedule,
-    admin as admin_module,
-    alter_column,
-    column as chexpr_column,
-    dml as chexpr_dml,
-    index as chexpr_index,
+)
+from rhosocial.activerecord.backend.impl.clickhouse.expression import admin as admin_module
+from rhosocial.activerecord.backend.impl.clickhouse.expression import alter_column
+from rhosocial.activerecord.backend.impl.clickhouse.expression import column as chexpr_column
+from rhosocial.activerecord.backend.impl.clickhouse.expression import dml as chexpr_dml
+from rhosocial.activerecord.backend.impl.clickhouse.expression import index as chexpr_index
+from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     maintenance,
     materialized_view,
     partition,
@@ -258,14 +263,9 @@ from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     routine,
     storage_option,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression import (
-    types as chexpr_types,
-)
-from expression_roundtrip_harness import (
-    collect_expression_classes,
-    make_instance,
-    register_all,
-    register_special_constructor,
+from rhosocial.activerecord.backend.impl.clickhouse.expression import types as chexpr_types
+from rhosocial.activerecord.backend.impl.clickhouse.mixins.namespace import (
+    ClickHouseNamespaceMixin,
 )
 
 CORE_EXPR_PKG = "rhosocial.activerecord.backend.expression"
@@ -383,9 +383,7 @@ def _assert_pinned_channel(fqn, channel, build, instance, pin):
             f"LEGITIMATE_NON_ROUNDTRIPS but the round-trip is now exact; "
             f"remove the stale entry."
         )
-    _enum_word_params_equal(
-        restored.get_params(), instance.get_params(), mode, f"{fqn}.{channel}"
-    )
+    _enum_word_params_equal(restored.get_params(), instance.get_params(), mode, f"{fqn}.{channel}")
 
 
 def _sql_params_equal(a, b) -> bool:
@@ -400,9 +398,7 @@ def _sql_params_equal(a, b) -> bool:
     sequence comparison, not a set comparison.
     """
     if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):
-        return len(a) == len(b) and all(
-            _sql_params_equal(x, y) for x, y in zip(a, b, strict=True)
-        )
+        return len(a) == len(b) and all(_sql_params_equal(x, y) for x, y in zip(a, b, strict=True))
     return a == b
 
 
@@ -429,9 +425,7 @@ def _enum_word_params_equal(a, b, mode: str, path: str = "params") -> None:
         return x
 
     if isinstance(a, BaseExpression) and isinstance(b, BaseExpression):
-        _enum_word_params_equal(
-            a.get_params(), b.get_params(), mode, path + ".<expr>"
-        )
+        _enum_word_params_equal(a.get_params(), b.get_params(), mode, path + ".<expr>")
         return
     # No strict type check here, on purpose: the type difference between a
     # member and the word that replaced it is exactly what this comparison
@@ -533,9 +527,7 @@ def _operand(dialect, name):
 
 def _ddl_dml_query(dialect, table):
     """A minimal SELECT, the operand a set operation needs."""
-    return QueryStatement(
-        dialect, select=[Column(dialect, "id")], from_=Table(dialect, table)
-    )
+    return QueryStatement(dialect, select=[Column(dialect, "id")], from_=Table(dialect, table))
 
 
 def _integer_column(dialect, name="col"):
@@ -570,9 +562,7 @@ def register_specials():
         "statements.ddl_table.CreateTableStatement",
         lambda d: ddl_table.CreateTableStatement(d, _table(d), [_integer_column(d)]),
     )
-    register_special_constructor(
-        "statements.ddl_table.ColumnDefinition", _integer_column
-    )
+    register_special_constructor("statements.ddl_table.ColumnDefinition", _integer_column)
     register_special_constructor(
         "statements.ddl_alter.AddColumnAction",
         lambda d: ddl_alter.AddColumnAction(d, _integer_column(d)),
@@ -618,9 +608,7 @@ def register_specials():
             ClickHouseModifyConstraintStatement,
         )
 
-        return ClickHouseModifyConstraintStatement(
-            d, "t", "ck", "CHECK", _column_predicate(d)
-        )
+        return ClickHouseModifyConstraintStatement(d, "t", "ck", "CHECK", _column_predicate(d))
 
     register_special_constructor(
         "comment.ClickHouseModifyTableCommentStatement", modify_table_comment
@@ -653,9 +641,7 @@ def register_specials():
     # rather than a new entry in UNCONSTRUCTIBLE.
     register_special_constructor(
         "operators.ArithmeticOperation",
-        lambda d: ArithmeticOperation(
-            d, "add", _operand(d, "a"), _operand(d, "b")
-        ),
+        lambda d: ArithmeticOperation(d, "add", _operand(d, "a"), _operand(d, "b")),
     )
     register_special_constructor(
         "query_sources.SetOperation",
@@ -743,9 +729,7 @@ def register_specials():
         "statements.ddl_alter.AddTableConstraintAction",
         lambda d: AddTableConstraintAction(
             d,
-            ddl_table.TableConstraint(
-                d, branch=ddl_table.TablePrimaryKeyConstraint(d, ["a"])
-            ),
+            ddl_table.TableConstraint(d, branch=ddl_table.TablePrimaryKeyConstraint(d, ["a"])),
         ),
     )
     # DROP CONSTRAINT. Core widened the action so both ``constraint_name`` and
@@ -772,6 +756,7 @@ def register_specials():
             d, "ck", enforced=True, constraint_kind=ddl_table.TableCheckConstraint
         ),
     )
+
     # ADD DOMAIN CHECK. A real ``DomainCheckConstraint`` over a column-only
     # condition is the payload DDL accepts -- nothing in it binds -- and the
     # action collects it. The dialect refuses the whole ALTER DOMAIN form at
@@ -782,13 +767,9 @@ def register_specials():
             DomainCheckConstraint,
         )
 
-        return AddDomainCheckAction(
-            d, DomainCheckConstraint(d, _column_predicate(d), name="chk")
-        )
+        return AddDomainCheckAction(d, DomainCheckConstraint(d, _column_predicate(d), name="chk"))
 
-    register_special_constructor(
-        "statements.ddl_domain.AddDomainCheckAction", add_domain_check
-    )
+    register_special_constructor("statements.ddl_domain.AddDomainCheckAction", add_domain_check)
     # -- declared-result annotations: the source must be aliasable ------------
     # ``format_declared_result`` reads the alias of both the annotation and
     # the node it annotates, and the rewritten ``Literal`` is deliberately
@@ -872,10 +853,11 @@ def register_specials():
     # ArrayType's element type is keyword-only now, so the guesser -- and the
     # positional call this used to be -- both miss it.
     register_special_constructor(
-        "types.array.ArrayType", lambda d: __import__(
+        "types.array.ArrayType",
+        lambda d: __import__(
             "rhosocial.activerecord.backend.expression.types.array",
             fromlist=["ArrayType"],
-        ).ArrayType(d, element_type=VarCharType(d, 10))
+        ).ArrayType(d, element_type=VarCharType(d, 10)),
     )
     register_special_constructor(
         "types.ClickHouseDecimalType",
@@ -955,9 +937,7 @@ def register_specials():
     )
     register_special_constructor(
         "functions.string.SubstringExpression",
-        lambda d: SubstringExpression(
-            d, _operand(d, "name"), Literal(d, 1), Literal(d, 2)
-        ),
+        lambda d: SubstringExpression(d, _operand(d, "name"), Literal(d, 1), Literal(d, 2)),
     )
     register_special_constructor(
         "functions.string.OverlayExpression",
@@ -1019,27 +999,19 @@ def register_specials():
         )
     register_special_constructor(
         "partition.ClickHouseReplacePartitionStatement",
-        lambda d: partition.ClickHouseReplacePartitionStatement(
-            d, "t", "p2024", "staging"
-        ),
+        lambda d: partition.ClickHouseReplacePartitionStatement(d, "t", "p2024", "staging"),
     )
     register_special_constructor(
         "partition.ClickHouseMovePartitionStatement",
-        lambda d: partition.ClickHouseMovePartitionStatement(
-            d, "t", "p2024", "VOLUME", "cold"
-        ),
+        lambda d: partition.ClickHouseMovePartitionStatement(d, "t", "p2024", "VOLUME", "cold"),
     )
     register_special_constructor(
         "partition.ClickHouseFreezePartitionStatement",
-        lambda d: partition.ClickHouseFreezePartitionStatement(
-            d, "t", "p2024", "backup_p2024"
-        ),
+        lambda d: partition.ClickHouseFreezePartitionStatement(d, "t", "p2024", "backup_p2024"),
     )
     register_special_constructor(
         "partition.ClickHouseUnfreezePartitionStatement",
-        lambda d: partition.ClickHouseUnfreezePartitionStatement(
-            d, "t", "p2024", "backup_p2024"
-        ),
+        lambda d: partition.ClickHouseUnfreezePartitionStatement(d, "t", "p2024", "backup_p2024"),
     )
     register_special_constructor(
         "partition.ClickHouseClearInPartitionStatement",
@@ -1049,9 +1021,7 @@ def register_specials():
     )
     register_special_constructor(
         "partition.ClickHouseOptimizePartitionStatement",
-        lambda d: partition.ClickHouseOptimizePartitionStatement(
-            d, "t", "p2024", True
-        ),
+        lambda d: partition.ClickHouseOptimizePartitionStatement(d, "t", "p2024", True),
     )
 
     # -- ClickHouse ALTER TABLE ... INDEX ------------------------------------
@@ -1068,9 +1038,7 @@ def register_specials():
     )
     register_special_constructor(
         "index.ClickHouseDropIndexStatement",
-        lambda d: chexpr_index.ClickHouseDropIndexStatement(
-            d, "events", "idx", if_exists=True
-        ),
+        lambda d: chexpr_index.ClickHouseDropIndexStatement(d, "events", "idx", if_exists=True),
     )
 
     # -- ClickHouse maintenance, routines, materialized views ----------------
@@ -1132,9 +1100,7 @@ def register_specials():
     # -- ClickHouse columns, DML, renames ------------------------------------
     register_special_constructor(
         "column.ClickHouseColumnDefinition",
-        lambda d: chexpr_column.ClickHouseColumnDefinition(
-            d, "id", IntegerType(d)
-        ),
+        lambda d: chexpr_column.ClickHouseColumnDefinition(d, "id", IntegerType(d)),
     )
     register_special_constructor(
         "dml.ClickHouseInsertExpression",
@@ -1147,9 +1113,7 @@ def register_specials():
         # ``after`` is given a value on purpose: it is a declared constructor
         # parameter, so the artifact has to carry it. The render half -- that
         # the clause reaches the SQL -- is test_add_column_action.py's job.
-        lambda d: alter_column.ClickHouseAddColumnAction(
-            d, _integer_column(d), after="name"
-        ),
+        lambda d: alter_column.ClickHouseAddColumnAction(d, _integer_column(d), after="name"),
     )
     register_special_constructor(
         "rename_table.ClickHouseRenameTableStatement",
@@ -1290,7 +1254,7 @@ LEGITIMATE_NON_RENDERS = {
     #  render now, because the rows themselves answer -- one ``UNION ALL`` arm
     #  per column, each a full scan of the table -- so the entries are gone and
     #  the matrix asserts the rendered statements instead.
-        # ---- core introspection families this dialect does not answer ----
+    # ---- core introspection families this dialect does not answer ----
     #  ClickHouse has no secondary indexes at all -- its MergeTree stores are ordered, not indexed -- so an
     # unused-index listing is not merely unanswered but meaningless. TableStats likewise has no per-table access
     # counter. The probes answer False.
@@ -1299,10 +1263,12 @@ LEGITIMATE_NON_RENDERS = {
     # still the pin, so a formatter that lands changes the entry rather than
     # slipping through.
     "rhosocial.activerecord.backend.expression.introspection.UnusedIndexesQueryStatement": (
-        UnsupportedFeatureError, "does not support format_unused_indexes_query_statement",
+        UnsupportedFeatureError,
+        "does not support format_unused_indexes_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.TableUsageStatsQueryStatement": (
-        UnsupportedFeatureError, "does not support format_table_usage_stats_query_statement",
+        UnsupportedFeatureError,
+        "does not support format_table_usage_stats_query_statement",
     ),
     # Runtime and index usage: ClickHouse's MergeTree engines keep no
     # per-index or per-table access counters either -- `system.query_log` is
@@ -1313,18 +1279,21 @@ LEGITIMATE_NON_RENDERS = {
     # False, and these classes stay declared gaps with a reason rather than
     # being quietly absent.
     "rhosocial.activerecord.backend.expression.introspection.RuntimeMetricsQueryStatement": (
-        UnsupportedFeatureError, "does not support format_runtime_metrics_query_statement",
+        UnsupportedFeatureError,
+        "does not support format_runtime_metrics_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.IndexUsageStatsQueryStatement": (
-        UnsupportedFeatureError, "does not support format_index_usage_stats_query_statement",
+        UnsupportedFeatureError,
+        "does not support format_index_usage_stats_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.ObjectDependencyQueryStatement": (
-        UnsupportedFeatureError, "does not support format_object_dependency_query_statement",
+        UnsupportedFeatureError,
+        "does not support format_object_dependency_query_statement",
     ),
     "rhosocial.activerecord.backend.expression.introspection.DDLStatementQueryStatement": (
-        UnsupportedFeatureError, "does not support format_ddl_statement_query_statement",
+        UnsupportedFeatureError,
+        "does not support format_ddl_statement_query_statement",
     ),
-
     # ---- a ClickHouse catalogue that only newer release lines have ---------
     #  ``system.constraints`` is not a table every supported release line has:
     #  it is absent on 25.8 and 26.3 (``UNKNOWN_TABLE``, measured) and appears
@@ -1342,8 +1311,7 @@ LEGITIMATE_NON_RENDERS = {
         IntrospectionNotSupportedError,
         "system.constraints",
     ),
-
-# ---- bases that name an expression category, not a renderable thing ----
+    # ---- bases that name an expression category, not a renderable thing ----
     # Each is a base class that deliberately declares no ``format_method``, so
     # ``to_sql()`` reports that there is nothing to dispatch. They are not
     # ``inspect.isabstract`` -- they are concrete enough to construct -- so the
@@ -1397,7 +1365,7 @@ LEGITIMATE_NON_RENDERS = {
     # bases above rather than a construction gap.
     "rhosocial.activerecord.backend.impl.clickhouse.expression.partition._ClickHousePartitionIdExpression": (
         NotImplementedError,
-        "must declare its format_method property",
+        "does not declare its dialect formatting method name",
     ),
     # An expression-category base whose concrete members each name their own
     # formatter: an ALTER TABLE action, an INSERT row source, a transaction step,
@@ -1443,7 +1411,7 @@ LEGITIMATE_NON_RENDERS = {
         NotImplementedError,
         _NO_FORMATTER,
     ),
-    "rhosocial.activerecord.backend.impl.clickhouse.expression.show.ShowExpression": (
+    "rhosocial.activerecord.backend.impl.clickhouse.expression.show.ClickHouseShowExpression": (
         NotImplementedError,
         "Subclasses must implement to_sql() method",
     ),
@@ -1473,7 +1441,6 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedDataTypeError,
         "does not support the generic type None (no format_data_type_None)",
     ),
-
     # ---- core features ClickHouse does not declare a protocol for ---------
     # Each raises UnsupportedFeatureError naming the formatter it wanted, which
     # is how the tree reports a capability the dialect never declared. ClickHouse's
@@ -1638,7 +1605,6 @@ LEGITIMATE_NON_RENDERS = {
         UnsupportedFeatureError,
         _no_dialect_formatter("format_alter_property_graph_statement"),
     ),
-
     # ---- core types ClickHouse has no equivalent for ----------------------
     # Each dispatches on a generic type name ClickHouse declares no formatter
     # for, so the type system reports the gap. ClickHouse spells these
@@ -2065,9 +2031,7 @@ def expr_case(request, clickhouse_matrix_dialect):
 class TestExpressionRoundtripAll:
     """All constructible expression classes round-trip through all encodings."""
 
-    def test_get_params_roundtrip_across_encodings(
-        self, expr_case, clickhouse_matrix_dialect
-    ):
+    def test_get_params_roundtrip_across_encodings(self, expr_case, clickhouse_matrix_dialect):
         fqn, instance = expr_case
 
         for channel, build in _channel_builders(
@@ -2088,9 +2052,7 @@ class TestExpressionRoundtripAll:
     def test_to_sql_roundtrip_classified(self, expr_case, clickhouse_matrix_dialect):
         """A render must survive the round-trip; a non-render must be classified."""
         fqn, instance = expr_case
-        assert_sql_roundtrip_classified(
-            fqn, instance, clickhouse_matrix_dialect, CODEC_REGISTRY
-        )
+        assert_sql_roundtrip_classified(fqn, instance, clickhouse_matrix_dialect, CODEC_REGISTRY)
 
 
 class TestShape:
@@ -2117,9 +2079,10 @@ class TestShape:
         contain the value it was given.
         """
         d = self._dialect()
-        assert d.format_table_object(
-            Table(d, "users", catalog_name="analytics")
-        ) == ("`analytics`.`users`", ())
+        assert d.format_table_object(Table(d, "users", catalog_name="analytics")) == (
+            "`analytics`.`users`",
+            (),
+        )
 
     def test_unqualified_name_carries_no_namespace(self):
         d = self._dialect()
@@ -2161,12 +2124,14 @@ class TestShape:
     def test_quote_flags_are_honoured_per_level(self):
         """Each level quotes independently -- that is what the split bought."""
         d = self._dialect()
-        assert Table(
-            d, "users", catalog_name="analytics", catalog_need_quote=False
-        ).to_sql() == ("analytics.`users`", ())
-        assert Table(
-            d, "users", catalog_name="analytics", name_need_quote=False
-        ).to_sql() == ("`analytics`.users", ())
+        assert Table(d, "users", catalog_name="analytics", catalog_need_quote=False).to_sql() == (
+            "analytics.`users`",
+            (),
+        )
+        assert Table(d, "users", catalog_name="analytics", name_need_quote=False).to_sql() == (
+            "`analytics`.users",
+            (),
+        )
 
 
 class TestLiteralValueKinds:
@@ -2237,9 +2202,7 @@ class TestLiteralValueKinds:
         """
         from rhosocial.activerecord.backend.expression.values import LiteralKind
 
-        assert tuple(kind.wire for kind in LiteralKind) == tuple(
-            wire for wire, *_ in self._CASES
-        )
+        assert tuple(kind.wire for kind in LiteralKind) == tuple(wire for wire, *_ in self._CASES)
 
     @pytest.mark.parametrize(
         ("wire", "host", "flat", "host_type"),
@@ -2257,9 +2220,9 @@ class TestLiteralValueKinds:
         }, wire
         for channel, build in _channel_builders(instance, d, CODEC_REGISTRY):
             restored = build()
-            assert type(restored.value) is host_type, (
-                f"{wire}/{channel}: came back as {type(restored.value).__name__}"
-            )
+            assert (
+                type(restored.value) is host_type
+            ), f"{wire}/{channel}: came back as {type(restored.value).__name__}"
             # NaN is the one host value that is not equal to itself, so ``==``
             # would fail on a perfectly faithful round-trip. Both non-finite
             # kinds are compared by their spelling, which is what the wire
@@ -2272,9 +2235,7 @@ class TestLiteralValueKinds:
             assert restored.value == host, wire
 
     @pytest.mark.parametrize("host", [float("-inf")], ids=["negative_infinity"])
-    def test_negative_infinity_carries_its_sign_in_the_text(
-        self, clickhouse_matrix_dialect, host
-    ):
+    def test_negative_infinity_carries_its_sign_in_the_text(self, clickhouse_matrix_dialect, host):
         """One wire kind, two spellings: the sign is the payload.
 
         ``infinity_value`` is a single kind for both directions, so the text is
@@ -2337,9 +2298,7 @@ class TestObjectKindChecks:
 
     def test_create_view_refuses_a_materialized_view(self):
         d = self._dialect()
-        expr = CreateViewStatement(
-            d, MaterializedView(d, "mv"), "SELECT 1"
-        )
+        expr = CreateViewStatement(d, MaterializedView(d, "mv"), "SELECT 1")
         with pytest.raises(TypeError, match="CreateViewStatement.view must be a View"):
             expr.to_sql()
 
@@ -2431,9 +2390,7 @@ class TestObjectKindChecks:
 
     def test_insert_refuses_an_index(self):
         d = self._dialect()
-        expr = InsertStatement(
-            d, into=Index(d, "i"), source=ValuesSource(d, [[Literal(d, 1)]])
-        )
+        expr = InsertStatement(d, into=Index(d, "i"), source=ValuesSource(d, [[Literal(d, 1)]]))
         with pytest.raises(TypeError, match="InsertStatement.into must be a Table"):
             expr.to_sql()
 
@@ -2501,16 +2458,15 @@ class TestMatrixIntegrity:
         deliberate decision.
         """
         unknown = set(UNCONSTRUCTIBLE) - set(REGISTERED)
-        assert not unknown, (
-            f"UNCONSTRUCTIBLE names classes that were not registered: {sorted(unknown)}"
-        )
+        assert (
+            not unknown
+        ), f"UNCONSTRUCTIBLE names classes that were not registered: {sorted(unknown)}"
 
     def test_legitimate_non_renders_are_real_classes(self):
         """Every pinned non-render names a class that was actually collected."""
         unknown = set(LEGITIMATE_NON_RENDERS) - set(REGISTERED)
         assert not unknown, (
-            f"LEGITIMATE_NON_RENDERS names classes that were not registered: "
-            f"{sorted(unknown)}"
+            f"LEGITIMATE_NON_RENDERS names classes that were not registered: " f"{sorted(unknown)}"
         )
 
     def test_legitimate_non_roundtrips_are_real_classes(self):
@@ -2525,9 +2481,11 @@ class TestMatrixIntegrity:
             bad = set(entry["channels"]) - {"dict", "json", "xml"}
             assert not bad, f"{fqn}: pins unknown channels {sorted(bad)}"
             for channel, pin in entry["channels"].items():
-                assert pin[0] in ("raises", "word", "enum-str"), (
-                    f"{fqn}/{channel}: unknown pin shape {pin[0]!r}"
-                )
+                assert pin[0] in (
+                    "raises",
+                    "word",
+                    "enum-str",
+                ), f"{fqn}/{channel}: unknown pin shape {pin[0]!r}"
 
     def test_pinned_non_roundtrip_refuses_as_pinned(self, clickhouse_matrix_dialect):
         """Each pinned round-trip entry still refuses exactly as it claims.
@@ -2544,8 +2502,8 @@ class TestMatrixIntegrity:
                 f"constructed ({source})"
             )
             for channel, build in _channel_builders(
-            instance, clickhouse_matrix_dialect, CODEC_REGISTRY
-        ):
+                instance, clickhouse_matrix_dialect, CODEC_REGISTRY
+            ):
                 pin = entry["channels"].get(channel)
                 if pin is not None:
                     _assert_pinned_channel(fqn, channel, build, instance, pin)
@@ -2564,14 +2522,12 @@ class TestMatrixIntegrity:
         for fqn, (expected_type, fragment) in LEGITIMATE_NON_RENDERS.items():
             instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
             assert instance is not None, (
-                f"{fqn} is pinned as a non-render but could not be constructed "
-                f"({source})"
+                f"{fqn} is pinned as a non-render but could not be constructed " f"({source})"
             )
             with pytest.raises(expected_type) as exc_info:
                 instance.to_sql()
             assert fragment in str(exc_info.value), (
-                f"{fqn}: expected the message to mention {fragment!r}, got: "
-                f"{exc_info.value}"
+                f"{fqn}: expected the message to mention {fragment!r}, got: " f"{exc_info.value}"
             )
 
     def test_unmodelled_formatter_list_is_exact(self, clickhouse_matrix_dialect):
@@ -2678,9 +2634,9 @@ class TestMatrixIntegrity:
             if resolved is not cls:
                 unresolved.append(fqn)
         unresolved.sort()
-        assert not unresolved, (
-            f"the matrix covers classes the registry cannot resolve: {unresolved}"
-        )
+        assert (
+            not unresolved
+        ), f"the matrix covers classes the registry cannot resolve: {unresolved}"
 
     def test_coverage_report(self, clickhouse_matrix_dialect):
         """Surface what the matrix covers, so coverage stays transparent."""
@@ -2777,9 +2733,7 @@ class TestSetOperationStatementRenders:
 
         rendered, params = node.to_sql()
 
-        assert rendered == (
-            "SELECT `id` FROM `t1` UNION ALL SELECT `id` FROM `t2`"
-        )
+        assert rendered == ("SELECT `id` FROM `t1` UNION ALL SELECT `id` FROM `t2`")
         assert params == ()
 
     def test_union_renders_a_different_keyword(self, clickhouse_matrix_dialect):
@@ -2795,9 +2749,7 @@ class TestSetOperationStatementRenders:
         assert rendered == "SELECT `id` FROM `t1` UNION SELECT `id` FROM `t2`"
         assert params == ()
 
-    def test_parameters_concatenate_in_part_order(
-        self, clickhouse_matrix_dialect
-    ):
+    def test_parameters_concatenate_in_part_order(self, clickhouse_matrix_dialect):
         """Each arm's parameters arrive in the order the operator joins them."""
         dialect = clickhouse_matrix_dialect
         parts = [
@@ -2805,9 +2757,7 @@ class TestSetOperationStatementRenders:
                 dialect,
                 select=[Column(dialect, "id"), Literal(dialect, 1)],
                 from_=Table(dialect, "t1"),
-                where=ComparisonPredicate(
-                    dialect, "=", Column(dialect, "id"), Literal(dialect, 5)
-                ),
+                where=ComparisonPredicate(dialect, "=", Column(dialect, "id"), Literal(dialect, 5)),
             ),
             QueryStatement(
                 dialect,
@@ -2820,19 +2770,18 @@ class TestSetOperationStatementRenders:
         rendered, params = node.to_sql()
 
         assert rendered == (
-            "SELECT `id`, %s FROM `t1` WHERE `id` = %s "
-            "UNION ALL "
-            "SELECT `id`, %s FROM `t2`"
+            "SELECT `id`, %s FROM `t1` WHERE `id` = %s " "UNION ALL " "SELECT `id`, %s FROM `t2`"
         )
         assert params == (1, 5, 2)
 
-    @pytest.mark.parametrize("op, keyword", [
-        ("intersect", "INTERSECT"),
-        ("except", "EXCEPT"),
-    ])
-    def test_the_other_two_operators_render(
-        self, clickhouse_matrix_dialect, op, keyword
-    ):
+    @pytest.mark.parametrize(
+        "op, keyword",
+        [
+            ("intersect", "INTERSECT"),
+            ("except", "EXCEPT"),
+        ],
+    )
+    def test_the_other_two_operators_render(self, clickhouse_matrix_dialect, op, keyword):
         """Both spell the keyword directly, with no version gate at 24.3."""
         node = SetOperationStatement(
             clickhouse_matrix_dialect,
@@ -2842,7 +2791,5 @@ class TestSetOperationStatementRenders:
 
         rendered, params = node.to_sql()
 
-        assert rendered == (
-            f"SELECT `id` FROM `t1` {keyword} SELECT `id` FROM `t2`"
-        )
+        assert rendered == (f"SELECT `id` FROM `t1` {keyword} SELECT `id` FROM `t2`")
         assert params == ()

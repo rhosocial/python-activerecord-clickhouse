@@ -29,7 +29,7 @@ class ClickHousePartitionMaintenanceMixin:
     @property
     def partition_maintenance(self) -> "ClickHousePartitionMaintenance":
         """The lazily built partition-maintenance service for this backend."""
-        instance = getattr(self, "_partition_maintenance_instance", None)
+        instance = vars(self).get("_partition_maintenance_instance", None)
         if instance is None:
             from ..partition_maintenance import ClickHousePartitionMaintenance
 

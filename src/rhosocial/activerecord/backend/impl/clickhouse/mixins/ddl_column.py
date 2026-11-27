@@ -1,8 +1,13 @@
 # src/rhosocial/activerecord/backend/impl/clickhouse/mixins/ddl_column.py
 from enum import Enum
-from typing import Tuple
+from typing import TYPE_CHECKING, Tuple
 
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
+
+if TYPE_CHECKING:
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.alter_column import (
+        ClickHouseAddColumnAction,
+    )
 
 
 class ClickHouseDDLColumnMixin:
@@ -154,7 +159,9 @@ class ClickHouseDDLColumnMixin:
         # ``ClickHouseAddColumnAction.after``, which has its own entry below.
         return " ".join(parts), column_params
 
-    def format_clickhouse_add_column_action(self, expr) -> Tuple[str, tuple]:
+    def format_clickhouse_add_column_action(
+        self, expr: "ClickHouseAddColumnAction"
+    ) -> Tuple[str, tuple]:
         """``ADD COLUMN ... AFTER <column>`` — the ClickHouse position clause.
 
         ClickHouse places a new column with ``AFTER <name>`` (also ``FIRST``);
@@ -235,4 +242,3 @@ class ClickHouseDDLColumnMixin:
             return f"ALTER COLUMN {col_name} DEFAULT {new_value}", ()
 
         return super().format_alter_column_action(expr)
-

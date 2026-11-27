@@ -27,7 +27,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
+from enum import Enum
+from typing import Any, List, Optional
 
 from rhosocial.activerecord.backend.introspection.types import ColumnDataProfile
 
@@ -42,6 +43,11 @@ __all__ = [
     "ClickHouseUserInfo",
     "ClickHouseRoleInfo",
 ]
+
+
+def _enum_value(value: Any) -> Any:
+    """Unwrap an enum member by declared type; leave a plain value alone."""
+    return value.value if isinstance(value, Enum) else value
 
 
 @dataclass(frozen=True)
@@ -214,7 +220,7 @@ class ClickHouseFunctionInfo:
         user-defined: the server did not answer, and guessing would be worse
         than leaving the raw origin to speak for itself.
         """
-        origin = getattr(self.origin, "value", self.origin)
+        origin = _enum_value(self.origin)
         return origin in (
             "SQLUserDefined",
             "ExecutableUserDefined",

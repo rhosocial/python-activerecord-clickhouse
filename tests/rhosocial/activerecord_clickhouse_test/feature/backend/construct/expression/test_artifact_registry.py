@@ -30,10 +30,9 @@ from rhosocial.activerecord.backend.expression.serialization import (
     deserialize,
     serialize,
 )
-from rhosocial.activerecord.backend.impl.sqlite.dialect import SQLiteDialect
-from rhosocial.activerecord.backend.impl.sqlite.expression.vacuum import (
-    SQLiteVacuumStatement,
-)
+from rhosocial.activerecord.backend.expression.types import IntegerType
+from rhosocial.activerecord.backend.impl.dummy.dialect import DummyDialect
+from rhosocial.activerecord.backend.impl.dummy.expression import _DummyTypeDefinition
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
@@ -115,22 +114,28 @@ def test_a_partition_node_roundtrips_through_the_dialect():
     assert original.kind() in str(caught.value)
 
 
+def _foreign_node():
+    """A neutral dummy node: owned by no other concrete backend's impl tree."""
+    dummy = DummyDialect()
+    return _DummyTypeDefinition(dummy, IntegerType(dummy))
+
+
 def test_another_backends_kind_is_refused():
-    """ClickHouse's table is core plus ClickHouse: SQLite's kinds are not included."""
+    """ClickHouse's table is core plus ClickHouse: a foreign kind is not included."""
     dialect = _dialect()
     registry = dialect.artifact_registry()
 
-    sqlite_kind = SQLiteVacuumStatement.kind()
-    assert sqlite_kind not in registry.node_kinds()
+    foreign_kind = _foreign_node().kind()
+    assert foreign_kind not in registry.node_kinds()
     with pytest.raises(RegistryError) as caught:
-        registry.resolve_node(sqlite_kind)
+        registry.resolve_node(foreign_kind)
     assert caught.value.reason is RegistryReason.KIND_NOT_REGISTERED
-    assert sqlite_kind in str(caught.value)
+    assert foreign_kind in str(caught.value)
 
-    artifact = serialize(SQLiteVacuumStatement(SQLiteDialect((3, 38, 0))))
+    artifact = serialize(_foreign_node())
     with pytest.raises(ExpressionDeserializationError) as caught:
         deserialize(artifact, dialect)
-    assert sqlite_kind in str(caught.value)
+    assert foreign_kind in str(caught.value)
 
 
 def test_the_published_registry_is_frozen():
@@ -146,9 +151,9 @@ def test_the_published_registry_is_frozen():
     # A twin is the mutable workspace, and it cannot change the source.
     twin = registry.twin()
     assert not twin.is_frozen
-    twin.register_node(SQLiteVacuumStatement)
-    assert SQLiteVacuumStatement.kind() in twin.node_kinds()
-    assert SQLiteVacuumStatement.kind() not in registry.node_kinds()
+    twin.register_node(_DummyTypeDefinition)
+    assert _DummyTypeDefinition.kind() in twin.node_kinds()
+    assert _DummyTypeDefinition.kind() not in registry.node_kinds()
 
 
 def test_trusted_opt_in_kinds_come_from_a_twin_never_the_published_table():
