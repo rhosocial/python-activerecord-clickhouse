@@ -95,18 +95,6 @@ class ClickHouseIntrospectionMixin:
     system table at all and raise.
     """
 
-    def supports_partition_introspection(self) -> bool:
-        """ClickHouse answers for a table's partitions from ``system.parts``.
-
-        A backend-local switch, kept for callers that ask this dialect
-        directly. The CLI's ``partitions`` family and the core partition
-        surface are gated on ``supports_partition_metadata_introspection``
-        instead; both answer True for the same reason -- the parts view is
-        live, so a partition with no active parts has nothing to report and
-        the answer is aggregated.
-        """
-        return True
-
     def supports_table_engine_introspection(self) -> bool:
         """ClickHouse answers for a table's storage definition.
 
