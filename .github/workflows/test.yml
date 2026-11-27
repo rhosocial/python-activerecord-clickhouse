@@ -74,6 +74,20 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      - name: Create ClickHouse scenario config
+        run: |
+          cat > clickhouse_scenarios.yaml << EOF
+          scenarios:
+            clickhouse_http:
+              host: 127.0.0.1
+              port: ${{ matrix.port }}
+              database: test_db
+              username: root
+              password: password
+              autocommit: true
+          EOF
+          echo "CLICKHOUSE_SCENARIOS_CONFIG_PATH=$(pwd)/clickhouse_scenarios.yaml" >> $GITHUB_ENV
+
       # Isolated from the full suite: module-level global registries there can
       # change what a contract test constructs, which makes an order-dependent
       # pass meaningless.
@@ -96,20 +110,6 @@ jobs:
           print('ClickHouse ${{ matrix.clickhouse-version }} connectivity test passed - version:', client.command('SELECT version()'))
           client.close()
           "
-
-      - name: Create ClickHouse scenario config
-        run: |
-          cat > clickhouse_scenarios.yaml << EOF
-          scenarios:
-            clickhouse_http:
-              host: 127.0.0.1
-              port: ${{ matrix.port }}
-              database: test_db
-              username: root
-              password: password
-              autocommit: true
-          EOF
-          echo "CLICKHOUSE_SCENARIOS_CONFIG_PATH=$(pwd)/clickhouse_scenarios.yaml" >> $GITHUB_ENV
 
       # Feature bridges and CLI blackbox live under tests/rhosocial;
       # tests/benchmark is excluded (benchmarks are not part of the
