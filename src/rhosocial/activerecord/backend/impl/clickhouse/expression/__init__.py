@@ -27,32 +27,32 @@ set) are intentionally **not** exported: ClickHouse does not support them and
 the corresponding dialect mixins fail fast with ``UnsupportedFeatureError``.
 """
 
-from .alter_column import ClickHouseAddColumnAction
-from .column import ClickHouseColumnDefinition, ClickHouseColumnOptions
-from .comment import (
+from .operators.alter_column import ClickHouseAddColumnAction
+from .column_types.column import ClickHouseColumnDefinition, ClickHouseColumnOptions
+from .statements.comment import (
     ClickHouseModifyColumnCommentStatement,
     ClickHouseModifyTableCommentStatement,
 )
-from .constraint_modify import ClickHouseModifyConstraintStatement
-from .create_table_options import ClickHouseCreateTableOptions
-from .database import (
+from .statements.constraint_modify import ClickHouseModifyConstraintStatement
+from .query_parts.create_table_options import ClickHouseCreateTableOptions
+from .statements.database import (
     ClickHouseCreateDatabaseExpression,
     ClickHouseDropDatabaseExpression,
 )
-from .dml import ClickHouseInsertExpression
-from .materialized_view import (
+from .statements.dml import ClickHouseInsertExpression
+from .statements.materialized_view import (
     ClickHouseCreateMaterializedViewStatement,
     ClickHouseDropMaterializedViewStatement,
     ClickHouseModifyMaterializedViewRefreshStatement,
     ClickHouseRefreshMaterializedViewStatement,
     ClickHouseRefreshSchedule,
 )
-from .index import (
+from .objects.index import ClickHouseIndexDefinition
+from .statements.index import (
     ClickHouseAddIndexStatement,
     ClickHouseDropIndexStatement,
-    ClickHouseIndexDefinition,
 )
-from .json import (
+from .functions.json import (
     ClickHouseJSONExtractExpression,
     ClickHouseJSONObjectExpression,
     ClickHouseJSONArrayExpression,
@@ -64,7 +64,7 @@ from .json import (
     ClickHouseJSONValidExpression,
     ClickHouseJSONSearchExpression,
 )
-from .partition import (
+from .query_parts.partition import (
     _ClickHousePartitionIdExpression,
     ClickHouseAttachPartitionStatement,
     ClickHouseClearInPartitionStatement,
@@ -76,9 +76,9 @@ from .partition import (
     ClickHouseReplacePartitionStatement,
     ClickHouseUnfreezePartitionStatement,
 )
-from .rename_table import ClickHouseRenameTableStatement
-from .wildcard import ClickHouseRowCountDistinctWildcard
-from .spatial import (
+from .statements.rename_table import ClickHouseRenameTableStatement
+from .value_types.wildcard import ClickHouseRowCountDistinctWildcard
+from .functions.spatial import (
     ClickHouseCreateSpatialIndexStatement,
     ClickHouseSTAsGeoJSONExpression,
     ClickHouseSTAsTextExpression,
@@ -89,7 +89,7 @@ from .spatial import (
     ClickHouseSTWithinExpression,
     ClickHouseSpatialLiteralExpression,
 )
-from .storage_option import (
+from .query_parts.storage_option import (
     ClickHouseEngineSpec,
     ClickHouseSetting,
     ClickHouseStorageOptionKind,
@@ -97,7 +97,7 @@ from .storage_option import (
 )
 
 # DataType subclasses for DDL
-from .types import (
+from .types.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
     ClickHouseBoolType,
@@ -265,7 +265,7 @@ __all__ = [
 import importlib as _importlib
 import pkgutil as _pkgutil
 
-from rhosocial.activerecord.backend.expression.core import BaseExpression as _BaseExpression
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression as _BaseExpression
 
 # Declared once: the wire kind token this backend owns, and the explicit token
 # for the private node whose name begins with an underscore.

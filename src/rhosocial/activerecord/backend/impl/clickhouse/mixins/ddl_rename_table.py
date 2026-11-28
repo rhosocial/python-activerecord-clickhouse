@@ -2,7 +2,7 @@
 from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.rename_table import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.statements import (
         ClickHouseRenameTableStatement,
     )
 

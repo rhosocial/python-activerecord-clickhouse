@@ -22,7 +22,7 @@ from .._scan import (
     quoted_number_pairs,
     split_top_level_commas,
 )
-from ..expression.types import (
+from ..expression.types.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
     ClickHouseBoolType,

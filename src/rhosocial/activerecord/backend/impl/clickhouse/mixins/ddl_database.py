@@ -10,7 +10,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.objects import Database
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_database import (
+    from rhosocial.activerecord.backend.expression.statements import (
         AlterDatabaseStatement,
         CreateDatabaseStatement,
         DropDatabaseStatement,
@@ -88,7 +88,7 @@ class ClickHouseDatabaseMixin:
         # backend's own node; the generic CreateDatabaseStatement carries
         # neither, and which one arrived is a type question asked with
         # isinstance rather than probed field by field.
-        from ..expression.database import ClickHouseCreateDatabaseExpression
+        from ..expression.statements.database import ClickHouseCreateDatabaseExpression
 
         if isinstance(expr, ClickHouseCreateDatabaseExpression):
             if expr.engine:
@@ -115,7 +115,7 @@ class ClickHouseDatabaseMixin:
         parts.append(expr.database.to_sql()[0])
         # ``SYNC`` is a ClickHouse clause and lives on this backend's own
         # node; the generic DropDatabaseStatement does not carry it.
-        from ..expression.database import ClickHouseDropDatabaseExpression
+        from ..expression.statements.database import ClickHouseDropDatabaseExpression
 
         if isinstance(expr, ClickHouseDropDatabaseExpression) and expr.sync:
             parts.append("SYNC")
@@ -145,7 +145,7 @@ class ClickHouseDatabaseMixin:
                 f"AlterDatabaseStatement.database must be a Database, "
                 f"got {type(expr.database).__name__}"
             )
-        from rhosocial.activerecord.backend.expression.statements.ddl_database import (
+        from rhosocial.activerecord.backend.expression.statements import (
             AlterDatabaseAction,
         )
 

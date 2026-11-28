@@ -30,7 +30,7 @@ from rhosocial.activerecord.backend.expression.introspection import (
     ViewListQueryStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection.status import (
     ClickHouseConnectionProbeQuery,
     ClickHouseDatabaseTotalSizeQuery,
     ClickHouseDiskListQuery,

@@ -293,7 +293,7 @@ class ClickHouseBackend(
         expected = 0
         if options.pk_values:
             from rhosocial.activerecord.backend.expression import Column
-            from rhosocial.activerecord.backend.expression.core import Parameter
+            from rhosocial.activerecord.backend.expression.value_types import Parameter
             from rhosocial.activerecord.backend.expression.predicates import InPredicate
 
             pk_col = Column(self.dialect, options.pk_column)
@@ -316,7 +316,7 @@ class ClickHouseBackend(
         rendered it, then stripped the leading ``WHERE`` word back off the text,
         which put the query's structure in a string twice over.
         """
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
             ClickHouseRowCountQuery,
         )
 
@@ -487,7 +487,7 @@ class ClickHouseBackend(
         else:
             # Verify the connection is still alive via a lightweight query.
             try:
-                from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+                from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
                     ClickHouseConnectionProbeQuery,
                 )
 
@@ -584,7 +584,7 @@ class ClickHouseBackend(
         cursor = None
         try:
             cursor = self._get_cursor()
-            from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+            from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
                 ClickHouseVersionQuery,
             )
 
@@ -637,7 +637,7 @@ class ClickHouseBackend(
 
             # Verify connection with the liveness probe
             try:
-                from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+                from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
                     ClickHouseConnectionProbeQuery,
                 )
 

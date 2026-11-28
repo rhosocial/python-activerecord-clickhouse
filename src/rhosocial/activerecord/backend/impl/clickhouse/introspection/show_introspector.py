@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.introspection.executor import (
     IntrospectorExecutor,
 )
 
-from ..expression.show import (
+from ..expression.statements.show import (
     ClickHouseShowCharsetStatement,
     ClickHouseShowCollationStatement,
     ClickHouseShowColumnsStatement,

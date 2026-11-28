@@ -7,8 +7,8 @@ execute test at ``feature/backend/execute/query/test_query_features.py`` runs
 them against 26.7.3.19. What used to be missing was an expression node for the
 spelling: the only index node was the inline ``ClickHouseIndexDefinition`` and
 core's ``AddIndexAction`` / ``DropIndexAction`` render MySQL's form. That gap is
-closed by :class:`~..expression.index.ClickHouseAddIndexStatement` and
-:class:`~..expression.index.ClickHouseDropIndexStatement`.
+closed by :class:`~..expression.statements.index.ClickHouseAddIndexStatement` and
+:class:`~..expression.statements.index.ClickHouseDropIndexStatement`.
 
 This mixin now answers with a real chain when it can build it honestly:
 
@@ -27,11 +27,11 @@ from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Tuple
 
 from ....dialect.exceptions import UnsupportedFeatureError
-from ....expression.bases import BaseExpression
-from ....expression.core import Column
+from ....expression.bases.bases import BaseExpression
+from ....expression.column_types.column import Column
 from ....expression.statements.ddl_table import IndexDefinition
 from ....suggestion.definitions import TableIndexChangeSuggestion
-from ..expression.index import (
+from ..expression.statements.index import (
     ClickHouseAddIndexStatement,
     ClickHouseDropIndexStatement,
 )

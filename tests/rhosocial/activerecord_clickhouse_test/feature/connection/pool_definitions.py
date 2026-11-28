@@ -22,7 +22,7 @@ from rhosocial.activerecord.backend.expression import (
     CreateTableStatement as CreateTable,
     DropTableStatement as DropTable,
 )
-from rhosocial.activerecord.backend.expression.core import Column as ColumnRef
+from rhosocial.activerecord.backend.expression.column_types.column import Column as ColumnRef
 from rhosocial.activerecord.backend.expression.functions import now
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (

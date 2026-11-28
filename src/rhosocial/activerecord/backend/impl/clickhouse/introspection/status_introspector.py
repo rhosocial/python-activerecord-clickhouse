@@ -79,7 +79,7 @@ from rhosocial.activerecord.backend.introspection.status import (
     UserInfo,
 )
 
-from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
     ClickHouseAsynchronousMetricsQuery,
     ClickHouseConnectionGaugesQuery,
     ClickHouseCurrentUserQuery,

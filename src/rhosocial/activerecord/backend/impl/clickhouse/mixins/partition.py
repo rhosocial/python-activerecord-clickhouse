@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING, NoReturn, Optional, Tuple
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..expression.partition import (
+    from ..expression.query_parts.partition import (
         ClickHouseAttachPartitionStatement,
         ClickHouseClearInPartitionStatement,
         ClickHouseDetachPartitionStatement,
@@ -112,7 +112,7 @@ class ClickHousePartitionMixin:
     ``supports_*`` switch per MySQL statement: a switch per MySQL statement
     would be an inventory of statements ClickHouse does not have, and the
     authoritative inventory is
-    :data:`ALTER_PARTITION_INVENTORY` (see :mod:`..expression.partition`).
+    :data:`ALTER_PARTITION_INVENTORY` (see :mod:`..expression.query_parts.partition`).
     """
 
     # ------------------------------------------------------------------
@@ -305,7 +305,7 @@ class ClickHousePartitionMixin:
             TypeError: if ``expr`` is not a ``ClickHouseDropPartitionStatement``.
             UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        from ..expression.partition import ClickHouseDropPartitionStatement
+        from ..expression.query_parts.partition import ClickHouseDropPartitionStatement
 
         if not isinstance(expr, ClickHouseDropPartitionStatement):
             raise TypeError(
@@ -336,7 +336,7 @@ class ClickHousePartitionMixin:
             TypeError: if ``expr`` is not a ``ClickHouseDetachPartitionStatement``.
             UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        from ..expression.partition import ClickHouseDetachPartitionStatement
+        from ..expression.query_parts.partition import ClickHouseDetachPartitionStatement
 
         if not isinstance(expr, ClickHouseDetachPartitionStatement):
             raise TypeError(
@@ -367,7 +367,7 @@ class ClickHousePartitionMixin:
             TypeError: if ``expr`` is not a ``ClickHouseAttachPartitionStatement``.
             UnsupportedFeatureError: if ``expr`` does not carry a partition id.
         """
-        from ..expression.partition import ClickHouseAttachPartitionStatement
+        from ..expression.query_parts.partition import ClickHouseAttachPartitionStatement
 
         if not isinstance(expr, ClickHouseAttachPartitionStatement):
             raise TypeError(

@@ -17,7 +17,7 @@ This module tests ClickHouse-specific JSON function functionality including:
 """
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.json import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.functions.json import (
     ClickHouseJSONArrayExpression,
     ClickHouseJSONContainsExpression,
     ClickHouseJSONObjectExpression,

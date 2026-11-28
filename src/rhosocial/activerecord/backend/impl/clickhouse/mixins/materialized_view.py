@@ -3,7 +3,7 @@
 
 ClickHouse's materialized view DDL diverges from the SQL-standard statement in
 ways that must not be papered over — see
-:mod:`..expression.materialized_view` for the two MV flavours and their grammar.
+:mod:`..expression.statements.materialized_view` for the two MV flavours and their grammar.
 Anything the generic expressions carry that ClickHouse cannot express is
 rejected with ``UnsupportedFeatureError`` instead of being silently dropped.
 
@@ -21,13 +21,13 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.objects import MaterializedView, Table
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_view import (
+    from rhosocial.activerecord.backend.expression.statements import (
         CreateMaterializedViewStatement,
         DropMaterializedViewStatement,
         RefreshMaterializedViewStatement,
     )
 
-    from ..expression.materialized_view import (
+    from ..expression.statements.materialized_view import (
         ClickHouseCreateMaterializedViewStatement,
         ClickHouseDropMaterializedViewStatement,
         ClickHouseModifyMaterializedViewRefreshStatement,
@@ -117,7 +117,7 @@ class ClickHouseMaterializedViewMixin:
                 f"CreateMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(expr.view).__name__}"
             )
-        from ..expression.materialized_view import ClickHouseCreateMaterializedViewStatement
+        from ..expression.statements.materialized_view import ClickHouseCreateMaterializedViewStatement
 
         if isinstance(expr, ClickHouseCreateMaterializedViewStatement):
             # The ClickHouse node: every clause below is a declared field on it,
@@ -225,7 +225,7 @@ class ClickHouseMaterializedViewMixin:
                 f"DropMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(view).__name__}"
             )
-        from ..expression.materialized_view import ClickHouseDropMaterializedViewStatement
+        from ..expression.statements.materialized_view import ClickHouseDropMaterializedViewStatement
 
         if not isinstance(expr, ClickHouseDropMaterializedViewStatement):
             # ``CASCADE`` / ``RESTRICT`` are fields of the generic statement;
@@ -262,7 +262,7 @@ class ClickHouseMaterializedViewMixin:
                 f"RefreshMaterializedViewStatement.view must be a MaterializedView, "
                 f"got {type(view).__name__}"
             )
-        from ..expression.materialized_view import ClickHouseRefreshMaterializedViewStatement
+        from ..expression.statements.materialized_view import ClickHouseRefreshMaterializedViewStatement
 
         if isinstance(expr, ClickHouseRefreshMaterializedViewStatement):
             # This backend's own node: ``SYSTEM WAIT VIEW`` is its spelling of

@@ -20,7 +20,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
     DropTypeSupport,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Parameter
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.objects import Domain, Type
 from rhosocial.activerecord.backend.expression.statements import (
     AlterDomainStatement,
@@ -39,7 +39,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_type import (
 )
 from rhosocial.activerecord.backend.expression.types import DataType, IntegerType
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
     ClickHouseEnum8Type,
     ClickHouseEnum16Type,
 )

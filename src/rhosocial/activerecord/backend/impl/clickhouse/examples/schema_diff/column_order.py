@@ -37,7 +37,7 @@ if __name__ == "__main__":
         DropTableStatement, CreateTableStatement, ColumnDefinition,
         ColumnConstraint, ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
     )
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (  # noqa: E402
         ClickHouseUInt32Type, ClickHouseStringType,
     )
 

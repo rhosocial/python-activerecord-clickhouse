@@ -32,7 +32,7 @@ import uuid as uuidlib
 
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Parameter
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins import (
     ClickHouseLiteralValueMixin,

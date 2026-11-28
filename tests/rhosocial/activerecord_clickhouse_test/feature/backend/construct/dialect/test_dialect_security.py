@@ -18,7 +18,7 @@ from rhosocial.activerecord.backend.expression.statements import (
 from rhosocial.activerecord.backend.expression import ColumnCommentClause, TableCommentClause
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import VarCharType
-from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.sources.json_table import (
     ClickHouseJSONTableExpression,
     JSONTableColumn,
 )
@@ -76,10 +76,10 @@ def test_clickhousea_type_position_refuses_a_payload(dialect):
     from rhosocial.activerecord.backend.expression.statements import (
         AlterColumnAction,
     )
-    from rhosocial.activerecord.backend.expression.type_name import (
+    from rhosocial.activerecord.backend.expression.bases.type_name import (
         InvalidTypeNameError,
     )
-    from rhosocial.activerecord.backend.expression.xml import (
+    from rhosocial.activerecord.backend.expression.functions.xml import (
         XMLSerializeExpression,
     )
 
@@ -173,7 +173,8 @@ def test_clickhouse_format_cast_expression_valid(dialect):
     generic format_data_type_* names, so a target it does not model is a target
     it cannot render. That is the capability difference, not a gap in the test.
     """
-    from rhosocial.activerecord.backend.expression.core import CastExpression, Column
+    from rhosocial.activerecord.backend.expression.functions.cast_expression import CastExpression
+    from rhosocial.activerecord.backend.expression.column_types.column import Column
     from rhosocial.activerecord.backend.impl.clickhouse.types import ClickHouseInt64Type
 
     expr = CastExpression(dialect, Column(dialect, "column"), ClickHouseInt64Type(dialect))
@@ -190,7 +191,8 @@ def test_clickhouse_format_cast_expression_rejects_injection(dialect):
     is code and not data. The node itself still collects — the refusal belongs
     to the formatter.
     """
-    from rhosocial.activerecord.backend.expression.core import CastExpression, Column
+    from rhosocial.activerecord.backend.expression.functions.cast_expression import CastExpression
+    from rhosocial.activerecord.backend.expression.column_types.column import Column
 
     expr = CastExpression(dialect, Column(dialect, "column"), "INTEGER; DROP TABLE users--")
     with pytest.raises(TypeError, match="takes a DataType instance"):
@@ -406,7 +408,7 @@ class TestJSONTableJsonDocSecurity:
         mode, but JSON_TABLE itself is unsupported so formatting always fails fast.
         """
         from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-        from rhosocial.activerecord.backend.expression.core import Parameter
+        from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 
         expr = ClickHouseJSONTableExpression(
             dialect=dialect,

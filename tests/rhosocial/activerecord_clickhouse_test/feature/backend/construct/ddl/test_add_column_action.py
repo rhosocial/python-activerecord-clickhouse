@@ -32,7 +32,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDia
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseAddColumnAction,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
     ClickHouseUInt32Type,
 )
 

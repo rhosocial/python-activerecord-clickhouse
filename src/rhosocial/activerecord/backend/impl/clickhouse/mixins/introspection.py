@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     )
     from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
 
-    from ..expression.introspection import (
+    from ..expression.introspection.introspection import (
         ClickHouseClusterListQuery,
         ClickHouseConstraintStateListQuery,
         ClickHouseDictionaryListQuery,
@@ -52,7 +52,7 @@ class ClickHouseIntrospectionMixin:
 
     It declares the supported features (supports_* methods) and formats SQL
     (format_*_query methods) that the expressions in
-    :mod:`..expression.introspection` dispatch to. The remaining two families,
+    :mod:`..expression.introspection.introspection` dispatch to. The remaining two families,
     :class:`~...protocols.introspect.operational_stats.OperationalStatsIntrospectionSupport`
     and :class:`~...protocols.introspect.ddl_extraction.DdlExtractionIntrospectionSupport`,
     are answered by core's base mixins as a refusal -- this backend keeps
@@ -278,7 +278,7 @@ class ClickHouseIntrospectionMixin:
         column's type as the parser expects it.
         """
         from rhosocial.activerecord.backend.expression import Parameter
-        from rhosocial.activerecord.backend.expression.core import CastExpression
+        from rhosocial.activerecord.backend.expression.functions import CastExpression
 
         return CastExpression(
             self,
@@ -289,13 +289,13 @@ class ClickHouseIntrospectionMixin:
 
     def _text_constant(self, value: str, alias: str):
         """A string constant projection, typed ``String``."""
-        from ..expression.types import ClickHouseStringType
+        from ..expression.types.types import ClickHouseStringType
 
         return self._constant(value, alias, ClickHouseStringType(self))
 
     def _int_constant(self, value: int, alias: str):
         """An integer constant projection, typed ``Int64``."""
-        from ..expression.types import ClickHouseInt64Type
+        from ..expression.types.types import ClickHouseInt64Type
 
         return self._constant(value, alias, ClickHouseInt64Type(self))
 
@@ -470,7 +470,7 @@ class ClickHouseIntrospectionMixin:
         """
         from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
-        from ..expression.types import ClickHouseNullableType, ClickHouseStringType
+        from ..expression.types.types import ClickHouseNullableType, ClickHouseStringType
 
         params = expr.get_params()
         table = params.get("table_name", "")
@@ -713,7 +713,7 @@ class ClickHouseIntrospectionMixin:
             RowCountWildcard,
             SumFunction,
         )
-        from rhosocial.activerecord.backend.expression.core import CastExpression
+        from rhosocial.activerecord.backend.expression.functions import CastExpression
         from rhosocial.activerecord.backend.expression.functions import (
             CountFunction,
             max_,
@@ -721,7 +721,7 @@ class ClickHouseIntrospectionMixin:
         )
         from rhosocial.activerecord.backend.expression.objects import Table
 
-        from ..expression.types import ClickHouseNullableType, ClickHouseStringType
+        from ..expression.types.types import ClickHouseNullableType, ClickHouseStringType
 
         column = Column(self, column_name)
         endpoint_type = ClickHouseNullableType(self, inner_type=ClickHouseStringType(self))
@@ -1080,7 +1080,7 @@ class ClickHouseIntrospectionMixin:
         measurement, and summing rows and bytes is exactly that measurement.
         """
         from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
-        from rhosocial.activerecord.backend.expression.functions.aggregate import (
+        from rhosocial.activerecord.backend.expression.functions import (
             count,
             max_,
             min_,

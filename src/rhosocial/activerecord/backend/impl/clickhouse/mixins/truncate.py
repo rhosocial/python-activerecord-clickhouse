@@ -5,7 +5,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_truncate import (
+    from rhosocial.activerecord.backend.expression.statements import (
         TruncateStatement,
     )
 

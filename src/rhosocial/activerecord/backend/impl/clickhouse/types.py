@@ -10,7 +10,7 @@ Usage::
     from rhosocial.activerecord.backend.impl.clickhouse.types import ClickHouseUInt32Type, ClickHouseStringType
 """
 
-from .expression.types import (
+from .expression.types.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
     ClickHouseBoolType,

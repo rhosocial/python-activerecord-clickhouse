@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.collation import CollateFunction
+    from rhosocial.activerecord.backend.expression.functions import CollateFunction
 
 
 class ClickHouseCollationMixin:

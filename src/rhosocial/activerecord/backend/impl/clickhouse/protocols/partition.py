@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Protocol, Tuple, runtime_checkable
 from rhosocial.activerecord.backend.dialect.protocols import PartitionSupport
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.query_parts import (
         ClickHouseAttachPartitionStatement,
         ClickHouseClearInPartitionStatement,
         ClickHouseDetachPartitionStatement,

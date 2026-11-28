@@ -2,7 +2,7 @@
 """ClickHouse format_* entry points for the status-introspection nodes.
 
 Every ``system.*`` read the status introspector performs is a node in
-``..expression.status``; this mixin is the dialect side of that pair. Each
+``..expression.introspection.status``; this mixin is the dialect side of that pair. Each
 formatter writes one statement in full, so the whole query is visible in one
 place instead of being assembled by the caller from a prefix, a counted run of
 placeholders and a suffix.
@@ -11,7 +11,7 @@ placeholders and a suffix.
 from typing import Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..expression.status import (
+    from ..expression.introspection.status import (
         ClickHouseAsynchronousMetricsQuery,
         ClickHouseConnectionGaugesQuery,
         ClickHouseConnectionProbeQuery,
@@ -220,7 +220,7 @@ class ClickHouseStatusQueryMixin:
     ) -> Tuple[str, tuple]:
         """Total on-disk size of one database's tables."""
         from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
-        from rhosocial.activerecord.backend.expression.functions.aggregate import sum_
+        from rhosocial.activerecord.backend.expression.functions import sum_
 
         query = QueryStatement(
             self,
@@ -260,7 +260,7 @@ class ClickHouseStatusQueryMixin:
     ) -> Tuple[str, tuple]:
         """Table and view counts per database, from ``information_schema.TABLES``."""
         from rhosocial.activerecord.backend.expression import QueryStatement
-        from rhosocial.activerecord.backend.expression.functions.aggregate import count
+        from rhosocial.activerecord.backend.expression.functions import count
 
         query = QueryStatement(
             self,
@@ -483,7 +483,7 @@ class ClickHouseStatusQueryMixin:
             QueryStatement,
             WhereClause,
         )
-        from rhosocial.activerecord.backend.expression.functions.aggregate import count
+        from rhosocial.activerecord.backend.expression.functions import count
         from rhosocial.activerecord.backend.expression.objects import Table
 
         query = QueryStatement(

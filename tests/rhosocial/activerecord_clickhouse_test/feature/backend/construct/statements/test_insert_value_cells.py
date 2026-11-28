@@ -11,7 +11,7 @@ scalar cell crashed before it ever reached the driver.
 
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Parameter
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     InsertStatement,

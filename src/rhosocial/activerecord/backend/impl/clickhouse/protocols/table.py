@@ -19,7 +19,7 @@ from rhosocial.activerecord.backend.dialect.protocols import (
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    from rhosocial.activerecord.backend.expression.statements import (
         CreateTableLikeStatement,
     )
 

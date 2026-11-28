@@ -5,7 +5,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.objects import Table
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.load_data import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.statements import (
         ClickHouseLoadDataStatement,
     )
 

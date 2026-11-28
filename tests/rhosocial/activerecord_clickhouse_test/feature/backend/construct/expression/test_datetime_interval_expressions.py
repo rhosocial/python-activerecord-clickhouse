@@ -14,7 +14,7 @@ from rhosocial.activerecord.backend.expression.functions import (
     interval,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import ClickHouseInt64Type
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import ClickHouseInt64Type
 
 
 class TestDateTimeIntervalExpressions:

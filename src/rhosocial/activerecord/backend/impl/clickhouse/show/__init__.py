@@ -20,7 +20,7 @@ Usage:
     # The classes below are still exported for API compatibility.
 """
 
-from ..expression.show import (
+from ..expression.statements.show import (
     ClickHouseShowCharsetStatement,
     ClickHouseShowCollationStatement,
     ClickHouseShowColumnsStatement,

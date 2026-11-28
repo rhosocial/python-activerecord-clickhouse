@@ -18,9 +18,10 @@ rather than silently dropping it or inventing a new spelling.
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column, Parameter
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.index import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.index import (
     ClickHouseAddIndexStatement,
     ClickHouseDropIndexStatement,
 )
@@ -76,7 +77,7 @@ class TestExactSql:
         )
 
     def test_add_index_expression_can_be_a_function(self, dialect):
-        from rhosocial.activerecord.backend.expression.core import FunctionCall
+        from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 
         expr = FunctionCall(dialect, "toYYYYMM", Column(dialect, "ts"))
         assert _add(dialect, expression=expr, type="minmax").to_sql()[0] == (

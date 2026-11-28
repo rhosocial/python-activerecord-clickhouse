@@ -153,7 +153,7 @@ class TestTableMixin:
         The grammar is the framework's rule for what a name may be, and the
         server decides whether the type exists.
         """
-        from rhosocial.activerecord.backend.expression.type_name import (
+        from rhosocial.activerecord.backend.expression.bases.type_name import (
             is_valid_type_name,
         )
 

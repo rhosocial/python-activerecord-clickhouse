@@ -62,7 +62,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
 from rhosocial.activerecord.backend.result import QueryResult
 
-from .expression.partition import (
+from .expression.query_parts.partition import (
     ClickHouseAttachPartitionStatement,
     ClickHouseClearInPartitionStatement,
     ClickHouseDetachPartitionStatement,

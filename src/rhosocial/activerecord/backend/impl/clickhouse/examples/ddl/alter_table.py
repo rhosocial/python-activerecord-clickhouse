@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.expression import (
     ValuesSource,
     DropTableStatement,
 )
-from rhosocial.activerecord.backend.expression.core import Parameter
+from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnConstraint,

@@ -39,7 +39,8 @@ if __name__ == "__main__":
         QueryStatement,
         Column,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter, FunctionCall  # noqa: E402
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter  # noqa: E402
+    from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
         ColumnDefinition,
         ColumnConstraint,

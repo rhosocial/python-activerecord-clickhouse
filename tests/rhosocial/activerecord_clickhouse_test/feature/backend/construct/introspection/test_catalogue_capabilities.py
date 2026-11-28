@@ -30,7 +30,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.catalogue import (
     capabilities_for_version,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection.introspection import (
     ClickHouseConstraintStateListQuery,
     ClickHouseIndexStateListQuery,
     ClickHouseMaterializedViewListQuery,

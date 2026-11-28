@@ -29,7 +29,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_view import (
     RefreshMaterializedViewStatement,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.materialized_view import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.materialized_view import (
     ClickHouseCreateMaterializedViewStatement,
     ClickHouseDropMaterializedViewStatement,
     ClickHouseModifyMaterializedViewRefreshStatement,

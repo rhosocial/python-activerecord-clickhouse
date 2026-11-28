@@ -15,7 +15,7 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     ColumnPrimaryKeyConstraint,
     DropTableStatement,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
     ClickHouseUInt32Type,
     ClickHouseStringType,
 )

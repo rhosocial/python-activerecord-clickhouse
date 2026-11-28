@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from rhosocial.activerecord.backend.suggestion.definitions import FunctionSuggestion
 
-from rhosocial.activerecord.backend.impl.clickhouse.expression.engine_function import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.functions import (
     ClickHouseEngineFunctionExpression,
 )
 

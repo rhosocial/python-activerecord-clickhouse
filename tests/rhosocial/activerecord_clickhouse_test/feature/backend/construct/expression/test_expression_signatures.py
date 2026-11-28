@@ -15,7 +15,7 @@ covered now is the partition-id clause family, which is ClickHouse's own.
 import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.query_parts.partition import (
     ClickHouseAttachPartitionStatement,
     ClickHouseDetachPartitionStatement,
     ClickHouseDropPartitionStatement,

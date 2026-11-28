@@ -163,7 +163,7 @@ class TestSQLGeneration:
 
     def test_table_engine_clauses(self, dialect):
         """ClickHouse table-engine-specific clause formatting."""
-        from rhosocial.activerecord.backend.expression.core import Column
+        from rhosocial.activerecord.backend.expression.column_types.column import Column
         from rhosocial.activerecord.backend.expression.operators import RawSQL
         from rhosocial.activerecord.backend.impl.clickhouse.expression import (
             ClickHouseEngineSpec,

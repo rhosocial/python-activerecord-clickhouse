@@ -29,7 +29,7 @@ is never filled with a guess.
 from collections.abc import Mapping
 from typing import Any, Optional, Tuple
 
-from ....expression.bases import BaseExpression
+from ....expression.bases.bases import BaseExpression
 from ....suggestion.definitions import PartitionSchemeChangeSuggestion
 from ..expression import (
     ClickHouseAttachPartitionStatement,

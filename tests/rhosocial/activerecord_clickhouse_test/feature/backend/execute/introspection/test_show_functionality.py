@@ -400,7 +400,7 @@ class TestShowDialectRendersWhatTheServerAccepts:
         return ClickHouseDialect(version=(26, 7, 1))
 
     def _columns(self, dialect, **kw):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.show import (
             ClickHouseShowColumnsStatement,
         )
 
@@ -421,7 +421,7 @@ class TestShowDialectRendersWhatTheServerAccepts:
 
     def test_index_sql_uses_one_table_reference(self, dialect):
         """``SHOW INDEX FROM t FROM db`` is a SYNTAX_ERROR; ``db.t`` is the form."""
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.show import (
             ClickHouseShowIndexStatement,
         )
 
@@ -430,7 +430,7 @@ class TestShowDialectRendersWhatTheServerAccepts:
 
     def test_processlist_sql_never_emits_full(self, dialect):
         """``SHOW FULL PROCESSLIST`` is a SYNTAX_ERROR on 26.7.3.19."""
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.show import (
             ClickHouseShowProcessListStatement,
         )
 
@@ -441,7 +441,7 @@ class TestShowDialectRendersWhatTheServerAccepts:
         )
 
     def test_engines_sql(self, dialect):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.show import (
             ClickHouseShowEnginesStatement,
         )
 
@@ -449,7 +449,7 @@ class TestShowDialectRendersWhatTheServerAccepts:
 
     def test_grants_sql_drops_the_mysql_host_part(self, dialect):
         """``SHOW GRANTS FOR root@localhost`` is UNKNOWN_ROLE on 26.7.3.19."""
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.show import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.show import (
             ClickHouseShowGrantsStatement,
         )
 

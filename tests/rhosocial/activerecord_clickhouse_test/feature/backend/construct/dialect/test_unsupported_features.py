@@ -30,7 +30,7 @@ expression-to-formatter dispatch path is exercised.
 
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column
+from rhosocial.activerecord.backend.expression.column_types.column import Column
 from rhosocial.activerecord.backend.expression.objects import (
     Function,
     Procedure,
@@ -50,42 +50,42 @@ from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
 )
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.admin import (
     ClickHouseFlushStatement,
     ClickHouseKillStatement,
     FlushOption,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.json_duality_view import (
     ClickHouseCreateJsonDualityViewStatement,
     DualityObjectSpec,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.sources.json_table import (
     ClickHouseJSONTableExpression,
     JSONTableColumn,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.load_xml import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.load_xml import (
     ClickHouseLoadXMLStatement,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.maintenance import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.maintenance import (
     ClickHouseAnalyzeTableExpression,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.match_against import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.functions.match_against import (
     ClickHouseMatchAgainstExpression,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.optimizer_hint import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.query_parts.optimizer_hint import (
     ClickHouseOptimizerHintExpression,
     SetVarHint,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.routine import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.routine import (
     ClickHouseCallStatement,
     ClickHouseCreateProcedureStatement,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.spatial import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.functions.spatial import (
     ClickHouseCreateSpatialIndexStatement,
     ClickHouseSpatialLiteralExpression,
     ClickHouseSTGeomFromTextExpression,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.table_statement import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.statements.table_statement import (
     ClickHouseTableStatement,
     ClickHouseValuesStatement,
 )

@@ -22,7 +22,7 @@ from rhosocial.activerecord.backend.suggestion.protocols import (
     PartitionTableDropSuggestionSupport,
 )
 from rhosocial.activerecord.backend.expression import Column, DropTableStatement
-from rhosocial.activerecord.backend.expression.bases import BaseExpression
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression
 from rhosocial.activerecord.backend.expression.statements import PartitionByRangeClause
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (

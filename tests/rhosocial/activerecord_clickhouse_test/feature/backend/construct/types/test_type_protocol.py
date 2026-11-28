@@ -31,7 +31,7 @@ from rhosocial.activerecord.backend.expression.types import (
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import types as clickhouse_types
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
     ClickHouseBoolType,
@@ -1857,7 +1857,7 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
     """
 
     def test_a_collection_is_not_the_generic_geometry_type(self):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseGeometryCollectionType,
         )
 
@@ -1882,7 +1882,7 @@ class TestGeometryCollectionIsNotTheGenericGeometry:
         assert type(ClickHouseTypeParser(dialect).parse(word)).__name__ == expected, word
 
     def test_srid_survives_the_dispatch(self):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseGeometryCollectionType,
         )
 
@@ -1909,7 +1909,7 @@ class TestTupleElementsParseBack:
     """
 
     def test_a_named_tuple_parses_back(self):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseTupleType,
             ClickHouseInt32Type,
         )
@@ -1921,7 +1921,7 @@ class TestTupleElementsParseBack:
         assert parsed.element_names == ("a",)
 
     def test_a_bare_positional_tuple_parses_back(self):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseTupleType,
         )
 
@@ -1932,7 +1932,7 @@ class TestTupleElementsParseBack:
         assert parsed.element_names is None
 
     def test_the_named_render_round_trips(self):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseTupleType,
             ClickHouseInt32Type,
         )
@@ -1955,7 +1955,7 @@ class TestTupleElementsParseBack:
         renaming ``ALTER ... MODIFY COLUMN``; a tuple with no names is
         different from either named one.
         """
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseTupleType,
             ClickHouseInt32Type,
         )

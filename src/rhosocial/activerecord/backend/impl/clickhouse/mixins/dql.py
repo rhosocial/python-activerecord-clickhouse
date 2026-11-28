@@ -2,7 +2,7 @@
 from typing import Any, List, Optional, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.core import Column
+    from rhosocial.activerecord.backend.expression.column_types import Column
 
 
 class ClickHouseDQLMixin:

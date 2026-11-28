@@ -12,7 +12,7 @@ does:
 * ``COUNT(DISTINCT *)`` -- the distinct combinations of every column's value
   rather than the rows. Only ClickHouse accepts it of the eleven backends
   measured (:file:`wildcard-survey.md`, row B8), so it is the backend's own
-  node (:class:`~...expression.wildcard.ClickHouseRowCountDistinctWildcard`)
+  node (:class:`~...expression.value_types.wildcard.ClickHouseRowCountDistinctWildcard`)
   and this override is what spells it.
 
 The select-list position is core's verbatim -- ClickHouse writes ``*`` and
@@ -37,7 +37,7 @@ rendering contract is verified by test.
 from typing import TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.wildcard import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.value_types import (
         ClickHouseRowCountDistinctWildcard,
     )
 
@@ -72,7 +72,7 @@ class ClickHouseWildcardMixin:
         Returns:
             A ``(sql, params)`` tuple; ``params`` is empty.
         """
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.wildcard import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.value_types import (
             ClickHouseRowCountDistinctWildcard,
         )
 
@@ -100,7 +100,7 @@ class ClickHouseWildcardMixin:
         Returns:
             A ``(sql, params)`` tuple; ``params`` is empty.
         """
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.wildcard import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.value_types import (
             ClickHouseRowCountDistinctWildcard,
         )
 

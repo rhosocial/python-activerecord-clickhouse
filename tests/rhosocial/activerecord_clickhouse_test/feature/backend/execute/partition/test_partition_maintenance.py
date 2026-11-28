@@ -19,7 +19,7 @@ import socket
 
 import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column
+from rhosocial.activerecord.backend.expression.column_types.column import Column
 from rhosocial.activerecord.backend.expression.statements import (
     PartitionByRangeClause,
     PartitionDefinitionExpression,

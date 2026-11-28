@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Any, Tuple
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.statements import (
         ClickHouseCreateJsonDualityViewStatement,
         ClickHouseDropJsonDualityViewStatement,
     )

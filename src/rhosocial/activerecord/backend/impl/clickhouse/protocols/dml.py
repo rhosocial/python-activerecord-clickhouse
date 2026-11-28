@@ -12,7 +12,7 @@ if TYPE_CHECKING:  # pragma: no cover
         InsertStatement,
         OnConflictClause,
     )
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.load_data import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.statements import (
         ClickHouseLoadDataStatement,
     )
 

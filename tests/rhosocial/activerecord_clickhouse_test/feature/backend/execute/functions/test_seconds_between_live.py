@@ -23,7 +23,7 @@ from rhosocial.activerecord.backend.expression import (
     cast,
     seconds_between,
 )
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
     ClickHouseDateTime64Type,
 )
 from rhosocial.activerecord.backend.options import ExecutionOptions

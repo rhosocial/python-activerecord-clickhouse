@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Optional, Tuple
 
-from ....expression.bases import BaseExpression
+from ....expression.bases.bases import BaseExpression
 from ....expression.objects import Table
 
 __all__ = ["ClickHousePartitionSuggestionBase", "_get"]

@@ -63,7 +63,7 @@ from rhosocial.activerecord.backend.introspection.types import (
     TableType,
 )
 
-from ..expression.introspection import (
+from ..expression.introspection.introspection import (
     ClickHouseClusterListQuery,
     ClickHouseConstraintStateListQuery,
     ClickHouseDictionaryListQuery,

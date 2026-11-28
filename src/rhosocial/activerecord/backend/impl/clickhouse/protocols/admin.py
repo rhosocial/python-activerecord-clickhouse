@@ -8,7 +8,7 @@ concern per module so the protocol surface stays legible.
 from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.admin import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.statements import (
         ClickHouseBinlogStatement,
         ClickHouseCacheIndexStatement,
         ClickHouseCloneStatement,

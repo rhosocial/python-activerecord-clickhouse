@@ -109,7 +109,7 @@ from rhosocial.activerecord.backend.expression.column_types import (
     TimestampColumn,
     UUIDColumn,
 )
-from ..expression.column_types import ClickHouseVectorColumn
+from ..expression.column_types.column_types import ClickHouseVectorColumn
 
 #: ClickHouse's full table: ``{common Python type: ColumnBase subclass}``.
 #:

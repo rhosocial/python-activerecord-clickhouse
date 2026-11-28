@@ -12,7 +12,7 @@ format_identifier for table-qualified and aliased column references.
 import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.expression.core import Column
+from rhosocial.activerecord.backend.expression.column_types.column import Column
 from rhosocial.activerecord.backend.warnings import IdentifierQuotingWarning
 
 

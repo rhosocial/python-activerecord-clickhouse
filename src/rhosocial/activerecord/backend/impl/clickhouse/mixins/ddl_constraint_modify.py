@@ -14,7 +14,7 @@ Only the expression is replaced; this verb cannot add enforcement control.
 
 from typing import Tuple
 
-from ..expression.constraint_modify import (
+from ..expression.statements.constraint_modify import (
     MODIFY_CONSTRAINT_KINDS,
     ClickHouseModifyConstraintStatement,
 )

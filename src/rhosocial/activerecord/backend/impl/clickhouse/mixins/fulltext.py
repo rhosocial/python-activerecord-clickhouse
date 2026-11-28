@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Tuple
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.match_against import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.functions import (
         ClickHouseMatchAgainstExpression,
     )
 

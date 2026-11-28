@@ -8,7 +8,7 @@ concern per module so the protocol surface stays legible.
 from typing import Protocol, runtime_checkable, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.statements.ddl_trigger import (
+    from rhosocial.activerecord.backend.expression.statements import (
         CreateTriggerStatement,
         DropTriggerStatement,
     )

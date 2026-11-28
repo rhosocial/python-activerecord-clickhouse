@@ -25,7 +25,7 @@ import pytest
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.introspection.types import IntrospectionScope
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.partition import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.query_parts.partition import (
     ClickHouseClearInPartitionStatement,
     ClickHouseFreezePartitionStatement,
     ClickHouseMovePartitionStatement,

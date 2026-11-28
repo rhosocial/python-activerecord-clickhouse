@@ -50,7 +50,7 @@ from typing import TYPE_CHECKING, Optional, Tuple
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
-from ..expression.show import (
+from ..expression.statements.show import (
     ClickHouseShowColumnsStatement,
     ClickHouseShowCreateTableStatement,
     ClickHouseShowCreateViewStatement,

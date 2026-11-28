@@ -41,7 +41,7 @@ from rhosocial.activerecord.backend.impl.clickhouse.cli.introspect import (
     INTROSPECT_TYPES,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection.introspection import (
     ClickHouseTableEngineQuery,
     ClickHouseTablePartitionsQuery,
 )

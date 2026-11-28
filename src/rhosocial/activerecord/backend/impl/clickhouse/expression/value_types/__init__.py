@@ -1,0 +1,54 @@
+# src/rhosocial/activerecord/backend/impl/clickhouse/expression/value_types/__init__.py
+"""Lazy re-exports of ClickHouse ``value_types`` expressions (PEP 562).
+
+Leaf modules are imported on first attribute access, never at package import
+time. Public names stay reachable from this package exactly as before.
+"""
+
+from __future__ import annotations
+
+import importlib as _importlib
+
+_PKG = "rhosocial.activerecord.backend.impl.clickhouse.expression"
+
+__all__ = [
+    "ClickHouseJSONArrayExpression",
+    "ClickHouseJSONContainsExpression",
+    "ClickHouseJSONExtractExpression",
+    "ClickHouseJSONObjectExpression",
+    "ClickHouseJSONRemoveExpression",
+    "ClickHouseJSONSearchExpression",
+    "ClickHouseJSONSetExpression",
+    "ClickHouseJSONTypeExpression",
+    "ClickHouseJSONUnquoteExpression",
+    "ClickHouseJSONValidExpression",
+    "ClickHouseRowCountDistinctWildcard",
+]
+
+# name -> defining module, relative to the expression package
+_NAME_TO_MODULE = {
+    "ClickHouseJSONArrayExpression": "functions.json",
+    "ClickHouseJSONContainsExpression": "functions.json",
+    "ClickHouseJSONExtractExpression": "functions.json",
+    "ClickHouseJSONObjectExpression": "functions.json",
+    "ClickHouseJSONRemoveExpression": "functions.json",
+    "ClickHouseJSONSearchExpression": "functions.json",
+    "ClickHouseJSONSetExpression": "functions.json",
+    "ClickHouseJSONTypeExpression": "functions.json",
+    "ClickHouseJSONUnquoteExpression": "functions.json",
+    "ClickHouseJSONValidExpression": "functions.json",
+    "ClickHouseRowCountDistinctWildcard": "value_types.wildcard",
+}
+
+
+def __getattr__(name: str) -> object:
+    module = _NAME_TO_MODULE.get(name)
+    if module is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = _importlib.import_module(_PKG + "." + module).__dict__[name]
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(__all__))

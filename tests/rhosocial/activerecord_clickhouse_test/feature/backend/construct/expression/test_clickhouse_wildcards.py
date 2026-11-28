@@ -38,7 +38,7 @@ from rhosocial.activerecord.backend.expression import (
     Column,
     RowCountWildcard,
 )
-from rhosocial.activerecord.backend.expression.core import FunctionCall
+from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 from rhosocial.activerecord.backend.expression.functions.aggregate import count, sum_
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.sources import NamedRelationRef

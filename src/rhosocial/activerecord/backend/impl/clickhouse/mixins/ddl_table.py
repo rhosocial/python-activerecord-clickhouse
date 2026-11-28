@@ -6,7 +6,7 @@ from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.types import DataType
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+    from rhosocial.activerecord.backend.expression.statements import (
         ColumnDefinition,
         CreateTableAsStatement,
         CreateTableCloneStatement,
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
         TableConstraint,
     )
 
-from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
     ColumnNotNullConstraint,
     ColumnNullableConstraint,
@@ -505,7 +505,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
                 f"{type(expr).__name__}.data_type must be a DataType, "
                 f"got {type(expr.data_type).__name__}"
             )
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.column import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.column_types import (
             ClickHouseColumnDefinition,
         )
 
@@ -581,7 +581,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
                 well as in :meth:`format_column_definition` so the error names
                 the original node before it is rebuilt.
         """
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.column import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.column_types import (
             ClickHouseColumnDefinition,
         )
         from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
@@ -661,7 +661,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         """
         from rhosocial.activerecord.backend.expression.column_types import ColumnBase
 
-        from ..expression.storage_option import ClickHouseStorageOptionKind
+        from ..expression.query_parts.storage_option import ClickHouseStorageOptionKind
 
         names: List[str] = []
         clauses = (
@@ -741,7 +741,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
                 unsupported, which is a different mistake and sends the caller
                 looking in the wrong place.
         """
-        from rhosocial.activerecord.backend.expression.statements.ddl_table import (
+        from rhosocial.activerecord.backend.expression.statements import (
             TableCheckConstraint,
             TableExcludeConstraint,
             TableForeignKeyConstraint,
@@ -824,7 +824,7 @@ class ClickHouseTableMixin(ClickHouseTableEngineMixin):
         granularity is taken from :class:`ClickHouseIndexDefinition` and defaults
         to 1 for a plain ``IndexDefinition``.
         """
-        from ..expression.index import ClickHouseIndexDefinition
+        from ..expression.objects.index import ClickHouseIndexDefinition
 
         if expr.unique:
             raise UnsupportedFeatureError(

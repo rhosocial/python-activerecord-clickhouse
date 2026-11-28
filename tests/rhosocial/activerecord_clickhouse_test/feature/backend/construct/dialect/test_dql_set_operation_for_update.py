@@ -12,7 +12,7 @@ import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 from rhosocial.activerecord.backend.expression import Column, ForUpdateClause
-from rhosocial.activerecord.backend.expression.query_sources import SetOperation
+from rhosocial.activerecord.backend.expression.sources.query_sources import SetOperation
 from rhosocial.activerecord.backend.expression.statements import QueryStatement
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 

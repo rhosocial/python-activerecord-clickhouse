@@ -34,7 +34,8 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Column, FunctionCall
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
     ClickHouseAttachPartitionStatement,
     ClickHouseDetachPartitionStatement,

@@ -37,7 +37,8 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter  # noqa: E402
+    from rhosocial.activerecord.backend.expression.column_types.column import Column  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
         ColumnDefinition,
     )

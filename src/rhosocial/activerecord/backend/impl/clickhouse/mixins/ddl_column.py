@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Tuple
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.alter_column import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.operators import (
         ClickHouseAddColumnAction,
     )
 

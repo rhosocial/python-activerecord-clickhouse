@@ -13,7 +13,7 @@ from rhosocial.activerecord.backend.expression import (
     ComparisonPredicate,
     Parameter,
 )
-from rhosocial.activerecord.backend.expression.coerce import value_expression
+from rhosocial.activerecord.backend.expression.bases.coerce import value_expression
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 
 

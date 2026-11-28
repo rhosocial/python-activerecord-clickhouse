@@ -8,7 +8,7 @@ concern per module so the protocol surface stays legible.
 from typing import TYPE_CHECKING, Any, Protocol, Tuple, runtime_checkable
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.json_duality_view import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.statements import (
         ClickHouseCreateJsonDualityViewStatement,
         ClickHouseDropJsonDualityViewStatement,
     )

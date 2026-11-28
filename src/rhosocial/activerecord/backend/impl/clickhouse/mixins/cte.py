@@ -4,7 +4,7 @@ from typing import Tuple, TYPE_CHECKING
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
 
 if TYPE_CHECKING:  # pragma: no cover
-    from rhosocial.activerecord.backend.expression.query_sources import CTEClause
+    from rhosocial.activerecord.backend.expression.sources import CTEClause
 
 
 class ClickHouseCTEMixin:

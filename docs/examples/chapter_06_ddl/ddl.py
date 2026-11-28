@@ -15,7 +15,8 @@ engine back through introspection, then drops it.
 import os
 import sys
 
-from rhosocial.activerecord.backend.expression.core import Column, FunctionCall
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.operators import RawSQL
 from rhosocial.activerecord.backend.expression.statements import (

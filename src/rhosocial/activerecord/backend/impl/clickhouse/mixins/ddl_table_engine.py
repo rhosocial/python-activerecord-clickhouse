@@ -22,10 +22,10 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.create_table_options import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.query_parts import (
         ClickHouseCreateTableOptions,
     )
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.storage_option import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.query_parts import (
         ClickHouseEngineSpec,
         ClickHouseSetting,
         ClickHouseTableStorageOption,
@@ -117,7 +117,7 @@ class ClickHouseTableEngineMixin(ClickHouseTableEngineSupport):
         chooses the option and supplies a typed payload, the renderer owns
         the keyword.
         """
-        from ..expression.storage_option import (
+        from ..expression.query_parts.storage_option import (
             ClickHouseStorageOptionKind,
             ClickHouseTableStorageOption,
         )

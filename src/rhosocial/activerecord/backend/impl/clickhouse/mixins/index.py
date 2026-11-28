@@ -17,7 +17,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ..expression.index import (
+    from ..expression.statements.index import (
         ClickHouseAddIndexStatement,
         ClickHouseDropIndexStatement,
     )
@@ -120,7 +120,7 @@ class ClickHouseIndexMixin:
                 expression, an expression that would bind a parameter in a
                 DDL position, a missing/unsafe type, or an invalid granularity.
         """
-        from ..expression.index import ClickHouseAddIndexStatement
+        from ..expression.statements.index import ClickHouseAddIndexStatement
 
         if not isinstance(expr, ClickHouseAddIndexStatement):
             raise TypeError(
@@ -223,7 +223,7 @@ class ClickHouseIndexMixin:
                 a blank name cannot be rendered).
             UnsupportedFeatureError: for a misplaced qualifier.
         """
-        from ..expression.index import ClickHouseDropIndexStatement
+        from ..expression.statements.index import ClickHouseDropIndexStatement
 
         if not isinstance(expr, ClickHouseDropIndexStatement):
             raise TypeError(

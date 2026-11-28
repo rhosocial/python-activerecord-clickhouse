@@ -1,0 +1,56 @@
+# src/rhosocial/activerecord/backend/impl/clickhouse/expression/statements/rename_table.py
+"""ClickHouse RENAME TABLE statement expression.
+
+ClickHouse supports atomic renaming of one or more tables in a single statement:
+
+    RENAME TABLE t1 TO t2 [, t3 TO t4, ...]
+
+This is distinct from ``ALTER TABLE ... RENAME TO`` which only renames a
+single table. The statement is atomic: all renames either succeed or fail
+together.
+"""
+
+from typing import List, Tuple, TYPE_CHECKING
+
+from rhosocial.activerecord.backend.expression.bases.bases import BaseExpression
+
+if TYPE_CHECKING:  # pragma: no cover
+    from rhosocial.activerecord.backend.dialect import SQLDialectBase
+
+
+class ClickHouseRenameTableStatement(BaseExpression):
+    """Represent a ClickHouse ``RENAME TABLE ...`` atomic multi-table statement.
+
+    Attributes:
+        renames: Sequence of ``(old_name, new_name)`` table name pairs.
+    """
+
+    def __init__(
+        self,
+        dialect: "SQLDialectBase",
+        renames: List[Tuple[str, str]],
+    ):
+        super().__init__(dialect)
+        self.renames: List[Tuple[str, str]] = list(renames)
+
+    def validate(self, strict: bool = True) -> None:
+        """Validate the rename pair list.
+
+        Raises:
+            ValueError: If the rename list is empty or contains an invalid pair.
+        """
+        if not strict:
+            return
+        if not self.renames:
+            raise ValueError("RENAME TABLE requires at least one <table> TO <table> pair")
+        for pair in self.renames:
+            if not isinstance(pair, (tuple, list)) or len(pair) != 2:
+                raise ValueError(f"Invalid rename pair: {pair!r}")
+            old_name, new_name = pair
+            if not isinstance(old_name, str) or not isinstance(new_name, str):
+                raise TypeError("Rename table names must be strings")
+
+    @property
+    def format_method(self) -> str:
+        """The dialect formatting method that renders this expression."""
+        return "format_rename_table_statement"

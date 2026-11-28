@@ -4,7 +4,7 @@
 The point carries only column names (``old_order`` / ``new_order`` /
 ``reordered_columns``), never column definitions. ClickHouse can position a
 *new* column with ``ADD COLUMN ... [AFTER <name> | FIRST]``
-(:class:`~..expression.alter_column.ClickHouseAddColumnAction`, measured on
+(:class:`~..expression.operators.alter_column.ClickHouseAddColumnAction`, measured on
 26.7.3.19), but it has no action that repositions an *existing* column from its
 name alone. Its full-type ``MODIFY COLUMN name type ... AFTER ...`` production
 is a different clause from the portable type-change action this backend

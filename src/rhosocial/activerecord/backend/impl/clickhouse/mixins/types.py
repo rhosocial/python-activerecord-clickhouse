@@ -39,7 +39,7 @@ from rhosocial.activerecord.backend.suggestion.definitions import (
     SubstituteTypeSuggestion,
 )
 
-from ..expression.types import (
+from ..expression.types.types import (
     ClickHouseAggregateFunctionType,
     ClickHouseArrayType,
     ClickHouseBoolType,

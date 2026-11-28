@@ -16,7 +16,7 @@ Official references:
 
 from typing import Optional, Tuple
 
-from ..expression.comment import (
+from ..expression.statements.comment import (
     ClickHouseModifyColumnCommentStatement,
     ClickHouseModifyTableCommentStatement,
 )

@@ -80,7 +80,7 @@ from rhosocial.activerecord.backend.expression.types import (
     TimeType,
     VarCharType,
 )
-from ..expression.types import (
+from ..expression.types.types import (
     ClickHouseArrayType,
     ClickHouseBoolType,
     ClickHouseDateType,

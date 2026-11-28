@@ -8,7 +8,8 @@ ClickHouseTypeSupportMixin type formatting.
 
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Column, FunctionCall
+from rhosocial.activerecord.backend.expression.column_types.column import Column
+from rhosocial.activerecord.backend.expression.functions.function_call import FunctionCall
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     ColumnDefinition,
@@ -203,7 +204,7 @@ class TestTypeFormatting:
     """ClickHouseTypeSupportMixin type formatting."""
 
     def test_native_type_formatting(self, dialect):
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.types.types import (
             ClickHouseUInt32Type,
             ClickHouseStringType,
             ClickHouseDateTime64Type,

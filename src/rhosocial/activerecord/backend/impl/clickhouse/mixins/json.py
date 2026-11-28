@@ -5,7 +5,7 @@ from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeature
 from rhosocial.activerecord.backend.expression.bases import BaseExpression
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.json import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.functions import (
         ClickHouseJSONArrayExpression,
         ClickHouseJSONContainsExpression,
         ClickHouseJSONExtractExpression,
@@ -17,13 +17,13 @@ if TYPE_CHECKING:
         ClickHouseJSONUnquoteExpression,
         ClickHouseJSONValidExpression,
     )
-    from rhosocial.activerecord.backend.impl.clickhouse.expression.json_table import (
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.sources import (
         ClickHouseJSONTableExpression,
     )
 
 
 if TYPE_CHECKING:
-    from rhosocial.activerecord.backend.expression.advanced_functions import (
+    from rhosocial.activerecord.backend.expression.functions import (
         JSONDocumentValue,
         JSONTextValue,
     )

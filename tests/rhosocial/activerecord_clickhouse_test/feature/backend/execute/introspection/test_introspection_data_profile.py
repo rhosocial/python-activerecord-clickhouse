@@ -459,7 +459,7 @@ class TestFunctionNameCase:
         carry camelCase names too, and ``currentUser`` upper-cased is exactly
         the ``MINORNULL`` shape.
         """
-        from rhosocial.activerecord.backend.impl.clickhouse.expression.status import (
+        from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection.status import (
             ClickHouseCurrentUserQuery,
             ClickHouseVersionQuery,
         )

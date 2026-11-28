@@ -19,7 +19,7 @@ from types import SimpleNamespace
 import pytest
 
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
-from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.introspection.introspection import (
     ClickHouseClusterListQuery,
     ClickHouseDictionaryListQuery,
     ClickHouseFunctionListQuery,

@@ -77,7 +77,9 @@ if __name__ == "__main__":
         ValuesSource,
         QueryStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Parameter, AllColumnsWildcard, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.value_types.parameter import Parameter  # noqa: E402
+    from rhosocial.activerecord.backend.expression.value_types.wildcards import AllColumnsWildcard  # noqa: E402
+    from rhosocial.activerecord.backend.expression.column_types.column import Column  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause  # noqa: E402
 
     insert_expr = InsertStatement(

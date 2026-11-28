@@ -536,7 +536,7 @@ class ClickHouseConstraintMixin:
         ClickHouse has no generated-column clause; the nearest spellings are
         its own four default kinds -- ``MATERIALIZED`` / ``ALIAS`` /
         ``EPHEMERAL`` / ``DEFAULT`` -- which are rendered from
-        :class:`~rhosocial.activerecord.backend.impl.clickhouse.expression.column.ClickHouseColumnDefinition`
+        :class:`~rhosocial.activerecord.backend.impl.clickhouse.expression.column_types.column.ClickHouseColumnDefinition`
         rather than from a ``GENERATED`` constraint.  ``ALIAS`` in particular is
         not stored at all and ``EPHEMERAL`` is not visible after INSERT, so
         neither should be reached through a generic "generated column" request.
