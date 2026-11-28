@@ -65,6 +65,7 @@ from .json import (
     ClickHouseJSONSearchExpression,
 )
 from .partition import (
+    _ClickHousePartitionIdExpression,
     ClickHouseAttachPartitionStatement,
     ClickHouseClearInPartitionStatement,
     ClickHouseDetachPartitionStatement,
@@ -253,18 +254,23 @@ __all__ = [
 # a local spelling table.
 #
 # The loop walks this package's own modules rather than the ``__all__`` list
-# above, for the reason the sqlite package's note gives: a hand-maintained list
-# can only ever be out of date, and a node defined but not re-exported here --
-# the SHOW family, the private ``_ClickHousePartitionIdExpression`` -- would
-# silently keep the split spelling. The leading-underscore node declares the
-# token with its underscore so ``name.startswith(token)`` still matches: a
-# private name is still a name the artifact carries.
+# above: the package is the declaration of ownership, so a node defined but not
+# re-exported here -- the SHOW family, the private
+# ``_ClickHousePartitionIdExpression`` -- is still this backend's node. Ownership
+# and kind are assigned by class identity, never by asking a class name whether
+# it spells a token: a rename cannot move a node out of its namespace or split
+# its identifier. The one node whose declared name carries a leading underscore
+# is listed explicitly, because ``BaseExpression.kind()`` keeps that underscore
+# inside the reserved token.
 import importlib as _importlib
 import pkgutil as _pkgutil
 
 from rhosocial.activerecord.backend.expression.core import BaseExpression as _BaseExpression
 
-_KIND_TOKENS = ("ClickHouse",)
+# Declared once: the wire kind token this backend owns, and the explicit token
+# for the private node whose name begins with an underscore.
+_CLICKHOUSE_KIND_RESERVED = ("ClickHouse",)
+_PRIVATE_KIND_RESERVED = {_ClickHousePartitionIdExpression: ("_ClickHouse",)}
 
 for _module_info in _pkgutil.walk_packages(__path__, prefix=__name__ + ".", onerror=lambda _error: None):
     _module = _importlib.import_module(_module_info.name)
@@ -274,10 +280,14 @@ for _module_info in _pkgutil.walk_packages(__path__, prefix=__name__ + ".", oner
             and issubclass(_value, _BaseExpression)
             and _value.__module__ == _module_info.name
         ):
-            _stem = _value.__name__.lstrip("_")
-            for _token in _KIND_TOKENS:
-                if _stem.startswith(_token):
-                    _prefix = _value.__name__[: len(_value.__name__) - len(_stem)]
-                    _value.KIND_RESERVED = (_prefix + _token,)
-                    break
-del _module_info, _module, _value, _importlib, _pkgutil, _BaseExpression, _KIND_TOKENS, _stem, _token, _prefix
+            _value.KIND_RESERVED = _PRIVATE_KIND_RESERVED.get(_value, _CLICKHOUSE_KIND_RESERVED)
+del (
+    _module_info,
+    _module,
+    _value,
+    _importlib,
+    _pkgutil,
+    _BaseExpression,
+    _CLICKHOUSE_KIND_RESERVED,
+    _PRIVATE_KIND_RESERVED,
+)
