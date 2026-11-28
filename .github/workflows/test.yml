@@ -47,6 +47,23 @@ jobs:
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
 
+      - name: Create ClickHouse scenario config
+        # ``tests/conftest.py`` loads this file at collection time, so it has to
+        # exist before pytest starts. Nothing here connects: the gate reads
+        # source only and no server is started in this job.
+        run: |
+          cat > clickhouse_scenarios.yaml << EOF
+          scenarios:
+            clickhouse_http:
+              host: 127.0.0.1
+              port: 8123
+              database: test_db
+              username: root
+              password: password
+              autocommit: true
+          EOF
+          echo "CLICKHOUSE_SCENARIOS_CONFIG_PATH=$(pwd)/clickhouse_scenarios.yaml" >> $GITHUB_ENV
+
       - name: Formal rules contracts
         # Pure source and signature assertions: no server, no service. Every
         # database job needs this one, so a structural regression fails here in
