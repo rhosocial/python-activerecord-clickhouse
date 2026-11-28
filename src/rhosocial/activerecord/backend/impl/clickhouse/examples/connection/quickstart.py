@@ -37,219 +37,220 @@ from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
 # Create connection configuration
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test_db"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", "password"),
-)
-
-# Create backend instance and connect
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
-
-dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
-ddl_options = ExecutionOptions(stmt_type=StatementType.DDL)
-
-
-def execute_expression(expression, options=None):
-    sql, params = expression.to_sql()
-    print(f"SQL: {sql}")
-    print(f"Params: {params}")
-    return backend.execute(sql, params, options=options)
-
-
-def create_demo_tables():
-    users_table = CreateTableStatement(
-        dialect=dialect,
-        table=Table(dialect, "quickstart_users"),
-        columns=[
-            ColumnDefinition(
-                "id",
-                "UInt32",
-                constraints=[
-                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ],
-            ),
-            ColumnDefinition(
-                "name",
-                "String",
-                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
-            ),
-            ColumnDefinition("status", "String"),
-        ],
-        if_not_exists=True,
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test_db"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", "password"),
     )
-    execute_expression(users_table, ddl_options)
 
-    logs_table = CreateTableStatement(
-        dialect=dialect,
-        table=Table(dialect, "quickstart_logs"),
-        columns=[
-            ColumnDefinition(
-                "id",
-                "UInt32",
-                constraints=[
-                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ],
-            ),
-            ColumnDefinition(
-                "message",
-                "String",
-                constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
-            ),
-        ],
-        if_not_exists=True,
-    )
-    execute_expression(logs_table, ddl_options)
+    # Create backend instance and connect
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
+
+    dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
+    ddl_options = ExecutionOptions(stmt_type=StatementType.DDL)
 
 
-def seed_demo_data():
-    insert_users = InsertStatement(
-        dialect=dialect,
-        into=Table(dialect, "quickstart_users"),
-        columns=["name", "status"],
-        source=ValuesSource(
-            dialect,
-            [
-                [Literal(dialect, "Alice"), Literal(dialect, "active")],
-                [Literal(dialect, "Bob"), Literal(dialect, "inactive")],
+    def execute_expression(expression, options=None):
+        sql, params = expression.to_sql()
+        print(f"SQL: {sql}")
+        print(f"Params: {params}")
+        return backend.execute(sql, params, options=options)
+
+
+    def create_demo_tables():
+        users_table = CreateTableStatement(
+            dialect=dialect,
+            table=Table(dialect, "quickstart_users"),
+            columns=[
+                ColumnDefinition(
+                    "id",
+                    "UInt32",
+                    constraints=[
+                        ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                        ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ],
+                ),
+                ColumnDefinition(
+                    "name",
+                    "String",
+                    constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
+                ),
+                ColumnDefinition("status", "String"),
             ],
-        ),
-    )
-    execute_expression(insert_users)
-
-
-create_demo_tables()
-seed_demo_data()
-
-# ============================================================
-# SECTION: View Connection Information
-# ============================================================
-print(f"Connected to: {config.host}:{config.port}")
-print(f"Database: {config.database}")
-print(f"User: {config.username}")
-
-# ============================================================
-# SECTION: Execute Queries
-# ============================================================
-query = QueryStatement(
-    dialect=dialect,
-    select=[
-        Column(dialect, "id"),
-        Column(dialect, "name"),
-        Column(dialect, "status"),
-    ],
-    from_=NamedRelationRef(dialect, Table(dialect, "quickstart_users")),
-    where=WhereClause(
-        dialect,
-        condition=ComparisonPredicate(
-            dialect,
-            "=",
-            Column(dialect, "status"),
-            Literal(dialect, "active"),
-        ),
-    ),
-)
-result = execute_expression(query, dql_options)
-
-# ============================================================
-# SECTION: Access Query Results
-# ============================================================
-print(f"Result data: {result.data}")
-print(f"Rows: {result.affected_rows}")
-print(f"Duration: {result.duration:.3f}s")
-print(f"Last insert ID: {result.last_insert_id}")
-
-if result.data:
-    row = result.data[0]
-    print(f"Value from first row: {row['name']}")
-
-# ============================================================
-# SECTION: Execute Parameterized Queries (Recommended)
-# ============================================================
-filtered_query = QueryStatement(
-    dialect=dialect,
-    select=[
-        Column(dialect, "id"),
-        Column(dialect, "name"),
-        Column(dialect, "status"),
-    ],
-    from_=NamedRelationRef(dialect, Table(dialect, "quickstart_users")),
-    where=WhereClause(
-        dialect,
-        condition=ComparisonPredicate(
-            dialect,
-            "=",
-            Column(dialect, "id"),
-            Literal(dialect, 1),
+            if_not_exists=True,
         )
-        & ComparisonPredicate(
-            dialect,
-            "=",
+        execute_expression(users_table, ddl_options)
+
+        logs_table = CreateTableStatement(
+            dialect=dialect,
+            table=Table(dialect, "quickstart_logs"),
+            columns=[
+                ColumnDefinition(
+                    "id",
+                    "UInt32",
+                    constraints=[
+                        ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                        ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ],
+                ),
+                ColumnDefinition(
+                    "message",
+                    "String",
+                    constraints=[ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect))],
+                ),
+            ],
+            if_not_exists=True,
+        )
+        execute_expression(logs_table, ddl_options)
+
+
+    def seed_demo_data():
+        insert_users = InsertStatement(
+            dialect=dialect,
+            into=Table(dialect, "quickstart_users"),
+            columns=["name", "status"],
+            source=ValuesSource(
+                dialect,
+                [
+                    [Literal(dialect, "Alice"), Literal(dialect, "active")],
+                    [Literal(dialect, "Bob"), Literal(dialect, "inactive")],
+                ],
+            ),
+        )
+        execute_expression(insert_users)
+
+
+    create_demo_tables()
+    seed_demo_data()
+
+    # ============================================================
+    # SECTION: View Connection Information
+    # ============================================================
+    print(f"Connected to: {config.host}:{config.port}")
+    print(f"Database: {config.database}")
+    print(f"User: {config.username}")
+
+    # ============================================================
+    # SECTION: Execute Queries
+    # ============================================================
+    query = QueryStatement(
+        dialect=dialect,
+        select=[
+            Column(dialect, "id"),
+            Column(dialect, "name"),
             Column(dialect, "status"),
-            Literal(dialect, "active"),
+        ],
+        from_=NamedRelationRef(dialect, Table(dialect, "quickstart_users")),
+        where=WhereClause(
+            dialect,
+            condition=ComparisonPredicate(
+                dialect,
+                "=",
+                Column(dialect, "status"),
+                Literal(dialect, "active"),
+            ),
         ),
-    ),
-)
-result = execute_expression(filtered_query, dql_options)
-print(f"Parameterized query result: {result.data}")
-
-# ============================================================
-# SECTION: Handle Transactions
-# ============================================================
-with backend.transaction():
-    insert_log = InsertStatement(
-        dialect=dialect,
-        into=Table(dialect, "quickstart_logs"),
-        columns=["message"],
-        source=ValuesSource(dialect, [[Literal(dialect, "quickstart transaction")]]),
     )
-    execute_expression(insert_log)
+    result = execute_expression(query, dql_options)
 
-logs_query = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, "id"), Column(dialect, "message")],
-    from_=NamedRelationRef(dialect, Table(dialect, "quickstart_logs")),
-)
-result = execute_expression(logs_query, dql_options)
-print(f"Transaction result: {result.data}")
+    # ============================================================
+    # SECTION: Access Query Results
+    # ============================================================
+    print(f"Result data: {result.data}")
+    print(f"Rows: {result.affected_rows}")
+    print(f"Duration: {result.duration:.3f}s")
+    print(f"Last insert ID: {result.last_insert_id}")
 
-# ============================================================
-# SECTION: Error Handling
-# ============================================================
-try:
-    invalid_query = QueryStatement(
+    if result.data:
+        row = result.data[0]
+        print(f"Value from first row: {row['name']}")
+
+    # ============================================================
+    # SECTION: Execute Parameterized Queries (Recommended)
+    # ============================================================
+    filtered_query = QueryStatement(
         dialect=dialect,
-        select=[Column(dialect, "id")],
-        from_=NamedRelationRef(dialect, Table(dialect, "nonexistent_table")),
+        select=[
+            Column(dialect, "id"),
+            Column(dialect, "name"),
+            Column(dialect, "status"),
+        ],
+        from_=NamedRelationRef(dialect, Table(dialect, "quickstart_users")),
+        where=WhereClause(
+            dialect,
+            condition=ComparisonPredicate(
+                dialect,
+                "=",
+                Column(dialect, "id"),
+                Literal(dialect, 1),
+            )
+            & ComparisonPredicate(
+                dialect,
+                "=",
+                Column(dialect, "status"),
+                Literal(dialect, "active"),
+            ),
+        ),
     )
-    execute_expression(invalid_query, dql_options)
-except Exception as error:
-    print(f"Error: {error}")
+    result = execute_expression(filtered_query, dql_options)
+    print(f"Parameterized query result: {result.data}")
 
-# ============================================================
-# SECTION: Disconnect
-# ============================================================
-drop_logs = DropTableStatement(dialect=dialect, table=Table(dialect, "quickstart_logs"), if_exists=True)
-execute_expression(drop_logs, ddl_options)
+    # ============================================================
+    # SECTION: Handle Transactions
+    # ============================================================
+    with backend.transaction():
+        insert_log = InsertStatement(
+            dialect=dialect,
+            into=Table(dialect, "quickstart_logs"),
+            columns=["message"],
+            source=ValuesSource(dialect, [[Literal(dialect, "quickstart transaction")]]),
+        )
+        execute_expression(insert_log)
 
-drop_users = DropTableStatement(dialect=dialect, table=Table(dialect, "quickstart_users"), if_exists=True)
-execute_expression(drop_users, ddl_options)
+    logs_query = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, "id"), Column(dialect, "message")],
+        from_=NamedRelationRef(dialect, Table(dialect, "quickstart_logs")),
+    )
+    result = execute_expression(logs_query, dql_options)
+    print(f"Transaction result: {result.data}")
 
-backend.disconnect()
+    # ============================================================
+    # SECTION: Error Handling
+    # ============================================================
+    try:
+        invalid_query = QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id")],
+            from_=NamedRelationRef(dialect, Table(dialect, "nonexistent_table")),
+        )
+        execute_expression(invalid_query, dql_options)
+    except Exception as error:
+        print(f"Error: {error}")
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. Create ClickHouseConnectionConfig with connection parameters
-# 2. Create ClickHouseBackend with the config and call backend.connect()
-# 3. Use expressions to create schema, insert data, and query data
-# 4. Use backend.transaction() for transaction control
-# 5. Access QueryResult.data for returned rows
-# 6. Disconnect and clean up when done
+    # ============================================================
+    # SECTION: Disconnect
+    # ============================================================
+    drop_logs = DropTableStatement(dialect=dialect, table=Table(dialect, "quickstart_logs"), if_exists=True)
+    execute_expression(drop_logs, ddl_options)
+
+    drop_users = DropTableStatement(dialect=dialect, table=Table(dialect, "quickstart_users"), if_exists=True)
+    execute_expression(drop_users, ddl_options)
+
+    backend.disconnect()
+
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. Create ClickHouseConnectionConfig with connection parameters
+    # 2. Create ClickHouseBackend with the config and call backend.connect()
+    # 3. Use expressions to create schema, insert data, and query data
+    # 4. Use backend.transaction() for transaction control
+    # 5. Access QueryResult.data for returned rows
+    # 6. Disconnect and clean up when done

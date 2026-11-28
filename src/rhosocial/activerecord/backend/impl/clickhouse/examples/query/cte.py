@@ -35,212 +35,213 @@ import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-    QueryStatement,
-    CTEClause,
-    WithStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
-from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint,
-)
-from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
-from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+        QueryStatement,
+        CTEClause,
+        WithStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
+    from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
+    )
+    from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
+    from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
-dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
+    dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-# Drop table first for clean setup
-drop = DropTableStatement(dialect=dialect, table=Table(dialect, "employees"), if_exists=True)
-sql, params = drop.to_sql()
-backend.execute(sql, params)
+    # Drop table first for clean setup
+    drop = DropTableStatement(dialect=dialect, table=Table(dialect, "employees"), if_exists=True)
+    sql, params = drop.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "employees"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "employees"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("name", "String"),
+            ColumnDefinition("manager_id", "UInt32"),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
+
+    delete_sql = "DELETE FROM employees"
+    backend.execute(delete_sql)
+
+    insert_expr = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, "employees"),
+        columns=["id", "name", "manager_id"],
+        source=ValuesSource(
+            dialect,
+            [
+                [Literal(dialect, 1), Literal(dialect, "CEO"), Literal(dialect, None)],
+                [Literal(dialect, 2), Literal(dialect, "VP Sales"), Literal(dialect, 1)],
+                [Literal(dialect, 3), Literal(dialect, "VP Engineering"), Literal(dialect, 1)],
+                [Literal(dialect, 4), Literal(dialect, "Sales Manager"), Literal(dialect, 2)],
+                [Literal(dialect, 5), Literal(dialect, "Engineer"), Literal(dialect, 3)],
             ],
         ),
-        ColumnDefinition("name", "String"),
-        ColumnDefinition("manager_id", "UInt32"),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
+    )
+    sql, params = insert_expr.to_sql()
+    backend.execute(sql, params)
 
-delete_sql = "DELETE FROM employees"
-backend.execute(delete_sql)
+    # ============================================================
+    # SECTION: Basic CTE
+    # ============================================================
+    # CTE simplifies complex queries by defining temporary named result sets
 
-insert_expr = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, "employees"),
-    columns=["id", "name", "manager_id"],
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, 1), Literal(dialect, "CEO"), Literal(dialect, None)],
-            [Literal(dialect, 2), Literal(dialect, "VP Sales"), Literal(dialect, 1)],
-            [Literal(dialect, 3), Literal(dialect, "VP Engineering"), Literal(dialect, 1)],
-            [Literal(dialect, 4), Literal(dialect, "Sales Manager"), Literal(dialect, 2)],
-            [Literal(dialect, 5), Literal(dialect, "Engineer"), Literal(dialect, 3)],
+    high_earners_cte = CTEClause(
+        dialect=dialect,
+        name="high_earners",
+        query=QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id"), Column(dialect, "name")],
+            from_=NamedRelationRef(dialect, Table(dialect, "employees")),
+            where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 2)),
+        ),
+    )
+
+    cte_query = WithStatement(
+        dialect=dialect,
+        ctes=[high_earners_cte],
+        query=QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id"), Column(dialect, "name")],
+            from_=NamedRelationRef(dialect, Table(dialect, "high_earners")),
+        ),
+    )
+    sql, params = cte_query.to_sql()
+    print(f"Basic CTE SQL: {sql}")
+    result = backend.execute(sql, params, options=dql_options)
+    print(f"Basic CTE result: {result.data}")
+
+    # ============================================================
+    # SECTION: Recursive CTE
+    # ============================================================
+    # Recursive CTE for hierarchical data (organizational chart)
+
+    # Base case: top-level employees
+    base_query = QueryStatement(
+        dialect=dialect,
+        select=[
+            Column(dialect, "id"),
+            Column(dialect, "name"),
+            Column(dialect, "manager_id"),
+            Literal(dialect, 1),
         ],
-    ),
-)
-sql, params = insert_expr.to_sql()
-backend.execute(sql, params)
-
-# ============================================================
-# SECTION: Basic CTE
-# ============================================================
-# CTE simplifies complex queries by defining temporary named result sets
-
-high_earners_cte = CTEClause(
-    dialect=dialect,
-    name="high_earners",
-    query=QueryStatement(
-        dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name")],
         from_=NamedRelationRef(dialect, Table(dialect, "employees")),
-        where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 2)),
-    ),
-)
+        where=ComparisonPredicate(dialect, "IS", Column(dialect, "manager_id"), Literal(dialect, None)),
+    )
 
-cte_query = WithStatement(
-    dialect=dialect,
-    ctes=[high_earners_cte],
-    query=QueryStatement(
+    org_cte = CTEClause(
         dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=NamedRelationRef(dialect, Table(dialect, "high_earners")),
-    ),
-)
-sql, params = cte_query.to_sql()
-print(f"Basic CTE SQL: {sql}")
-result = backend.execute(sql, params, options=dql_options)
-print(f"Basic CTE result: {result.data}")
+        name="org_chart",
+        query=base_query,
+        columns=["id", "name", "manager_id", "level"],
+    )
 
-# ============================================================
-# SECTION: Recursive CTE
-# ============================================================
-# Recursive CTE for hierarchical data (organizational chart)
-
-# Base case: top-level employees
-base_query = QueryStatement(
-    dialect=dialect,
-    select=[
-        Column(dialect, "id"),
-        Column(dialect, "name"),
-        Column(dialect, "manager_id"),
-        Literal(dialect, 1),
-    ],
-    from_=NamedRelationRef(dialect, Table(dialect, "employees")),
-    where=ComparisonPredicate(dialect, "IS", Column(dialect, "manager_id"), Literal(dialect, None)),
-)
-
-org_cte = CTEClause(
-    dialect=dialect,
-    name="org_chart",
-    query=base_query,
-    columns=["id", "name", "manager_id", "level"],
-)
-
-recursive_query = WithStatement(
-    dialect=dialect,
-    ctes=[org_cte],
-    query=QueryStatement(
+    recursive_query = WithStatement(
         dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "manager_id")],
-        from_=NamedRelationRef(dialect, Table(dialect, "org_chart")),
-    ),
-    recursive=True,
-)
-sql, params = recursive_query.to_sql()
-print(f"Recursive CTE SQL: {sql}")
-result = backend.execute(sql, params, options=dql_options)
-print("Recursive CTE result:")
-for row in result.data or []:
-    print(f"  {row}")
+        ctes=[org_cte],
+        query=QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id"), Column(dialect, "name"), Column(dialect, "manager_id")],
+            from_=NamedRelationRef(dialect, Table(dialect, "org_chart")),
+        ),
+        recursive=True,
+    )
+    sql, params = recursive_query.to_sql()
+    print(f"Recursive CTE SQL: {sql}")
+    result = backend.execute(sql, params, options=dql_options)
+    print("Recursive CTE result:")
+    for row in result.data or []:
+        print(f"  {row}")
 
-# ============================================================
-# SECTION: Multiple CTEs
-# ============================================================
-# Multiple CTEs can be defined in a single WITH clause
+    # ============================================================
+    # SECTION: Multiple CTEs
+    # ============================================================
+    # Multiple CTEs can be defined in a single WITH clause
 
-active_cte = CTEClause(
-    dialect=dialect,
-    name="active_employees",
-    query=QueryStatement(
+    active_cte = CTEClause(
         dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=NamedRelationRef(dialect, Table(dialect, "employees")),
-        where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 0)),
-    ),
-)
+        name="active_employees",
+        query=QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id"), Column(dialect, "name")],
+            from_=NamedRelationRef(dialect, Table(dialect, "employees")),
+            where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 0)),
+        ),
+    )
 
-top_cte = CTEClause(
-    dialect=dialect,
-    name="top_employees",
-    query=QueryStatement(
+    top_cte = CTEClause(
         dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=NamedRelationRef(dialect, Table(dialect, "active_employees")),
-        where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 2)),
-    ),
-)
+        name="top_employees",
+        query=QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id"), Column(dialect, "name")],
+            from_=NamedRelationRef(dialect, Table(dialect, "active_employees")),
+            where=ComparisonPredicate(dialect, ">", Column(dialect, "id"), Literal(dialect, 2)),
+        ),
+    )
 
-multi_cte_query = WithStatement(
-    dialect=dialect,
-    ctes=[active_cte, top_cte],
-    query=QueryStatement(
+    multi_cte_query = WithStatement(
         dialect=dialect,
-        select=[Column(dialect, "id"), Column(dialect, "name")],
-        from_=NamedRelationRef(dialect, Table(dialect, "top_employees")),
-    ),
-)
-sql, params = multi_cte_query.to_sql()
-print(f"Multiple CTEs SQL: {sql}")
-result = backend.execute(sql, params, options=dql_options)
-print(f"Multiple CTEs result: {result.data}")
+        ctes=[active_cte, top_cte],
+        query=QueryStatement(
+            dialect=dialect,
+            select=[Column(dialect, "id"), Column(dialect, "name")],
+            from_=NamedRelationRef(dialect, Table(dialect, "top_employees")),
+        ),
+    )
+    sql, params = multi_cte_query.to_sql()
+    print(f"Multiple CTEs SQL: {sql}")
+    result = backend.execute(sql, params, options=dql_options)
+    print(f"Multiple CTEs result: {result.data}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "employees"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "employees"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. Plain `WITH name AS (subquery)` has no ClickHouse version floor; the
-#    recursive form needs the query analyzer (default since 24.3, mandatory
-#    since 26.9) — see https://clickhouse.com/docs/reference/statements/select/with
-# 2. Use CTEClause to define CTEs
-# 3. Use WithStatement to combine CTEs with a main query
-# 4. Set recursive=True for recursive CTEs (hierarchical queries)
-# 5. Multiple CTEs can be defined in a single WithStatement
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. Plain `WITH name AS (subquery)` has no ClickHouse version floor; the
+    #    recursive form needs the query analyzer (default since 24.3, mandatory
+    #    since 26.9) — see https://clickhouse.com/docs/reference/statements/select/with
+    # 2. Use CTEClause to define CTEs
+    # 3. Use WithStatement to combine CTEs with a main query
+    # 4. Set recursive=True for recursive CTEs (hierarchical queries)
+    # 5. Multiple CTEs can be defined in a single WithStatement

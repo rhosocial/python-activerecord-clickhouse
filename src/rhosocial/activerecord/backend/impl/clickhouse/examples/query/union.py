@@ -18,135 +18,136 @@ from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConn
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
-from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint,
-)
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint,
+    )
 
-# Drop table first for clean setup
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    # Drop table first for clean setup
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "users"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "users"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("name", "String"),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    print(f"Create table SQL: {sql}")
+    backend.execute(sql, params)
+
+    # Insert data into table_a
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, "users"),
+        columns=["id", "name"],
+        source=ValuesSource(
+            dialect,
+            [
+                [Literal(dialect, 1), Literal(dialect, "Alice")],
+                [Literal(dialect, 2), Literal(dialect, "Bob")],
             ],
         ),
-        ColumnDefinition("name", "String"),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-print(f"Create table SQL: {sql}")
-backend.execute(sql, params)
+    )
+    sql, params = insert.to_sql()
+    print(f"Insert SQL: {sql}")
+    backend.execute(sql, params)
 
-# Insert data into table_a
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, "users"),
-    columns=["id", "name"],
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, 1), Literal(dialect, "Alice")],
-            [Literal(dialect, 2), Literal(dialect, "Bob")],
-        ],
-    ),
-)
-sql, params = insert.to_sql()
-print(f"Insert SQL: {sql}")
-backend.execute(sql, params)
+    # ============================================================
+    # SECTION: UNION (distinct)
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        QueryStatement,
+        SetOperation,
+    )
 
-# ============================================================
-# SECTION: UNION (distinct)
-# ============================================================
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    QueryStatement,
-    SetOperation,
-)
+    # First query
+    query1 = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, "name")],
+        from_=NamedRelationRef(dialect, Table(dialect, "users")),
+    )
 
-# First query
-query1 = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, "name")],
-    from_=NamedRelationRef(dialect, Table(dialect, "users")),
-)
+    query2 = QueryStatement(
+        dialect=dialect,
+        select=[Literal(dialect, "Charlie")],
+    )
 
-query2 = QueryStatement(
-    dialect=dialect,
-    select=[Literal(dialect, "Charlie")],
-)
+    # Union
+    union_expr = SetOperation(
+        dialect=dialect,
+        left=query1,
+        op="union",
+        right=query2,
+    )
+    sql, params = union_expr.to_sql()
+    print(f"UNION SQL: {sql}")
+    print(f"Params: {params}")
 
-# Union
-union_expr = SetOperation(
-    dialect=dialect,
-    left=query1,
-    op="union",
-    right=query2,
-)
-sql, params = union_expr.to_sql()
-print(f"UNION SQL: {sql}")
-print(f"Params: {params}")
+    options = ExecutionOptions(stmt_type=StatementType.DQL)
+    result = backend.execute(sql, params, options=options)
+    print(f"UNION result: {result.data}")
 
-options = ExecutionOptions(stmt_type=StatementType.DQL)
-result = backend.execute(sql, params, options=options)
-print(f"UNION result: {result.data}")
+    # ============================================================
+    # SECTION: UNION ALL
+    # ============================================================
+    union_all = SetOperation(
+        dialect=dialect,
+        left=query1,
+        op="union_all",
+        right=query2,
+    )
+    sql, params = union_all.to_sql()
+    print(f"UNION ALL SQL: {sql}")
+    result = backend.execute(sql, params, options=options)
+    print(f"UNION ALL result: {result.data}")
 
-# ============================================================
-# SECTION: UNION ALL
-# ============================================================
-union_all = SetOperation(
-    dialect=dialect,
-    left=query1,
-    op="union_all",
-    right=query2,
-)
-sql, params = union_all.to_sql()
-print(f"UNION ALL SQL: {sql}")
-result = backend.execute(sql, params, options=options)
-print(f"UNION ALL result: {result.data}")
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+    sql, params = drop_expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
-sql, params = drop_expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
-
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. Use SetOperation with op='union' for UNION DISTINCT, op='union_all' for UNION ALL
-# 2. UNION removes duplicates, UNION ALL keeps all rows
-# 3. ClickHouse's grammar has no bare UNION: the dialect always spells the
-#    ALL/DISTINCT modifier, so op='union' renders 'UNION DISTINCT'
-# 4. Ordering and row limiting of a compound query are statement-level
-#    clauses, not part of the SetOperation node
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. Use SetOperation with op='union' for UNION DISTINCT, op='union_all' for UNION ALL
+    # 2. UNION removes duplicates, UNION ALL keeps all rows
+    # 3. ClickHouse's grammar has no bare UNION: the dialect always spells the
+    #    ALL/DISTINCT modifier, so op='union' renders 'UNION DISTINCT'
+    # 4. Ordering and row limiting of a compound query are statement-level
+    #    clauses, not part of the SetOperation node

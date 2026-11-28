@@ -19,106 +19,107 @@ import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-    QueryStatement,
-    Column,
-)
-from rhosocial.activerecord.backend.expression.core import Literal, FunctionCall  # noqa: E402
-from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
-)
-from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
-from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+        QueryStatement,
+        Column,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal, FunctionCall  # noqa: E402
+    from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
+    )
+    from rhosocial.activerecord.backend.options import ExecutionOptions  # noqa: E402
+    from rhosocial.activerecord.backend.schema import StatementType  # noqa: E402
 
-dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
+    dql_options = ExecutionOptions(stmt_type=StatementType.DQL)
 
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "documents"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "documents"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-# Create table with JSON column
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "documents"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+    # Create table with JSON column
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "documents"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("data", "JSON"),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
+
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, "documents"),
+        columns=["data"],
+        source=ValuesSource(
+            dialect,
+            [
+                [Literal(dialect, '{"name": "Alice", "age": 30, "tags": ["a", "b"]}')],
+                [Literal(dialect, '{"name": "Bob", "age": 25, "tags": ["c"]}')],
             ],
         ),
-        ColumnDefinition("data", "JSON"),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
+    )
+    sql, params = insert.to_sql()
+    backend.execute(sql, params)
 
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, "documents"),
-    columns=["data"],
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, '{"name": "Alice", "age": 30, "tags": ["a", "b"]}')],
-            [Literal(dialect, '{"name": "Bob", "age": 25, "tags": ["c"]}')],
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+
+    # Use JSONExtract functions (ClickHouse) instead of JSON_EXTRACT (MySQL)
+    query = QueryStatement(
+        dialect=dialect,
+        select=[
+            Column(dialect, "id"),
+            FunctionCall(
+                dialect, "JSONExtractString", Column(dialect, "data"),
+                Literal(dialect, "$.name"),
+            ).as_("name"),
+            FunctionCall(
+                dialect, "JSONExtract", Column(dialect, "data"),
+                Literal(dialect, "$.age"), Literal(dialect, "UInt32"),
+            ).as_("age"),
         ],
-    ),
-)
-sql, params = insert.to_sql()
-backend.execute(sql, params)
+        from_=NamedRelationRef(dialect, Table(dialect, "documents")),
+    )
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
+    sql, params = query.to_sql()
+    print(f"SQL: {sql}")
+    print(f"Params: {params}")
 
-# Use JSONExtract functions (ClickHouse) instead of JSON_EXTRACT (MySQL)
-query = QueryStatement(
-    dialect=dialect,
-    select=[
-        Column(dialect, "id"),
-        FunctionCall(
-            dialect, "JSONExtractString", Column(dialect, "data"),
-            Literal(dialect, "$.name"),
-        ).as_("name"),
-        FunctionCall(
-            dialect, "JSONExtract", Column(dialect, "data"),
-            Literal(dialect, "$.age"), Literal(dialect, "UInt32"),
-        ).as_("age"),
-    ],
-    from_=NamedRelationRef(dialect, Table(dialect, "documents")),
-)
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    result = backend.execute(sql, params, options=dql_options)
+    print(f"Rows returned: {len(result.data) if result.data else 0}")
+    for row in result.data or []:
+        print(f"  {row}")
 
-sql, params = query.to_sql()
-print(f"SQL: {sql}")
-print(f"Params: {params}")
-
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-result = backend.execute(sql, params, options=dql_options)
-print(f"Rows returned: {len(result.data) if result.data else 0}")
-for row in result.data or []:
-    print(f"  {row}")
-
-backend.disconnect()
+    backend.disconnect()

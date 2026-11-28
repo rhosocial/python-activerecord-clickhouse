@@ -17,79 +17,80 @@ from rhosocial.activerecord.backend.expression.statements import (
     ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
 )
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-# Drop table first for clean setup
-drop = DropTableStatement(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
-sql, params = drop.to_sql()
-backend.execute(sql, params)
-
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "products"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition("name", "String"),
-        ColumnDefinition("category", "String"),
-        ColumnDefinition("price", "Decimal(10, 2)"),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
-
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.expression import CreateIndexStatement, DropIndexStatement  # noqa: E402
-
-# Drop index first if exists (ClickHouse does not support IF NOT EXISTS in CREATE INDEX)
-try:
-    drop_idx = DropIndexStatement(dialect=dialect, index=Index(dialect, "idx_category_price"))
-    sql, params = drop_idx.to_sql()
+    # Drop table first for clean setup
+    drop = DropTableStatement(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
+    sql, params = drop.to_sql()
     backend.execute(sql, params)
-except Exception:
-    pass
 
-create_idx = CreateIndexStatement(
-    dialect=dialect,
-    index=Index(dialect, "idx_category_price"),
-    table=Table(dialect, "products"),
-    columns=["category", "price"],
-)
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "products"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("name", "String"),
+            ColumnDefinition("category", "String"),
+            ColumnDefinition("price", "Decimal(10, 2)"),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
 
-sql, params = create_idx.to_sql()
-print(f"SQL: {sql}")
-print(f"Params: {params}")
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import CreateIndexStatement, DropIndexStatement  # noqa: E402
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-backend.execute(sql, params)
-print("Index created successfully")
+    # Drop index first if exists (ClickHouse does not support IF NOT EXISTS in CREATE INDEX)
+    try:
+        drop_idx = DropIndexStatement(dialect=dialect, index=Index(dialect, "idx_category_price"))
+        sql, params = drop_idx.to_sql()
+        backend.execute(sql, params)
+    except Exception:
+        pass
 
-# Verify using introspector
-indexes = backend.introspector.list_indexes("products")
-target_index = [idx for idx in indexes if "idx_category_price" in str(idx)]
-print(f"Index info: {target_index}")
+    create_idx = CreateIndexStatement(
+        dialect=dialect,
+        index=Index(dialect, "idx_category_price"),
+        table=Table(dialect, "products"),
+        columns=["category", "price"],
+    )
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-backend.disconnect()
+    sql, params = create_idx.to_sql()
+    print(f"SQL: {sql}")
+    print(f"Params: {params}")
+
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    backend.execute(sql, params)
+    print("Index created successfully")
+
+    # Verify using introspector
+    indexes = backend.introspector.list_indexes("products")
+    target_index = [idx for idx in indexes if "idx_category_price" in str(idx)]
+    print(f"Index info: {target_index}")
+
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    backend.disconnect()

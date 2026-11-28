@@ -23,142 +23,143 @@ import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-backend.introspect_and_adapt()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableStatement,
-    CreateTableStatement,
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
-    InsertStatement,
-    ValuesSource,
-)
-from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
-    ClickHouseUInt32Type,
-    ClickHouseDateTimeType,
-    ClickHouseDecimalType,
-    ClickHouseFloat64Type,
-    ClickHouseStringType,
-)
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        DropTableStatement,
+        CreateTableStatement,
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint, ColumnNotNullConstraint, ColumnDefaultConstraint,
+        InsertStatement,
+        ValuesSource,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
+        ClickHouseUInt32Type,
+        ClickHouseDateTimeType,
+        ClickHouseDecimalType,
+        ClickHouseFloat64Type,
+        ClickHouseStringType,
+    )
 
-expr = DropTableStatement(dialect, "events", if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    expr = DropTableStatement(dialect, "events", if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-expr = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "events"),
-    columns=[
-        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
+    expr = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "events"),
+        columns=[
+            ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ]),
+            ColumnDefinition(dialect, "ts", ClickHouseDateTimeType(dialect)),
+            ColumnDefinition(dialect, "message", ClickHouseStringType(dialect)),
+            ColumnDefinition(dialect, "value", ClickHouseDecimalType(dialect, precision=10, scale=2)),
+        ],
+        # NOTE: table engines/ORDER BY are supplied through the table-engine layer.
+    )
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, "events"),
+        columns=["id", "message", "value"],
+        source=ValuesSource(
+            dialect,
+            [
+                [Literal(dialect, 1), Literal(dialect, "login"), Literal(dialect, 10.5)],
+                [Literal(dialect, 2), Literal(dialect, "logout"), Literal(dialect, 3.25)],
+            ],
+        ),
+    )
+    sql, params = insert.to_sql()
+    backend.execute(sql, params)
+
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.schema import (  # noqa: E402
+        SyncSchemaSnapshotBuilder,
+    )
+    from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # noqa: E402
+        ClickHouseSchemaDiffer,
+    )
+    from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
+        AlterTableStatement,
+        AddColumnAction,
+        ModifyColumnAction,
+    )
+
+    builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
+    snapshot_before = builder.build()
+
+    # Add a new column with a default value
+    add_status = AddColumnAction(
+        dialect,
+        ColumnDefinition(
+            dialect,
+            "status",
+            ClickHouseStringType(dialect),
             constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ]),
-        ColumnDefinition(dialect, "ts", ClickHouseDateTimeType(dialect)),
-        ColumnDefinition(dialect, "message", ClickHouseStringType(dialect)),
-        ColumnDefinition(dialect, "value", ClickHouseDecimalType(dialect, precision=10, scale=2)),
-    ],
-    # NOTE: table engines/ORDER BY are supplied through the table-engine layer.
-)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, "new"))),
+            ],
+        ),
+    )
+    alter_expr = AlterTableStatement(dialect, "events", add_status)
+    sql, params = alter_expr.to_sql()
+    print(f"ALTER (add column): {sql}")
+    backend.execute(sql, params)
 
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, "events"),
-    columns=["id", "message", "value"],
-    source=ValuesSource(
+    # Modify an existing column's data type: Decimal(10, 2) -> Float64
+    modify_value = ModifyColumnAction(
         dialect,
-        [
-            [Literal(dialect, 1), Literal(dialect, "login"), Literal(dialect, 10.5)],
-            [Literal(dialect, 2), Literal(dialect, "logout"), Literal(dialect, 3.25)],
-        ],
-    ),
-)
-sql, params = insert.to_sql()
-backend.execute(sql, params)
+        ColumnDefinition(dialect, "value", ClickHouseFloat64Type(dialect)),
+    )
+    alter_expr = AlterTableStatement(dialect, "events", modify_value)
+    sql, params = alter_expr.to_sql()
+    print(f"ALTER (modify type): {sql}")
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.schema import (  # noqa: E402
-    SyncSchemaSnapshotBuilder,
-)
-from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # noqa: E402
-    ClickHouseSchemaDiffer,
-)
-from rhosocial.activerecord.backend.expression.statements.ddl_alter import (  # noqa: E402
-    AlterTableStatement,
-    AddColumnAction,
-    ModifyColumnAction,
-)
+    snapshot_after = builder.build()
 
-builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
-snapshot_before = builder.build()
+    differ = ClickHouseSchemaDiffer()
+    diff = differ.compare(snapshot_before, snapshot_after)
 
-# Add a new column with a default value
-add_status = AddColumnAction(
-    dialect,
-    ColumnDefinition(
-        dialect,
-        "status",
-        ClickHouseStringType(dialect),
-        constraints=[
-            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, "new"))),
-        ],
-    ),
-)
-alter_expr = AlterTableStatement(dialect, "events", add_status)
-sql, params = alter_expr.to_sql()
-print(f"ALTER (add column): {sql}")
-backend.execute(sql, params)
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    print(f"\nAdded tables:    {diff.added_tables}")
+    print(f"Removed tables:  {diff.removed_tables}")
+    print(f"Modified tables: {diff.modified_tables}")
 
-# Modify an existing column's data type: Decimal(10, 2) -> Float64
-modify_value = ModifyColumnAction(
-    dialect,
-    ColumnDefinition(dialect, "value", ClickHouseFloat64Type(dialect)),
-)
-alter_expr = AlterTableStatement(dialect, "events", modify_value)
-sql, params = alter_expr.to_sql()
-print(f"ALTER (modify type): {sql}")
-backend.execute(sql, params)
+    if "events" in diff.table_diffs:
+        td = diff.table_diffs["events"]
+        for cd in td.column_diffs:
+            kind = "added" if cd.is_added else "modified" if cd.is_modified else "removed"
+            old_type = cd.old.data_type if cd.old else "-"
+            new_type = cd.new.data_type if cd.new else "-"
+            print(f"  Column '{cd.column_name}': {kind} ({old_type} → {new_type})")
 
-snapshot_after = builder.build()
-
-differ = ClickHouseSchemaDiffer()
-diff = differ.compare(snapshot_before, snapshot_after)
-
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-print(f"\nAdded tables:    {diff.added_tables}")
-print(f"Removed tables:  {diff.removed_tables}")
-print(f"Modified tables: {diff.modified_tables}")
-
-if "events" in diff.table_diffs:
-    td = diff.table_diffs["events"]
-    for cd in td.column_diffs:
-        kind = "added" if cd.is_added else "modified" if cd.is_modified else "removed"
-        old_type = cd.old.data_type if cd.old else "-"
-        new_type = cd.new.data_type if cd.new else "-"
-        print(f"  Column '{cd.column_name}': {kind} ({old_type} → {new_type})")
-
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-expr = DropTableStatement(dialect, "events", if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    expr = DropTableStatement(dialect, "events", if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()

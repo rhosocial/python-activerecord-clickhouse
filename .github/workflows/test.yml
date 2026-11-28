@@ -18,8 +18,48 @@ permissions:
   contents: read
 
 jobs:
+  formal-rules-contracts:
+    name: Formal rules contracts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+          cache: 'pip'
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+
+      - name: Install activerecord and testsuite
+        run: |
+          pip install "rhosocial-activerecord @ git+https://github.com/rhosocial/python-activerecord.git@feature/activerecord-migration"  # NOSONAR
+          pip install "rhosocial-activerecord-testsuite @ git+https://github.com/rhosocial/python-activerecord-testsuite.git@feature/activerecord-migration"  # NOSONAR
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Formal rules contracts
+        # Pure source and signature assertions: no server, no service. Every
+        # database job needs this one, so a structural regression fails here in
+        # a minute instead of after a full matrix run. Isolated from the full
+        # suite because module-level global registries there can change what a
+        # contract test constructs.
+        run: |
+          export PYTHONPATH=src:tests
+          python -m pytest tests/rhosocial/activerecord_clickhouse_test/feature/rules -q -p no:warnings
+
   test:
     name: Python ${{ matrix.python-version }} / ClickHouse ${{ matrix.clickhouse-version }}
+    needs: formal-rules-contracts
     runs-on: ${{ matrix.os }}
     permissions:
       contents: read
@@ -88,14 +128,6 @@ jobs:
           EOF
           echo "CLICKHOUSE_SCENARIOS_CONFIG_PATH=$(pwd)/clickhouse_scenarios.yaml" >> $GITHUB_ENV
 
-      # Isolated from the full suite: module-level global registries there can
-      # change what a contract test constructs, which makes an order-dependent
-      # pass meaningless.
-      - name: Formal rules contracts
-        run: |
-          export PYTHONPATH=src:tests
-          python -m pytest tests/rhosocial/activerecord_clickhouse_test/feature/rules -q -p no:warnings
-
       - name: Verify ClickHouse connectivity
         run: |
           python -c "
@@ -118,7 +150,7 @@ jobs:
         if: matrix.coverage
         run: |
           export PYTHONPATH=src:tests
-          coverage run --source=rhosocial.activerecord.backend.impl.clickhouse -m pytest tests/ --tb=short --ignore=tests/benchmark
+          coverage run --source=rhosocial.activerecord.backend.impl.clickhouse -m pytest tests/ --tb=short --ignore=tests/benchmark --ignore=tests/rhosocial/activerecord_clickhouse_test/feature/rules
           coverage xml
           coverage report
 
@@ -136,4 +168,4 @@ jobs:
         if: '!matrix.coverage'
         run: |
           export PYTHONPATH=src:tests
-          python -m pytest tests/ --tb=short --ignore=tests/benchmark
+          python -m pytest tests/ --tb=short --ignore=tests/benchmark --ignore=tests/rhosocial/activerecord_clickhouse_test/feature/rules

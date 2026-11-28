@@ -24,100 +24,101 @@ from rhosocial.activerecord.backend.expression.statements import (
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-# Drop table first for clean setup
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "logs"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    # Drop table first for clean setup
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "logs"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "logs"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition("level", "String"),
-        ColumnDefinition("message", "String"),
-        ColumnDefinition(
-            "created_at",
-            "DateTime",
-            constraints=[
-                ColumnConstraint(dialect,
-                 branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
-            ],
-        ),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
-
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    InsertStatement,
-    ValuesSource,
-    QueryStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column  # noqa: E402
-from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause  # noqa: E402
-
-insert_expr = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, "logs"),
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, "INFO"), Literal(dialect, "System started")],
-            [Literal(dialect, "DEBUG"), Literal(dialect, "Loading configuration")],
-            [Literal(dialect, "INFO"), Literal(dialect, "Application ready")],
-            [Literal(dialect, "WARNING"), Literal(dialect, "Memory usage high")],
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "logs"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("level", "String"),
+            ColumnDefinition("message", "String"),
+            ColumnDefinition(
+                "created_at",
+                "DateTime",
+                constraints=[
+                    ColumnConstraint(dialect,
+                     branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
+                ],
+            ),
         ],
-    ),
-    columns=["level", "message"],
-)
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
 
-sql, params = insert_expr.to_sql()
-print(f"SQL: {sql}")
-print(f"Params: {params}")
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        InsertStatement,
+        ValuesSource,
+        QueryStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause  # noqa: E402
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-result = backend.execute(sql, params)
-print(f"Affected rows: {result.affected_rows}")
+    insert_expr = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, "logs"),
+        source=ValuesSource(
+            dialect,
+            [
+                [Literal(dialect, "INFO"), Literal(dialect, "System started")],
+                [Literal(dialect, "DEBUG"), Literal(dialect, "Loading configuration")],
+                [Literal(dialect, "INFO"), Literal(dialect, "Application ready")],
+                [Literal(dialect, "WARNING"), Literal(dialect, "Memory usage high")],
+            ],
+        ),
+        columns=["level", "message"],
+    )
 
-verify_query = QueryStatement(
-    dialect=dialect,
-    select=[AllColumnsWildcard(dialect)],
-    from_=NamedRelationRef(dialect, Table(dialect, "logs")),
-    order_by=OrderByClause(dialect, [Column(dialect, "id")]),
-)
-options = ExecutionOptions(stmt_type=StatementType.DQL)
-sql, params = verify_query.to_sql()
-result = backend.execute(sql, params, options=options)
-print(f"Total rows in table: {len(result.data) if result.data else 0}")
-for row in result.data or []:
-    print(f"  {row}")
+    sql, params = insert_expr.to_sql()
+    print(f"SQL: {sql}")
+    print(f"Params: {params}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-backend.disconnect()
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    result = backend.execute(sql, params)
+    print(f"Affected rows: {result.affected_rows}")
+
+    verify_query = QueryStatement(
+        dialect=dialect,
+        select=[AllColumnsWildcard(dialect)],
+        from_=NamedRelationRef(dialect, Table(dialect, "logs")),
+        order_by=OrderByClause(dialect, [Column(dialect, "id")]),
+    )
+    options = ExecutionOptions(stmt_type=StatementType.DQL)
+    sql, params = verify_query.to_sql()
+    result = backend.execute(sql, params, options=options)
+    print(f"Total rows in table: {len(result.data) if result.data else 0}")
+    for row in result.data or []:
+        print(f"  {row}")
+
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    backend.disconnect()

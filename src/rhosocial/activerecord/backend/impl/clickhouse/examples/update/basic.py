@@ -18,140 +18,141 @@ from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConn
 from rhosocial.activerecord.backend.options import ExecutionOptions
 from rhosocial.activerecord.backend.schema import StatementType
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableStatement,
-    InsertStatement,
-    ValuesSource,
-    DropTableStatement,
-    UpdateStatement,
-)
-from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
-from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
-from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation  # noqa: E402
-from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
-    ColumnDefinition,
-    ColumnConstraint,
-    ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
-)
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        CreateTableStatement,
+        InsertStatement,
+        ValuesSource,
+        DropTableStatement,
+        UpdateStatement,
+    )
+    from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
+    from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation  # noqa: E402
+    from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
+        ColumnDefinition,
+        ColumnConstraint,
+        ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
+    )
 
-# Drop table first for clean setup
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
+    # Drop table first for clean setup
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
 
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "users"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition(
-            "name",
-            "String",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition("age", "UInt32"),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-print(f"Create table SQL: {sql}")
-backend.execute(sql, params)
-
-insert = InsertStatement(
-    dialect=dialect,
-    into=Table(dialect, "users"),
-    columns=["name", "age"],
-    source=ValuesSource(
-        dialect,
-        [
-            [Literal(dialect, "Alice"), Literal(dialect, 25)],
-            [Literal(dialect, "Bob"), Literal(dialect, 30)],
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "users"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition(
+                "name",
+                "String",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("age", "UInt32"),
         ],
-    ),
-)
-sql, params = insert.to_sql()
-print(f"Insert SQL: {sql}")
-backend.execute(sql, params)
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    print(f"Create table SQL: {sql}")
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Update Single Row
-# ============================================================
-update_expr = UpdateStatement(
-    dialect=dialect,
-    table=Table(dialect, "users"),
-    assignments={"age": Literal(dialect, 26)},
-    where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-)
-sql, params = update_expr.to_sql()
-print(f"Update SQL: {sql}")
-print(f"Params: {params}")
+    insert = InsertStatement(
+        dialect=dialect,
+        into=Table(dialect, "users"),
+        columns=["name", "age"],
+        source=ValuesSource(
+            dialect,
+            [
+                [Literal(dialect, "Alice"), Literal(dialect, 25)],
+                [Literal(dialect, "Bob"), Literal(dialect, 30)],
+            ],
+        ),
+    )
+    sql, params = insert.to_sql()
+    print(f"Insert SQL: {sql}")
+    backend.execute(sql, params)
 
-options = ExecutionOptions(stmt_type=StatementType.DML)
-result = backend.execute(sql, params, options=options)
-print(f"Updated rows: {result.affected_rows}")
+    # ============================================================
+    # SECTION: Update Single Row
+    # ============================================================
+    update_expr = UpdateStatement(
+        dialect=dialect,
+        table=Table(dialect, "users"),
+        assignments={"age": Literal(dialect, 26)},
+        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
+    )
+    sql, params = update_expr.to_sql()
+    print(f"Update SQL: {sql}")
+    print(f"Params: {params}")
 
-# ============================================================
-# SECTION: Update with Expression
-# ============================================================
-update_expr = UpdateStatement(
-    dialect=dialect,
-    table=Table(dialect, "users"),
-    assignments={
-        "age": ArithmeticOperation(dialect, "add", Column(dialect, "age"), Literal(dialect, 1)),
-    },
-    where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
-)
-sql, params = update_expr.to_sql()
-print(f"Update with expression SQL: {sql}")
-result = backend.execute(sql, params, options=options)
-print(f"Updated rows: {result.affected_rows}")
+    options = ExecutionOptions(stmt_type=StatementType.DML)
+    result = backend.execute(sql, params, options=options)
+    print(f"Updated rows: {result.affected_rows}")
 
-# ============================================================
-# SECTION: Update All Rows
-# ============================================================
-update_expr = UpdateStatement(
-    dialect=dialect,
-    table=Table(dialect, "users"),
-    assignments={"age": Literal(dialect, 99)},
-)
-sql, params = update_expr.to_sql()
-print(f"Update all SQL: {sql}")
-result = backend.execute(sql, params, options=options)
-print(f"Updated rows: {result.affected_rows}")
+    # ============================================================
+    # SECTION: Update with Expression
+    # ============================================================
+    update_expr = UpdateStatement(
+        dialect=dialect,
+        table=Table(dialect, "users"),
+        assignments={
+            "age": ArithmeticOperation(dialect, "add", Column(dialect, "age"), Literal(dialect, 1)),
+        },
+        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
+    )
+    sql, params = update_expr.to_sql()
+    print(f"Update with expression SQL: {sql}")
+    result = backend.execute(sql, params, options=options)
+    print(f"Updated rows: {result.affected_rows}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
-sql, params = drop_expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Update All Rows
+    # ============================================================
+    update_expr = UpdateStatement(
+        dialect=dialect,
+        table=Table(dialect, "users"),
+        assignments={"age": Literal(dialect, 99)},
+    )
+    sql, params = update_expr.to_sql()
+    print(f"Update all SQL: {sql}")
+    result = backend.execute(sql, params, options=options)
+    print(f"Updated rows: {result.affected_rows}")
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. Use UpdateStatement with assignments dict for SET clause
-# 2. Use ArithmeticOperation for expressions like age + 1 (op="add", not "+")
-# 3. Omit where parameter to update all rows
-# 4. affected_rows shows number of updated rows
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_expr = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+    sql, params = drop_expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
+
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. Use UpdateStatement with assignments dict for SET clause
+    # 2. Use ArithmeticOperation for expressions like age + 1 (op="add", not "+")
+    # 3. Omit where parameter to update all rows
+    # 4. affected_rows shows number of updated rows

@@ -31,117 +31,118 @@ from rhosocial.activerecord.backend.expression.statements.ddl_table import (
     IndexDefinition,
 )
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
 
-# Drop if exists for clean setup
-drop = DropTableStatement(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
-sql, params = drop.to_sql()
-backend.execute(sql, params)
+    # Drop if exists for clean setup
+    drop = DropTableStatement(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
+    sql, params = drop.to_sql()
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
 
-columns = [
-    ColumnDefinition(
-        name="id",
-        data_type="UInt32",
-        constraints=[
-            ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-        ],
-    ),
-    ColumnDefinition(
-        name="name",
-        data_type="String",
-        constraints=[
-            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-        ],
-    ),
-    ColumnDefinition(
-        name="price",
-        data_type="Decimal(10, 2)",
-        constraints=[
-            ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-        ],
-    ),
-    ColumnDefinition(
-        name="category",
-        data_type="String",
-    ),
-    ColumnDefinition(
-        name="is_active",
-        data_type="UInt8",
-        constraints=[
-            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1)),
-        ],
-    ),
-    ColumnDefinition(
-        name="created_at",
-        data_type="DateTime",
-        constraints=[
-            ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
-        ],
-    ),
-]
+    columns = [
+        ColumnDefinition(
+            name="id",
+            data_type="UInt32",
+            constraints=[
+                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ],
+        ),
+        ColumnDefinition(
+            name="name",
+            data_type="String",
+            constraints=[
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ],
+        ),
+        ColumnDefinition(
+            name="price",
+            data_type="Decimal(10, 2)",
+            constraints=[
+                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+            ],
+        ),
+        ColumnDefinition(
+            name="category",
+            data_type="String",
+        ),
+        ColumnDefinition(
+            name="is_active",
+            data_type="UInt8",
+            constraints=[
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, 1)),
+            ],
+        ),
+        ColumnDefinition(
+            name="created_at",
+            data_type="DateTime",
+            constraints=[
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, F.current_timestamp(dialect))),
+            ],
+        ),
+    ]
 
-indexes = [
-    IndexDefinition(
-        name="idx_products_category",
-        columns=["category"],
-    ),
-]
+    indexes = [
+        IndexDefinition(
+            name="idx_products_category",
+            columns=["category"],
+        ),
+    ]
 
-# Create table with ClickHouse-specific ENGINE option
-create_expr = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "products"),
-    columns=columns,
-    indexes=indexes,
-    if_not_exists=True,
-    # NOTE: ClickHouse table engines are supplied through the table-engine
-    # layer (storage options), not a dialect_options bag.
-)
+    # Create table with ClickHouse-specific ENGINE option
+    create_expr = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "products"),
+        columns=columns,
+        indexes=indexes,
+        if_not_exists=True,
+        # NOTE: ClickHouse table engines are supplied through the table-engine
+        # layer (storage options), not a dialect_options bag.
+    )
 
-sql, params = create_expr.to_sql()
-print(f"SQL: {sql}")
-print(f"Params: {params}")
+    sql, params = create_expr.to_sql()
+    print(f"SQL: {sql}")
+    print(f"Params: {params}")
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-result = backend.execute(sql, params)
-print("Table created: products")
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    result = backend.execute(sql, params)
+    print("Table created: products")
 
-# Verify table structure using introspector
-columns_info = backend.introspector.list_columns("products")
-print("Columns in 'products':")
-for col in columns_info:
-    print(f"  {col}")
+    # Verify table structure using introspector
+    columns_info = backend.introspector.list_columns("products")
+    print("Columns in 'products':")
+    for col in columns_info:
+        print(f"  {col}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "products"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. Use ColumnDefinition with ClickHouse column types (UInt32, String, etc.)
-# 2. ClickHouse table engines are supplied through the table-engine layer
-# 3. IndexDefinition creates inline indexes within CREATE TABLE
-# 4. Use F.current_timestamp(dialect) for SQL niladic functions (no parentheses)
-# 5. Use introspector.get_columns() to verify table structure
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. Use ColumnDefinition with ClickHouse column types (UInt32, String, etc.)
+    # 2. ClickHouse table engines are supplied through the table-engine layer
+    # 3. IndexDefinition creates inline indexes within CREATE TABLE
+    # 4. Use F.current_timestamp(dialect) for SQL niladic functions (no parentheses)
+    # 5. Use introspector.get_columns() to verify table structure

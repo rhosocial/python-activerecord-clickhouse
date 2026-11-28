@@ -12,96 +12,97 @@ import os
 from rhosocial.activerecord.backend.impl.clickhouse.backend import ClickHouseBackend
 from rhosocial.activerecord.backend.impl.clickhouse.config import ClickHouseConnectionConfig
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-backend.introspect_and_adapt()
-dialect = backend.dialect
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", "8123")),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
+    )
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    backend.introspect_and_adapt()
+    dialect = backend.dialect
 
-# Clean up any leftover tables
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    DropTableStatement,
-)
-expr = DropTableStatement(dialect, "users", if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-expr = DropTableStatement(dialect, "orders", if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    # Clean up any leftover tables
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        DropTableStatement,
+    )
+    expr = DropTableStatement(dialect, "users", if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    expr = DropTableStatement(dialect, "orders", if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
-from rhosocial.activerecord.backend.schema import (  # noqa: E402
-    SyncSchemaSnapshotBuilder,
-)
-from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # noqa: E402
-    ClickHouseSchemaDiffer,
-)
-from rhosocial.activerecord.backend.expression import (  # noqa: E402
-    CreateTableStatement, ColumnDefinition,
-    ColumnConstraint, ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
-)
-from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
-    ClickHouseUInt32Type, ClickHouseStringType, ClickHouseDecimalType,
-)
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
+    from rhosocial.activerecord.backend.schema import (  # noqa: E402
+        SyncSchemaSnapshotBuilder,
+    )
+    from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (  # noqa: E402
+        ClickHouseSchemaDiffer,
+    )
+    from rhosocial.activerecord.backend.expression import (  # noqa: E402
+        CreateTableStatement, ColumnDefinition,
+        ColumnConstraint, ColumnPrimaryKeyConstraint, ColumnNotNullConstraint,
+    )
+    from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
+        ClickHouseUInt32Type, ClickHouseStringType, ClickHouseDecimalType,
+    )
 
-builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
-snapshot_before = builder.build()
+    builder = SyncSchemaSnapshotBuilder(backend.introspector, dialect)
+    snapshot_before = builder.build()
 
-# Create one table, drop another (if it existed)
-expr = CreateTableStatement(
-    dialect=dialect, table=Table(dialect, "users"), columns=[
-        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ]),
-        ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
-    ]
-)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-expr = CreateTableStatement(
-    dialect=dialect, table=Table(dialect, "orders"), columns=[
-        ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-            ]),
-        ColumnDefinition(dialect, "user_id", ClickHouseUInt32Type(dialect)),
-        ColumnDefinition(dialect, "amount", ClickHouseDecimalType(dialect, precision=10, scale=2)),
-    ]
-)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
+    # Create one table, drop another (if it existed)
+    expr = CreateTableStatement(
+        dialect=dialect, table=Table(dialect, "users"), columns=[
+            ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ]),
+            ColumnDefinition(dialect, "name", ClickHouseStringType(dialect)),
+        ]
+    )
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    expr = CreateTableStatement(
+        dialect=dialect, table=Table(dialect, "orders"), columns=[
+            ColumnDefinition(dialect, "id", ClickHouseUInt32Type(dialect),
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                ]),
+            ColumnDefinition(dialect, "user_id", ClickHouseUInt32Type(dialect)),
+            ColumnDefinition(dialect, "amount", ClickHouseDecimalType(dialect, precision=10, scale=2)),
+        ]
+    )
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
 
-snapshot_after = builder.build()
+    snapshot_after = builder.build()
 
-differ = ClickHouseSchemaDiffer()
-diff = differ.compare(snapshot_before, snapshot_after)
+    differ = ClickHouseSchemaDiffer()
+    diff = differ.compare(snapshot_before, snapshot_after)
 
-# ============================================================
-# SECTION: Execution (run the expression)
-# ============================================================
-print(f"Added tables:   {diff.added_tables}")
-print(f"Removed tables: {diff.removed_tables}")
-print(f"Modified tables:{diff.modified_tables}")
-print(f"Diff is empty:  {diff.is_empty}")
+    # ============================================================
+    # SECTION: Execution (run the expression)
+    # ============================================================
+    print(f"Added tables:   {diff.added_tables}")
+    print(f"Removed tables: {diff.removed_tables}")
+    print(f"Modified tables:{diff.modified_tables}")
+    print(f"Diff is empty:  {diff.is_empty}")
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-expr = DropTableStatement(dialect, "users", if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-expr = DropTableStatement(dialect, "orders", if_exists=True)
-sql, params = expr.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    expr = DropTableStatement(dialect, "users", if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    expr = DropTableStatement(dialect, "orders", if_exists=True)
+    sql, params = expr.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()

@@ -33,149 +33,150 @@ from rhosocial.activerecord.backend.expression.statements import (
 from rhosocial.activerecord.backend.expression.statements.explain import ExplainOptions
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 
-config = ClickHouseConnectionConfig(
-    host=os.getenv("CLICKHOUSE_HOST", "localhost"),
-    port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
-    database=os.getenv("CLICKHOUSE_DATABASE", "test"),
-    username=os.getenv("CLICKHOUSE_USER", "root"),
-    password=os.getenv("CLICKHOUSE_PASSWORD", ""),
-)
-backend = ClickHouseBackend(connection_config=config)
-backend.connect()
-dialect = backend.dialect
-
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-
-create_table = CreateTableStatement(
-    dialect=dialect,
-    table=Table(dialect, "users"),
-    columns=[
-        ColumnDefinition(
-            "id",
-            "UInt32",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition(
-            "name",
-            "String",
-            constraints=[
-                ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
-            ],
-        ),
-        ColumnDefinition("email", "String"),
-    ],
-    if_not_exists=True,
-)
-sql, params = create_table.to_sql()
-backend.execute(sql, params)
-
-# Create a skip index on email column
-create_index = CreateIndexStatement(
-    dialect=dialect,
-    index=Index(dialect, "idx_users_email"),
-    table=Table(dialect, "users"),
-    columns=["email"],
-)
-sql, params = create_index.to_sql()
-backend.execute(sql, params)
-
-users = [
-    ("Alice", "alice@example.com"),
-    ("Bob", "bob@example.com"),
-    ("Charlie", "charlie@example.com"),
-]
-for name, email in users:
-    insert_expr = InsertStatement(
-        dialect=dialect,
-        into=Table(dialect, "users"),
-        columns=["name", "email"],
-        source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
+if __name__ == "__main__":
+    config = ClickHouseConnectionConfig(
+        host=os.getenv("CLICKHOUSE_HOST", "localhost"),
+        port=int(os.getenv("CLICKHOUSE_PORT", 8123)),
+        database=os.getenv("CLICKHOUSE_DATABASE", "test"),
+        username=os.getenv("CLICKHOUSE_USER", "root"),
+        password=os.getenv("CLICKHOUSE_PASSWORD", ""),
     )
-    sql, params = insert_expr.to_sql()
+    backend = ClickHouseBackend(connection_config=config)
+    backend.connect()
+    dialect = backend.dialect
+
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+    sql, params = drop_table.to_sql()
     backend.execute(sql, params)
 
-# ============================================================
-# SECTION: Business Logic (the pattern to learn)
-# ============================================================
+    create_table = CreateTableStatement(
+        dialect=dialect,
+        table=Table(dialect, "users"),
+        columns=[
+            ColumnDefinition(
+                "id",
+                "UInt32",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnPrimaryKeyConstraint(dialect)),
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition(
+                "name",
+                "String",
+                constraints=[
+                    ColumnConstraint(dialect, branch=ColumnNotNullConstraint(dialect)),
+                ],
+            ),
+            ColumnDefinition("email", "String"),
+        ],
+        if_not_exists=True,
+    )
+    sql, params = create_table.to_sql()
+    backend.execute(sql, params)
 
-# 1. EXPLAIN for a simple query
-query1 = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, "*")],
-    from_=NamedRelationRef(dialect, Table(dialect, "users")),
-    where=ComparisonPredicate(
-        dialect,
-        "=",
-        Column(dialect, "name"),
-        Literal(dialect, "Alice"),
-    ),
-)
-explain_scan = ExplainStatement(
-    dialect=dialect,
-    statement=query1,
-    options=ExplainOptions(),
-)
-sql, params = explain_scan.to_sql()
-print("1. EXPLAIN for query on 'name' column:")
-print(f"SQL: {sql}")
-result = backend.execute(sql, params)
-for row in result.data:
-    print(f"  {row}")
+    # Create a skip index on email column
+    create_index = CreateIndexStatement(
+        dialect=dialect,
+        index=Index(dialect, "idx_users_email"),
+        table=Table(dialect, "users"),
+        columns=["email"],
+    )
+    sql, params = create_index.to_sql()
+    backend.execute(sql, params)
 
-# 2. EXPLAIN for another query
-query2 = QueryStatement(
-    dialect=dialect,
-    select=[Column(dialect, "*")],
-    from_=NamedRelationRef(dialect, Table(dialect, "users")),
-    where=ComparisonPredicate(
-        dialect,
-        "=",
-        Column(dialect, "email"),
-        Literal(dialect, "alice@example.com"),
-    ),
-)
-explain_search = ExplainStatement(
-    dialect=dialect,
-    statement=query2,
-    options=ExplainOptions(),
-)
-sql, params = explain_search.to_sql()
-print("\n2. EXPLAIN for query on 'email' column:")
-print(f"SQL: {sql}")
-result = backend.execute(sql, params)
-for row in result.data:
-    print(f"  {row}")
+    users = [
+        ("Alice", "alice@example.com"),
+        ("Bob", "bob@example.com"),
+        ("Charlie", "charlie@example.com"),
+    ]
+    for name, email in users:
+        insert_expr = InsertStatement(
+            dialect=dialect,
+            into=Table(dialect, "users"),
+            columns=["name", "email"],
+            source=ValuesSource(dialect, [[Literal(dialect, name), Literal(dialect, email)]]),
+        )
+        sql, params = insert_expr.to_sql()
+        backend.execute(sql, params)
 
-# 3. EXPLAIN with FORMAT=JSON for detailed analysis
-explain_json = ExplainStatement(
-    dialect=dialect,
-    statement=query2,
-    options=ExplainOptions(format="JSON"),
-)
-sql, params = explain_json.to_sql()
-print("\n3. EXPLAIN FORMAT=JSON:")
-print(f"SQL: {sql}")
-result = backend.execute(sql, params)
-for row in result.data:
-    print(f"  {row}")
+    # ============================================================
+    # SECTION: Business Logic (the pattern to learn)
+    # ============================================================
 
-# ============================================================
-# SECTION: Teardown (necessary for execution, reference only)
-# ============================================================
-drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
-sql, params = drop_table.to_sql()
-backend.execute(sql, params)
-backend.disconnect()
+    # 1. EXPLAIN for a simple query
+    query1 = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, "*")],
+        from_=NamedRelationRef(dialect, Table(dialect, "users")),
+        where=ComparisonPredicate(
+            dialect,
+            "=",
+            Column(dialect, "name"),
+            Literal(dialect, "Alice"),
+        ),
+    )
+    explain_scan = ExplainStatement(
+        dialect=dialect,
+        statement=query1,
+        options=ExplainOptions(),
+    )
+    sql, params = explain_scan.to_sql()
+    print("1. EXPLAIN for query on 'name' column:")
+    print(f"SQL: {sql}")
+    result = backend.execute(sql, params)
+    for row in result.data:
+        print(f"  {row}")
 
-# ============================================================
-# SECTION: Summary
-# ============================================================
-# Key points:
-# 1. ClickHouse EXPLAIN shows execution plan without executing the query
-# 2. The output shows the query pipeline and steps
-# 3. FORMAT=JSON provides structured output
+    # 2. EXPLAIN for another query
+    query2 = QueryStatement(
+        dialect=dialect,
+        select=[Column(dialect, "*")],
+        from_=NamedRelationRef(dialect, Table(dialect, "users")),
+        where=ComparisonPredicate(
+            dialect,
+            "=",
+            Column(dialect, "email"),
+            Literal(dialect, "alice@example.com"),
+        ),
+    )
+    explain_search = ExplainStatement(
+        dialect=dialect,
+        statement=query2,
+        options=ExplainOptions(),
+    )
+    sql, params = explain_search.to_sql()
+    print("\n2. EXPLAIN for query on 'email' column:")
+    print(f"SQL: {sql}")
+    result = backend.execute(sql, params)
+    for row in result.data:
+        print(f"  {row}")
+
+    # 3. EXPLAIN with FORMAT=JSON for detailed analysis
+    explain_json = ExplainStatement(
+        dialect=dialect,
+        statement=query2,
+        options=ExplainOptions(format="JSON"),
+    )
+    sql, params = explain_json.to_sql()
+    print("\n3. EXPLAIN FORMAT=JSON:")
+    print(f"SQL: {sql}")
+    result = backend.execute(sql, params)
+    for row in result.data:
+        print(f"  {row}")
+
+    # ============================================================
+    # SECTION: Teardown (necessary for execution, reference only)
+    # ============================================================
+    drop_table = DropTableStatement(dialect=dialect, table=Table(dialect, "users"), if_exists=True)
+    sql, params = drop_table.to_sql()
+    backend.execute(sql, params)
+    backend.disconnect()
+
+    # ============================================================
+    # SECTION: Summary
+    # ============================================================
+    # Key points:
+    # 1. ClickHouse EXPLAIN shows execution plan without executing the query
+    # 2. The output shows the query pipeline and steps
+    # 3. FORMAT=JSON provides structured output
