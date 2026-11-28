@@ -27,3 +27,10 @@ def subject() -> ExpressionSubject:
         open_package_root=root,
         impl_module_prefix=IMPL,
     )
+
+
+@pytest.fixture
+def registry() -> object:
+    """ClickHouse's published expression table: core's kinds plus its own."""
+    module = importlib.import_module(f"{IMPL}.expression_registry")
+    return module.CLICKHOUSE_EXPRESSION_REGISTRY
