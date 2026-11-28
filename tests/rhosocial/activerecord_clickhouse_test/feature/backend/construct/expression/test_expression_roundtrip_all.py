@@ -144,10 +144,10 @@ from typing import Dict
 
 import pytest
 from expression_roundtrip_harness import (
+    SpecialConstructorRegistry,
     collect_expression_classes,
     make_instance,
     register_all,
-    register_special_constructor,
 )
 from rhosocial.activerecord.backend.dialect.exceptions import (
     UnsupportedDataTypeError,
@@ -540,14 +540,14 @@ def _integer_column(dialect, name="col"):
     return ddl_table.ColumnDefinition(dialect, name, IntegerType(dialect))
 
 
-def register_specials():
+def register_specials(registry):
     """Replace every introspective guess that would cost a real assertion."""
     # -- the object a statement names, and the source that reads it ----------
-    register_special_constructor(
+    registry.register(
         "sources.relation.NamedRelationRef",
         lambda d: NamedRelationRef(d, _table(d)),
     )
-    register_special_constructor(
+    registry.register(
         "query_parts.JoinClause",
         lambda d: JoinClause(
             d,
@@ -558,27 +558,27 @@ def register_specials():
     )
 
     # -- tables --------------------------------------------------------------
-    register_special_constructor(
+    registry.register(
         "statements.ddl_table.CreateTableStatement",
         lambda d: ddl_table.CreateTableStatement(d, _table(d), [_integer_column(d)]),
     )
-    register_special_constructor("statements.ddl_table.ColumnDefinition", _integer_column)
-    register_special_constructor(
+    registry.register("statements.ddl_table.ColumnDefinition", _integer_column)
+    registry.register(
         "statements.ddl_alter.AddColumnAction",
         lambda d: ddl_alter.AddColumnAction(d, _integer_column(d)),
     )
-    register_special_constructor(
+    registry.register(
         "statements.ddl_alter.ModifyColumnAction",
         lambda d: ddl_alter.ModifyColumnAction(d, _integer_column(d)),
     )
     # ``old_name`` comes first here, so the guess's positional order is wrong:
     # it built the column definition into ``old_name`` and the string into
     # ``column``, and the failure surfaced as an AttributeError at render time.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_alter.ChangeColumnAction",
         lambda d: ddl_alter.ChangeColumnAction(d, "old", _integer_column(d)),
     )
-    register_special_constructor(
+    registry.register(
         "statements.ddl_comment.CommentOnStatement",
         lambda d: ddl_comment.CommentOnStatement(d, "table", _table(d), comment="c"),
     )
@@ -610,20 +610,20 @@ def register_specials():
 
         return ClickHouseModifyConstraintStatement(d, "t", "ck", "CHECK", _column_predicate(d))
 
-    register_special_constructor(
+    registry.register(
         "comment.ClickHouseModifyTableCommentStatement", modify_table_comment
     )
-    register_special_constructor(
+    registry.register(
         "comment.ClickHouseModifyColumnCommentStatement", modify_column_comment
     )
-    register_special_constructor(
+    registry.register(
         "constraint_modify.ClickHouseModifyConstraintStatement", modify_constraint
     )
 
     # -- databases -----------------------------------------------------------
     # ``RENAME TO`` is the action core's enum names; without it the guess picks
     # whatever sorts first.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_database.AlterDatabaseStatement",
         lambda d: ddl_database.AlterDatabaseStatement(
             d,
@@ -639,11 +639,11 @@ def register_specials():
     # ``op`` parameter, so both are refused before they can be rendered -- and
     # both are among the nodes worth rendering, so a real word is supplied here
     # rather than a new entry in UNCONSTRUCTIBLE.
-    register_special_constructor(
+    registry.register(
         "operators.ArithmeticOperation",
         lambda d: ArithmeticOperation(d, "add", _operand(d, "a"), _operand(d, "b")),
     )
-    register_special_constructor(
+    registry.register(
         "query_sources.SetOperation",
         lambda d: SetOperation(
             d,
@@ -655,7 +655,7 @@ def register_specials():
     # The statement half of the same pair: the word-form enum refuses the
     # guess's bare string at construction, and ClickHouse spells a compound
     # SELECT, so a factory turns it into an instance the matrix can assert.
-    register_special_constructor(
+    registry.register(
         "statements.dql.SetOperationStatement",
         lambda d: SetOperationStatement(
             d,
@@ -668,21 +668,21 @@ def register_specials():
     )
 
     # -- containers that need at least one member ----------------------------
-    register_special_constructor(
+    registry.register(
         "advanced_functions.CaseExpression",
         lambda d: CaseExpression(
             d, cases=[(_column_predicate(d), Literal(d, 1))], else_result=Literal(d, 0)
         ),
     )
-    register_special_constructor(
+    registry.register(
         "advanced_functions.WindowSpecification",
         lambda d: WindowSpecification(d, partition_by=["a"]),
     )
-    register_special_constructor(
+    registry.register(
         "advanced_functions.WindowDefinition",
         lambda d: WindowDefinition(d, "w", WindowSpecification(d, partition_by=["a"])),
     )
-    register_special_constructor(
+    registry.register(
         "advanced_functions.WindowClause",
         lambda d: WindowClause(
             d, [WindowDefinition(d, "w", WindowSpecification(d, partition_by=["a"]))]
@@ -690,7 +690,7 @@ def register_specials():
     )
     # An empty options dict is refused by the formatter, so a time-travel clause
     # needs an actual option.
-    register_special_constructor(
+    registry.register(
         "datetime.TemporalOptionsExpression",
         lambda d: TemporalOptionsExpression(d, {"as_of": "2020-01-01"}),
     )
@@ -700,7 +700,7 @@ def register_specials():
     # cannot guess one: ``branch=`` takes a node, not a value the guesser can
     # read off the signature. ``ColumnNotNullConstraint`` is the cheapest branch
     # that still renders, so it is what the round trip builds.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_table.ColumnConstraint",
         lambda d: ddl_table.ColumnConstraint(
             d, branch=ddl_table.ColumnNotNullConstraint(d), name="c"
@@ -711,13 +711,13 @@ def register_specials():
     # pass any more -- the caller states ``inline=True`` where a position
     # cannot bind). Two columns compose the same predicate with nothing that
     # binds in it.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_table.TableCheckConstraint",
         lambda d: ddl_table.TableCheckConstraint(d, _column_predicate(d)),
     )
     # REFERENCES needs at least one referenced column, or the clause is not a
     # clause; the guess supplies an empty list.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_table.ReferencesClause",
         lambda d: ddl_table.ReferencesClause(d, Table(d, "other"), ["b"]),
     )
@@ -725,7 +725,7 @@ def register_specials():
     # string, which reaches the formatter as ``constraint.branch`` and raises
     # AttributeError. A PRIMARY KEY table branch is the cheapest one this
     # dialect renders in that position.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_alter.AddTableConstraintAction",
         lambda d: AddTableConstraintAction(
             d,
@@ -741,7 +741,7 @@ def register_specials():
     # ClickHouseDDLColumnMixin.format_drop_table_constraint_action (kind
     # address), and a disagreeing declaration as ambiguous; both are pinned in
     # ``test_constraint_capabilities``.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_alter.DropTableConstraintAction",
         lambda d: DropTableConstraintAction(d, "ck"),
     )
@@ -750,7 +750,7 @@ def register_specials():
     # spelling rather than a class object, so a real CHECK branch builds here
     # and survives all three channels. The render is then refused by this
     # dialect's capability probe, which the matrix classifies.
-    register_special_constructor(
+    registry.register(
         "statements.ddl_alter.AlterConstraintAction",
         lambda d: ddl_alter.AlterConstraintAction(
             d, "ck", enforced=True, constraint_kind=ddl_table.TableCheckConstraint
@@ -769,7 +769,7 @@ def register_specials():
 
         return AddDomainCheckAction(d, DomainCheckConstraint(d, _column_predicate(d), name="chk"))
 
-    register_special_constructor("statements.ddl_domain.AddDomainCheckAction", add_domain_check)
+    registry.register("statements.ddl_domain.AddDomainCheckAction", add_domain_check)
     # -- declared-result annotations: the source must be aliasable ------------
     # ``format_declared_result`` reads the alias of both the annotation and
     # the node it annotates, and the rewritten ``Literal`` is deliberately
@@ -791,7 +791,7 @@ def register_specials():
         "XMLAnnotation",
         "ArrayAnnotation",
     ):
-        register_special_constructor(
+        registry.register(
             f"declared.{_name}",
             lambda d, _n=_name: getattr(declared_module, _n)(d, _operand(d, "c")),
         )
@@ -801,11 +801,11 @@ def register_specials():
     # formatter then calls ``.to_sql()`` on. Both constructors spell operands
     # the way the round-trip contract requires; ``Literal`` for the pattern
     # rather than a string, because a bare string is not a value node.
-    register_special_constructor(
+    registry.register(
         "predicates.LikePredicate",
         lambda d: LikePredicate(d, LikeOperator.LIKE, Column(d, "a"), Literal(d, "%x%")),
     )
-    register_special_constructor(
+    registry.register(
         "predicates.ILikePredicate",
         lambda d: ILikePredicate(d, Column(d, "a"), "%x%"),
     )
@@ -814,13 +814,13 @@ def register_specials():
     # ``"x"`` -- not a comparison word, so the constructor refuses and the class
     # drops to a quiet skip. A real operator word builds it, and the node then
     # renders through the same entry every other predicate uses.
-    register_special_constructor(
+    registry.register(
         "predicates.ComparisonPredicate",
         lambda d: ComparisonPredicate(d, "=", Column(d, "a"), Literal(d, 1)),
     )
 
     # -- DML -----------------------------------------------------------------
-    register_special_constructor(
+    registry.register(
         "statements.dml.MergeStatement",
         lambda d: dml.MergeStatement(
             d,
@@ -838,7 +838,7 @@ def register_specials():
             ],
         ),
     )
-    register_special_constructor(
+    registry.register(
         "statements.dml.MergeAction",
         lambda d: dml.MergeAction(
             d,
@@ -852,46 +852,46 @@ def register_specials():
     # -- types ---------------------------------------------------------------
     # ArrayType's element type is keyword-only now, so the guesser -- and the
     # positional call this used to be -- both miss it.
-    register_special_constructor(
+    registry.register(
         "types.array.ArrayType",
         lambda d: __import__(
             "rhosocial.activerecord.backend.expression.types.array",
             fromlist=["ArrayType"],
         ).ArrayType(d, element_type=VarCharType(d, 10)),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseDecimalType",
         lambda d: chexpr_types.ClickHouseDecimalType(d, precision=10, scale=2),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseFixedStringType",
         lambda d: chexpr_types.ClickHouseFixedStringType(d, length=8),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseEnum8Type",
         lambda d: chexpr_types.ClickHouseEnum8Type(d, values=[("a", 1)]),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseEnum16Type",
         lambda d: chexpr_types.ClickHouseEnum16Type(d, values=[("a", 1)]),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseTupleType",
         lambda d: chexpr_types.ClickHouseTupleType(
             d, element_types=[IntegerType(d)], element_names=["a"]
         ),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseArrayType",
         lambda d: chexpr_types.ClickHouseArrayType(d, element_type=IntegerType(d)),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseAggregateFunctionType",
         lambda d: chexpr_types.ClickHouseAggregateFunctionType(
             d, function_name="sum", arg_types=[IntegerType(d)]
         ),
     )
-    register_special_constructor(
+    registry.register(
         "types.ClickHouseSimpleAggregateFunctionType",
         lambda d: chexpr_types.ClickHouseSimpleAggregateFunctionType(
             d, function_name="max", arg_types=[IntegerType(d)]
@@ -902,11 +902,11 @@ def register_specials():
     # Both the private shape base and the field-named extraction validate the
     # field word at construction; the guesser's "x" is not one of the six.
     # "YEAR" is, and renders EXTRACT(YEAR FROM `ts`).
-    register_special_constructor(
+    registry.register(
         "datetime._ExtractBase",
         lambda d: _ExtractBase(d, "YEAR", _operand(d, "ts")),
     )
-    register_special_constructor(
+    registry.register(
         "datetime.ExtractFieldExpression",
         lambda d: ExtractFieldExpression(d, "YEAR", _operand(d, "ts")),
     )
@@ -919,27 +919,27 @@ def register_specials():
     # defaults ClickHouse agrees with (CHR, LEFT, RIGHT, SPACE are the
     # standard spellings this engine accepts; SUBSTRING and OVERLAY render
     # through their own entry points).
-    register_special_constructor(
+    registry.register(
         "functions.string.ChrFunction",
         lambda d: ChrFunction(d, Literal(d, 65)),
     )
-    register_special_constructor(
+    registry.register(
         "functions.string.LeftFunction",
         lambda d: LeftFunction(d, _operand(d, "name"), Literal(d, 1)),
     )
-    register_special_constructor(
+    registry.register(
         "functions.string.RightFunction",
         lambda d: RightFunction(d, _operand(d, "name"), Literal(d, 1)),
     )
-    register_special_constructor(
+    registry.register(
         "functions.string.SpaceFunction",
         lambda d: SpaceFunction(d, Literal(d, 3)),
     )
-    register_special_constructor(
+    registry.register(
         "functions.string.SubstringExpression",
         lambda d: SubstringExpression(d, _operand(d, "name"), Literal(d, 1), Literal(d, 2)),
     )
-    register_special_constructor(
+    registry.register(
         "functions.string.OverlayExpression",
         lambda d: OverlayExpression(
             d,
@@ -956,11 +956,11 @@ def register_specials():
     # member). Real members construct, and the renderings refuse on their own
     # -- this dialect spells no RESET / HANDLER at all -- which the pinned
     # renders above assert.
-    register_special_constructor(
+    registry.register(
         "admin.ClickHouseResetStatement",
         lambda d: admin_module.ClickHouseResetStatement(d, admin_module.ResetOption.MASTER),
     )
-    register_special_constructor(
+    registry.register(
         "admin.ClickHouseHandlerReadStatement",
         lambda d: admin_module.ClickHouseHandlerReadStatement(
             d, Table(d, "t"), admin_module.HandlerReadMode.FIRST
@@ -984,7 +984,7 @@ def register_specials():
     # ``format_partition_clause`` says so through the capability probe, which
     # the matrix classifies.
     for _name in ("PartitionByHashClause", "PartitionByListClause"):
-        register_special_constructor(
+        registry.register(
             f"statements.ddl_partition.{_name}",
             lambda d, _n=_name: getattr(ddl_partition, _n)(d, [Column(d, "id")]),
         )
@@ -993,33 +993,33 @@ def register_specials():
         "ClickHouseDetachPartitionStatement",
         "ClickHouseAttachPartitionStatement",
     ):
-        register_special_constructor(
+        registry.register(
             f"partition.{_name}",
             lambda d, _n=_name: getattr(partition, _n)(d, "t", "p2024"),
         )
-    register_special_constructor(
+    registry.register(
         "partition.ClickHouseReplacePartitionStatement",
         lambda d: partition.ClickHouseReplacePartitionStatement(d, "t", "p2024", "staging"),
     )
-    register_special_constructor(
+    registry.register(
         "partition.ClickHouseMovePartitionStatement",
         lambda d: partition.ClickHouseMovePartitionStatement(d, "t", "p2024", "VOLUME", "cold"),
     )
-    register_special_constructor(
+    registry.register(
         "partition.ClickHouseFreezePartitionStatement",
         lambda d: partition.ClickHouseFreezePartitionStatement(d, "t", "p2024", "backup_p2024"),
     )
-    register_special_constructor(
+    registry.register(
         "partition.ClickHouseUnfreezePartitionStatement",
         lambda d: partition.ClickHouseUnfreezePartitionStatement(d, "t", "p2024", "backup_p2024"),
     )
-    register_special_constructor(
+    registry.register(
         "partition.ClickHouseClearInPartitionStatement",
         lambda d: partition.ClickHouseClearInPartitionStatement(
             d, "t", "COLUMN", "browser", "p2024"
         ),
     )
-    register_special_constructor(
+    registry.register(
         "partition.ClickHouseOptimizePartitionStatement",
         lambda d: partition.ClickHouseOptimizePartitionStatement(d, "t", "p2024", True),
     )
@@ -1030,13 +1030,13 @@ def register_specials():
     # the formatter refuses) and leave TYPE empty. Real constructors carry the
     # body the formatter consumes, so both nodes are asserted as renders rather
     # than disappearing into a skip.
-    register_special_constructor(
+    registry.register(
         "index.ClickHouseAddIndexStatement",
         lambda d: chexpr_index.ClickHouseAddIndexStatement(
             d, "events", "idx", Column(d, "val"), type="minmax", granularity=4
         ),
     )
-    register_special_constructor(
+    registry.register(
         "index.ClickHouseDropIndexStatement",
         lambda d: chexpr_index.ClickHouseDropIndexStatement(d, "events", "idx", if_exists=True),
     )
@@ -1050,43 +1050,43 @@ def register_specials():
         "ClickHouseRepairTableExpression",
         "ClickHouseTableMaintenanceStatement",
     ):
-        register_special_constructor(
+        registry.register(
             f"maintenance.{_name}",
             lambda d, _n=_name: getattr(maintenance, _n)(d, [_table(d)]),
         )
-    register_special_constructor(
+    registry.register(
         "routine.ClickHouseRoutineExpression",
         lambda d: routine.ClickHouseRoutineExpression(d, Procedure(d, "proc")),
     )
-    register_special_constructor(
+    registry.register(
         "routine.ClickHouseCreateProcedureStatement",
         lambda d: routine.ClickHouseCreateProcedureStatement(d, Procedure(d, "proc")),
     )
-    register_special_constructor(
+    registry.register(
         "routine.ClickHouseDropProcedureStatement",
         lambda d: routine.ClickHouseDropProcedureStatement(d, Procedure(d, "proc")),
     )
-    register_special_constructor(
+    registry.register(
         "routine.ClickHouseCreateFunctionStatement",
         lambda d: routine.ClickHouseCreateFunctionStatement(
             d, Function(d, "fn"), returns="integer"
         ),
     )
-    register_special_constructor(
+    registry.register(
         "routine.ClickHouseDropFunctionStatement",
         lambda d: routine.ClickHouseDropFunctionStatement(d, Function(d, "fn")),
     )
-    register_special_constructor(
+    registry.register(
         "routine.ClickHouseCallStatement",
         lambda d: routine.ClickHouseCallStatement(d, Procedure(d, "proc")),
     )
-    register_special_constructor(
+    registry.register(
         "materialized_view.ClickHouseCreateMaterializedViewStatement",
         lambda d: materialized_view.ClickHouseCreateMaterializedViewStatement(
             d, MaterializedView(d, "mv"), "SELECT 1", to_table=Table(d, "target")
         ),
     )
-    register_special_constructor(
+    registry.register(
         "materialized_view.ClickHouseModifyMaterializedViewRefreshStatement",
         lambda d: materialized_view.ClickHouseModifyMaterializedViewRefreshStatement(
             d,
@@ -1098,24 +1098,24 @@ def register_specials():
     )
 
     # -- ClickHouse columns, DML, renames ------------------------------------
-    register_special_constructor(
+    registry.register(
         "column.ClickHouseColumnDefinition",
         lambda d: chexpr_column.ClickHouseColumnDefinition(d, "id", IntegerType(d)),
     )
-    register_special_constructor(
+    registry.register(
         "dml.ClickHouseInsertExpression",
         lambda d: chexpr_dml.ClickHouseInsertExpression(
             d, into=_table(d), source=dml.ValuesSource(d, [[Literal(d, 1)]])
         ),
     )
-    register_special_constructor(
+    registry.register(
         "alter_column.ClickHouseAddColumnAction",
         # ``after`` is given a value on purpose: it is a declared constructor
         # parameter, so the artifact has to carry it. The render half -- that
         # the clause reaches the SQL -- is test_add_column_action.py's job.
         lambda d: alter_column.ClickHouseAddColumnAction(d, _integer_column(d), after="name"),
     )
-    register_special_constructor(
+    registry.register(
         "rename_table.ClickHouseRenameTableStatement",
         lambda d: rename_table.ClickHouseRenameTableStatement(d, [("a", "b")]),
     )
@@ -1126,7 +1126,7 @@ def register_specials():
     # never reaches the payload. ENGINE is built because every ClickHouse table
     # declares one, and it is the member whose payload is itself a node, so the
     # artifact carries a nested expression rather than a bare scalar.
-    register_special_constructor(
+    registry.register(
         "storage_option.ClickHouseTableStorageOption",
         lambda d: storage_option.ClickHouseTableStorageOption(
             d,
@@ -1148,10 +1148,20 @@ def register_specials():
 
         return CustomType(dialect, raw="String")
 
-    register_special_constructor("types.custom.CustomType", _custom_type)
+    registry.register("types.custom.CustomType", _custom_type)
 
 
-register_specials()
+@pytest.fixture(scope="session")
+def special_registry():
+    """The explicit constructor table this session runs the matrix with.
+
+    Built from a fresh :class:`SpecialConstructorRegistry` and populated by
+    :func:`register_specials` here, at fixture setup -- never at import time.
+    Import order can therefore no longer change what ``make_instance`` sees.
+    """
+    registry = SpecialConstructorRegistry()
+    register_specials(registry)
+    return registry
 
 
 # ---------------------------------------------------------------------------
@@ -2013,10 +2023,10 @@ def clickhouse_matrix_dialect():
 
 
 @pytest.fixture(params=sorted(REGISTERED), ids=sorted(REGISTERED))
-def expr_case(request, clickhouse_matrix_dialect):
+def expr_case(request, clickhouse_matrix_dialect, special_registry):
     fqn = request.param
     cls = REGISTERED[fqn]
-    instance, source = make_instance(cls, clickhouse_matrix_dialect)
+    instance, source = make_instance(cls, clickhouse_matrix_dialect, special_registry)
     if instance is None:
         assert fqn in UNCONSTRUCTIBLE, (
             f"{fqn} cannot be built by the generic constructor ({source}) and is "
@@ -2427,7 +2437,7 @@ class TestObjectKindChecks:
 class TestMatrixIntegrity:
     """Guards on the matrix and its lists, so neither can quietly change."""
 
-    def test_unconstructible_list_is_exact(self, clickhouse_matrix_dialect):
+    def test_unconstructible_list_is_exact(self, clickhouse_matrix_dialect, special_registry):
         """Pin the unconstructible tuple against what the constructor really skips.
 
         Both directions are checked. A class named here that now builds has gained
@@ -2438,7 +2448,8 @@ class TestMatrixIntegrity:
             sorted(
                 fqn
                 for fqn in REGISTERED
-                if make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)[0] is None
+                if make_instance(REGISTERED[fqn], clickhouse_matrix_dialect, special_registry)[0]
+                is None
             )
         )
         assert actual == tuple(sorted(UNCONSTRUCTIBLE)), (
@@ -2487,7 +2498,9 @@ class TestMatrixIntegrity:
                     "enum-str",
                 ), f"{fqn}/{channel}: unknown pin shape {pin[0]!r}"
 
-    def test_pinned_non_roundtrip_refuses_as_pinned(self, clickhouse_matrix_dialect):
+    def test_pinned_non_roundtrip_refuses_as_pinned(
+        self, clickhouse_matrix_dialect, special_registry
+    ):
         """Each pinned round-trip entry still refuses exactly as it claims.
 
         Three directions, per entry: every pinned channel fails in its pinned
@@ -2496,7 +2509,9 @@ class TestMatrixIntegrity:
         constructs, so what is pinned is the restore and not the constructor.
         """
         for fqn, entry in LEGITIMATE_NON_ROUNDTRIPS.items():
-            instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            instance, source = make_instance(
+                REGISTERED[fqn], clickhouse_matrix_dialect, special_registry
+            )
             assert instance is not None, (
                 f"{fqn} is pinned as a round-trip refusal but could not be "
                 f"constructed ({source})"
@@ -2513,14 +2528,18 @@ class TestMatrixIntegrity:
                         restored.get_params(), instance.get_params(), f"{fqn}.{channel}"
                     )
 
-    def test_pinned_non_render_really_does_not_render(self, clickhouse_matrix_dialect):
+    def test_pinned_non_render_really_does_not_render(
+        self, clickhouse_matrix_dialect, special_registry
+    ):
         """Each pinned entry still raises what it claims, for the stated reason.
 
         Without this, an entry could sit in the dict for a class that renders
         perfectly well, and the matrix would be asserting nothing about it.
         """
         for fqn, (expected_type, fragment) in LEGITIMATE_NON_RENDERS.items():
-            instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            instance, source = make_instance(
+                REGISTERED[fqn], clickhouse_matrix_dialect, special_registry
+            )
             assert instance is not None, (
                 f"{fqn} is pinned as a non-render but could not be constructed " f"({source})"
             )
@@ -2530,7 +2549,7 @@ class TestMatrixIntegrity:
                 f"{fqn}: expected the message to mention {fragment!r}, got: " f"{exc_info.value}"
             )
 
-    def test_unmodelled_formatter_list_is_exact(self, clickhouse_matrix_dialect):
+    def test_unmodelled_formatter_list_is_exact(self, clickhouse_matrix_dialect, special_registry):
         """Pin the unmodelled-formatter table against what the dialect lacks.
 
         Observed rather than assumed: for each class the matrix covers, either
@@ -2557,7 +2576,9 @@ class TestMatrixIntegrity:
         """
         observed = set()
         for fqn in sorted(REGISTERED):
-            instance, source = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            instance, source = make_instance(
+                REGISTERED[fqn], clickhouse_matrix_dialect, special_registry
+            )
             if instance is None:
                 continue
             try:
@@ -2638,12 +2659,12 @@ class TestMatrixIntegrity:
             not unresolved
         ), f"the matrix covers classes the registry cannot resolve: {unresolved}"
 
-    def test_coverage_report(self, clickhouse_matrix_dialect):
+    def test_coverage_report(self, clickhouse_matrix_dialect, special_registry):
         """Surface what the matrix covers, so coverage stays transparent."""
         branches: Dict[str, int] = {}
         constructible = 0
         for fqn in sorted(REGISTERED):
-            instance, _ = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect)
+            instance, _ = make_instance(REGISTERED[fqn], clickhouse_matrix_dialect, special_registry)
             if instance is None:
                 continue
             constructible += 1
@@ -2686,22 +2707,22 @@ class TestVersionGatedCatalogueStatement:
         "introspection.ClickHouseConstraintStateListQuery"
     )
 
-    def _instance(self, version):
+    def _instance(self, version, special_registry):
         dialect = ClickHouseDialect(version=version)
-        instance, source = make_instance(REGISTERED[self._FQN], dialect)
+        instance, source = make_instance(REGISTERED[self._FQN], dialect, special_registry)
         assert instance is not None, f"{self._FQN} could not be constructed on {version}: {source}"
         return instance, dialect
 
     @pytest.mark.parametrize("version", [(25, 8, 0), (26, 3, 0)])
-    def test_the_refusal_is_by_catalogue_name_before_26_7(self, version):
-        instance, _ = self._instance(version)
+    def test_the_refusal_is_by_catalogue_name_before_26_7(self, version, special_registry):
+        instance, _ = self._instance(version, special_registry)
         with pytest.raises(IntrospectionNotSupportedError) as caught:
             instance.to_sql()
         assert "system.constraints" in str(caught.value)
         assert f"{version[0]}.{version[1]}" in str(caught.value)
 
-    def test_the_statement_renders_and_round_trips_from_26_7(self):
-        instance, dialect = self._instance((26, 7, 0))
+    def test_the_statement_renders_and_round_trips_from_26_7(self, special_registry):
+        instance, dialect = self._instance((26, 7, 0), special_registry)
         verdict = assert_sql_roundtrip_classified(self._FQN, instance, dialect, CODEC_REGISTRY)
         assert verdict == "rendered"
 

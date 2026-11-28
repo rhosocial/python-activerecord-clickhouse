@@ -2024,15 +2024,16 @@ class TestParseRoundTripSweep:
 
     @pytest.fixture(scope="class")
     def registry(self):
-        """The round-trip module's registry, loaded from the expression area.
+        """The round-trip module's class registry and its special-constructor table.
 
-        Executing it also registers its special constructors, which the sweep's
-        ``make_instance`` consults -- the same registrations the full suite
-        performs at collection time. The matrix moved under
-        ``feature/backend/expression/`` when this file's neighbours were
-        gathered there (the literal spellings sit beside it), so the path is
-        spelled as ``parent.parent / "expression"`` rather than a file name in
-        this directory's parent.
+        The matrix no longer registers anything at import time: its
+        ``register_specials`` takes an explicit registry. So this fixture owns
+        a :class:`SpecialConstructorRegistry` alongside the class table and
+        populates it here, at setup, before the sweep's ``make_instance`` reads
+        it. The matrix moved under ``feature/backend/expression/`` when this
+        file's neighbours were gathered there (the literal spellings sit beside
+        it), so the path is spelled as ``parent.parent / "expression"`` rather
+        than a file name in this directory's parent.
         """
         import importlib.util
         import sys
@@ -2050,6 +2051,8 @@ class TestParseRoundTripSweep:
         # directory pytest happens to be collecting.
         if str(path.parent) not in sys.path:
             sys.path.insert(0, str(path.parent))
+        from expression_roundtrip_harness import SpecialConstructorRegistry
+
         spec = importlib.util.spec_from_file_location(
             "clickhouse_rt_registry",
             path,
@@ -2058,12 +2061,15 @@ class TestParseRoundTripSweep:
         spec.loader.exec_module(module)
         registry = getattr(module, "ALL_CLASSES", None) or module.REGISTERED
         assert registry, "the round-trip module exposes no registry"
-        return registry
+        special_registry = SpecialConstructorRegistry()
+        module.register_specials(special_registry)
+        return registry, special_registry
 
     def test_every_rendered_type_parses_back_coherently(self, registry):
         # The sweep is vendored beside the matrix (the testsuite deleted its
         # shared harness with round-trip coverage moving to each backend);
-        # make_instance is the same function the matrix registers with.
+        # make_instance reads the very registry the matrix registered into.
+        registry, special_registry = registry
         from expression_roundtrip_harness import (
             parse_roundtrip_failures,
         )
@@ -2072,6 +2078,7 @@ class TestParseRoundTripSweep:
         failures = parse_roundtrip_failures(
             dialect,
             registry,
+            special_registry=special_registry,
             widening=self.WIDENING_ANSWERS,
         )
         assert failures == [], "\n".join(failures)

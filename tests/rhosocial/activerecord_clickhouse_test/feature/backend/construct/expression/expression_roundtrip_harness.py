@@ -297,12 +297,12 @@ def special_constructors():
     new names is not expressible, because ``endswith`` compares a suffix. A
     class that was split needs one entry per resulting class.
 
-    :func:`register_special_constructor` writes to the module-level
-    ``_SPECIAL_REGISTRY``, which is what :func:`make_instance` reads. Note that
-    this function rebuilds its dict on every call, so a registration made
-    elsewhere is **not** visible to a caller that invokes
-    ``special_constructors()`` directly — core's expression-contract test does
-    exactly that, and therefore sees only the literals below.
+    :class:`SpecialConstructorRegistry` copies this dict once at construction,
+    and every :func:`make_instance` call reads the registry handed to it. Since
+    this function rebuilds its dict on every call, a registration made against
+    one registry is **not** visible to a caller that invokes
+    ``special_constructors()`` directly -- such a caller sees only the literals
+    below, because there is no process-global table to leak into.
     """
     return {
         "statements.ddl_table.ColumnDefinition": _column_definition,
@@ -947,36 +947,64 @@ def _datetime_add_expr(dialect):
     return DatetimeAddExpression(dialect, Column(dialect, "a"), IntervalExpression(dialect, 1, "day"))
 
 
-_SPECIAL_REGISTRY: Dict[str, Callable] = special_constructors()
+class SpecialConstructorRegistry:
+    """An owned, mutable table of explicit expression constructors.
 
-
-def register_special_constructor(fqn_suffix: str, factory: Callable) -> None:
-    """Register an explicit constructor for an expression class.
-
-    ``fqn_suffix`` must match the tail of the class's fully qualified name
-    (e.g. ``"json.ClickHouseJSONObjectExpression"``). ``factory(dialect)`` must
-    return an expression instance.
+    There is no process-global registry: each consumer constructs one of these,
+    registers the overrides it needs, and passes it to :func:`make_instance`
+    explicitly. That makes the result depend only on the registrations the
+    caller made, not on which test modules happened to be imported first.
     """
-    _SPECIAL_REGISTRY[fqn_suffix] = factory
+
+    def __init__(self, base: Optional[Dict[str, Callable]] = None) -> None:
+        self.entries: Dict[str, Callable] = dict(special_constructors() if base is None else base)
+
+    def register(self, fqn_suffix: str, factory: Callable) -> None:
+        """Add one constructor, keyed by the tail of the class's full name.
+
+        ``fqn_suffix`` must match the tail of the class's fully qualified name
+        (e.g. ``"json.ClickHouseJSONObjectExpression"``). ``factory(dialect)``
+        must return an expression instance.
+        """
+        self.entries[fqn_suffix] = factory
+
+    def make_instance(self, cls: Type[BaseExpression], dialect: Any):
+        """Best-effort construction for an expression class.
+
+        Returns (instance, source) where source is "special", "heuristic", or
+        (None, "failed").
+        """
+        full_name = f"{cls.__module__}.{cls.__name__}"
+        special = next((fn for s, fn in self.entries.items() if full_name.endswith(s)), None)
+        if special is not None:
+            try:
+                return special(dialect), "special"
+            except Exception:
+                return None, "special-failed"
+        instance = _try_construct(cls, dialect)
+        if instance is None:
+            return None, "failed"
+        return instance, "heuristic"
 
 
-def make_instance(cls: Type[BaseExpression], dialect: Any):
-    """Best-effort construction for an expression class.
+def register_special_constructor(
+    registry: SpecialConstructorRegistry, fqn_suffix: str, factory: Callable
+) -> None:
+    """Explicit-injection adapter for :meth:`SpecialConstructorRegistry.register`.
 
-    Returns (instance, source) where source is "special", "heuristic", or
-    (None, "failed").
+    ``registry`` is required: there is no default table to register into.
     """
-    full_name = f"{cls.__module__}.{cls.__name__}"
-    special = next((fn for s, fn in _SPECIAL_REGISTRY.items() if full_name.endswith(s)), None)
-    if special is not None:
-        try:
-            return special(dialect), "special"
-        except Exception:
-            return None, "special-failed"
-    instance = _try_construct(cls, dialect)
-    if instance is None:
-        return None, "failed"
-    return instance, "heuristic"
+    registry.register(fqn_suffix, factory)
+
+
+def make_instance(
+    cls: Type[BaseExpression], dialect: Any, registry: SpecialConstructorRegistry
+):
+    """Explicit-injection adapter for :meth:`SpecialConstructorRegistry.make_instance`.
+
+    ``registry`` is required: there is no default table to read from.
+    """
+    return registry.make_instance(cls, dialect)
 
 
 def collect_expression_classes(package_path: str) -> Dict[str, Type[BaseExpression]]:
@@ -1142,6 +1170,7 @@ def parse_roundtrip_failures(
     dialect: Any,
     registry: Dict[str, Any],
     *,
+    special_registry: SpecialConstructorRegistry,
     widening: Optional[Dict[str, Any]] = None,
     skip: Any = (),
 ) -> Any:
@@ -1175,6 +1204,8 @@ def parse_roundtrip_failures(
             backend's round-trip module keeps it (``REGISTERED`` or
             ``ALL_CLASSES``). Only concrete ``DataType`` subclasses are
             swept.
+        special_registry: the caller-owned table of explicit constructors;
+            required, and passed straight through to :func:`make_instance`.
         widening: the backend's documented answer table,
             ``{declared class name: answer}``. An entry here asserts the
             parse answers with exactly that class and that the answer
@@ -1200,7 +1231,7 @@ def parse_roundtrip_failures(
             continue
         if cls.__name__ in skipped:
             continue
-        instance, source = make_instance(cls, dialect)
+        instance, source = make_instance(cls, dialect, special_registry)
         if instance is None:
             continue  # the matrix's unbuildable list owns this class
         try:
@@ -1271,6 +1302,7 @@ def parse_roundtrip_failures(
 
 
 __all__ = [
+    "SpecialConstructorRegistry",
     "assert_params_equal",
     "collect_expression_classes",
     "make_instance",
