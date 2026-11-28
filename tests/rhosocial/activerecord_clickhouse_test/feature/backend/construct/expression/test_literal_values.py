@@ -1,7 +1,7 @@
 # tests/rhosocial/activerecord_clickhouse_test/feature/backend/construct/expression/test_literal_values.py
 """ClickHouse's tier-2 literal spellings, pinned to live measurements.
 
-``Literal`` is the one node that carries a value and the one decision that
+``Parameter`` is the one node that carries a value and the one decision that
 matters at a syntax position: bind, or write the text. The text itself comes
 from ``format_literal``, whose second tier is the backend's own -- and this
 backend has exactly two spellings there: ``unhex('...')`` for bytes and the
@@ -32,7 +32,7 @@ import uuid as uuidlib
 
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Literal
+from rhosocial.activerecord.backend.expression.core import Parameter
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.mixins import (
     ClickHouseLiteralValueMixin,
@@ -58,13 +58,13 @@ class TestBindingDecision:
     """``inline`` decides bind-or-text; the dialect's placeholder is ClickHouse's."""
 
     def test_data_position_binds_the_host_value(self, dialect):
-        node = Literal(dialect, 42)
+        node = Parameter(dialect, 42)
         sql, params = node.to_sql()
         assert sql == "%s"
         assert params == (42,)
 
     def test_inline_position_writes_text(self, dialect):
-        node = Literal(dialect, 42, inline=True)
+        node = Parameter(dialect, 42, inline=True)
         sql, params = node.to_sql()
         assert sql == "42"
         assert params == ()
@@ -98,7 +98,7 @@ class TestTierTwoSpellings:
         assert dialect.format_literal(b"\x01\x02") == "unhex('0102')"
 
     def test_binary_via_the_literal_node(self, dialect):
-        node = Literal(dialect, b"\x01\x02", inline=True)
+        node = Parameter(dialect, b"\x01\x02", inline=True)
         sql, params = node.to_sql()
         assert sql == "unhex('0102')"
         assert params == ()
@@ -107,7 +107,7 @@ class TestTierTwoSpellings:
         assert dialect.format_literal(_UUID) == f"'{_UUID_TEXT}'"
 
     def test_uuid_via_the_literal_node(self, dialect):
-        node = Literal(dialect, _UUID, inline=True)
+        node = Parameter(dialect, _UUID, inline=True)
         sql, params = node.to_sql()
         assert sql == f"'{_UUID_TEXT}'"
         assert params == ()

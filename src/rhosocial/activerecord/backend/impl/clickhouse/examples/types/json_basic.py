@@ -39,7 +39,7 @@ if __name__ == "__main__":
         QueryStatement,
         Column,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, FunctionCall  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter, FunctionCall  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
         ColumnDefinition,
         ColumnConstraint,
@@ -81,8 +81,8 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, '{"name": "Alice", "age": 30, "tags": ["a", "b"]}')],
-                [Literal(dialect, '{"name": "Bob", "age": 25, "tags": ["c"]}')],
+                [Parameter(dialect, '{"name": "Alice", "age": 30, "tags": ["a", "b"]}')],
+                [Parameter(dialect, '{"name": "Bob", "age": 25, "tags": ["c"]}')],
             ],
         ),
     )
@@ -100,11 +100,11 @@ if __name__ == "__main__":
             Column(dialect, "id"),
             FunctionCall(
                 dialect, "JSONExtractString", Column(dialect, "data"),
-                Literal(dialect, "$.name"),
+                Parameter(dialect, "$.name"),
             ).as_("name"),
             FunctionCall(
                 dialect, "JSONExtract", Column(dialect, "data"),
-                Literal(dialect, "$.age"), Literal(dialect, "UInt32"),
+                Parameter(dialect, "$.age"), Parameter(dialect, "UInt32"),
             ).as_("age"),
         ],
         from_=NamedRelationRef(dialect, Table(dialect, "documents")),

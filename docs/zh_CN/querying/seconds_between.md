@@ -47,8 +47,8 @@ SQL 先写 `start` 再写 `end`，所以绑定参数也按这个顺序收集：
 ```python
 expr = seconds_between(
     dialect,
-    Literal(dialect, "2026-01-01 00:00:00"),
-    Literal(dialect, "2026-01-02 00:00:00"),
+    Parameter(dialect, "2026-01-01 00:00:00"),
+    Parameter(dialect, "2026-01-02 00:00:00"),
 )
 sql, params = expr.to_sql()
 # sql: "dateDiff('millisecond', %s, %s) / 1000.0"

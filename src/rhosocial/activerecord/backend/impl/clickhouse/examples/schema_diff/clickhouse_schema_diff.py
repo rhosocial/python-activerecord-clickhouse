@@ -45,7 +45,7 @@ if __name__ == "__main__":
         InsertStatement,
         ValuesSource,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter  # noqa: E402
     from rhosocial.activerecord.backend.impl.clickhouse.expression.types import (  # noqa: E402
         ClickHouseUInt32Type,
         ClickHouseDateTimeType,
@@ -83,8 +83,8 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, 1), Literal(dialect, "login"), Literal(dialect, 10.5)],
-                [Literal(dialect, 2), Literal(dialect, "logout"), Literal(dialect, 3.25)],
+                [Parameter(dialect, 1), Parameter(dialect, "login"), Parameter(dialect, 10.5)],
+                [Parameter(dialect, 2), Parameter(dialect, "logout"), Parameter(dialect, 3.25)],
             ],
         ),
     )
@@ -117,7 +117,7 @@ if __name__ == "__main__":
             "status",
             ClickHouseStringType(dialect),
             constraints=[
-                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, "new"))),
+                ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Parameter(dialect, "new"))),
             ],
         ),
     )

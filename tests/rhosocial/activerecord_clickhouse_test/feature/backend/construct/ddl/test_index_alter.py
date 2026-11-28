@@ -18,7 +18,7 @@ rather than silently dropping it or inventing a new spelling.
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.core import Column, Parameter
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression.index import (
     ClickHouseAddIndexStatement,
@@ -203,7 +203,7 @@ class TestRefusals:
 
     def test_add_rejects_an_expression_that_would_bind(self, dialect):
         with pytest.raises(UnsupportedFeatureError, match="bind parameters"):
-            _add(dialect, expression=Literal(dialect, 1)).to_sql()
+            _add(dialect, expression=Parameter(dialect, 1)).to_sql()
 
     @pytest.mark.parametrize("granularity", [0, -1, True, 1.5, "4"])
     def test_add_rejects_an_invalid_granularity(self, dialect, granularity):

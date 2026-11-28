@@ -78,7 +78,7 @@ class TestLiteralDefaultReadbacks:
         self._drop(backend, name)
         try:
             # The bare bytes scalar: the DEFAULT clause normalises it into
-            # an inline Literal, which is the path under test.
+            # an inline Parameter, which is the path under test.
             create = CreateTableStatement(
                 dialect,
                 Table(dialect, name),

@@ -12,14 +12,14 @@ ClickHouse 不使用 MySQL 的箭头运算符（`->`/`->>`）或 SQL 标准的 `
 | SQL 标准等价 | `JSON_VALUE(json, path)` | 标准函数名 |
 
 ```python
-from rhosocial.activerecord.backend.expression import Column, FunctionCall, Literal
+from rhosocial.activerecord.backend.expression import Column, FunctionCall, Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 
 # SELECT JSONExtractString(data, '$.name') AS name FROM documents
 rows = (Document.query()
         .select(FunctionCall(dialect, "JSONExtractString",
                              Column(dialect, "data"),
-                             Literal(dialect, "$.name")).as_("name"))
+                             Parameter(dialect, "$.name")).as_("name"))
         .from_(Table(dialect, "documents"))
         .all())
 ```

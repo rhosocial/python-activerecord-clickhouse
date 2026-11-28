@@ -37,7 +37,7 @@ class ClickHouseFunctionMixin:
         no companion code path re-applies the case rule to it. The *operands*
         still render through their own nodes -- a column is quoted and
         catalog-qualified by the dialect's identifier renderer, and a literal
-        binds where ``Literal`` says it binds -- so the call is assembled from
+        binds where ``Parameter`` says it binds -- so the call is assembled from
         typed parts, never from caller-vouched SQL text.
 
         Args:

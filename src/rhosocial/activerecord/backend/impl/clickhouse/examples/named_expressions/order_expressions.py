@@ -23,7 +23,7 @@ named-procedure commands to execute the queries.
 # ============================================================
 from rhosocial.activerecord.backend.expression import (  # noqa: E402
     Column,
-    Literal,
+    Parameter,
     QueryStatement,
 )
 from rhosocial.activerecord.backend.expression.predicates import (  # noqa: E402
@@ -37,7 +37,7 @@ def get_order(dialect, order_id: int):
         dialect,
         select=[Column(dialect, "id"), Column(dialect, "status"), Column(dialect, "user_id")],
         from_=NamedRelationRef(dialect, Table(dialect, "orders")),
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "id"), Literal(dialect, order_id)),
+        where=ComparisonPredicate(dialect, "=", Column(dialect, "id"), Parameter(dialect, order_id)),
     )
 
 
@@ -48,7 +48,7 @@ def check_inventory(dialect, order_id: int):
         select=[Column(dialect, "available")],
         from_=NamedRelationRef(dialect, Table(dialect, "inventory")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "order_id"), Literal(dialect, order_id)
+            dialect, "=", Column(dialect, "order_id"), Parameter(dialect, order_id)
         ),
     )
 
@@ -60,7 +60,7 @@ def reserve_inventory(dialect, order_id: int):
         select=[Column(dialect, "id"), Column(dialect, "available")],
         from_=NamedRelationRef(dialect, Table(dialect, "inventory")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "order_id"), Literal(dialect, order_id)
+            dialect, "=", Column(dialect, "order_id"), Parameter(dialect, order_id)
         ),
     )
 
@@ -72,7 +72,7 @@ def send_notification(dialect, user_id: int, type: str):
         select=[Column(dialect, "id")],
         from_=NamedRelationRef(dialect, Table(dialect, "notifications")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "user_id"), Literal(dialect, user_id)
+            dialect, "=", Column(dialect, "user_id"), Parameter(dialect, user_id)
         ),
     )
 
@@ -84,7 +84,7 @@ def process_payment(dialect, order_id: int, amount: float):
         select=[Column(dialect, "status"), Column(dialect, "transaction_id")],
         from_=NamedRelationRef(dialect, Table(dialect, "payments")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "order_id"), Literal(dialect, order_id)
+            dialect, "=", Column(dialect, "order_id"), Parameter(dialect, order_id)
         ),
     )
 
@@ -96,7 +96,7 @@ def release_inventory(dialect, order_id: int):
         select=[Column(dialect, "id")],
         from_=NamedRelationRef(dialect, Table(dialect, "inventory")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "order_id"), Literal(dialect, order_id)
+            dialect, "=", Column(dialect, "order_id"), Parameter(dialect, order_id)
         ),
     )
 
@@ -108,7 +108,7 @@ def create_order_record(dialect, order_id: int, user_id: int, amount: float):
         select=[Column(dialect, "id"), Column(dialect, "created_at")],
         from_=NamedRelationRef(dialect, Table(dialect, "order_records")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "order_id"), Literal(dialect, order_id)
+            dialect, "=", Column(dialect, "order_id"), Parameter(dialect, order_id)
         ),
     )
 
@@ -120,7 +120,7 @@ def confirm_inventory(dialect, order_id: int):
         select=[Column(dialect, "id")],
         from_=NamedRelationRef(dialect, Table(dialect, "inventory")),
         where=ComparisonPredicate(
-            dialect, "=", Column(dialect, "order_id"), Literal(dialect, order_id)
+            dialect, "=", Column(dialect, "order_id"), Parameter(dialect, order_id)
         ),
     )
 

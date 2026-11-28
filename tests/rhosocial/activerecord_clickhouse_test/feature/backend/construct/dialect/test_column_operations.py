@@ -8,7 +8,7 @@ class uses the dialect's ``_engine_function`` rather than a case-folding
 
 import pytest
 
-from rhosocial.activerecord.backend.impl.clickhouse.column_types import (
+from rhosocial.activerecord.backend.impl.clickhouse.expression.column_types import (
     ClickHouseVectorColumn,
 )
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect

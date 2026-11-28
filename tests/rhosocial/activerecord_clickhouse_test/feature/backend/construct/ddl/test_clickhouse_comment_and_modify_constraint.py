@@ -13,7 +13,7 @@ Pure-construction tests: no database connection is required.
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.core import Column, Parameter
 from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate
 from rhosocial.activerecord.backend.impl.clickhouse.dialect import ClickHouseDialect
 from rhosocial.activerecord.backend.impl.clickhouse.expression import (
@@ -131,7 +131,7 @@ class TestColumnComment:
 class TestModifyConstraint:
     def _condition(self, dialect):
         return ComparisonPredicate(
-            dialect, "gt", Column(dialect, "c"), Literal(dialect, 100, inline=True)
+            dialect, "gt", Column(dialect, "c"), Parameter(dialect, 100, inline=True)
         )
 
     def test_check(self, dialect):
@@ -179,7 +179,7 @@ class TestModifyConstraint:
 
     def test_bind_carrying_condition_is_refused(self, dialect):
         bound = ComparisonPredicate(
-            dialect, "gt", Column(dialect, "c"), Literal(dialect, 100)
+            dialect, "gt", Column(dialect, "c"), Parameter(dialect, 100)
         )
         with pytest.raises(TypeError, match="no bind parameters"):
             ClickHouseModifyConstraintStatement(

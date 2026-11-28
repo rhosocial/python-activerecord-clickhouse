@@ -37,7 +37,7 @@ if __name__ == "__main__":
         DropTableStatement,
         UpdateStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter, Column  # noqa: E402
     from rhosocial.activerecord.backend.expression.predicates import ComparisonPredicate  # noqa: E402
     from rhosocial.activerecord.backend.expression.operators import ArithmeticOperation  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
@@ -85,8 +85,8 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, "Alice"), Literal(dialect, 25)],
-                [Literal(dialect, "Bob"), Literal(dialect, 30)],
+                [Parameter(dialect, "Alice"), Parameter(dialect, 25)],
+                [Parameter(dialect, "Bob"), Parameter(dialect, 30)],
             ],
         ),
     )
@@ -100,8 +100,8 @@ if __name__ == "__main__":
     update_expr = UpdateStatement(
         dialect=dialect,
         table=Table(dialect, "users"),
-        assignments={"age": Literal(dialect, 26)},
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
+        assignments={"age": Parameter(dialect, 26)},
+        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Parameter(dialect, "Alice")),
     )
     sql, params = update_expr.to_sql()
     print(f"Update SQL: {sql}")
@@ -118,9 +118,9 @@ if __name__ == "__main__":
         dialect=dialect,
         table=Table(dialect, "users"),
         assignments={
-            "age": ArithmeticOperation(dialect, "add", Column(dialect, "age"), Literal(dialect, 1)),
+            "age": ArithmeticOperation(dialect, "add", Column(dialect, "age"), Parameter(dialect, 1)),
         },
-        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Literal(dialect, "Alice")),
+        where=ComparisonPredicate(dialect, "=", Column(dialect, "name"), Parameter(dialect, "Alice")),
     )
     sql, params = update_expr.to_sql()
     print(f"Update with expression SQL: {sql}")
@@ -133,7 +133,7 @@ if __name__ == "__main__":
     update_expr = UpdateStatement(
         dialect=dialect,
         table=Table(dialect, "users"),
-        assignments={"age": Literal(dialect, 99)},
+        assignments={"age": Parameter(dialect, 99)},
     )
     sql, params = update_expr.to_sql()
     print(f"Update all SQL: {sql}")

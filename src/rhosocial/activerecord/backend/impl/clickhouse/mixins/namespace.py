@@ -228,7 +228,7 @@ class ClickHouseNamespaceMixin:
             Column,
             ComparisonPredicate,
             InPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
         )
         from rhosocial.activerecord.backend.introspection.types import TableType
@@ -236,7 +236,7 @@ class ClickHouseNamespaceMixin:
         kind = self.resolve_table_type(table_type)
         if kind is None:
             return ComparisonPredicate(
-                self, "eq", Column(self, "engine"), Literal(self, table_type)
+                self, "eq", Column(self, "engine"), Parameter(self, table_type)
             )
         if kind is TableType.SYSTEM_TABLE:
             # System tables are identified by their database, not by an
@@ -245,20 +245,20 @@ class ClickHouseNamespaceMixin:
                 self,
                 "eq",
                 Column(self, "database"),
-                Literal(self, "system", inline=True),
+                Parameter(self, "system", inline=True),
             )
         if kind is TableType.BASE_TABLE:
             return LogicalPredicate(
                 self,
                 "NOT",
-                InPredicate(self, Column(self, "engine"), Literal(self, self.VIEW_ENGINES)),
+                InPredicate(self, Column(self, "engine"), Parameter(self, self.VIEW_ENGINES)),
             )
         for kind_name, engines in self.VIEW_ENGINE_KINDS:
             if TableType[kind_name] is kind:
-                return InPredicate(self, Column(self, "engine"), Literal(self, engines))
+                return InPredicate(self, Column(self, "engine"), Parameter(self, engines))
 
         return ComparisonPredicate(
-            self, "eq", Literal(self, 1, inline=True), Literal(self, 0, inline=True)
+            self, "eq", Parameter(self, 1, inline=True), Parameter(self, 0, inline=True)
         )
 
     def engine_kind_predicate(self, *, include_views: bool):
@@ -282,14 +282,14 @@ class ClickHouseNamespaceMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             InPredicate,
-            Literal,
+            Parameter,
             LogicalPredicate,
         )
 
         membership = InPredicate(
             self,
             Column(self, "engine"),
-            Literal(self, self.VIEW_ENGINES),
+            Parameter(self, self.VIEW_ENGINES),
         )
         if include_views:
             return membership

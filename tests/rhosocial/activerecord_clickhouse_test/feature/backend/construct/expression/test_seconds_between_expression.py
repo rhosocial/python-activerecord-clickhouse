@@ -15,7 +15,7 @@ import pytest
 
 from rhosocial.activerecord.backend.expression import (
     Column,
-    Literal,
+    Parameter,
     QueryStatement,
     SecondsBetweenExpression,
 )
@@ -113,8 +113,8 @@ class TestSecondsBetweenBindOrder:
     def test_literal_parameters_follow_the_sql(self, dialect: ClickHouseDialect):
         expr = SecondsBetweenExpression(
             dialect,
-            Literal(dialect, "2026-01-01 00:00:00"),
-            Literal(dialect, "2026-01-02 00:00:00"),
+            Parameter(dialect, "2026-01-01 00:00:00"),
+            Parameter(dialect, "2026-01-02 00:00:00"),
         )
 
         sql, params = expr.to_sql()
@@ -126,7 +126,7 @@ class TestSecondsBetweenBindOrder:
     def test_mixed_operands_keep_their_rendered_order(self, dialect: ClickHouseDialect):
         expr = SecondsBetweenExpression(
             dialect,
-            Literal(dialect, "2026-01-01 00:00:00"),
+            Parameter(dialect, "2026-01-01 00:00:00"),
             Column(dialect, "ended_at"),
         )
 

@@ -18,7 +18,7 @@ import pytest
 
 from rhosocial.activerecord.backend.expression import (
     Column,
-    Literal,
+    Parameter,
     QueryStatement,
     cast,
     seconds_between,
@@ -38,7 +38,7 @@ def _millisecond_instant(dialect, value: str):
     """
     return cast(
         dialect,
-        Literal(dialect, value),
+        Parameter(dialect, value),
         ClickHouseDateTime64Type(dialect, precision=3),
     )
 

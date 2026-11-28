@@ -426,19 +426,6 @@ class ClickHouseDialect(
         """Return the ClickHouse version this dialect is configured for."""
         return self.version
 
-    def artifact_registry(self):
-        """The kinds this backend can read: core's kinds plus ClickHouse's own.
-
-        ClickHouse owns its expression package, so the composition lives here
-        rather than in core: ``backend_registry()`` is
-        ``registry_for_packages("...impl.clickhouse.expression",
-        base=core_registry())``, frozen and cached. The overlap with core is
-        exactly that ``base``; no other backend's kinds are included.
-        """
-        from .registry import backend_registry
-
-        return backend_registry()
-
     def create_schema_differ(self):
         """Return the ClickHouse schema differ (ordinal-position aware)."""
         from rhosocial.activerecord.backend.impl.clickhouse.schema.differ import (

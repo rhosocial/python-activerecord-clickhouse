@@ -1,4 +1,4 @@
-# src/rhosocial/activerecord/backend/impl/clickhouse/column_types.py
+# src/rhosocial/activerecord/backend/impl/clickhouse/expression/column_types.py
 """ClickHouse's own column classes.
 
 A vector column on this server carries ``Array(Float32)`` or the QBit vector

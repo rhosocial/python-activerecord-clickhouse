@@ -13,13 +13,13 @@ ClickHouse does not use MySQL's arrow operators (`->`/`->>`) or the SQL-standard
 | SQL-standard equivalent | `JSON_VALUE(json, path)` | standard function name |
 
 ```python
-from rhosocial.activerecord.backend.expression.parts import FunctionCall, Column, Literal
+from rhosocial.activerecord.backend.expression import FunctionCall, Column, Parameter
 
 # SELECT JSONExtractString(data, '$.name') AS name FROM documents
 rows = (Document.query()
         .select(FunctionCall(dialect, "JSONExtractString",
                              Column(dialect, "data"),
-                             Literal(dialect, "$.name")).as_("name"))
+                             Parameter(dialect, "$.name")).as_("name"))
         .from_(TableExpression(dialect, "documents"))
         .all())
 ```

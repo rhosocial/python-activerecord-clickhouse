@@ -32,7 +32,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter, Column  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
         ColumnDefinition,
         ColumnConstraint,
@@ -77,16 +77,16 @@ if __name__ == "__main__":
             dialect,
             [
                 [
-                    Literal(dialect, "Alice"),
-                    Literal(dialect, "Engineering"),
-                    Literal(dialect, 95000.00),
-                    Literal(dialect, None),
+                    Parameter(dialect, "Alice"),
+                    Parameter(dialect, "Engineering"),
+                    Parameter(dialect, 95000.00),
+                    Parameter(dialect, None),
                 ],
-                [Literal(dialect, "Bob"), Literal(dialect, "Engineering"), Literal(dialect, 80000.00), Literal(dialect, 1)],
-                [Literal(dialect, "Charlie"), Literal(dialect, "Sales"), Literal(dialect, 70000.00), Literal(dialect, 1)],
-                [Literal(dialect, "Diana"), Literal(dialect, "Sales"), Literal(dialect, 72000.00), Literal(dialect, None)],
-                [Literal(dialect, "Eve"), Literal(dialect, "Marketing"), Literal(dialect, 68000.00), Literal(dialect, 1)],
-                [Literal(dialect, "Frank"), Literal(dialect, "Marketing"), Literal(dialect, 65000.00), Literal(dialect, 4)],
+                [Parameter(dialect, "Bob"), Parameter(dialect, "Engineering"), Parameter(dialect, 80000.00), Parameter(dialect, 1)],
+                [Parameter(dialect, "Charlie"), Parameter(dialect, "Sales"), Parameter(dialect, 70000.00), Parameter(dialect, 1)],
+                [Parameter(dialect, "Diana"), Parameter(dialect, "Sales"), Parameter(dialect, 72000.00), Parameter(dialect, None)],
+                [Parameter(dialect, "Eve"), Parameter(dialect, "Marketing"), Parameter(dialect, 68000.00), Parameter(dialect, 1)],
+                [Parameter(dialect, "Frank"), Parameter(dialect, "Marketing"), Parameter(dialect, 65000.00), Parameter(dialect, 4)],
             ],
         ),
     )
@@ -126,7 +126,7 @@ if __name__ == "__main__":
                 dialect,
                 LikeOperator.LIKE,
                 Column(dialect, "name"),
-                Literal(dialect, "A%"),
+                Parameter(dialect, "A%"),
             ),
         ),
     )
@@ -150,7 +150,7 @@ if __name__ == "__main__":
             condition=InPredicate(
                 dialect,
                 Column(dialect, "department"),
-                Literal(dialect, ["Engineering", "Sales"]),
+                Parameter(dialect, ["Engineering", "Sales"]),
             ),
         ),
     )
@@ -174,8 +174,8 @@ if __name__ == "__main__":
             condition=BetweenPredicate(
                 dialect,
                 Column(dialect, "salary"),
-                Literal(dialect, 65000.00),
-                Literal(dialect, 75000.00),
+                Parameter(dialect, 65000.00),
+                Parameter(dialect, 75000.00),
             ),
         ),
     )
@@ -250,13 +250,13 @@ if __name__ == "__main__":
                     dialect,
                     "=",
                     Column(dialect, "department"),
-                    Literal(dialect, "Engineering"),
+                    Parameter(dialect, "Engineering"),
                 ),
                 BetweenPredicate(
                     dialect,
                     Column(dialect, "salary"),
-                    Literal(dialect, 75000.00),
-                    Literal(dialect, 100000.00),
+                    Parameter(dialect, 75000.00),
+                    Parameter(dialect, 100000.00),
                 ),
             ),
         ),

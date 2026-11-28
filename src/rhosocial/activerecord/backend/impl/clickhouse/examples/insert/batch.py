@@ -77,7 +77,7 @@ if __name__ == "__main__":
         ValuesSource,
         QueryStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, AllColumnsWildcard, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter, AllColumnsWildcard, Column  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements.dql import OrderByClause  # noqa: E402
 
     insert_expr = InsertStatement(
@@ -86,10 +86,10 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, "INFO"), Literal(dialect, "System started")],
-                [Literal(dialect, "DEBUG"), Literal(dialect, "Loading configuration")],
-                [Literal(dialect, "INFO"), Literal(dialect, "Application ready")],
-                [Literal(dialect, "WARNING"), Literal(dialect, "Memory usage high")],
+                [Parameter(dialect, "INFO"), Parameter(dialect, "System started")],
+                [Parameter(dialect, "DEBUG"), Parameter(dialect, "Loading configuration")],
+                [Parameter(dialect, "INFO"), Parameter(dialect, "Application ready")],
+                [Parameter(dialect, "WARNING"), Parameter(dialect, "Memory usage high")],
             ],
         ),
         columns=["level", "message"],

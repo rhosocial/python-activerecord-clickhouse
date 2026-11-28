@@ -21,7 +21,7 @@ Three guards:
 import pytest
 
 from rhosocial.activerecord.backend.dialect.exceptions import UnsupportedFeatureError
-from rhosocial.activerecord.backend.expression.core import Column, Literal
+from rhosocial.activerecord.backend.expression.core import Column, Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements.dml import (
     InsertStatement,
@@ -130,7 +130,7 @@ def test_the_sequence_family_is_all_false(dialect, name) -> None:
 
 def test_the_insert_formatter_refuses_a_returning_clause(dialect) -> None:
     table = Table(dialect, "t")
-    source = ValuesSource(dialect, [[Literal(dialect, 1)]])
+    source = ValuesSource(dialect, [[Parameter(dialect, 1)]])
     returning = ReturningClause(dialect, [Column(dialect, "id")])
     statement = InsertStatement(dialect, table, source, returning=returning)
     with pytest.raises(UnsupportedFeatureError, match="RETURNING"):

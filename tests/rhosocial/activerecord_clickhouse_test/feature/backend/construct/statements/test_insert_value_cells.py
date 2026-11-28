@@ -11,7 +11,7 @@ scalar cell crashed before it ever reached the driver.
 
 import pytest
 
-from rhosocial.activerecord.backend.expression.core import Literal
+from rhosocial.activerecord.backend.expression.core import Parameter
 from rhosocial.activerecord.backend.expression.objects import Table
 from rhosocial.activerecord.backend.expression.statements import (
     InsertStatement,
@@ -37,7 +37,7 @@ class TestValueCells:
             columns=["id", "name"],
             source=ValuesSource(
                 dialect,
-                [[Literal(dialect, 1), Literal(dialect, "alice")]],
+                [[Parameter(dialect, 1), Parameter(dialect, "alice")]],
             ),
         )
         sql, params = stmt.to_sql()
@@ -62,7 +62,7 @@ class TestValueCells:
             dialect,
             into=Table(dialect, "t"),
             columns=["id", "name"],
-            source=ValuesSource(dialect, [[Literal(dialect, 7), "bob"]]),
+            source=ValuesSource(dialect, [[Parameter(dialect, 7), "bob"]]),
         )
         sql, params = stmt.to_sql()
         assert sql == "INSERT INTO `t` (`id`, `name`) VALUES (%s, %s)"

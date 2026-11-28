@@ -76,7 +76,7 @@ class ClickHouseIntrospectionMixin:
     clause at a time showed no single place the query existed, and its bind
     parameters were counted by hand (`offset=len(sql_params)`) -- a count that
     had to be kept in step with every branch above it. The tree carries the
-    order instead, because a `Literal` either binds or inlines at its own
+    order instead, because a `Parameter` either binds or inlines at its own
     position and the formatter concatenates the parameters in projection order
     (expression-dialect §16.2).
 
@@ -269,7 +269,7 @@ class ClickHouseIntrospectionMixin:
     def _constant(self, value, alias: str, data_type):
         """A constant projection carrying *alias* and its declared type.
 
-        A ``Literal`` has no name to give -- a literal is the one node in the
+        A ``Parameter`` has no name to give -- a literal is the one node in the
         tree with nothing to alias, because a bind parameter belongs to the
         driver and inline text is text. So a constant cell is cast to the type
         the position declares and the cast carries the alias. The type is the
@@ -277,12 +277,12 @@ class ClickHouseIntrospectionMixin:
         engine decides a bare integer literal is, while the cast states the
         column's type as the parser expects it.
         """
-        from rhosocial.activerecord.backend.expression import Literal
+        from rhosocial.activerecord.backend.expression import Parameter
         from rhosocial.activerecord.backend.expression.core import CastExpression
 
         return CastExpression(
             self,
-            Literal(self, value, inline=True),
+            Parameter(self, value, inline=True),
             data_type,
             alias=alias,
         )
@@ -312,7 +312,7 @@ class ClickHouseIntrospectionMixin:
         ``DEFAULT_CHARACTER_SET_NAME`` and invented an empty collation, which
         reported two facts the server never answered.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         params = expr.get_params()
         schema = params.get("schema", "")
@@ -324,7 +324,7 @@ class ClickHouseIntrospectionMixin:
                 self._column("engine", alias="ENGINE"),
             ],
             from_=self._system_relation("databases"),
-            where=self._where(self._equals(self._column("name"), Literal(self, schema))),
+            where=self._where(self._equals(self._column("name"), Parameter(self, schema))),
         )
         return query.to_sql()
 
@@ -332,7 +332,7 @@ class ClickHouseIntrospectionMixin:
         self, expr: "TableListQueryStatement"
     ) -> Tuple[str, tuple]:
         """Format table list query against ClickHouse system.tables."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         params = expr.get_params()
         schema = params.get("schema", "")
@@ -340,7 +340,7 @@ class ClickHouseIntrospectionMixin:
         include_system = params.get("include_system", False)
         table_type = params.get("table_type")
 
-        conditions = [self._equals(self._column("database"), Literal(self, schema))]
+        conditions = [self._equals(self._column("database"), Parameter(self, schema))]
 
         # ``include_system`` excludes the engine's own database. Asking for
         # system tables by kind *is* that request already, so the exclusion is
@@ -348,7 +348,7 @@ class ClickHouseIntrospectionMixin:
         # conjoin and no row can satisfy both.
         if not include_system and not self.is_system_table_type(table_type):
             conditions.append(
-                self._not_equals(self._column("database"), Literal(self, "system", inline=True))
+                self._not_equals(self._column("database"), Parameter(self, "system", inline=True))
             )
         if not include_views:
             # The set of engines that store a view is declared, not guessed at
@@ -402,7 +402,7 @@ class ClickHouseIntrospectionMixin:
             FunctionCall,
             LikeOperator,
             LikePredicate,
-            Literal,
+            Parameter,
             QueryStatement,
         )
 
@@ -432,10 +432,10 @@ class ClickHouseIntrospectionMixin:
                         # the start of a format specifier and raise
                         # ``ValueError: unsupported format character "'"``.
                         # Measured in CI on 3.10 / ClickHouse 25.8.
-                        Literal(self, "Nullable(%%", inline=True),
+                        Parameter(self, "Nullable(%%", inline=True),
                     ),
-                    Literal(self, "YES", inline=True),
-                    Literal(self, "NO", inline=True),
+                    Parameter(self, "YES", inline=True),
+                    Parameter(self, "NO", inline=True),
                     alias="IS_NULLABLE",
                 ),
                 self._column("type", alias="DATA_TYPE"),
@@ -451,8 +451,8 @@ class ClickHouseIntrospectionMixin:
             ],
             from_=self._system_relation("columns"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, schema)),
-                self._equals(self._column("table"), Literal(self, table)),
+                self._equals(self._column("database"), Parameter(self, schema)),
+                self._equals(self._column("table"), Parameter(self, table)),
             ),
             order_by=self._order_by("position"),
         )
@@ -468,7 +468,7 @@ class ClickHouseIntrospectionMixin:
         constant cells restate what the engine does not have: no uniqueness, no
         prefixes, no packed form, no per-index nullability.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         from ..expression.types import ClickHouseNullableType, ClickHouseStringType
 
@@ -493,8 +493,8 @@ class ClickHouseIntrospectionMixin:
             ],
             from_=self._system_relation("data_skipping_indices"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, schema)),
-                self._equals(self._column("table"), Literal(self, table)),
+                self._equals(self._column("database"), Parameter(self, schema)),
+                self._equals(self._column("table"), Parameter(self, table)),
             ),
             order_by=self._order_by("name"),
         )
@@ -512,19 +512,19 @@ class ClickHouseIntrospectionMixin:
 
     def format_view_list_query_statement(self, expr: "ViewListQueryStatement") -> Tuple[str, tuple]:
         """Format view list query against ClickHouse system.tables (View engines)."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         params = expr.get_params()
         schema = params.get("schema", "")
         include_system = params.get("include_system", False)
 
         conditions = [
-            self._equals(self._column("database"), Literal(self, schema)),
+            self._equals(self._column("database"), Parameter(self, schema)),
             self.engine_kind_predicate(include_views=True),
         ]
         if not include_system:
             conditions.append(
-                self._not_equals(self._column("database"), Literal(self, "system", inline=True))
+                self._not_equals(self._column("database"), Parameter(self, "system", inline=True))
             )
 
         query = QueryStatement(
@@ -543,7 +543,7 @@ class ClickHouseIntrospectionMixin:
 
     def format_view_info_query_statement(self, expr: "ViewInfoQueryStatement") -> Tuple[str, tuple]:
         """Format single view information query against ClickHouse system.tables."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         params = expr.get_params()
         view_name = params.get("view_name", "")
@@ -559,8 +559,8 @@ class ClickHouseIntrospectionMixin:
             ],
             from_=self._system_relation("tables"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, schema)),
-                self._equals(self._column("name"), Literal(self, view_name)),
+                self._equals(self._column("database"), Parameter(self, schema)),
+                self._equals(self._column("name"), Parameter(self, view_name)),
                 self.engine_kind_predicate(include_views=True),
             ),
         )
@@ -654,7 +654,7 @@ class ClickHouseIntrospectionMixin:
     def _profile_label(self, text: Optional[str], alias: str):
         """A constant label as a named select-list entry.
 
-        ``Literal`` is deliberately unaliasable -- a value has nothing to name
+        ``Parameter`` is deliberately unaliasable -- a value has nothing to name
         -- so the constant is cast to ``String``, which is the smallest node
         that produces a named result. The cast is not there for its type: it is
         there so the label can be called ``column_name`` or ``source``, which
@@ -708,7 +708,7 @@ class ClickHouseIntrospectionMixin:
             CaseExpression,
             Column,
             IsNullPredicate,
-            Literal,
+            Parameter,
             QueryStatement,
             RowCountWildcard,
             SumFunction,
@@ -763,10 +763,10 @@ class ClickHouseIntrospectionMixin:
                         cases=[
                             (
                                 IsNullPredicate(self, column),
-                                Literal(self, 1, inline=True),
+                                Parameter(self, 1, inline=True),
                             )
                         ],
-                        else_result=Literal(self, 0, inline=True),
+                        else_result=Parameter(self, 0, inline=True),
                     ),
                 ).as_("null_count"),
                 CountFunction(self, column, distinct=True).as_("distinct_count"),
@@ -831,7 +831,7 @@ class ClickHouseIntrospectionMixin:
         than it does.
         """
         from rhosocial.activerecord.backend.expression import (
-            Literal,
+            Parameter,
             QueryStatement,
         )
 
@@ -853,7 +853,7 @@ class ClickHouseIntrospectionMixin:
                 select=[self._profile_label(None, "column_name")],
                 from_=self._system_relation("one"),
                 where=self._where(
-                    self._equals(Literal(self, 1, inline=True), Literal(self, 0, inline=True))
+                    self._equals(Parameter(self, 1, inline=True), Parameter(self, 0, inline=True))
                 ),
             ).to_sql()
 
@@ -937,7 +937,7 @@ class ClickHouseIntrospectionMixin:
         from rhosocial.activerecord.backend.expression import (
             FunctionCall,
             InPredicate,
-            Literal,
+            Parameter,
             QueryStatement,
             RowCountWildcard,
             SelectModifier,
@@ -989,7 +989,7 @@ class ClickHouseIntrospectionMixin:
                         self,
                         "NULLIF",
                         CountFunction(self, column, distinct=True),
-                        Literal(self, 0, inline=True),
+                        Parameter(self, 0, inline=True),
                     )
                 ],
                 from_=source,
@@ -1079,7 +1079,7 @@ class ClickHouseIntrospectionMixin:
         value: a caller who asked for the partition scheme did not ask for a
         measurement, and summing rows and bytes is exactly that measurement.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
         from rhosocial.activerecord.backend.expression.functions.aggregate import (
             count,
             max_,
@@ -1108,9 +1108,9 @@ class ClickHouseIntrospectionMixin:
             select=select,
             from_=self._system_relation("parts"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, expr.database)),
-                self._equals(self._column("table"), Literal(self, expr.table)),
-                self._equals(self._column("active"), Literal(self, 1)),
+                self._equals(self._column("database"), Parameter(self, expr.database)),
+                self._equals(self._column("table"), Parameter(self, expr.table)),
+                self._equals(self._column("active"), Parameter(self, 1)),
             ),
             group_by_having=self._group_by("partition_id"),
             order_by=self._order_by("partition_id"),
@@ -1126,7 +1126,7 @@ class ClickHouseIntrospectionMixin:
         the introspector's ``None``. The key columns come back as the server
         stores them: an absent key is ``''``, not ``NULL``.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         query = QueryStatement(
             self,
@@ -1145,8 +1145,8 @@ class ClickHouseIntrospectionMixin:
             ],
             from_=self._system_relation("tables"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, expr.database)),
-                self._equals(self._column("name"), Literal(self, expr.table)),
+                self._equals(self._column("database"), Parameter(self, expr.database)),
+                self._equals(self._column("name"), Parameter(self, expr.table)),
             ),
         )
         return query.to_sql()
@@ -1181,7 +1181,7 @@ class ClickHouseIntrospectionMixin:
         decides whether the projection may name it, so an older server is asked
         for the columns it has and ``raw`` simply holds no ``creation`` entry.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         capabilities = capabilities_for_version(self.version_or_none)
         select = [
@@ -1206,8 +1206,8 @@ class ClickHouseIntrospectionMixin:
             select=select,
             from_=self._system_relation("data_skipping_indices"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, expr.database)),
-                self._equals(self._column("table"), Literal(self, expr.table)),
+                self._equals(self._column("database"), Parameter(self, expr.database)),
+                self._equals(self._column("table"), Parameter(self, expr.table)),
             ),
             order_by=self._order_by("name"),
         )
@@ -1230,7 +1230,7 @@ class ClickHouseIntrospectionMixin:
         :class:`~rhosocial.activerecord.backend.introspection.errors.IntrospectionNotSupportedError`
         on those lines, with the catalogue table named in the message.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
         from rhosocial.activerecord.backend.introspection.errors import (
             IntrospectionNotSupportedError,
         )
@@ -1253,8 +1253,8 @@ class ClickHouseIntrospectionMixin:
             ],
             from_=self._system_relation("constraints"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, expr.database)),
-                self._equals(self._column("table"), Literal(self, expr.table)),
+                self._equals(self._column("database"), Parameter(self, expr.database)),
+                self._equals(self._column("table"), Parameter(self, expr.table)),
             ),
             order_by=self._order_by("name"),
         )
@@ -1264,7 +1264,7 @@ class ClickHouseIntrospectionMixin:
         self, expr: "ClickHouseProjectionListQuery"
     ) -> Tuple[str, tuple]:
         """One row per projection on the table, from ``system.projections``."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         query = QueryStatement(
             self,
@@ -1276,8 +1276,8 @@ class ClickHouseIntrospectionMixin:
             ],
             from_=self._system_relation("projections"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, expr.database)),
-                self._equals(self._column("table"), Literal(self, expr.table)),
+                self._equals(self._column("database"), Parameter(self, expr.database)),
+                self._equals(self._column("table"), Parameter(self, expr.table)),
             ),
             order_by=self._order_by("name"),
         )
@@ -1298,7 +1298,7 @@ class ClickHouseIntrospectionMixin:
         reads it with ``row.get`` so a line without it simply has no
         ``target_table`` in ``raw``.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         capabilities = capabilities_for_version(self.version_or_none)
         select = [
@@ -1315,8 +1315,8 @@ class ClickHouseIntrospectionMixin:
             select=select,
             from_=self._system_relation("tables"),
             where=self._where(
-                self._equals(self._column("database"), Literal(self, expr.database)),
-                self._equals(self._column("engine"), Literal(self, "MaterializedView")),
+                self._equals(self._column("database"), Parameter(self, expr.database)),
+                self._equals(self._column("engine"), Parameter(self, "MaterializedView")),
             ),
             order_by=self._order_by("name"),
         )
@@ -1331,11 +1331,11 @@ class ClickHouseIntrospectionMixin:
         match an alias row beside the canonical one, and the catalogue is the
         only place that fact lives.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         conditions = []
         if expr.name:
-            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+            conditions.append(self._equals(self._column("name"), Parameter(self, expr.name)))
 
         query = QueryStatement(
             self,
@@ -1366,14 +1366,14 @@ class ClickHouseIntrospectionMixin:
         ``key.names`` one identifier on ClickHouse rather than a qualification
         the engine would try to resolve.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         conditions = []
         if expr.name:
-            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+            conditions.append(self._equals(self._column("name"), Parameter(self, expr.name)))
         if expr.database is not None:
             conditions.append(
-                self._equals(self._column("database"), Literal(self, expr.database))
+                self._equals(self._column("database"), Parameter(self, expr.database))
             )
 
         query = QueryStatement(
@@ -1417,11 +1417,11 @@ class ClickHouseIntrospectionMixin:
         ``system.clusters`` is one row per shard/replica, so the ordering keeps
         a cluster's members adjacent and in the engine's own numbered order.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         conditions = []
         if expr.name:
-            conditions.append(self._equals(self._column("cluster"), Literal(self, expr.name)))
+            conditions.append(self._equals(self._column("cluster"), Parameter(self, expr.name)))
 
         query = QueryStatement(
             self,
@@ -1452,11 +1452,11 @@ class ClickHouseIntrospectionMixin:
         self, expr: "ClickHouseQuotaListQuery"
     ) -> Tuple[str, tuple]:
         """Quota rows, from ``system.quotas``, optionally one name."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         conditions = []
         if expr.name:
-            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+            conditions.append(self._equals(self._column("name"), Parameter(self, expr.name)))
 
         query = QueryStatement(
             self,
@@ -1487,11 +1487,11 @@ class ClickHouseIntrospectionMixin:
         authentication methods an account accepts, not the parameters that
         would describe a secret.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         conditions = []
         if expr.name:
-            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+            conditions.append(self._equals(self._column("name"), Parameter(self, expr.name)))
 
         query = QueryStatement(
             self,
@@ -1522,11 +1522,11 @@ class ClickHouseIntrospectionMixin:
         self, expr: "ClickHouseRoleListQuery"
     ) -> Tuple[str, tuple]:
         """Role rows, from ``system.roles``, optionally one name."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         conditions = []
         if expr.name:
-            conditions.append(self._equals(self._column("name"), Literal(self, expr.name)))
+            conditions.append(self._equals(self._column("name"), Parameter(self, expr.name)))
 
         query = QueryStatement(
             self,

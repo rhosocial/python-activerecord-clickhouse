@@ -71,10 +71,10 @@ class ClickHouseStatusQueryMixin:
         from rhosocial.activerecord.backend.expression import (
             Column,
             InPredicate,
-            Literal,
+            Parameter,
         )
 
-        return InPredicate(self, Column(self, column_name), Literal(self, tuple(values)))
+        return InPredicate(self, Column(self, column_name), Parameter(self, tuple(values)))
 
     def _is_null(self, column_name: str):
         """``<column_name> IS NULL``."""
@@ -205,13 +205,13 @@ class ClickHouseStatusQueryMixin:
         self, expr: "ClickHouseServerSettingQuery"
     ) -> Tuple[str, tuple]:
         """One ``name``/``value`` row of ``system.server_settings``."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         query = QueryStatement(
             self,
             select=[self._column("name"), self._column("value")],
             from_=self._system_source("server_settings"),
-            where=self._where(self._equals(self._column("name"), Literal(self, expr.name))),
+            where=self._where(self._equals(self._column("name"), Parameter(self, expr.name))),
         )
         return query.to_sql()
 
@@ -219,14 +219,14 @@ class ClickHouseStatusQueryMixin:
         self, expr: "ClickHouseDatabaseTotalSizeQuery"
     ) -> Tuple[str, tuple]:
         """Total on-disk size of one database's tables."""
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
         from rhosocial.activerecord.backend.expression.functions.aggregate import sum_
 
         query = QueryStatement(
             self,
             select=[sum_(self, self._column("total_bytes"), alias="total_size")],
             from_=self._system_source("tables"),
-            where=self._where(self._equals(self._column("database"), Literal(self, expr.database))),
+            where=self._where(self._equals(self._column("database"), Parameter(self, expr.database))),
         )
         return query.to_sql()
 
@@ -373,13 +373,13 @@ class ClickHouseStatusQueryMixin:
         query or the session can change has its row here and none in
         ``system.server_settings``.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         query = QueryStatement(
             self,
             select=[self._column("value")],
             from_=self._system_source("settings"),
-            where=self._where(self._equals(self._column("name"), Literal(self, expr.name))),
+            where=self._where(self._equals(self._column("name"), Parameter(self, expr.name))),
         )
         return query.to_sql()
 
@@ -391,11 +391,11 @@ class ClickHouseStatusQueryMixin:
         A scalar with no relation, so the statement is a ``QueryStatement``
         whose select list is the one constant and whose ``from_`` is absent.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
 
         query = QueryStatement(
             self,
-            select=[Literal(self, 1, inline=True)],
+            select=[Parameter(self, 1, inline=True)],
         )
         return query.to_sql()
 
@@ -451,7 +451,7 @@ class ClickHouseStatusQueryMixin:
         ``LIMIT 20`` into the statement. Binding it would have changed the
         parameter tuple for a value nobody passes in.
         """
-        from rhosocial.activerecord.backend.expression import Literal, QueryStatement
+        from rhosocial.activerecord.backend.expression import Parameter, QueryStatement
         from rhosocial.activerecord.backend.expression.query_parts import LimitOffsetClause
 
         query = QueryStatement(
@@ -465,7 +465,7 @@ class ClickHouseStatusQueryMixin:
             ],
             from_=self._system_source("replicas"),
             limit_offset=(
-                LimitOffsetClause(self, limit=Literal(self, expr.limit, inline=True))
+                LimitOffsetClause(self, limit=Parameter(self, expr.limit, inline=True))
                 if expr.limit is not None
                 else None
             ),

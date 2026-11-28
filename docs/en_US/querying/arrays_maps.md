@@ -11,7 +11,7 @@ class Event(ActiveRecord):
 
 # query rows containing a tag
 rows = Event.query().where(
-    FunctionCall(dialect, "has", Column(dialect, "tags"), Literal(dialect, "clickhouse"))
+    FunctionCall(dialect, "has", Column(dialect, "tags"), Parameter(dialect, "clickhouse"))
 ).all()
 ```
 
@@ -44,7 +44,7 @@ class Counter(ActiveRecord):
 
 # get a key's value
 rows = Counter.query().select(
-    Column(dialect, "counts")[Literal(dialect, "clicks")]   # map[key]
+    Column(dialect, "counts")[Parameter(dialect, "clicks")]   # map[key]
 ).all()
 ```
 

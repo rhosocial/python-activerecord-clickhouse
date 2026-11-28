@@ -325,7 +325,7 @@ sql = self._engine_function("groupUniqArray", self._engine_function("toTypeName"
 node rather than a `FunctionCall`, precisely so no companion code path
 re-applies the case rule to it. The operands are still their own nodes: a
 column is quoted and catalog-qualified by the dialect's identifier renderer,
-and a literal binds where `Literal` says it binds. Only the name is raw, never
+and a literal binds where `Parameter` says it binds. Only the name is raw, never
 the whole call. The same helper carries `currentUser` and `version`, the two
 status reads whose casing is not the shared renderer's to decide — and the
 second is the read the backend's version detection rests on.

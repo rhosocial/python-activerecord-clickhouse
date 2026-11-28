@@ -38,7 +38,7 @@ from rhosocial.activerecord.backend.expression import (
     DropTableStatement,
     ExplainStatement,
     InsertStatement,
-    Literal,
+    Parameter,
     QueryStatement,
     ValuesSource,
 )
@@ -111,7 +111,7 @@ def _render(
             where=WhereClause(
                 dialect,
                 condition=ComparisonPredicate(
-                    dialect, "=", Column(dialect, "id"), Literal(dialect, 42)
+                    dialect, "=", Column(dialect, "id"), Parameter(dialect, 42)
                 ),
             ),
         )
@@ -175,7 +175,7 @@ def _seed_expr(dialect: ClickHouseDialect) -> InsertStatement:
         dialect=dialect,
         into=Table(dialect, _TABLE),
         columns=["id", "age"],
-        source=ValuesSource(dialect, [[Literal(dialect, value) for value in row] for row in rows]),
+        source=ValuesSource(dialect, [[Parameter(dialect, value) for value in row] for row in rows]),
     )
 
 
@@ -357,7 +357,7 @@ class TestClickHouseExplainDeep:
     def test_filter_predicate_shows_filter_node(self, indexed_backend) -> None:
         self._gate(indexed_backend)
         dialect = indexed_backend.dialect
-        condition = ComparisonPredicate(dialect, ">", Column(dialect, "age"), Literal(dialect, 30))
+        condition = ComparisonPredicate(dialect, ">", Column(dialect, "age"), Parameter(dialect, 30))
         result = indexed_backend.explain(_query(dialect, condition=condition))
         text = _plan_text(result.raw_rows)
         # Older releases label the predicate node "WHERE"; newer ones surface a
@@ -371,7 +371,7 @@ class TestClickHouseExplainDeep:
     def test_primary_key_predicate_still_yields_a_plan(self, indexed_backend) -> None:
         self._gate(indexed_backend)
         dialect = indexed_backend.dialect
-        condition = ComparisonPredicate(dialect, "=", Column(dialect, "id"), Literal(dialect, 1))
+        condition = ComparisonPredicate(dialect, "=", Column(dialect, "id"), Parameter(dialect, 1))
         result = indexed_backend.explain(_query(dialect, condition=condition))
         text = _plan_text(result.raw_rows)
         assert any(

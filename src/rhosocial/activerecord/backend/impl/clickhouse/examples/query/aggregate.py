@@ -32,7 +32,7 @@ if __name__ == "__main__":
         ValuesSource,
         DropTableStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
         ColumnDefinition,
         ColumnConstraint,
@@ -72,11 +72,36 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, "Widget"), Literal(dialect, 10), Literal(dialect, 5.00), Literal(dialect, "North")],
-                [Literal(dialect, "Widget"), Literal(dialect, 5), Literal(dialect, 5.00), Literal(dialect, "South")],
-                [Literal(dialect, "Gadget"), Literal(dialect, 8), Literal(dialect, 10.00), Literal(dialect, "North")],
-                [Literal(dialect, "Gadget"), Literal(dialect, 3), Literal(dialect, 10.00), Literal(dialect, "South")],
-                [Literal(dialect, "Widget"), Literal(dialect, 7), Literal(dialect, 5.00), Literal(dialect, "East")],
+                [
+                    Parameter(dialect, "Widget"),
+                    Parameter(dialect, 10),
+                    Parameter(dialect, 5.00),
+                    Parameter(dialect, "North"),
+                ],
+                [
+                    Parameter(dialect, "Widget"),
+                    Parameter(dialect, 5),
+                    Parameter(dialect, 5.00),
+                    Parameter(dialect, "South"),
+                ],
+                [
+                    Parameter(dialect, "Gadget"),
+                    Parameter(dialect, 8),
+                    Parameter(dialect, 10.00),
+                    Parameter(dialect, "North"),
+                ],
+                [
+                    Parameter(dialect, "Gadget"),
+                    Parameter(dialect, 3),
+                    Parameter(dialect, 10.00),
+                    Parameter(dialect, "South"),
+                ],
+                [
+                    Parameter(dialect, "Widget"),
+                    Parameter(dialect, 7),
+                    Parameter(dialect, 5.00),
+                    Parameter(dialect, "East"),
+                ],
             ],
         ),
     )
@@ -109,7 +134,7 @@ if __name__ == "__main__":
                 dialect,
                 ">",
                 F.sum_(dialect, Column(dialect, "quantity")),
-                Literal(dialect, 10),
+                Parameter(dialect, 10),
             ),
         ),
     )

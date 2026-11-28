@@ -293,11 +293,11 @@ class ClickHouseBackend(
         expected = 0
         if options.pk_values:
             from rhosocial.activerecord.backend.expression import Column
-            from rhosocial.activerecord.backend.expression.core import Literal
+            from rhosocial.activerecord.backend.expression.core import Parameter
             from rhosocial.activerecord.backend.expression.predicates import InPredicate
 
             pk_col = Column(self.dialect, options.pk_column)
-            pk_literals = Literal(self.dialect, options.pk_values)
+            pk_literals = Parameter(self.dialect, options.pk_values)
             predicate = InPredicate(self.dialect, pk_col, pk_literals)
             expected = self._count_predicate_rows(options.table, options.schema_name, predicate)
         result = super().bulk_update(options)

@@ -128,7 +128,7 @@ ClickHouse 通过 `FunctionFactory` 与 `AggregateFunctionFactory` 解析函数�
 sql = self._engine_function("groupUniqArray", self._engine_function("toTypeName", column))
 ```
 
-`_engine_function()` 把可选的操作符文本作为 `RawSQL` 节点交给 SQL，而不是 `FunctionCall`，正是为了让任何配套代码路径都不能再对它套一次大小写规则。操作数仍是它们自己的节点：列由 dialect 的标识符渲染器加引号并限定 catalog，字面量在 `Literal` 说的位置绑定。只有名字是原样的，绝不是整个调用。同一个 helper 也承载 `currentUser` 与 `version`——这两个状态读取的大小写不归共享渲染器决定，而后者正是后端版本检测所依赖的读取。
+`_engine_function()` 把可选的操作符文本作为 `RawSQL` 节点交给 SQL，而不是 `FunctionCall`，正是为了让任何配套代码路径都不能再对它套一次大小写规则。操作数仍是它们自己的节点：列由 dialect 的标识符渲染器加引号并限定 catalog，字面量在 `Parameter` 说的位置绑定。只有名字是原样的，绝不是整个调用。同一个 helper 也承载 `currentUser` 与 `version`——这两个状态读取的大小写不归共享渲染器决定，而后者正是后端版本检测所依赖的读取。
 
 一个陷阱藏在另一个后面：引擎只回答查询里第一个无法解析的名字，所以修好 `MINORNULL` 之后才暴露出下一个。画像最初的形式请求 `groupUniqArray(typeof(col))`，而 `typeof` **根本不是 ClickHouse 函数**——它从未发布。对照 ClickHouse 发布的函数目录（常规函数、全部 195 个聚合函数、表函数与窗口函数）逐页核对，字符串 `typeof` 一次都没出现，大小写不敏感地算也没有；存在的是 `toTypeName`，一台真实服务器验证了这一点。现在渲染出的 arm 是
 

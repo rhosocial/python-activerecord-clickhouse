@@ -3,7 +3,7 @@
 
 import pytest
 
-from rhosocial.activerecord.backend.expression import Column, Literal, QueryStatement
+from rhosocial.activerecord.backend.expression import Column, Parameter, QueryStatement
 from rhosocial.activerecord.backend.expression.functions import (
     date_add,
     date_diff,
@@ -93,7 +93,7 @@ class TestDateTimeIntervalExpressions:
     def test_date_add_literal_source_params_order(self, clickhouse_dialect: ClickHouseDialect):
         expr = date_add(
             clickhouse_dialect,
-            Literal(clickhouse_dialect, "2026-06-04 10:00:00"),
+            Parameter(clickhouse_dialect, "2026-06-04 10:00:00"),
             30,
             "minute",
         )
@@ -146,7 +146,7 @@ class TestDateTimeIntervalExpressions:
             clickhouse_dialect,
             select=[extract(clickhouse_dialect, "year", Column(clickhouse_dialect, "created_at"))],
             from_="events",
-            where=shifted > Literal(clickhouse_dialect, "2026-01-01"),
+            where=shifted > Parameter(clickhouse_dialect, "2026-01-01"),
         )
 
         sql, params = query.to_sql()

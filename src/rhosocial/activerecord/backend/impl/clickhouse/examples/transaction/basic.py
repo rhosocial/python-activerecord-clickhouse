@@ -38,7 +38,7 @@ if __name__ == "__main__":
         ValuesSource,
         QueryStatement,
     )
-    from rhosocial.activerecord.backend.expression.core import Literal, Column  # noqa: E402
+    from rhosocial.activerecord.backend.expression.core import Parameter, Column  # noqa: E402
     from rhosocial.activerecord.backend.expression.statements import (  # noqa: E402
         ColumnDefinition,
         ColumnConstraint,
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                 "balance",
                 "Decimal(10, 2)",
                 constraints=[
-                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Literal(dialect, 0))),
+                    ColumnConstraint(dialect, branch=ColumnDefaultConstraint(dialect, Parameter(dialect, 0))),
                 ],
             ),
         ],
@@ -91,7 +91,7 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, "Alice"), Literal(dialect, 100)],
+                [Parameter(dialect, "Alice"), Parameter(dialect, 100)],
             ],
         ),
     )
@@ -118,7 +118,7 @@ if __name__ == "__main__":
         source=ValuesSource(
             dialect,
             [
-                [Literal(dialect, "Bob"), Literal(dialect, 50)],
+                [Parameter(dialect, "Bob"), Parameter(dialect, 50)],
             ],
         ),
     )

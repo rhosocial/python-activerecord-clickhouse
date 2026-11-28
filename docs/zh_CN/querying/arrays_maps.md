@@ -10,7 +10,7 @@ class Event(ActiveRecord):
 
 # 查询包含某标签的行
 rows = Event.query().where(
-    FunctionCall(dialect, "has", Column(dialect, "tags"), Literal(dialect, "clickhouse"))
+    FunctionCall(dialect, "has", Column(dialect, "tags"), Parameter(dialect, "clickhouse"))
 ).all()
 ```
 
@@ -43,7 +43,7 @@ class Counter(ActiveRecord):
 
 # 取某 key 的值
 rows = Counter.query().select(
-    Column(dialect, "counts")[Literal(dialect, "clicks")]   # map[key]
+    Column(dialect, "counts")[Parameter(dialect, "clicks")]   # map[key]
 ).all()
 ```
 

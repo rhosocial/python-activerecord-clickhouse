@@ -4,7 +4,7 @@ The introspection and status reads are expression trees, not SQL strings.
 
 Every statement this backend asks the server about its own catalogs is built
 from nodes -- ``QueryStatement``, ``Column``, ``ComparisonPredicate``,
-``InPredicate``, ``WhereClause``, ``OrderByClause``, ``Literal`` -- and rendered
+``InPredicate``, ``WhereClause``, ``OrderByClause``, ``Parameter`` -- and rendered
 by the dialect. What this file pins is the half that can be checked without a
 server: the projection, in order and with its aliases; the parameter tuple, in
 order; and the engine-specific spellings that a concatenated string used to
@@ -13,7 +13,7 @@ carry without anything asserting them.
 Why this matters beyond tidiness: a string assembled one clause at a time has no
 single place the query exists, and its bind parameters were counted by hand
 (``offset=len(sql_params)``). Nothing checked the count against the branches
-above it. The tree carries the order instead -- a ``Literal`` binds or inlines at
+above it. The tree carries the order instead -- a ``Parameter`` binds or inlines at
 its own position -- so the tuple below is the whole parameter contract.
 
 No database is involved; a dialect instance is the only input.
